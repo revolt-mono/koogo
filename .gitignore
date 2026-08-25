@@ -1,0 +1,12 @@
+# local dev
+.agents
+.claude
+.codex
+.mcp.json
+refs
+
+# build output
+.build
+.swiftpm
+dist
+.DS_Store
