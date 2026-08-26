@@ -1,11 +1,12 @@
 import Foundation
 
 struct UsagePriceCatalog: Sendable {
-    // Sources, checked 2026-08-25:
+    // Sources, checked 2026-08-26:
     // https://developers.openai.com/api/docs/pricing
+    // https://openai.com/index/gpt-5-6
     // https://platform.claude.com/docs/en/about-claude/pricing
     // https://platform.claude.com/docs/en/models/overview
-    static let pricingAsOf = "2026-08-25"
+    static let pricingAsOf = "2026-08-26"
 
     struct Model: Hashable, Sendable {
         fileprivate let id: String
@@ -136,16 +137,16 @@ struct UsagePriceCatalog: Sendable {
         "gpt-5.6-sol": CodexModelPrice(
             "GPT 5.6 Sol",
             standard: .tiered(
-                short: Rates(4_000, 400, 5_000, 20_000),
-                long: Rates(8_000, 800, 10_000, 30_000)
+                short: Rates(5_000, 500, 6_250, 30_000),
+                long: Rates(10_000, 1_000, 12_500, 45_000)
             ),
             fast: .tiered(
-                short: Rates(8_000, 800, 10_000, 40_000),
-                long: Rates(16_000, 1_600, 20_000, 60_000)
+                short: Rates(10_000, 1_000, 12_500, 60_000),
+                long: Rates(20_000, 2_000, 25_000, 90_000)
             ),
             flex: .tiered(
-                short: Rates(2_000, 200, 2_500, 10_000),
-                long: Rates(4_000, 400, 5_000, 15_000)
+                short: Rates(2_500, 250, 3_125, 15_000),
+                long: Rates(5_000, 500, 6_250, 22_500)
             )
         ),
         "gpt-5.6-terra": CodexModelPrice(

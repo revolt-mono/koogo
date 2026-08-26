@@ -16,7 +16,10 @@ final class UsagePricingTests: XCTestCase {
             output: 10_000
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: event)).costNanodollars, 890_000_000)
+        XCTAssertEqual(
+            try XCTUnwrap(catalog.quote(for: event)).costNanodollars,
+            1_162_500_000
+        )
     }
 
     func testCodexLongContextAndFastRatesApplyToTheWholeRequest() throws {
@@ -37,9 +40,18 @@ final class UsagePricingTests: XCTestCase {
             serviceTier: .fast
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: atBoundary)).costNanodollars, 1_088_000_000)
-        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: long)).costNanodollars, 2_176_008_000)
-        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: fast)).costNanodollars, 1_200_000_000)
+        XCTAssertEqual(
+            try XCTUnwrap(catalog.quote(for: atBoundary)).costNanodollars,
+            1_360_000_000
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(catalog.quote(for: long)).costNanodollars,
+            2_720_010_000
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(catalog.quote(for: fast)).costNanodollars,
+            1_600_000_000
+        )
     }
 
     func testCodexFlexRatesAreExactAndUnsupportedModelsAreIgnored() throws {
@@ -63,7 +75,10 @@ final class UsagePricingTests: XCTestCase {
             serviceTier: .flex
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: long)).costNanodollars, 1_088_004_000)
+        XCTAssertEqual(
+            try XCTUnwrap(catalog.quote(for: long)).costNanodollars,
+            1_360_005_000
+        )
         XCTAssertEqual(
             try XCTUnwrap(catalog.quote(for: fractional)).costNanodollars,
             Decimal(375) / 10
@@ -182,7 +197,7 @@ final class UsagePricingTests: XCTestCase {
         let today = snapshot.codex.today
 
         XCTAssertEqual(today.processedTokens, 240_000)
-        XCTAssertEqual(today.costUSD, Decimal(string: "0.808"))
+        XCTAssertEqual(today.costUSD, Decimal(string: "1.008"))
         XCTAssertEqual(
             snapshot.codex.favorite,
             ProviderUsageSnapshot.Favorite(
@@ -196,7 +211,7 @@ final class UsagePricingTests: XCTestCase {
                 UsageDaySnapshot(
                     date: calendar.startOfDay(for: timestamp),
                     processedTokens: 240_000,
-                    costUSD: try XCTUnwrap(Decimal(string: "0.808"))
+                    costUSD: try XCTUnwrap(Decimal(string: "1.008"))
                 )
             ]
         )
@@ -275,9 +290,9 @@ final class UsagePricingTests: XCTestCase {
         )
         let total = snapshot.codex.today.costUSD + snapshot.claude.today.costUSD
 
-        XCTAssertEqual(snapshot.codex.today.costUSD, Decimal(string: "0.004"))
+        XCTAssertEqual(snapshot.codex.today.costUSD, Decimal(string: "0.005"))
         XCTAssertEqual(snapshot.claude.today.costUSD, Decimal(string: "0.005"))
-        XCTAssertEqual(total, Decimal(string: "0.009"))
+        XCTAssertEqual(total, Decimal(string: "0.01"))
         XCTAssertEqual(UsageFormatting.cost(snapshot.claude.today.costUSD), "$0.01")
         XCTAssertEqual(UsageFormatting.cost(total), "$0.01")
         XCTAssertEqual(
@@ -346,8 +361,8 @@ final class UsagePricingTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.004"))
-        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.008"))
+        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.005"))
+        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.01"))
     }
 
     func testComparisonIncludesBothAlignedCutoffInstants() throws {
@@ -374,8 +389,8 @@ final class UsagePricingTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.summary.today.cost.currentUSD, Decimal(string: "0.004"))
-        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.004"))
+        XCTAssertEqual(snapshot.summary.today.cost.currentUSD, Decimal(string: "0.005"))
+        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.005"))
         XCTAssertEqual(snapshot.summary.today.cost.change.direction, .unchanged)
     }
 
@@ -403,8 +418,8 @@ final class UsagePricingTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.summary.month.cost.currentUSD, Decimal(string: "0.04"))
-        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.004"))
+        XCTAssertEqual(snapshot.summary.month.cost.currentUSD, Decimal(string: "0.05"))
+        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.005"))
     }
 
     func testSnapshotDerivesPeriodsAndDailySeriesFromDayBuckets() throws {
