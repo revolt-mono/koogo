@@ -4,12 +4,12 @@ struct UsagePanelView: View {
     let snapshot: UsageSnapshot
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 20) {
             UsageSummaryView(snapshot: snapshot)
 
             Divider()
 
-            VStack(spacing: 14) {
+            VStack(spacing: 12) {
                 ProviderUsageSection(provider: .codex, usage: snapshot.codex)
                 ProviderUsageSection(provider: .claude, usage: snapshot.claude)
             }
@@ -25,7 +25,7 @@ private struct UsageSummaryView: View {
     var body: some View {
         let summary = snapshot.summary
 
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             UsageSummaryPeriod(title: "Today", usage: summary.today)
             UsageSummaryPeriod(title: "Monthly", usage: summary.month)
         }
@@ -48,12 +48,12 @@ private struct UsageSummaryPeriod: View {
                 UsageSummaryValueLine(usage: usage, fontSize: 15)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(UsageFormatting.cost(usage.cost.currentUSD))
                         UsageCostChangeCapsule(change: usage.cost.change)
                     }
 
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("and")
                             .font(.system(size: 10, weight: .medium, design: .rounded))
                             .foregroundStyle(.secondary)
@@ -86,7 +86,7 @@ private struct UsageSummaryValueLine: View {
     let fontSize: CGFloat
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(UsageFormatting.cost(usage.cost.currentUSD))
 
             UsageCostChangeCapsule(change: usage.cost.change)
@@ -136,7 +136,7 @@ private struct UsageCostChangeCapsule: View {
             .lineLimit(1)
             .minimumScaleFactor(0.5)
             .foregroundStyle(.white)
-            .padding(.horizontal, 5)
+            .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(
                 style.color.opacity(colorScheme == .dark ? 0.6 : 0.82),
@@ -157,7 +157,7 @@ private struct ProviderUsageSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 symbol
                     .resizable()
                     .renderingMode(.template)
@@ -235,7 +235,7 @@ private struct ProviderUsageRow: View {
             }
             .lineLimit(1)
         }
-        .font(.system(size: 10, design: .rounded))
+        .font(.system(size: 9, design: .rounded))
         .frame(maxWidth: .infinity)
     }
 }

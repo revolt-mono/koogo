@@ -68,8 +68,8 @@ private struct UsageChartAnnotation: View {
                 .monospacedDigit()
         }
         .font(.system(size: 8, design: .rounded))
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .background(
             Color(nsColor: .windowBackgroundColor),
             in: RoundedRectangle(cornerRadius: 6, style: .continuous)
