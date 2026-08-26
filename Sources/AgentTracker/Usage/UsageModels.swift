@@ -8,14 +8,10 @@ enum UsageProvider: String, Hashable, Sendable {
 struct UsagePeriodSnapshot: Equatable, Sendable {
     let processedTokens: Decimal
     let costUSD: Decimal
-    let favoriteModel: String?
-    let favoriteReasoningEffort: String?
 
     static let zero = UsagePeriodSnapshot(
         processedTokens: 0,
-        costUSD: 0,
-        favoriteModel: nil,
-        favoriteReasoningEffort: nil
+        costUSD: 0
     )
 }
 
@@ -33,6 +29,12 @@ struct UsageMonthSnapshot: Equatable, Sendable {
 }
 
 struct ProviderUsageSnapshot: Equatable, Sendable {
+    struct Favorite: Equatable, Sendable {
+        let modelName: String
+        let reasoningEffort: String?
+    }
+
+    let favorite: Favorite?
     let today: UsagePeriodSnapshot
     let week: UsagePeriodSnapshot
     let month: UsagePeriodSnapshot

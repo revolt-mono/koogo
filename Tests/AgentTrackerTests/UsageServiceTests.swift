@@ -46,11 +46,21 @@ final class UsageServiceTests: XCTestCase {
         let snapshot = await service.refresh(at: now)
 
         XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
-        XCTAssertEqual(snapshot.codex.today.favoriteModel, "gpt-5.6-sol")
-        XCTAssertEqual(snapshot.codex.today.favoriteReasoningEffort, "high")
+        XCTAssertEqual(
+            snapshot.codex.favorite,
+            ProviderUsageSnapshot.Favorite(
+                modelName: "GPT 5.6 Sol",
+                reasoningEffort: "high"
+            )
+        )
         XCTAssertEqual(snapshot.claude.today.processedTokens, 50)
-        XCTAssertEqual(snapshot.claude.today.favoriteModel, "claude-opus-5")
-        XCTAssertNil(snapshot.claude.today.favoriteReasoningEffort)
+        XCTAssertEqual(
+            snapshot.claude.favorite,
+            ProviderUsageSnapshot.Favorite(
+                modelName: "Claude Opus 5",
+                reasoningEffort: nil
+            )
+        )
     }
 
     func testRefreshReadsOnlyCompleteAppendedLines() async throws {

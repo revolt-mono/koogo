@@ -16,7 +16,7 @@ final class UsagePricingTests: XCTestCase {
             output: 10_000
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.costNanodollars(for: event)), 890_000_000)
+        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: event)).costNanodollars, 890_000_000)
     }
 
     func testCodexLongContextAndFastRatesApplyToTheWholeRequest() throws {
@@ -37,9 +37,9 @@ final class UsagePricingTests: XCTestCase {
             serviceTier: .fast
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.costNanodollars(for: atBoundary)), 1_088_000_000)
-        XCTAssertEqual(try XCTUnwrap(catalog.costNanodollars(for: long)), 2_176_008_000)
-        XCTAssertEqual(try XCTUnwrap(catalog.costNanodollars(for: fast)), 1_200_000_000)
+        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: atBoundary)).costNanodollars, 1_088_000_000)
+        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: long)).costNanodollars, 2_176_008_000)
+        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: fast)).costNanodollars, 1_200_000_000)
     }
 
     func testCodexFlexRatesAreExactAndUnsupportedModelsAreIgnored() throws {
@@ -63,12 +63,12 @@ final class UsagePricingTests: XCTestCase {
             serviceTier: .flex
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.costNanodollars(for: long)), 1_088_004_000)
+        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: long)).costNanodollars, 1_088_004_000)
         XCTAssertEqual(
-            try XCTUnwrap(catalog.costNanodollars(for: fractional)),
+            try XCTUnwrap(catalog.quote(for: fractional)).costNanodollars,
             Decimal(375) / 10
         )
-        XCTAssertNil(catalog.costNanodollars(for: unsupported))
+        XCTAssertNil(catalog.quote(for: unsupported))
     }
 
     func testClaudePricesCacheDurationsFastGeoAndSearches() throws {
@@ -84,7 +84,7 @@ final class UsagePricingTests: XCTestCase {
             webSearchRequests: 2
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.costNanodollars(for: event)), 5_355_000_000)
+        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: event)).costNanodollars, 5_355_000_000)
     }
 
     func testClaudeSnapshotIDsAndAliasesStartAt45() throws {
@@ -99,13 +99,13 @@ final class UsagePricingTests: XCTestCase {
             output: 10
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.costNanodollars(for: snapshot)), 450_000)
+        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: snapshot)).costNanodollars, 450_000)
         XCTAssertEqual(
-            catalog.costNanodollars(for: snapshot),
-            catalog.costNanodollars(for: alias)
+            catalog.quote(for: snapshot)?.costNanodollars,
+            catalog.quote(for: alias)?.costNanodollars
         )
         for model in ["claude-opus-4-5", "claude-haiku-4-5"] {
-            XCTAssertNotNil(catalog.costNanodollars(for: claudeEvent(
+            XCTAssertNotNil(catalog.quote(for: claudeEvent(
                 model: model,
                 uncachedInput: 1
             )))
@@ -120,11 +120,30 @@ final class UsagePricingTests: XCTestCase {
             "claude-3-5-haiku-20241022",
             "claude-3-5-haiku-latest",
         ] {
-            XCTAssertNil(catalog.costNanodollars(for: claudeEvent(
+            XCTAssertNil(catalog.quote(for: claudeEvent(
                 model: model,
                 uncachedInput: 1
             )))
         }
+    }
+
+    func testQuotesNormalizeAliasesAndProvideModelDisplayNames() throws {
+        let codex = try XCTUnwrap(catalog.quote(for: codexEvent(
+            model: "gpt-5.6-sol",
+            uncachedInput: 1
+        )))
+        let codexAlias = try XCTUnwrap(catalog.quote(for: codexEvent(
+            model: "gpt-5.6",
+            uncachedInput: 1
+        )))
+        let claude = try XCTUnwrap(catalog.quote(for: claudeEvent(
+            model: "claude-fable-5",
+            uncachedInput: 1
+        )))
+
+        XCTAssertEqual(codex.model, codexAlias.model)
+        XCTAssertEqual(codex.model.displayName, "GPT 5.6 Sol")
+        XCTAssertEqual(claude.model.displayName, "Claude Fable 5")
     }
 
     func testSnapshotPreservesExactCostsAndUsesOccurrenceFavorites() throws {
@@ -149,7 +168,7 @@ final class UsagePricingTests: XCTestCase {
             codexEvent(
                 id: 3,
                 model: "gpt-5.6-sol",
-                effort: "high",
+                effort: "low",
                 uncachedInput: 200_000,
                 output: 0
             ),
@@ -164,8 +183,13 @@ final class UsagePricingTests: XCTestCase {
 
         XCTAssertEqual(today.processedTokens, 240_000)
         XCTAssertEqual(today.costUSD, Decimal(string: "0.808"))
-        XCTAssertEqual(today.favoriteModel, "gpt-5.6-luna")
-        XCTAssertEqual(today.favoriteReasoningEffort, "high")
+        XCTAssertEqual(
+            snapshot.codex.favorite,
+            ProviderUsageSnapshot.Favorite(
+                modelName: "GPT 5.6 Luna",
+                reasoningEffort: "high"
+            )
+        )
         XCTAssertEqual(
             snapshot.codex.dailyMonth.days,
             [
@@ -175,6 +199,64 @@ final class UsagePricingTests: XCTestCase {
                     costUSD: try XCTUnwrap(Decimal(string: "0.808"))
                 )
             ]
+        )
+    }
+
+    func testSnapshotFavoritesUseFullParsedRangeAndFavoriteModelEfforts() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        let now = try XCTUnwrap(parseUsageTimestamp("2026-08-25T18:00:00Z"))
+        let previousMonth = try XCTUnwrap(parseUsageTimestamp("2026-07-10T12:00:00Z"))
+        let events = [
+            codexEvent(
+                id: 1,
+                model: "gpt-5.6-luna",
+                effort: "high",
+                uncachedInput: 1,
+                at: previousMonth
+            ),
+            codexEvent(
+                id: 2,
+                model: "gpt-5.6-luna",
+                effort: "high",
+                uncachedInput: 1,
+                at: previousMonth
+            ),
+            codexEvent(
+                id: 3,
+                model: "gpt-5.6-luna",
+                effort: "low",
+                uncachedInput: 1,
+                at: previousMonth
+            ),
+            codexEvent(
+                id: 4,
+                model: "gpt-5.6-sol",
+                effort: "low",
+                uncachedInput: 1,
+                at: now
+            ),
+            codexEvent(
+                id: 5,
+                model: "gpt-5.6-sol",
+                effort: "low",
+                uncachedInput: 1,
+                at: now
+            ),
+        ]
+
+        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+            events: events,
+            intervals: UsagePeriodIntervals.containing(now, calendar: calendar),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(
+            snapshot.codex.favorite,
+            ProviderUsageSnapshot.Favorite(
+                modelName: "GPT 5.6 Luna",
+                reasoningEffort: "high"
+            )
         )
     }
 
@@ -397,6 +479,7 @@ final class UsagePricingTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.codex.month, .zero)
+        XCTAssertNil(snapshot.codex.favorite)
     }
 
     private func codexEvent(

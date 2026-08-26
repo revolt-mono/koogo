@@ -7,6 +7,16 @@ struct UsagePriceCatalog: Sendable {
     // https://platform.claude.com/docs/en/models/overview
     static let pricingAsOf = "2026-08-25"
 
+    struct Model: Hashable, Sendable {
+        fileprivate let id: String
+        let displayName: String
+    }
+
+    struct Quote: Sendable {
+        let model: Model
+        let costNanodollars: Decimal
+    }
+
     private struct Rates: Sendable {
         let input: Decimal
         let cachedInput: Decimal
@@ -85,15 +95,18 @@ struct UsagePriceCatalog: Sendable {
     }
 
     private struct CodexModelPrice: Sendable {
+        let displayName: String
         let standard: ContextRates
         let fast: ContextRates?
         let flex: ContextRates?
 
         init(
+            _ displayName: String,
             standard: ContextRates,
             fast: ContextRates? = nil,
             flex: ContextRates? = nil
         ) {
+            self.displayName = displayName
             self.standard = standard
             self.fast = fast
             self.flex = flex
@@ -101,15 +114,18 @@ struct UsagePriceCatalog: Sendable {
     }
 
     private struct ClaudeModelPrice: Sendable {
+        let displayName: String
         let standard: Rates
         let fast: Rates?
         let supportsUSInference: Bool
 
         init(
+            _ displayName: String,
             _ standard: Rates,
             fast: Rates? = nil,
             supportsUSInference: Bool = true
         ) {
+            self.displayName = displayName
             self.standard = standard
             self.fast = fast
             self.supportsUSInference = supportsUSInference
@@ -118,6 +134,7 @@ struct UsagePriceCatalog: Sendable {
 
     private static let codexPrices: [String: CodexModelPrice] = [
         "gpt-5.6-sol": CodexModelPrice(
+            "GPT 5.6 Sol",
             standard: .tiered(
                 short: Rates(4_000, 400, 5_000, 20_000),
                 long: Rates(8_000, 800, 10_000, 30_000)
@@ -132,6 +149,7 @@ struct UsagePriceCatalog: Sendable {
             )
         ),
         "gpt-5.6-terra": CodexModelPrice(
+            "GPT 5.6 Terra",
             standard: .tiered(
                 short: Rates(2_000, 200, 2_500, 12_000),
                 long: Rates(4_000, 400, 5_000, 18_000)
@@ -146,6 +164,7 @@ struct UsagePriceCatalog: Sendable {
             )
         ),
         "gpt-5.6-luna": CodexModelPrice(
+            "GPT 5.6 Luna",
             standard: .tiered(
                 short: Rates(200, 20, 250, 1_200),
                 long: Rates(400, 40, 500, 1_800)
@@ -160,6 +179,7 @@ struct UsagePriceCatalog: Sendable {
             )
         ),
         "gpt-5.5": CodexModelPrice(
+            "GPT 5.5",
             standard: .tiered(
                 short: Rates(5_000, 500, nil, 30_000),
                 long: Rates(10_000, 1_000, nil, 45_000)
@@ -171,6 +191,7 @@ struct UsagePriceCatalog: Sendable {
             )
         ),
         "gpt-5.4": CodexModelPrice(
+            "GPT 5.4",
             standard: .tiered(
                 short: Rates(2_500, 250, nil, 15_000),
                 long: Rates(5_000, 500, nil, 22_500)
@@ -182,11 +203,13 @@ struct UsagePriceCatalog: Sendable {
             )
         ),
         "gpt-5.4-mini": CodexModelPrice(
+            "GPT 5.4 Mini",
             standard: .flat(Rates(750, 75, nil, 4_500)),
             fast: .flat(Rates(1_500, 150, nil, 9_000)),
             flex: .flat(Rates(375, Decimal(375) / 10, nil, 2_250))
         ),
         "gpt-5.3-codex": CodexModelPrice(
+            "GPT 5.3 Codex",
             standard: .flat(Rates(1_750, 175, nil, 14_000)),
             fast: .flat(Rates(3_500, 350, nil, 28_000))
         ),
@@ -199,29 +222,52 @@ struct UsagePriceCatalog: Sendable {
     ]
 
     private static let claudePrices: [String: ClaudeModelPrice] = [
-        "claude-fable-5": ClaudeModelPrice(Rates(10_000, 1_000, 12_500, 20_000, 50_000)),
-        "claude-mythos-5": ClaudeModelPrice(Rates(10_000, 1_000, 12_500, 20_000, 50_000)),
+        "claude-fable-5": ClaudeModelPrice(
+            "Claude Fable 5",
+            Rates(10_000, 1_000, 12_500, 20_000, 50_000)
+        ),
+        "claude-mythos-5": ClaudeModelPrice(
+            "Claude Mythos 5",
+            Rates(10_000, 1_000, 12_500, 20_000, 50_000)
+        ),
         "claude-opus-5": ClaudeModelPrice(
+            "Claude Opus 5",
             Rates(5_000, 500, 6_250, 10_000, 25_000),
             fast: Rates(10_000, 1_000, 12_500, 20_000, 50_000)
         ),
         "claude-opus-4-8": ClaudeModelPrice(
+            "Claude Opus 4.8",
             Rates(5_000, 500, 6_250, 10_000, 25_000),
             fast: Rates(10_000, 1_000, 12_500, 20_000, 50_000)
         ),
-        "claude-opus-4-7": ClaudeModelPrice(Rates(5_000, 500, 6_250, 10_000, 25_000)),
-        "claude-opus-4-6": ClaudeModelPrice(Rates(5_000, 500, 6_250, 10_000, 25_000)),
+        "claude-opus-4-7": ClaudeModelPrice(
+            "Claude Opus 4.7",
+            Rates(5_000, 500, 6_250, 10_000, 25_000)
+        ),
+        "claude-opus-4-6": ClaudeModelPrice(
+            "Claude Opus 4.6",
+            Rates(5_000, 500, 6_250, 10_000, 25_000)
+        ),
         "claude-opus-4-5-20251101": ClaudeModelPrice(
+            "Claude Opus 4.5",
             Rates(5_000, 500, 6_250, 10_000, 25_000),
             supportsUSInference: false
         ),
-        "claude-sonnet-5": ClaudeModelPrice(Rates(2_000, 200, 2_500, 4_000, 10_000)),
-        "claude-sonnet-4-6": ClaudeModelPrice(Rates(3_000, 300, 3_750, 6_000, 15_000)),
+        "claude-sonnet-5": ClaudeModelPrice(
+            "Claude Sonnet 5",
+            Rates(2_000, 200, 2_500, 4_000, 10_000)
+        ),
+        "claude-sonnet-4-6": ClaudeModelPrice(
+            "Claude Sonnet 4.6",
+            Rates(3_000, 300, 3_750, 6_000, 15_000)
+        ),
         "claude-sonnet-4-5-20250929": ClaudeModelPrice(
+            "Claude Sonnet 4.5",
             Rates(3_000, 300, 3_750, 6_000, 15_000),
             supportsUSInference: false
         ),
         "claude-haiku-4-5-20251001": ClaudeModelPrice(
+            "Claude Haiku 4.5",
             Rates(1_000, 100, 1_250, 2_000, 5_000),
             supportsUSInference: false
         ),
@@ -233,18 +279,18 @@ struct UsagePriceCatalog: Sendable {
         "claude-haiku-4-5": "claude-haiku-4-5-20251001",
     ]
 
-    func costNanodollars(for event: UsageEvent) -> Decimal? {
+    func quote(for event: UsageEvent) -> Quote? {
         switch event {
         case .codex(let event):
-            codexCost(event)
+            codexQuote(event)
         case .claude(let event):
-            claudeCost(event)
+            claudeQuote(event)
         }
     }
 
-    private func codexCost(_ event: UsageEvent.Codex) -> Decimal? {
-        let model = Self.codexAliases[event.details.model] ?? event.details.model
-        guard let price = Self.codexPrices[model] else {
+    private func codexQuote(_ event: UsageEvent.Codex) -> Quote? {
+        let modelID = Self.codexAliases[event.details.model] ?? event.details.model
+        guard let price = Self.codexPrices[modelID] else {
             return nil
         }
 
@@ -258,12 +304,18 @@ struct UsagePriceCatalog: Sendable {
         let inputTokens = tokens.uncachedInput
             + tokens.cachedInput
             + tokens.cacheWrite5MinuteInput
-        return contextRates?.rates(for: inputTokens)?.cost(for: tokens)
+        guard let cost = contextRates?.rates(for: inputTokens)?.cost(for: tokens) else {
+            return nil
+        }
+        return Quote(
+            model: Model(id: modelID, displayName: price.displayName),
+            costNanodollars: cost
+        )
     }
 
-    private func claudeCost(_ event: UsageEvent.Claude) -> Decimal? {
-        let model = Self.claudeAliases[event.details.model] ?? event.details.model
-        guard let price = Self.claudePrices[model] else {
+    private func claudeQuote(_ event: UsageEvent.Claude) -> Quote? {
+        let modelID = Self.claudeAliases[event.details.model] ?? event.details.model
+        guard let price = Self.claudePrices[modelID] else {
             return nil
         }
 
@@ -283,31 +335,69 @@ struct UsagePriceCatalog: Sendable {
             cost = cost * 11 / 10
         }
 
-        return cost + Decimal(event.webSearchRequests) * 10_000_000
+        return Quote(
+            model: Model(id: modelID, displayName: price.displayName),
+            costNanodollars: cost + Decimal(event.webSearchRequests) * 10_000_000
+        )
     }
 }
 
 struct UsageSnapshotBuilder {
+    private struct ModelUsage {
+        var occurrences = 0
+        var reasoningEfforts: [String: Int] = [:]
+
+        mutating func add(reasoningEffort: String?) {
+            occurrences += 1
+            if let reasoningEffort {
+                reasoningEfforts[reasoningEffort, default: 0] += 1
+            }
+        }
+
+        mutating func merge(_ other: ModelUsage) {
+            occurrences += other.occurrences
+            reasoningEfforts.merge(other.reasoningEfforts, uniquingKeysWith: +)
+        }
+    }
+
     private struct Accumulator {
         var processedTokens: Decimal = 0
         var costNanodollars: Decimal = 0
-        var modelCounts: [String: Int] = [:]
-        var effortCounts: [String: Int] = [:]
+        var models: [UsagePriceCatalog.Model: ModelUsage] = [:]
 
-        mutating func add(_ details: UsageEvent.Details, cost: Decimal) {
+        mutating func add(
+            _ details: UsageEvent.Details,
+            quote: UsagePriceCatalog.Quote
+        ) {
             processedTokens += Decimal(details.tokens.processed)
-            costNanodollars += cost
-            modelCounts[details.model, default: 0] += 1
-            if let effort = details.reasoningEffort {
-                effortCounts[effort, default: 0] += 1
-            }
+            costNanodollars += quote.costNanodollars
+            models[quote.model, default: ModelUsage()].add(
+                reasoningEffort: details.reasoningEffort
+            )
         }
 
         mutating func merge(_ other: Accumulator) {
             processedTokens += other.processedTokens
             costNanodollars += other.costNanodollars
-            modelCounts.merge(other.modelCounts, uniquingKeysWith: +)
-            effortCounts.merge(other.effortCounts, uniquingKeysWith: +)
+            for (model, usage) in other.models {
+                models[model, default: ModelUsage()].merge(usage)
+            }
+        }
+
+        var favorite: ProviderUsageSnapshot.Favorite? {
+            guard let (model, usage) = models.max(by: { lhs, rhs in
+                lhs.value.occurrences == rhs.value.occurrences
+                    ? lhs.key.id > rhs.key.id
+                    : lhs.value.occurrences < rhs.value.occurrences
+            }) else {
+                return nil
+            }
+            return ProviderUsageSnapshot.Favorite(
+                modelName: model.displayName,
+                reasoningEffort: usage.reasoningEfforts.max { lhs, rhs in
+                    lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
+                }?.key
+            )
         }
     }
 
@@ -327,25 +417,31 @@ struct UsageSnapshotBuilder {
             guard
                 intervals.earliestStart <= details.timestamp,
                 details.timestamp <= intervals.through,
-                let cost = priceCatalog.costNanodollars(for: event)
+                let quote = priceCatalog.quote(for: event)
             else {
                 continue
             }
 
             let day = calendar.startOfDay(for: details.timestamp)
             daysByProvider[event.provider, default: [:]][day, default: Accumulator()]
-                .add(details, cost: cost)
+                .add(details, quote: quote)
             if intervals.day.previous.contains(details.timestamp) {
-                previousDayCost += cost
+                previousDayCost += quote.costNanodollars
             }
             if intervals.month.previous.contains(details.timestamp) {
-                previousMonthCost += cost
+                previousMonthCost += quote.costNanodollars
             }
         }
 
         return UsageSnapshot(
-            codex: providerSnapshot(from: daysByProvider[.codex] ?? [:], intervals: intervals),
-            claude: providerSnapshot(from: daysByProvider[.claude] ?? [:], intervals: intervals),
+            codex: providerSnapshot(
+                from: daysByProvider[.codex] ?? [:],
+                intervals: intervals
+            ),
+            claude: providerSnapshot(
+                from: daysByProvider[.claude] ?? [:],
+                intervals: intervals
+            ),
             previousDayCostUSD: previousDayCost / 1_000_000_000,
             previousMonthCostUSD: previousMonthCost / 1_000_000_000
         )
@@ -355,7 +451,12 @@ struct UsageSnapshotBuilder {
         from days: [Date: Accumulator],
         intervals: UsagePeriodIntervals
     ) -> ProviderUsageSnapshot {
-        ProviderUsageSnapshot(
+        var total = Accumulator()
+        for day in days.values {
+            total.merge(day)
+        }
+        return ProviderUsageSnapshot(
+            favorite: total.favorite,
             today: periodSnapshot(from: days, in: intervals.day.current),
             week: periodSnapshot(from: days, in: intervals.week),
             month: periodSnapshot(from: days, in: intervals.month.current),
@@ -383,18 +484,9 @@ struct UsageSnapshotBuilder {
         for (date, day) in days where interval.contains(date) {
             accumulator.merge(day)
         }
-
         return UsagePeriodSnapshot(
             processedTokens: accumulator.processedTokens,
-            costUSD: accumulator.costNanodollars / 1_000_000_000,
-            favoriteModel: favorite(in: accumulator.modelCounts),
-            favoriteReasoningEffort: favorite(in: accumulator.effortCounts)
+            costUSD: accumulator.costNanodollars / 1_000_000_000
         )
-    }
-
-    private func favorite(in counts: [String: Int]) -> String? {
-        counts.max { lhs, rhs in
-            lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
-        }?.key
     }
 }

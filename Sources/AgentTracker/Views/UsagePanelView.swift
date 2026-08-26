@@ -168,6 +168,26 @@ private struct ProviderUsageSection: View {
 
                 Text(provider.rawValue.capitalized)
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
+
+                if let favorite = usage.favorite {
+                    Spacer(minLength: 12)
+
+                    Image("FavoriteHeart", bundle: .module)
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 10, height: 10)
+                        .accessibilityHidden(true)
+
+                    Text(
+                        favorite.reasoningEffort.map {
+                            "\(favorite.modelName) with \($0)"
+                        } ?? favorite.modelName
+                    )
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
             }
 
             VStack(spacing: 12) {
