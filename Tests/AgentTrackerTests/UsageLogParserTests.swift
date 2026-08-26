@@ -22,7 +22,7 @@ final class UsageLogParserTests: XCTestCase {
         XCTAssertEqual(second.details.reasoningEffort, "high")
     }
 
-    func testCodexValidRequestSurvivesAnUndecodablePreviousTokenCount() throws {
+    func testCodexValidRequestSurvivesAnIncompletePreviousTokenCount() throws {
         var parser = UsageFileParserState.codex()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
@@ -98,58 +98,36 @@ final class UsageLogParserTests: XCTestCase {
         XCTAssertEqual(event.details.tokens.processed, 60)
     }
 
-    func testCodexFastStateOnlyAffectsFollowingEventsAndSyntheticFillIsIgnored() throws {
+    func testCodexSyntheticFillIsIgnored() throws {
         var parser = UsageFileParserState.codex()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "medium"), with: &parser)
-        let standard = try XCTUnwrap(
-            parse(codexToken(last: usage(100, 10), total: usage(100, 10)), with: &parser)
-        )
-        _ = parse(codexSettings(tier: "priority", effort: "xhigh"), with: &parser)
+        _ = parse(codexToken(last: usage(100, 10), total: usage(100, 10)), with: &parser)
         XCTAssertNil(parse(codexSyntheticFill(contextWindow: 1_000, previousTotal: 110), with: &parser))
-        let fast = try XCTUnwrap(
+        let event = try XCTUnwrap(
             parse(codexToken(last: usage(50, 5), total: usage(50, 5, total: 1_055)), with: &parser)
         )
 
-        guard case .codex(let standard) = standard,
-              case .codex(let fast) = fast
-        else {
-            return XCTFail("unexpected event provider")
-        }
-        guard case .standard = standard.serviceTier, case .fast = fast.serviceTier else {
-            return XCTFail("unexpected service tier")
-        }
-        XCTAssertEqual(fast.details.reasoningEffort, "xhigh")
+        XCTAssertEqual(event.details.tokens.processed, 55)
+        XCTAssertEqual(event.details.reasoningEffort, "medium")
     }
 
-    func testCodexSettingsSnapshotCanSelectFlexAndClearTierAndEffort() throws {
+    func testCodexThreadSettingsDoNotOverrideTurnUsageMetadata() throws {
         var parser = UsageFileParserState.codex()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
-        _ = parse(codexSettings(tier: "flex", effort: "xhigh"), with: &parser)
-        let flex = try XCTUnwrap(
-            parse(codexToken(last: usage(100, 10), total: usage(100, 10)), with: &parser)
-        )
-        _ = parse(
+        XCTAssertNil(parse(
             """
-            {"timestamp":"2026-08-25T12:00:30.000Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","service_tier":null,"reasoning_effort":null}}}
+            {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-luna","reasoning_effort":"low","service_tier":"priority"}}}
             """,
             with: &parser
-        )
-        let cleared = try XCTUnwrap(
-            parse(codexToken(last: usage(50, 5), total: usage(150, 15)), with: &parser)
+        ))
+        let event = try XCTUnwrap(
+            parse(codexToken(last: usage(100, 20), total: usage(100, 20)), with: &parser)
         )
 
-        guard case .codex(let flex) = flex,
-              case .codex(let cleared) = cleared
-        else {
-            return XCTFail("unexpected event provider")
-        }
-        guard case .flex = flex.serviceTier, case .standard = cleared.serviceTier else {
-            return XCTFail("unexpected service tier")
-        }
-        XCTAssertEqual(flex.details.reasoningEffort, "xhigh")
-        XCTAssertNil(cleared.details.reasoningEffort)
+        XCTAssertEqual(event.details.model, "gpt-5.6-sol")
+        XCTAssertEqual(event.details.reasoningEffort, "high")
     }
 
     func testClaudeParsesCacheDurationsSpeedGeoSearchAndMissingEffort() throws {
@@ -222,12 +200,6 @@ final class UsageLogParserTests: XCTestCase {
     private func codexTurn(model: String, effort: String) -> String {
         """
         {"timestamp":"2026-08-25T11:59:30.000Z","type":"turn_context","payload":{"turn_id":"turn","model":"\(model)","effort":"\(effort)"}}
-        """
-    }
-
-    private func codexSettings(tier: String, effort: String) -> String {
-        """
-        {"timestamp":"2026-08-25T12:00:30.000Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"service_tier":"\(tier)","reasoning_effort":"\(effort)"}}}
         """
     }
 

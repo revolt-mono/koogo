@@ -161,19 +161,12 @@ enum UsageEvent: Sendable {
     }
 
     struct Codex: Sendable {
-        enum ServiceTier: Sendable {
-            case standard
-            case fast
-            case flex
-        }
-
         let threadID: String
         let turnID: String?
         let ordinal: UInt64?
         let details: Details
         let reasoningOutput: Int64
         let cumulativeTotal: Int64
-        let serviceTier: ServiceTier
     }
 
     struct Claude: Sendable {

@@ -23,7 +23,6 @@ private enum CodexRecordKind: String, LogRecordKind {
 
 private enum CodexPayloadKind: String, LogRecordKind {
     case tokenCount = "token_count"
-    case threadSettingsApplied = "thread_settings_applied"
     case other
 }
 
@@ -82,7 +81,6 @@ enum UsageFileParserState: Sendable {
         CodexRecordKind.sessionMeta.jsonStringMarker,
         CodexRecordKind.turnContext.jsonStringMarker,
         CodexPayloadKind.tokenCount.jsonStringMarker,
-        CodexPayloadKind.threadSettingsApplied.jsonStringMarker,
     ]
     fileprivate static let claudeAssistantMarker = ClaudeRecordKind.assistant.jsonStringMarker
 }
@@ -170,10 +168,7 @@ private extension UInt8 {
 
 struct CodexLogParser: Sendable {
     private var threadID: String?
-    private var turnID: String?
-    private var model: String?
-    private var reasoningEffort: String?
-    private var serviceTier: UsageEvent.Codex.ServiceTier? = .standard
+    private var turn: CodexTurn?
     private var previousTotalUsage: CodexTokenUsage?
 
     mutating func parse(
@@ -185,19 +180,15 @@ struct CodexLogParser: Sendable {
             return nil
         }
 
-        switch record.type {
-        case .sessionMeta:
-            threadID = nonempty(record.payload.id) ?? nonempty(record.payload.sessionID)
-        case .turnContext:
-            model = nonempty(record.payload.model)
-            reasoningEffort = nonempty(record.payload.effort)
-            turnID = nonempty(record.payload.turnID)
-        case .eventMessage:
-            if record.payload.type == .threadSettingsApplied {
-                apply(record.payload.threadSettings)
-            } else if record.payload.type == .tokenCount {
-                return parseTokenCount(record, source: source)
-            }
+        switch record {
+        case .sessionMeta(let threadID):
+            self.threadID = threadID
+        case .turnContext(let turn):
+            self.turn = turn
+        case .clearTurn:
+            turn = nil
+        case .tokenCount(let tokenCount):
+            return parseTokenCount(tokenCount, source: source)
         case .other:
             break
         }
@@ -205,40 +196,14 @@ struct CodexLogParser: Sendable {
         return nil
     }
 
-    private mutating func apply(_ settings: CodexThreadSettings?) {
-        guard let settings else {
-            return
-        }
-        if let model = nonempty(settings.model) {
-            self.model = model
-        }
-        reasoningEffort = nonempty(settings.reasoningEffort)
-
-        switch settings.serviceTier {
-        case "priority", "fast":
-            serviceTier = .fast
-        case "flex":
-            serviceTier = .flex
-        case nil, "default", "standard":
-            serviceTier = .standard
-        default:
-            serviceTier = nil
-        }
-    }
-
     private mutating func parseTokenCount(
-        _ record: CodexLogRecord,
+        _ record: CodexTokenCount,
         source: String
     ) -> UsageEvent? {
-        guard
-            let info = record.payload.info,
-            let lastUsage = info.lastTokenUsage,
-            let totalUsage = info.totalTokenUsage
-        else {
-            return nil
-        }
+        let lastUsage = record.info.lastTokenUsage
+        let totalUsage = record.info.totalTokenUsage
 
-        if info.isSyntheticContextFill(
+        if record.info.isSyntheticContextFill(
             last: lastUsage,
             total: totalUsage,
             previous: previousTotalUsage
@@ -254,25 +219,23 @@ struct CodexLogParser: Sendable {
         guard
             let timestampValue = record.timestamp,
             let timestamp = parseUsageTimestamp(timestampValue),
-            let model,
-            let serviceTier
+            let turn
         else {
             return nil
         }
 
         return .codex(UsageEvent.Codex(
             threadID: threadID ?? source,
-            turnID: turnID,
+            turnID: turn.id,
             ordinal: record.ordinal,
             details: UsageEvent.Details(
                 timestamp: timestamp,
-                model: model,
-                reasoningEffort: reasoningEffort,
+                model: turn.model,
+                reasoningEffort: turn.reasoningEffort,
                 tokens: lastUsage.tokens
             ),
             reasoningOutput: lastUsage.reasoningOutput,
-            cumulativeTotal: totalUsage.total,
-            serviceTier: serviceTier
+            cumulativeTotal: totalUsage.total
         ))
     }
 }
@@ -316,50 +279,105 @@ private func nonempty(_ value: String?) -> String? {
     return value
 }
 
-private struct CodexLogRecord: Decodable {
-    let timestamp: String?
-    let ordinal: UInt64?
-    let type: CodexRecordKind
-    let payload: CodexPayload
-}
-
-private struct CodexPayload: Decodable {
-    let type: CodexPayloadKind?
-    let id: String?
-    let sessionID: String?
-    let model: String?
-    let effort: String?
-    let turnID: String?
-    let info: CodexTokenInfo?
-    let threadSettings: CodexThreadSettings?
+private enum CodexLogRecord: Decodable {
+    case sessionMeta(threadID: String?)
+    case turnContext(CodexTurn)
+    case clearTurn
+    case tokenCount(CodexTokenCount)
+    case other
 
     private enum CodingKeys: String, CodingKey {
+        case timestamp
+        case ordinal
         case type
+        case payload
+    }
+
+    private enum SessionMetaKeys: String, CodingKey {
         case id
         case sessionID = "session_id"
+    }
+
+    private enum TurnContextKeys: String, CodingKey {
+        case turnID = "turn_id"
         case model
         case effort
-        case turnID = "turn_id"
+    }
+
+    private enum EventMessageKeys: String, CodingKey {
+        case type
         case info
-        case threadSettings = "thread_settings"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(CodexRecordKind.self, forKey: .type) {
+        case .sessionMeta:
+            let payload = try container.nestedContainer(
+                keyedBy: SessionMetaKeys.self,
+                forKey: .payload
+            )
+            let id = try payload.decodeIfPresent(String.self, forKey: .id)
+            let sessionID = try payload.decodeIfPresent(String.self, forKey: .sessionID)
+            self = .sessionMeta(
+                threadID: nonempty(id) ?? nonempty(sessionID)
+            )
+        case .turnContext:
+            let payload = try container.nestedContainer(
+                keyedBy: TurnContextKeys.self,
+                forKey: .payload
+            )
+            guard let model = nonempty(
+                try payload.decodeIfPresent(String.self, forKey: .model)
+            ) else {
+                self = .clearTurn
+                return
+            }
+            self = .turnContext(CodexTurn(
+                id: nonempty(try payload.decodeIfPresent(String.self, forKey: .turnID)),
+                model: model,
+                reasoningEffort: nonempty(
+                    try payload.decodeIfPresent(String.self, forKey: .effort)
+                )
+            ))
+        case .eventMessage:
+            let payload = try container.nestedContainer(
+                keyedBy: EventMessageKeys.self,
+                forKey: .payload
+            )
+            guard
+                try payload.decodeIfPresent(CodexPayloadKind.self, forKey: .type) == .tokenCount,
+                let info = try payload.decodeIfPresent(CodexTokenInfo.self, forKey: .info)
+            else {
+                self = .other
+                return
+            }
+            self = .tokenCount(CodexTokenCount(
+                timestamp: try container.decodeIfPresent(String.self, forKey: .timestamp),
+                ordinal: try container.decodeIfPresent(UInt64.self, forKey: .ordinal),
+                info: info
+            ))
+        case .other:
+            self = .other
+        }
     }
 }
 
-private struct CodexThreadSettings: Decodable {
-    let model: String?
+private struct CodexTurn: Sendable {
+    let id: String?
+    let model: String
     let reasoningEffort: String?
-    let serviceTier: String?
+}
 
-    private enum CodingKeys: String, CodingKey {
-        case model
-        case reasoningEffort = "reasoning_effort"
-        case serviceTier = "service_tier"
-    }
+private struct CodexTokenCount {
+    let timestamp: String?
+    let ordinal: UInt64?
+    let info: CodexTokenInfo
 }
 
 private struct CodexTokenInfo: Decodable {
-    let lastTokenUsage: CodexTokenUsage?
-    let totalTokenUsage: CodexTokenUsage?
+    let lastTokenUsage: CodexTokenUsage
+    let totalTokenUsage: CodexTokenUsage
     let modelContextWindow: Int64?
 
     private enum CodingKeys: String, CodingKey {

@@ -22,7 +22,7 @@ final class UsagePricingTests: XCTestCase {
         )
     }
 
-    func testCodexLongContextAndFastRatesApplyToTheWholeRequest() throws {
+    func testCodexLongContextRatesApplyToTheWholeRequest() throws {
         let atBoundary = codexEvent(
             model: "gpt-5.6-sol",
             uncachedInput: 272_000,
@@ -33,12 +33,6 @@ final class UsagePricingTests: XCTestCase {
             uncachedInput: 272_001,
             output: 0
         )
-        let fast = codexEvent(
-            model: "gpt-5.6-sol",
-            uncachedInput: 100_000,
-            output: 10_000,
-            serviceTier: .fast
-        )
 
         XCTAssertEqual(
             try XCTUnwrap(catalog.quote(for: atBoundary)).costNanodollars,
@@ -48,42 +42,6 @@ final class UsagePricingTests: XCTestCase {
             try XCTUnwrap(catalog.quote(for: long)).costNanodollars,
             2_720_010_000
         )
-        XCTAssertEqual(
-            try XCTUnwrap(catalog.quote(for: fast)).costNanodollars,
-            1_600_000_000
-        )
-    }
-
-    func testCodexFlexRatesAreExactAndUnsupportedModelsAreIgnored() throws {
-        let long = codexEvent(
-            model: "gpt-5.6-sol",
-            uncachedInput: 272_001,
-            output: 0,
-            serviceTier: .flex
-        )
-        let fractional = codexEvent(
-            model: "gpt-5.4-mini",
-            uncachedInput: 0,
-            cachedInput: 1,
-            output: 0,
-            serviceTier: .flex
-        )
-        let unsupported = codexEvent(
-            model: "gpt-5.3-codex",
-            uncachedInput: 100,
-            output: 10,
-            serviceTier: .flex
-        )
-
-        XCTAssertEqual(
-            try XCTUnwrap(catalog.quote(for: long)).costNanodollars,
-            1_360_005_000
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(catalog.quote(for: fractional)).costNanodollars,
-            Decimal(375) / 10
-        )
-        XCTAssertNil(catalog.quote(for: unsupported))
     }
 
     func testClaudePricesCacheDurationsFastGeoAndSearches() throws {
@@ -505,7 +463,6 @@ final class UsagePricingTests: XCTestCase {
         cachedInput: Int64 = 0,
         cacheWriteInput: Int64 = 0,
         output: Int64 = 0,
-        serviceTier: UsageEvent.Codex.ServiceTier = .standard,
         at eventDate: Date? = nil
     ) -> UsageEvent {
         let tokens = UsageTokens(
@@ -527,8 +484,7 @@ final class UsagePricingTests: XCTestCase {
                 tokens: tokens
             ),
             reasoningOutput: 0,
-            cumulativeTotal: tokens.processed,
-            serviceTier: serviceTier
+            cumulativeTotal: tokens.processed
         ))
     }
 

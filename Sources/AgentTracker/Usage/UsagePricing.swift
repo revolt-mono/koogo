@@ -81,37 +81,20 @@ struct UsagePriceCatalog: Sendable {
     private enum ContextRates: Sendable {
         case flat(Rates)
         case tiered(short: Rates, long: Rates)
-        case shortOnly(Rates)
 
-        func rates(for inputTokens: Int64) -> Rates? {
+        func resolved(forInputTokens inputTokens: Int64) -> Rates {
             switch self {
             case .flat(let rates):
                 rates
             case .tiered(let short, let long):
                 inputTokens > 272_000 ? long : short
-            case .shortOnly(let rates):
-                inputTokens > 272_000 ? nil : rates
             }
         }
     }
 
     private struct CodexModelPrice: Sendable {
         let displayName: String
-        let standard: ContextRates
-        let fast: ContextRates?
-        let flex: ContextRates?
-
-        init(
-            _ displayName: String,
-            standard: ContextRates,
-            fast: ContextRates? = nil,
-            flex: ContextRates? = nil
-        ) {
-            self.displayName = displayName
-            self.standard = standard
-            self.fast = fast
-            self.flex = flex
-        }
+        let rates: ContextRates
     }
 
     private struct ClaudeModelPrice: Sendable {
@@ -135,84 +118,47 @@ struct UsagePriceCatalog: Sendable {
 
     private static let codexPrices: [String: CodexModelPrice] = [
         "gpt-5.6-sol": CodexModelPrice(
-            "GPT 5.6 Sol",
-            standard: .tiered(
+            displayName: "GPT 5.6 Sol",
+            rates: .tiered(
                 short: Rates(5_000, 500, 6_250, 30_000),
                 long: Rates(10_000, 1_000, 12_500, 45_000)
-            ),
-            fast: .tiered(
-                short: Rates(10_000, 1_000, 12_500, 60_000),
-                long: Rates(20_000, 2_000, 25_000, 90_000)
-            ),
-            flex: .tiered(
-                short: Rates(2_500, 250, 3_125, 15_000),
-                long: Rates(5_000, 500, 6_250, 22_500)
             )
         ),
         "gpt-5.6-terra": CodexModelPrice(
-            "GPT 5.6 Terra",
-            standard: .tiered(
+            displayName: "GPT 5.6 Terra",
+            rates: .tiered(
                 short: Rates(2_000, 200, 2_500, 12_000),
                 long: Rates(4_000, 400, 5_000, 18_000)
-            ),
-            fast: .tiered(
-                short: Rates(4_000, 400, 5_000, 24_000),
-                long: Rates(8_000, 800, 10_000, 36_000)
-            ),
-            flex: .tiered(
-                short: Rates(1_000, 100, 1_250, 6_000),
-                long: Rates(2_000, 200, 2_500, 9_000)
             )
         ),
         "gpt-5.6-luna": CodexModelPrice(
-            "GPT 5.6 Luna",
-            standard: .tiered(
+            displayName: "GPT 5.6 Luna",
+            rates: .tiered(
                 short: Rates(200, 20, 250, 1_200),
                 long: Rates(400, 40, 500, 1_800)
-            ),
-            fast: .tiered(
-                short: Rates(400, 40, 500, 2_400),
-                long: Rates(800, 80, 1_000, 3_600)
-            ),
-            flex: .tiered(
-                short: Rates(100, 10, 125, 600),
-                long: Rates(200, 20, 250, 900)
             )
         ),
         "gpt-5.5": CodexModelPrice(
-            "GPT 5.5",
-            standard: .tiered(
+            displayName: "GPT 5.5",
+            rates: .tiered(
                 short: Rates(5_000, 500, nil, 30_000),
                 long: Rates(10_000, 1_000, nil, 45_000)
-            ),
-            fast: .shortOnly(Rates(12_500, 1_250, nil, 75_000)),
-            flex: .tiered(
-                short: Rates(2_500, 250, nil, 15_000),
-                long: Rates(5_000, 500, nil, 22_500)
             )
         ),
         "gpt-5.4": CodexModelPrice(
-            "GPT 5.4",
-            standard: .tiered(
+            displayName: "GPT 5.4",
+            rates: .tiered(
                 short: Rates(2_500, 250, nil, 15_000),
                 long: Rates(5_000, 500, nil, 22_500)
-            ),
-            fast: .shortOnly(Rates(5_000, 500, nil, 30_000)),
-            flex: .tiered(
-                short: Rates(1_250, 130, nil, 7_500),
-                long: Rates(2_500, 250, nil, 11_250)
             )
         ),
         "gpt-5.4-mini": CodexModelPrice(
-            "GPT 5.4 Mini",
-            standard: .flat(Rates(750, 75, nil, 4_500)),
-            fast: .flat(Rates(1_500, 150, nil, 9_000)),
-            flex: .flat(Rates(375, Decimal(375) / 10, nil, 2_250))
+            displayName: "GPT 5.4 Mini",
+            rates: .flat(Rates(750, 75, nil, 4_500))
         ),
         "gpt-5.3-codex": CodexModelPrice(
-            "GPT 5.3 Codex",
-            standard: .flat(Rates(1_750, 175, nil, 14_000)),
-            fast: .flat(Rates(3_500, 350, nil, 28_000))
+            displayName: "GPT 5.3 Codex",
+            rates: .flat(Rates(1_750, 175, nil, 14_000))
         ),
     ]
 
@@ -295,17 +241,12 @@ struct UsagePriceCatalog: Sendable {
             return nil
         }
 
-        let contextRates: ContextRates?
-        switch event.serviceTier {
-        case .standard: contextRates = price.standard
-        case .fast: contextRates = price.fast
-        case .flex: contextRates = price.flex
-        }
+        // Codex rollout logs do not reliably record service tiers, so usage always uses standard rates.
         let tokens = event.details.tokens
         let inputTokens = tokens.uncachedInput
             + tokens.cachedInput
             + tokens.cacheWrite5MinuteInput
-        guard let cost = contextRates?.rates(for: inputTokens)?.cost(for: tokens) else {
+        guard let cost = price.rates.resolved(forInputTokens: inputTokens).cost(for: tokens) else {
             return nil
         }
         return Quote(
