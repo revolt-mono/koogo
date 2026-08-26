@@ -2,11 +2,11 @@ import SwiftUI
 
 @main
 struct AgentTrackerApp: App {
-    private let usageService = UsageService()
+    @State private var usageModel = UsageModel(usageService: UsageService())
 
     var body: some Scene {
         MenuBarExtra {
-            ContentView(usageService: usageService)
+            ContentView(usageModel: usageModel)
         } label: {
             Image(systemName: "chart.bar.xaxis")
         }

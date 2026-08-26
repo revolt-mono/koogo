@@ -75,6 +75,33 @@ final class UsageServiceTests: XCTestCase {
         XCTAssertEqual(afterNewline[.codex][.today].processedTokens, 180)
     }
 
+    @MainActor
+    func testUsageModelStartsColdScanOnInitialization() async throws {
+        try write(
+            codexLog(
+                input: 100,
+                output: 20,
+                usageTimestamp: ISO8601DateFormatter().string(
+                    from: calendar.startOfDay(for: Date())
+                )
+            ),
+            to: locations.codexSessions.appending(path: "session.jsonl")
+        )
+        let model = UsageModel(
+            usageService: UsageService(locations: locations, calendar: calendar)
+        )
+        let deadline = ContinuousClock.now + .seconds(1)
+
+        while model.snapshot == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        XCTAssertEqual(
+            try XCTUnwrap(model.snapshot)[.codex][.month].processedTokens,
+            120
+        )
+    }
+
     func testArchiveCopyDoesNotDoubleCountAndReplacementDropsRemovedEvents() async throws {
         let active = locations.codexSessions.appending(path: "session.jsonl")
         let contents = codexLog(input: 100, output: 20)
@@ -211,13 +238,14 @@ final class UsageServiceTests: XCTestCase {
         input: Int,
         output: Int,
         thread: String = "thread",
-        model: String = "gpt-5.6-sol"
+        model: String = "gpt-5.6-sol",
+        usageTimestamp: String = "2026-08-25T12:00:00.000Z"
     ) -> String {
         [
             "{\"timestamp\":\"2026-08-25T11:00:00.000Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"\(thread)\"}}",
             "{\"timestamp\":\"2026-08-25T11:30:00.000Z\",\"type\":\"turn_context\",\"payload\":{\"turn_id\":\"turn\",\"model\":\"\(model)\",\"effort\":\"high\"}}",
             codexToken(
-                timestamp: "2026-08-25T12:00:00.000Z",
+                timestamp: usageTimestamp,
                 lastInput: input,
                 lastOutput: output,
                 totalInput: input,

@@ -67,8 +67,6 @@ actor UsageService {
     private var trackedFiles: [String: TrackedFile] = [:]
     private var indexedFrom: Date?
 
-    private(set) var snapshot: UsageSnapshot?
-
     init(
         locations: UsageLogLocations = .standard,
         calendar: Calendar = .autoupdatingCurrent
@@ -77,7 +75,6 @@ actor UsageService {
         self.calendar = calendar
     }
 
-    @discardableResult
     func refresh(at date: Date = Date()) -> UsageSnapshot {
         let intervals = UsagePeriodIntervals.containing(date, calendar: calendar)
 
@@ -96,14 +93,12 @@ actor UsageService {
 
         scanLogs(since: intervals.earliestStart)
 
-        let nextSnapshot = snapshotBuilder.build(
+        return snapshotBuilder.build(
             events: canonicalEvents(),
             at: date,
             intervals: intervals,
             calendar: calendar
         )
-        snapshot = nextSnapshot
-        return nextSnapshot
     }
 
     private func scanLogs(since earliestStart: Date) {

@@ -1,16 +1,15 @@
 import SwiftUI
 
 struct ContentView: View {
-    private let usageService: UsageService
-    @State private var snapshot: UsageSnapshot?
+    private let usageModel: UsageModel
 
-    init(usageService: UsageService) {
-        self.usageService = usageService
+    init(usageModel: UsageModel) {
+        self.usageModel = usageModel
     }
 
     var body: some View {
         Group {
-            if let snapshot {
+            if let snapshot = usageModel.snapshot {
                 UsagePanelView(snapshot: snapshot)
                     .transition(.blurReplace)
             } else {
@@ -20,28 +19,9 @@ struct ContentView: View {
         }
         .fontDesign(.rounded)
         .frame(width: 300)
+        .animation(.smooth(duration: 0.35), value: usageModel.snapshot)
         .task {
-            await refreshUsage()
-        }
-    }
-
-    private func refreshUsage() async {
-        while !Task.isCancelled {
-            let refreshedSnapshot = await usageService.refresh()
-            withAnimation(.smooth(duration: 0.35)) {
-                snapshot = refreshedSnapshot
-            }
-
-            do {
-                // TODO: Make this user-configurable after backend integration.
-                let refreshDelay = min(
-                    600,
-                    max(0, refreshedSnapshot.validUntil.timeIntervalSinceNow)
-                )
-                try await Task.sleep(for: .seconds(refreshDelay))
-            } catch {
-                break
-            }
+            await usageModel.refresh()
         }
     }
 }

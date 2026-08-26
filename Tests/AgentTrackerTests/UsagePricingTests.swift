@@ -229,7 +229,6 @@ final class UsagePricingTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.validUntil, intervals.today.end)
         XCTAssertEqual(snapshot.codex.today.processedTokens, 100)
         XCTAssertEqual(snapshot.codex.week.processedTokens, 150)
         XCTAssertEqual(snapshot.codex.month.processedTokens, 150)

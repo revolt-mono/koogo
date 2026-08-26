@@ -54,7 +54,6 @@ struct ProviderUsageSnapshot: Equatable, Sendable {
 }
 
 struct UsageSnapshot: Equatable, Sendable {
-    let validUntil: Date
     let codex: ProviderUsageSnapshot
     let claude: ProviderUsageSnapshot
 

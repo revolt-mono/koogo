@@ -337,7 +337,6 @@ struct UsageSnapshotBuilder {
         }
 
         return UsageSnapshot(
-            validUntil: intervals.today.end,
             codex: providerSnapshot(from: daysByProvider[.codex] ?? [:], intervals: intervals),
             claude: providerSnapshot(from: daysByProvider[.claude] ?? [:], intervals: intervals)
         )
