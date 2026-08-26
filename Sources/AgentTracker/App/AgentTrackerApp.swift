@@ -2,10 +2,14 @@ import SwiftUI
 
 @main
 struct AgentTrackerApp: App {
+    private let usageService = UsageService()
+
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        MenuBarExtra {
+            ContentView(usageService: usageService)
+        } label: {
+            Image(systemName: "chart.bar.xaxis")
         }
-        .defaultSize(width: 960, height: 640)
+        .menuBarExtraStyle(.window)
     }
 }

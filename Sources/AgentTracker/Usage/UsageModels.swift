@@ -1,18 +1,18 @@
 import Foundation
 
-enum UsageProvider: String, CaseIterable, Sendable {
+enum UsageProvider: String, Hashable, Sendable {
     case codex
     case claude
 }
 
-enum UsagePeriod: String, CaseIterable, Sendable {
+enum UsagePeriod: Sendable {
     case today
     case week
     case month
 }
 
 struct UsagePeriodSnapshot: Equatable, Sendable {
-    let processedTokens: Int64
+    let processedTokens: Decimal
     let costUSD: Decimal
     let favoriteModel: String?
     let favoriteReasoningEffort: String?
@@ -25,12 +25,24 @@ struct UsagePeriodSnapshot: Equatable, Sendable {
     )
 }
 
+struct UsageDaySnapshot: Equatable, Identifiable, Sendable {
+    let date: Date
+    let processedTokens: Decimal
+    let costUSD: Decimal
+
+    var id: Date { date }
+}
+
+struct UsageMonthSnapshot: Equatable, Sendable {
+    let interval: DateInterval
+    let days: [UsageDaySnapshot]
+}
+
 struct ProviderUsageSnapshot: Equatable, Sendable {
     let today: UsagePeriodSnapshot
     let week: UsagePeriodSnapshot
     let month: UsagePeriodSnapshot
-
-    static let zero = ProviderUsageSnapshot(today: .zero, week: .zero, month: .zero)
+    let dailyMonth: UsageMonthSnapshot
 
     subscript(period: UsagePeriod) -> UsagePeriodSnapshot {
         switch period {
@@ -42,7 +54,7 @@ struct ProviderUsageSnapshot: Equatable, Sendable {
 }
 
 struct UsageSnapshot: Equatable, Sendable {
-    let generatedAt: Date
+    let validUntil: Date
     let codex: ProviderUsageSnapshot
     let claude: ProviderUsageSnapshot
 
@@ -192,29 +204,27 @@ enum UsageEvent: Sendable {
 }
 
 struct UsagePeriodIntervals {
-    let today: Date
-    let week: Date
-    let month: Date
+    let today: DateInterval
+    let week: DateInterval
+    let month: DateInterval
+
+    private init(today: DateInterval, week: DateInterval, month: DateInterval) {
+        self.today = today
+        self.week = week
+        self.month = month
+    }
 
     var earliestStart: Date {
-        min(today, min(week, month))
+        min(today.start, min(week.start, month.start))
     }
 
-    subscript(period: UsagePeriod) -> Date {
-        switch period {
-        case .today: today
-        case .week: week
-        case .month: month
-        }
-    }
-
-    static func containing(_ date: Date, calendar: Calendar) -> UsagePeriodIntervals? {
+    static func containing(_ date: Date, calendar: Calendar) -> UsagePeriodIntervals {
         guard
-            let today = calendar.dateInterval(of: .day, for: date)?.start,
-            let week = calendar.dateInterval(of: .weekOfYear, for: date)?.start,
-            let month = calendar.dateInterval(of: .month, for: date)?.start
+            let today = calendar.dateInterval(of: .day, for: date),
+            let week = calendar.dateInterval(of: .weekOfYear, for: date),
+            let month = calendar.dateInterval(of: .month, for: date)
         else {
-            return nil
+            preconditionFailure("calendar must provide day, week, and month intervals")
         }
 
         return UsagePeriodIntervals(today: today, week: week, month: month)

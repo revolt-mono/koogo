@@ -74,15 +74,7 @@ actor UsageService {
 
     @discardableResult
     func refresh(at date: Date = Date()) -> UsageSnapshot {
-        guard let intervals = UsagePeriodIntervals.containing(date, calendar: calendar) else {
-            let empty = UsageSnapshot(
-                generatedAt: date,
-                codex: .zero,
-                claude: .zero
-            )
-            snapshot = empty
-            return empty
-        }
+        let intervals = UsagePeriodIntervals.containing(date, calendar: calendar)
 
         if let indexedFrom, intervals.earliestStart < indexedFrom {
             trackedFiles.removeAll(keepingCapacity: true)
@@ -102,7 +94,8 @@ actor UsageService {
         let nextSnapshot = snapshotBuilder.build(
             events: canonicalEvents(),
             at: date,
-            intervals: intervals
+            intervals: intervals,
+            calendar: calendar
         )
         snapshot = nextSnapshot
         return nextSnapshot

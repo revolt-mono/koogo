@@ -177,18 +177,18 @@ final class UsageServiceTests: XCTestCase {
         local.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
         local.firstWeekday = 2
         let date = try XCTUnwrap(parseUsageTimestamp("2026-03-11T12:00:00.000Z"))
-        let intervals = try XCTUnwrap(UsagePeriodIntervals.containing(date, calendar: local))
+        let intervals = UsagePeriodIntervals.containing(date, calendar: local)
 
         XCTAssertEqual(
-            local.dateComponents([.year, .month, .day], from: intervals[.today]),
+            local.dateComponents([.year, .month, .day], from: intervals.today.start),
             DateComponents(year: 2026, month: 3, day: 11)
         )
         XCTAssertEqual(
-            local.dateComponents([.year, .month, .day], from: intervals[.week]),
+            local.dateComponents([.year, .month, .day], from: intervals.week.start),
             DateComponents(year: 2026, month: 3, day: 9)
         )
         XCTAssertEqual(
-            local.dateComponents([.year, .month, .day], from: intervals[.month]),
+            local.dateComponents([.year, .month, .day], from: intervals.month.start),
             DateComponents(year: 2026, month: 3, day: 1)
         )
     }

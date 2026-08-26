@@ -127,10 +127,10 @@ final class UsagePricingTests: XCTestCase {
         }
     }
 
-    func testSnapshotRoundsOnlyAfterAggregatingAndUsesOccurrenceFavorites() throws {
+    func testSnapshotPreservesExactCostsAndUsesOccurrenceFavorites() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let intervals = try XCTUnwrap(UsagePeriodIntervals.containing(timestamp, calendar: calendar))
+        let intervals = UsagePeriodIntervals.containing(timestamp, calendar: calendar)
         let events = [
             codexEvent(
                 id: 1,
@@ -158,20 +158,116 @@ final class UsagePricingTests: XCTestCase {
         let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
             events: events,
             at: timestamp,
-            intervals: intervals
+            intervals: intervals,
+            calendar: calendar
         )
         let today = snapshot[.codex][.today]
 
         XCTAssertEqual(today.processedTokens, 240_000)
-        XCTAssertEqual(today.costUSD, Decimal(string: "0.81"))
+        XCTAssertEqual(today.costUSD, Decimal(string: "0.808"))
         XCTAssertEqual(today.favoriteModel, "gpt-5.6-luna")
         XCTAssertEqual(today.favoriteReasoningEffort, "high")
+        XCTAssertEqual(
+            snapshot.codex.dailyMonth.days,
+            [
+                UsageDaySnapshot(
+                    date: calendar.startOfDay(for: timestamp),
+                    processedTokens: 240_000,
+                    costUSD: try XCTUnwrap(Decimal(string: "0.808"))
+                )
+            ]
+        )
+    }
+
+    func testSnapshotPreservesSubcentProviderCostsUntilDisplayFormatting() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        let intervals = UsagePeriodIntervals.containing(timestamp, calendar: calendar)
+
+        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+            events: [
+                codexEvent(model: "gpt-5.6-sol", uncachedInput: 1_000),
+                claudeEvent(model: "claude-opus-5", uncachedInput: 1_000),
+            ],
+            at: timestamp,
+            intervals: intervals,
+            calendar: calendar
+        )
+        let total = snapshot.codex.today.costUSD + snapshot.claude.today.costUSD
+
+        XCTAssertEqual(snapshot.codex.today.costUSD, Decimal(string: "0.004"))
+        XCTAssertEqual(snapshot.claude.today.costUSD, Decimal(string: "0.005"))
+        XCTAssertEqual(total, Decimal(string: "0.009"))
+        XCTAssertEqual(UsageFormatting.cost(snapshot.claude.today.costUSD), "$0.01")
+        XCTAssertEqual(UsageFormatting.cost(total), "$0.01")
+        XCTAssertEqual(
+            UsageFormatting.cost(try XCTUnwrap(Decimal(string: "0.025"))),
+            "$0.03"
+        )
+    }
+
+    func testSnapshotDerivesPeriodsAndDailySeriesFromDayBuckets() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        let intervals = UsagePeriodIntervals.containing(timestamp, calendar: calendar)
+        let previousDay = try XCTUnwrap(
+            calendar.date(byAdding: .day, value: -1, to: timestamp)
+        )
+
+        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+            events: [
+                codexEvent(id: 1, model: "gpt-5.6-sol", uncachedInput: 100),
+                codexEvent(
+                    id: 2,
+                    model: "gpt-5.6-sol",
+                    uncachedInput: 50,
+                    at: previousDay
+                ),
+            ],
+            at: timestamp,
+            intervals: intervals,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(snapshot.validUntil, intervals.today.end)
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 100)
+        XCTAssertEqual(snapshot.codex.week.processedTokens, 150)
+        XCTAssertEqual(snapshot.codex.month.processedTokens, 150)
+        XCTAssertEqual(snapshot.codex.dailyMonth.interval, intervals.month)
+        XCTAssertEqual(
+            snapshot.codex.dailyMonth.days.map(\.processedTokens),
+            [50, 100]
+        )
+    }
+
+    func testSnapshotSeparatesWeekAndMonthAcrossMonthBoundary() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        calendar.firstWeekday = 2
+        let now = try XCTUnwrap(parseUsageTimestamp("2026-09-01T12:00:00Z"))
+        let previousMonth = try XCTUnwrap(parseUsageTimestamp("2026-08-31T12:00:00Z"))
+        let intervals = UsagePeriodIntervals.containing(now, calendar: calendar)
+
+        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+            events: [
+                codexEvent(model: "gpt-5.6-sol", uncachedInput: 100, at: now),
+                codexEvent(model: "gpt-5.6-sol", uncachedInput: 50, at: previousMonth),
+            ],
+            at: now,
+            intervals: intervals,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 100)
+        XCTAssertEqual(snapshot.codex.week.processedTokens, 150)
+        XCTAssertEqual(snapshot.codex.month.processedTokens, 100)
+        XCTAssertEqual(snapshot.codex.dailyMonth.days.map(\.processedTokens), [100])
     }
 
     func testUnknownModelsDoNotEnterAnyStatistic() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let intervals = try XCTUnwrap(UsagePeriodIntervals.containing(timestamp, calendar: calendar))
+        let intervals = UsagePeriodIntervals.containing(timestamp, calendar: calendar)
         let unknown = codexEvent(
             model: "future-model",
             uncachedInput: 1_000_000,
@@ -181,7 +277,8 @@ final class UsagePricingTests: XCTestCase {
         let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
             events: [unknown],
             at: timestamp,
-            intervals: intervals
+            intervals: intervals,
+            calendar: calendar
         )
 
         XCTAssertEqual(snapshot[.codex][.month], .zero)
@@ -195,7 +292,8 @@ final class UsagePricingTests: XCTestCase {
         cachedInput: Int64 = 0,
         cacheWriteInput: Int64 = 0,
         output: Int64 = 0,
-        serviceTier: UsageEvent.Codex.ServiceTier = .standard
+        serviceTier: UsageEvent.Codex.ServiceTier = .standard,
+        at eventDate: Date? = nil
     ) -> UsageEvent {
         let tokens = UsageTokens(
             uncachedInput: uncachedInput,
@@ -210,7 +308,7 @@ final class UsagePricingTests: XCTestCase {
             turnID: nil,
             ordinal: nil,
             details: UsageEvent.Details(
-                timestamp: timestamp,
+                timestamp: eventDate ?? timestamp,
                 model: model,
                 reasoningEffort: effort,
                 tokens: tokens

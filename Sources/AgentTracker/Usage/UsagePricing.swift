@@ -289,10 +289,26 @@ struct UsagePriceCatalog: Sendable {
 
 struct UsageSnapshotBuilder {
     private struct Accumulator {
-        var processedTokens: Int64 = 0
+        var processedTokens: Decimal = 0
         var costNanodollars: Decimal = 0
         var modelCounts: [String: Int] = [:]
         var effortCounts: [String: Int] = [:]
+
+        mutating func add(_ details: UsageEvent.Details, cost: Decimal) {
+            processedTokens += Decimal(details.tokens.processed)
+            costNanodollars += cost
+            modelCounts[details.model, default: 0] += 1
+            if let effort = details.reasoningEffort {
+                effortCounts[effort, default: 0] += 1
+            }
+        }
+
+        mutating func merge(_ other: Accumulator) {
+            processedTokens += other.processedTokens
+            costNanodollars += other.costNanodollars
+            modelCounts.merge(other.modelCounts, uniquingKeysWith: +)
+            effortCounts.merge(other.effortCounts, uniquingKeysWith: +)
+        }
     }
 
     let priceCatalog: UsagePriceCatalog
@@ -300,61 +316,69 @@ struct UsageSnapshotBuilder {
     func build(
         events: some Sequence<UsageEvent>,
         at date: Date,
-        intervals: UsagePeriodIntervals
+        intervals: UsagePeriodIntervals,
+        calendar: Calendar
     ) -> UsageSnapshot {
-        var accumulators: [UsageProvider: [UsagePeriod: Accumulator]] = [:]
+        var daysByProvider: [UsageProvider: [Date: Accumulator]] = [:]
 
         for event in events {
             let details = event.details
             guard
+                intervals.earliestStart <= details.timestamp,
                 details.timestamp <= date,
                 let cost = priceCatalog.costNanodollars(for: event)
             else {
                 continue
             }
 
-            for period in UsagePeriod.allCases where details.timestamp >= intervals[period] {
-                var accumulator = accumulators[event.provider, default: [:]][period, default: Accumulator()]
-                let (processedTokens, overflow) = accumulator.processedTokens
-                    .addingReportingOverflow(details.tokens.processed)
-                guard !overflow else {
-                    continue
-                }
-                accumulator.processedTokens = processedTokens
-                accumulator.costNanodollars += cost
-                accumulator.modelCounts[details.model, default: 0] += 1
-                if let effort = details.reasoningEffort {
-                    accumulator.effortCounts[effort, default: 0] += 1
-                }
-                accumulators[event.provider, default: [:]][period] = accumulator
-            }
+            let day = calendar.startOfDay(for: details.timestamp)
+            daysByProvider[event.provider, default: [:]][day, default: Accumulator()]
+                .add(details, cost: cost)
         }
 
         return UsageSnapshot(
-            generatedAt: date,
-            codex: snapshot(from: accumulators[.codex] ?? [:]),
-            claude: snapshot(from: accumulators[.claude] ?? [:])
+            validUntil: intervals.today.end,
+            codex: providerSnapshot(from: daysByProvider[.codex] ?? [:], intervals: intervals),
+            claude: providerSnapshot(from: daysByProvider[.claude] ?? [:], intervals: intervals)
         )
     }
 
-    private func snapshot(
-        from accumulators: [UsagePeriod: Accumulator]
+    private func providerSnapshot(
+        from days: [Date: Accumulator],
+        intervals: UsagePeriodIntervals
     ) -> ProviderUsageSnapshot {
         ProviderUsageSnapshot(
-            today: snapshot(from: accumulators[.today] ?? Accumulator()),
-            week: snapshot(from: accumulators[.week] ?? Accumulator()),
-            month: snapshot(from: accumulators[.month] ?? Accumulator())
+            today: periodSnapshot(from: days, in: intervals.today),
+            week: periodSnapshot(from: days, in: intervals.week),
+            month: periodSnapshot(from: days, in: intervals.month),
+            dailyMonth: UsageMonthSnapshot(
+                interval: intervals.month,
+                days: days
+                    .filter { intervals.month.contains($0.key) }
+                    .sorted { $0.key < $1.key }
+                    .map { date, accumulator in
+                        UsageDaySnapshot(
+                            date: date,
+                            processedTokens: accumulator.processedTokens,
+                            costUSD: accumulator.costNanodollars / 1_000_000_000
+                        )
+                    }
+            )
         )
     }
 
-    private func snapshot(from accumulator: Accumulator) -> UsagePeriodSnapshot {
-        var dollars = accumulator.costNanodollars / 1_000_000_000
-        var roundedDollars = Decimal()
-        NSDecimalRound(&roundedDollars, &dollars, 2, .plain)
+    private func periodSnapshot(
+        from days: [Date: Accumulator],
+        in interval: DateInterval
+    ) -> UsagePeriodSnapshot {
+        var accumulator = Accumulator()
+        for (date, day) in days where interval.contains(date) {
+            accumulator.merge(day)
+        }
 
         return UsagePeriodSnapshot(
             processedTokens: accumulator.processedTokens,
-            costUSD: roundedDollars,
+            costUSD: accumulator.costNanodollars / 1_000_000_000,
             favoriteModel: favorite(in: accumulator.modelCounts),
             favoriteReasoningEffort: favorite(in: accumulator.effortCounts)
         )

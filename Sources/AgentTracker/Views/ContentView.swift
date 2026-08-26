@@ -1,20 +1,47 @@
 import SwiftUI
 
 struct ContentView: View {
+    private let usageService: UsageService
+    @State private var snapshot: UsageSnapshot?
+
+    init(usageService: UsageService) {
+        self.usageService = usageService
+    }
+
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "point.3.connected.trianglepath.dotted")
-                .font(.system(size: 48))
-                .foregroundStyle(.tint)
-
-            Text("Agent Tracker")
-                .font(.largeTitle)
-                .fontWeight(.semibold)
-
-            Text("Track agent work from one place.")
-                .foregroundStyle(.secondary)
+        Group {
+            if let snapshot {
+                UsagePanelView(snapshot: snapshot)
+                    .transition(.blurReplace)
+            } else {
+                UsageLoadingView()
+                    .transition(.blurReplace)
+            }
         }
-        .padding(32)
-        .frame(minWidth: 480, minHeight: 320)
+        .fontDesign(.rounded)
+        .frame(width: 300)
+        .task {
+            await refreshUsage()
+        }
+    }
+
+    private func refreshUsage() async {
+        while !Task.isCancelled {
+            let refreshedSnapshot = await usageService.refresh()
+            withAnimation(.smooth(duration: 0.35)) {
+                snapshot = refreshedSnapshot
+            }
+
+            do {
+                // TODO: Make this user-configurable after backend integration.
+                let refreshDelay = min(
+                    600,
+                    max(0, refreshedSnapshot.validUntil.timeIntervalSinceNow)
+                )
+                try await Task.sleep(for: .seconds(refreshDelay))
+            } catch {
+                break
+            }
+        }
     }
 }

@@ -10,8 +10,16 @@ let package = Package(
     products: [
         .executable(name: "AgentTracker", targets: ["AgentTracker"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/markiv/SwiftUI-Shimmer.git", from: "1.5.1")
+    ],
     targets: [
-        .executableTarget(name: "AgentTracker"),
+        .executableTarget(
+            name: "AgentTracker",
+            dependencies: [
+                .product(name: "Shimmer", package: "SwiftUI-Shimmer")
+            ]
+        ),
         .testTarget(name: "AgentTrackerTests", dependencies: ["AgentTracker"])
     ]
 )
