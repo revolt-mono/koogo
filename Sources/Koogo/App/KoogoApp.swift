@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct AgentTrackerApp: App {
+struct KoogoApp: App {
     @State private var usageModel = UsageModel(usageService: UsageService())
 
     var body: some Scene {

@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-@testable import AgentTracker
+@testable import Koogo
 
 final class UsagePricingTests: XCTestCase {
     private let catalog = UsagePriceCatalog()

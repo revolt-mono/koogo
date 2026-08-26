@@ -3,24 +3,24 @@
 import PackageDescription
 
 let package = Package(
-    name: "AgentTracker",
+    name: "Koogo",
     platforms: [
         .macOS(.v26)
     ],
     products: [
-        .executable(name: "AgentTracker", targets: ["AgentTracker"])
+        .executable(name: "Koogo", targets: ["Koogo"])
     ],
     dependencies: [
         .package(url: "https://github.com/markiv/SwiftUI-Shimmer.git", from: "1.5.1")
     ],
     targets: [
         .executableTarget(
-            name: "AgentTracker",
+            name: "Koogo",
             dependencies: [
                 .product(name: "Shimmer", package: "SwiftUI-Shimmer")
             ],
             resources: [.process("Resources")]
         ),
-        .testTarget(name: "AgentTrackerTests", dependencies: ["AgentTracker"])
+        .testTarget(name: "KoogoTests", dependencies: ["Koogo"])
     ]
 )

@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-@testable import AgentTracker
+@testable import Koogo
 
 final class UsageServiceTests: XCTestCase {
     private var root: URL!
