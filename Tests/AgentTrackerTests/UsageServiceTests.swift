@@ -147,10 +147,24 @@ final class UsageServiceTests: XCTestCase {
         XCTAssertEqual(snapshot[.codex][.today].processedTokens, 120)
     }
 
+    func testColdScanIgnoresJSONLSymlinks() async throws {
+        let target = root.appending(path: "target.log")
+        try write(codexLog(input: 100, output: 20), to: target)
+        try FileManager.default.createSymbolicLink(
+            at: locations.codexSessions.appending(path: "session.jsonl"),
+            withDestinationURL: target
+        )
+        let service = UsageService(locations: locations, calendar: calendar)
+
+        let snapshot = await service.refresh(at: now)
+
+        XCTAssertEqual(snapshot[.codex][.month], .zero)
+    }
+
     func testColdScanParsesLinesAcrossReadChunks() async throws {
         let log = locations.codexSessions.appending(path: "session.jsonl")
         let ignored = "{\"type\":\"ignored\",\"padding\":\""
-            + String(repeating: "x", count: 1_048_576)
+            + String(repeating: "x", count: 4_194_304)
             + "\"}\n"
         try write(ignored + codexLog(input: 100, output: 20), to: log)
         let service = UsageService(locations: locations, calendar: calendar)

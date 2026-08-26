@@ -1,6 +1,38 @@
 import Foundation
 
-enum UsageFileParserState {
+private protocol LogRecordKind: RawRepresentable, Decodable, Sendable where RawValue == String {
+    static var other: Self { get }
+}
+
+private extension LogRecordKind {
+    init(from decoder: Decoder) throws {
+        self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .other
+    }
+
+    var jsonStringMarker: Data {
+        Data(("\"" + rawValue + "\"").utf8)
+    }
+}
+
+private enum CodexRecordKind: String, LogRecordKind {
+    case sessionMeta = "session_meta"
+    case turnContext = "turn_context"
+    case eventMessage = "event_msg"
+    case other
+}
+
+private enum CodexPayloadKind: String, LogRecordKind {
+    case tokenCount = "token_count"
+    case threadSettingsApplied = "thread_settings_applied"
+    case other
+}
+
+private enum ClaudeRecordKind: String, LogRecordKind {
+    case assistant
+    case other
+}
+
+enum UsageFileParserState: Sendable {
     case codex(CodexLogParser = CodexLogParser())
     case claude
 
@@ -18,42 +50,125 @@ enum UsageFileParserState {
         }
     }
 
-    func mightContainUsage(_ line: Data.SubSequence) -> Bool {
-        switch self {
-        case .codex:
-            Self.codexMarkers.contains { line.range(of: $0) != nil }
-        case .claude:
-            line.range(of: Self.claudeUsageMarker) != nil
-                && line.range(of: Self.claudeAssistantMarker) != nil
-        }
-    }
-
     mutating func parse(
-        _ line: Data,
+        _ line: UnsafeRawBufferPointer,
         source: String,
         decoder: JSONDecoder
     ) -> UsageEvent? {
+        let containsMarker = switch self {
+        case .codex: line.containsTypeValue(in: Self.codexMarkers)
+        case .claude: line.containsClaudeMarkers()
+        }
+        guard containsMarker, let baseAddress = line.baseAddress else {
+            return nil
+        }
+        let data = Data(
+            bytesNoCopy: UnsafeMutableRawPointer(mutating: baseAddress),
+            count: line.count,
+            deallocator: .none
+        )
         switch self {
         case .codex(var parser):
-            let event = parser.parse(line, source: source, decoder: decoder)
+            let event = parser.parse(data, source: source, decoder: decoder)
             self = .codex(parser)
             return event
         case .claude:
-            return parseClaudeLog(line, decoder: decoder)
+            return parseClaudeLog(data, decoder: decoder)
         }
     }
 
-    private static let codexMarkers = [
-        Data("\"session_meta\"".utf8),
-        Data("\"turn_context\"".utf8),
-        Data("\"token_count\"".utf8),
-        Data("\"thread_settings_applied\"".utf8),
+    fileprivate static let typeKey = Data("\"type\"".utf8)
+    fileprivate static let codexMarkers = [
+        CodexRecordKind.sessionMeta.jsonStringMarker,
+        CodexRecordKind.turnContext.jsonStringMarker,
+        CodexPayloadKind.tokenCount.jsonStringMarker,
+        CodexPayloadKind.threadSettingsApplied.jsonStringMarker,
     ]
-    private static let claudeUsageMarker = Data("\"usage\"".utf8)
-    private static let claudeAssistantMarker = Data("\"assistant\"".utf8)
+    fileprivate static let claudeAssistantMarker = ClaudeRecordKind.assistant.jsonStringMarker
 }
 
-struct CodexLogParser {
+private extension UnsafeRawBufferPointer {
+    func containsClaudeMarkers() -> Bool {
+        guard
+            containsTypeValue(in: [UsageFileParserState.claudeAssistantMarker]),
+            let baseAddress
+        else {
+            return false
+        }
+        return ClaudeMessage.usageMarker.withUnsafeBytes { marker in
+            memmem(baseAddress, count, marker.baseAddress, marker.count) != nil
+        }
+    }
+
+    func containsTypeValue(in values: [Data]) -> Bool {
+        guard let baseAddress else {
+            return false
+        }
+        let bytes = bindMemory(to: UInt8.self)
+        var searchStart = 0
+
+        while searchStart < count {
+            let match = UsageFileParserState.typeKey.withUnsafeBytes { key in
+                memmem(
+                    baseAddress.advanced(by: searchStart),
+                    count - searchStart,
+                    key.baseAddress,
+                    key.count
+                )
+            }
+            guard let match else {
+                return false
+            }
+
+            var valueStart = baseAddress.distance(to: UnsafeRawPointer(match))
+                + UsageFileParserState.typeKey.count
+            while valueStart < count, bytes[valueStart].isJSONWhitespace {
+                valueStart += 1
+            }
+            guard valueStart < count, bytes[valueStart] == 0x3A else {
+                searchStart = valueStart
+                continue
+            }
+            valueStart += 1
+            while valueStart < count, bytes[valueStart].isJSONWhitespace {
+                valueStart += 1
+            }
+            for value in values where matches(value, at: valueStart) {
+                return true
+            }
+            searchStart = valueStart
+        }
+        return false
+    }
+
+    func matches(_ data: Data, at index: Int) -> Bool {
+        guard
+            let baseAddress,
+            index <= count,
+            count - index >= data.count
+        else {
+            return false
+        }
+        return data.withUnsafeBytes { candidate in
+            guard let candidateAddress = candidate.baseAddress else {
+                return false
+            }
+            return memcmp(
+                baseAddress.advanced(by: index),
+                candidateAddress,
+                candidate.count
+            ) == 0
+        }
+    }
+}
+
+private extension UInt8 {
+    var isJSONWhitespace: Bool {
+        self == 0x20 || self == 0x09 || self == 0x0A || self == 0x0D
+    }
+}
+
+struct CodexLogParser: Sendable {
     private var threadID: String?
     private var turnID: String?
     private var model: String?
@@ -71,19 +186,19 @@ struct CodexLogParser {
         }
 
         switch record.type {
-        case "session_meta":
+        case .sessionMeta:
             threadID = nonempty(record.payload.id) ?? nonempty(record.payload.sessionID)
-        case "turn_context":
+        case .turnContext:
             model = nonempty(record.payload.model)
             reasoningEffort = nonempty(record.payload.effort)
             turnID = nonempty(record.payload.turnID)
-        case "event_msg":
-            if record.payload.type == "thread_settings_applied" {
+        case .eventMessage:
+            if record.payload.type == .threadSettingsApplied {
                 apply(record.payload.threadSettings)
-            } else if record.payload.type == "token_count" {
+            } else if record.payload.type == .tokenCount {
                 return parseTokenCount(record, source: source)
             }
-        default:
+        case .other:
             break
         }
 
@@ -165,7 +280,7 @@ struct CodexLogParser {
 private func parseClaudeLog(_ line: Data, decoder: JSONDecoder) -> UsageEvent? {
     guard
         let record = try? decoder.decode(ClaudeLogRecord.self, from: line),
-        record.type == "assistant",
+        record.type == .assistant,
         let timestampValue = record.timestamp,
         let timestamp = parseUsageTimestamp(timestampValue),
         let message = record.message,
@@ -204,12 +319,12 @@ private func nonempty(_ value: String?) -> String? {
 private struct CodexLogRecord: Decodable {
     let timestamp: String?
     let ordinal: UInt64?
-    let type: String
+    let type: CodexRecordKind
     let payload: CodexPayload
 }
 
 private struct CodexPayload: Decodable {
-    let type: String?
+    let type: CodexPayloadKind?
     let id: String?
     let sessionID: String?
     let model: String?
@@ -284,7 +399,7 @@ private struct CodexTokenInfo: Decodable {
     }
 }
 
-private struct CodexTokenUsage: Decodable, Equatable {
+private struct CodexTokenUsage: Decodable, Equatable, Sendable {
     let input: Int64
     let cachedInput: Int64
     let cacheWriteInput: Int64
@@ -351,7 +466,7 @@ private struct CodexTokenUsage: Decodable, Equatable {
 }
 
 private struct ClaudeLogRecord: Decodable {
-    let type: String
+    let type: ClaudeRecordKind
     let timestamp: String?
     let requestID: String?
     let effort: String?
@@ -370,6 +485,14 @@ private struct ClaudeMessage: Decodable {
     let id: String?
     let model: String?
     let usage: ClaudeUsage?
+
+    fileprivate static let usageMarker = Data(("\"" + CodingKeys.usage.rawValue + "\"").utf8)
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case model
+        case usage
+    }
 }
 
 private struct ClaudeUsage: Decodable {

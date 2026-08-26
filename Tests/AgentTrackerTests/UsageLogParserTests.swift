@@ -208,7 +208,9 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     private func parse(_ line: String, with parser: inout UsageFileParserState) -> UsageEvent? {
-        parser.parse(Data(line.utf8), source: "/tmp/session.jsonl", decoder: decoder)
+        Data(line.utf8).withUnsafeBytes {
+            parser.parse($0, source: "/tmp/session.jsonl", decoder: decoder)
+        }
     }
 
     private func codexMeta() -> String {

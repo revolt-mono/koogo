@@ -1,13 +1,19 @@
 import Darwin
 import Foundation
+import Synchronization
 
 actor UsageService {
-    private struct FileIdentity: Equatable {
+    private struct LogFile: Sendable {
+        let url: URL
+        let provider: UsageProvider
+    }
+
+    private struct FileIdentity: Equatable, Sendable {
         let device: UInt64
         let inode: UInt64
     }
 
-    private struct FileMetadata {
+    private struct FileMetadata: Sendable {
         let identity: FileIdentity
         let size: UInt64
         let modificationDate: Date
@@ -44,7 +50,7 @@ actor UsageService {
         }
     }
 
-    private struct TrackedFile {
+    private struct TrackedFile: Sendable {
         var metadata: FileMetadata
         var parsedOffset: UInt64
         var parsedTail: Data
@@ -58,7 +64,6 @@ actor UsageService {
     private let locations: UsageLogLocations
     private let calendar: Calendar
     private let snapshotBuilder = UsageSnapshotBuilder(priceCatalog: UsagePriceCatalog())
-    private let decoder = JSONDecoder()
     private var trackedFiles: [String: TrackedFile] = [:]
     private var indexedFrom: Date?
 
@@ -107,20 +112,20 @@ actor UsageService {
             (locations.codexArchivedSessions, UsageProvider.codex),
             (locations.claudeProjects, UsageProvider.claude),
         ].flatMap { root, provider in
-            jsonlFiles(in: root).map { ($0, provider) }
-        }.sorted { $0.0.path < $1.0.path }
+            jsonlFiles(in: root).map { LogFile(url: $0, provider: provider) }
+        }
         var seenPaths = Set<String>()
+        var filesToParse: [LogFile] = []
 
-        for (url, provider) in files {
-            let path = url.path
+        for file in files {
+            let path = file.url.path
             seenPaths.insert(path)
 
-            guard let metadata = FileMetadata(url) else {
+            guard let metadata = FileMetadata(file.url) else {
                 continue
             }
-
             if var tracked = trackedFiles[path] {
-                let wasReplaced = tracked.parser.provider != provider
+                let wasReplaced = tracked.parser.provider != file.provider
                     || tracked.metadata.identity != metadata.identity
                     || metadata.size < tracked.metadata.size
                     || (
@@ -128,26 +133,23 @@ actor UsageService {
                             && metadata.modificationDate != tracked.metadata.modificationDate
                     )
                 if wasReplaced {
-                    if let reparsed = parseEntireFile(
-                        url,
-                        path: path,
-                        provider: provider,
+                    if let reparsed = Self.parseEntireFile(
+                        file,
                         since: earliestStart
                     ) {
                         tracked = reparsed
                     }
                 } else if metadata.size > tracked.metadata.size {
-                    parseAppendedBytes(url, path: path, tracked: &tracked, since: earliestStart)
+                    parseAppendedBytes(file, tracked: &tracked, since: earliestStart)
                 }
                 trackedFiles[path] = tracked
             } else {
-                trackedFiles[path] = parseEntireFile(
-                    url,
-                    path: path,
-                    provider: provider,
-                    since: earliestStart
-                )
+                filesToParse.append(file)
             }
+        }
+
+        for (path, tracked) in Self.parseEntireFiles(filesToParse, since: earliestStart) {
+            trackedFiles[path] = tracked
         }
 
         for path in Set(trackedFiles.keys).subtracting(seenPaths) {
@@ -155,13 +157,27 @@ actor UsageService {
         }
     }
 
-    private func parseEntireFile(
-        _ url: URL,
-        path: String,
-        provider: UsageProvider,
+    nonisolated private static func parseEntireFiles(
+        _ files: [LogFile],
+        since earliestStart: Date
+    ) -> [String: TrackedFile] {
+        let parsedFiles = Mutex<[String: TrackedFile]>([:])
+        // Keep refresh synchronous so actor state cannot interleave while workers build files.
+        DispatchQueue.concurrentPerform(iterations: files.count) { index in
+            let file = files[index]
+            guard let tracked = parseEntireFile(file, since: earliestStart) else {
+                return
+            }
+            parsedFiles.withLock { $0[file.url.path] = tracked }
+        }
+        return parsedFiles.withLock { $0 }
+    }
+
+    nonisolated private static func parseEntireFile(
+        _ file: LogFile,
         since earliestStart: Date
     ) -> TrackedFile? {
-        guard let handle = try? FileHandle(forReadingFrom: url) else {
+        guard let handle = try? FileHandle(forReadingFrom: file.url) else {
             return nil
         }
         defer { try? handle.close() }
@@ -173,14 +189,14 @@ actor UsageService {
             metadata: metadata,
             parsedOffset: 0,
             parsedTail: Data(),
-            parser: UsageFileParserState(provider: provider),
+            parser: UsageFileParserState(provider: file.provider),
             events: [:]
         )
         guard parseBytes(
             handle,
             from: 0,
             through: metadata.size,
-            path: path,
+            path: file.url.path,
             tracked: &tracked,
             since: earliestStart
         ) else {
@@ -190,12 +206,11 @@ actor UsageService {
     }
 
     private func parseAppendedBytes(
-        _ url: URL,
-        path: String,
+        _ file: LogFile,
         tracked: inout TrackedFile,
         since earliestStart: Date
     ) {
-        guard let handle = try? FileHandle(forReadingFrom: url) else {
+        guard let handle = try? FileHandle(forReadingFrom: file.url) else {
             return
         }
         defer { try? handle.close() }
@@ -207,12 +222,10 @@ actor UsageService {
         if
             tracked.metadata.identity != metadata.identity
                 || metadata.size < tracked.metadata.size
-                || !parsedTailMatches(handle, tracked: tracked)
+                || !Self.parsedTailMatches(handle, tracked: tracked)
         {
-            if let reparsed = parseEntireFile(
-                url,
-                path: path,
-                provider: tracked.parser.provider,
+            if let reparsed = Self.parseEntireFile(
+                file,
                 since: earliestStart
             ) {
                 tracked = reparsed
@@ -221,11 +234,11 @@ actor UsageService {
         }
 
         var candidate = tracked
-        guard parseBytes(
+        guard Self.parseBytes(
             handle,
             from: tracked.parsedOffset,
             through: metadata.size,
-            path: path,
+            path: file.url.path,
             tracked: &candidate,
             since: earliestStart
         ) else {
@@ -235,7 +248,7 @@ actor UsageService {
         tracked = candidate
     }
 
-    private func parseBytes(
+    nonisolated private static func parseBytes(
         _ handle: FileHandle,
         from offset: UInt64,
         through endOffset: UInt64,
@@ -247,34 +260,49 @@ actor UsageService {
             try handle.seek(toOffset: offset)
             var readOffset = offset
             var pending = Data()
+            let decoder = JSONDecoder()
 
             while readOffset < endOffset {
-                let remaining = endOffset - readOffset
-                let count = Int(min(remaining, UInt64(Self.readChunkSize)))
-                guard
-                    let chunk = try handle.read(upToCount: count),
-                    !chunk.isEmpty
-                else {
+                guard try autoreleasepool(invoking: { () -> Bool in
+                    let remaining = endOffset - readOffset
+                    let count = Int(min(remaining, UInt64(Self.readChunkSize)))
+                    guard
+                        let chunk = try handle.read(upToCount: count),
+                        !chunk.isEmpty
+                    else {
+                        return false
+                    }
+                    readOffset += UInt64(chunk.count)
+
+                    guard let lastNewline = chunk.lastIndex(of: 0x0A) else {
+                        pending.append(chunk)
+                        return true
+                    }
+                    let completeChunkCount = chunk.distance(
+                        from: chunk.startIndex,
+                        to: chunk.index(after: lastNewline)
+                    )
+                    let pendingCount = pending.count
+                    let completeData: Data
+                    if pending.isEmpty {
+                        completeData = Data(chunk.prefix(completeChunkCount))
+                    } else {
+                        pending.append(chunk.prefix(completeChunkCount))
+                        completeData = pending
+                    }
+                    parseCompleteLines(
+                        completeData,
+                        path: path,
+                        tracked: &tracked,
+                        since: earliestStart,
+                        decoder: decoder
+                    )
+                    tracked.parsedOffset += UInt64(pendingCount + completeChunkCount)
+                    pending = Data(chunk.dropFirst(completeChunkCount))
+                    return true
+                }) else {
                     return false
                 }
-                readOffset += UInt64(chunk.count)
-                pending.append(chunk)
-
-                guard let lastNewline = pending.lastIndex(of: 0x0A) else {
-                    continue
-                }
-                let completeCount = pending.distance(
-                    from: pending.startIndex,
-                    to: pending.index(after: lastNewline)
-                )
-                parseCompleteLines(
-                    Data(pending.prefix(completeCount)),
-                    path: path,
-                    tracked: &tracked,
-                    since: earliestStart
-                )
-                tracked.parsedOffset += UInt64(completeCount)
-                pending = Data(pending.dropFirst(completeCount))
             }
 
             return true
@@ -283,21 +311,36 @@ actor UsageService {
         }
     }
 
-    private func parseCompleteLines(
+    nonisolated private static func parseCompleteLines(
         _ data: Data,
         path: String,
         tracked: inout TrackedFile,
-        since earliestStart: Date
+        since earliestStart: Date,
+        decoder: JSONDecoder
     ) {
-        for line in data.split(separator: 0x0A) {
-            guard
-                tracked.parser.mightContainUsage(line),
-                let event = tracked.parser.parse(Data(line), source: path, decoder: decoder),
-                event.details.timestamp >= earliestStart
-            else {
-                continue
+        data.withUnsafeBytes { bytes in
+            guard let baseAddress = bytes.baseAddress else {
+                return
             }
-            insert(event, into: &tracked.events)
+            var lineStart = 0
+
+            while lineStart < bytes.count {
+                let start = baseAddress.advanced(by: lineStart)
+                let remainingCount = bytes.count - lineStart
+                guard let newline = memchr(start, Int32(0x0A), remainingCount) else {
+                    break
+                }
+                let lineCount = start.distance(to: newline)
+                let line = UnsafeRawBufferPointer(start: start, count: lineCount)
+
+                if
+                    let event = tracked.parser.parse(line, source: path, decoder: decoder),
+                    event.details.timestamp >= earliestStart
+                {
+                    insert(event, into: &tracked.events)
+                }
+                lineStart += lineCount + 1
+            }
         }
 
         if data.count >= Self.parsedTailSize {
@@ -309,7 +352,10 @@ actor UsageService {
         }
     }
 
-    private func parsedTailMatches(_ handle: FileHandle, tracked: TrackedFile) -> Bool {
+    nonisolated private static func parsedTailMatches(
+        _ handle: FileHandle,
+        tracked: TrackedFile
+    ) -> Bool {
         guard !tracked.parsedTail.isEmpty else {
             return true
         }
@@ -333,7 +379,7 @@ actor UsageService {
         }
     }
 
-    private func insert(
+    nonisolated private static func insert(
         _ event: UsageEvent,
         into events: inout [UsageEvent.ID: UsageEvent]
     ) {
@@ -351,7 +397,7 @@ actor UsageService {
 
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
             for event in tracked.events.values {
-                insert(event, into: &result)
+                Self.insert(event, into: &result)
             }
         }
 
