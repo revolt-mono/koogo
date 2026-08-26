@@ -22,4 +22,15 @@ enum UsageFormatting {
                 .precision(.fractionLength(0...1))
         )
     }
+
+    static func percentage(_ fraction: Decimal) -> String {
+        var percentage = fraction * 100
+        var roundedPercentage = Decimal()
+        NSDecimalRound(&roundedPercentage, &percentage, 1, .plain)
+        return roundedPercentage.formatted(
+            .number
+                .locale(locale)
+                .precision(.fractionLength(0...1))
+        ) + "%"
+    }
 }

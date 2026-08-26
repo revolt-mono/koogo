@@ -315,17 +315,18 @@ struct UsageSnapshotBuilder {
 
     func build(
         events: some Sequence<UsageEvent>,
-        at date: Date,
         intervals: UsagePeriodIntervals,
         calendar: Calendar
     ) -> UsageSnapshot {
         var daysByProvider: [UsageProvider: [Date: Accumulator]] = [:]
+        var previousDayCost: Decimal = 0
+        var previousMonthCost: Decimal = 0
 
         for event in events {
             let details = event.details
             guard
                 intervals.earliestStart <= details.timestamp,
-                details.timestamp <= date,
+                details.timestamp <= intervals.through,
                 let cost = priceCatalog.costNanodollars(for: event)
             else {
                 continue
@@ -334,11 +335,19 @@ struct UsageSnapshotBuilder {
             let day = calendar.startOfDay(for: details.timestamp)
             daysByProvider[event.provider, default: [:]][day, default: Accumulator()]
                 .add(details, cost: cost)
+            if intervals.day.previous.contains(details.timestamp) {
+                previousDayCost += cost
+            }
+            if intervals.month.previous.contains(details.timestamp) {
+                previousMonthCost += cost
+            }
         }
 
         return UsageSnapshot(
             codex: providerSnapshot(from: daysByProvider[.codex] ?? [:], intervals: intervals),
-            claude: providerSnapshot(from: daysByProvider[.claude] ?? [:], intervals: intervals)
+            claude: providerSnapshot(from: daysByProvider[.claude] ?? [:], intervals: intervals),
+            previousDayCostUSD: previousDayCost / 1_000_000_000,
+            previousMonthCostUSD: previousMonthCost / 1_000_000_000
         )
     }
 
@@ -347,13 +356,13 @@ struct UsageSnapshotBuilder {
         intervals: UsagePeriodIntervals
     ) -> ProviderUsageSnapshot {
         ProviderUsageSnapshot(
-            today: periodSnapshot(from: days, in: intervals.today),
+            today: periodSnapshot(from: days, in: intervals.day.current),
             week: periodSnapshot(from: days, in: intervals.week),
-            month: periodSnapshot(from: days, in: intervals.month),
+            month: periodSnapshot(from: days, in: intervals.month.current),
             dailyMonth: UsageMonthSnapshot(
-                interval: intervals.month,
+                range: intervals.month.current,
                 days: days
-                    .filter { intervals.month.contains($0.key) }
+                    .filter { intervals.month.current.contains($0.key) }
                     .sorted { $0.key < $1.key }
                     .map { date, accumulator in
                         UsageDaySnapshot(
@@ -368,7 +377,7 @@ struct UsageSnapshotBuilder {
 
     private func periodSnapshot(
         from days: [Date: Accumulator],
-        in interval: DateInterval
+        in interval: Range<Date>
     ) -> UsagePeriodSnapshot {
         var accumulator = Accumulator()
         for (date, day) in days where interval.contains(date) {

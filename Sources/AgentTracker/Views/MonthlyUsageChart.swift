@@ -42,7 +42,7 @@ struct MonthlyUsageChart: View {
                     }
             }
         }
-        .chartXScale(domain: month.interval.start...month.interval.end)
+        .chartXScale(domain: month.range.lowerBound...month.range.upperBound)
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartLegend(.hidden)

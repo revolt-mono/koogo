@@ -45,12 +45,12 @@ final class UsageServiceTests: XCTestCase {
         let service = UsageService(locations: locations, calendar: calendar)
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot[.codex][.today].processedTokens, 120)
-        XCTAssertEqual(snapshot[.codex][.today].favoriteModel, "gpt-5.6-sol")
-        XCTAssertEqual(snapshot[.codex][.today].favoriteReasoningEffort, "high")
-        XCTAssertEqual(snapshot[.claude][.today].processedTokens, 50)
-        XCTAssertEqual(snapshot[.claude][.today].favoriteModel, "claude-opus-5")
-        XCTAssertNil(snapshot[.claude][.today].favoriteReasoningEffort)
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
+        XCTAssertEqual(snapshot.codex.today.favoriteModel, "gpt-5.6-sol")
+        XCTAssertEqual(snapshot.codex.today.favoriteReasoningEffort, "high")
+        XCTAssertEqual(snapshot.claude.today.processedTokens, 50)
+        XCTAssertEqual(snapshot.claude.today.favoriteModel, "claude-opus-5")
+        XCTAssertNil(snapshot.claude.today.favoriteReasoningEffort)
     }
 
     func testRefreshReadsOnlyCompleteAppendedLines() async throws {
@@ -68,11 +68,11 @@ final class UsageServiceTests: XCTestCase {
         )
         try append(appended, to: log)
         let beforeNewline = await service.refresh(at: now)
-        XCTAssertEqual(beforeNewline[.codex][.today].processedTokens, 120)
+        XCTAssertEqual(beforeNewline.codex.today.processedTokens, 120)
 
         try append("\n", to: log)
         let afterNewline = await service.refresh(at: now)
-        XCTAssertEqual(afterNewline[.codex][.today].processedTokens, 180)
+        XCTAssertEqual(afterNewline.codex.today.processedTokens, 180)
     }
 
     @MainActor
@@ -97,7 +97,7 @@ final class UsageServiceTests: XCTestCase {
         }
 
         XCTAssertEqual(
-            try XCTUnwrap(model.snapshot)[.codex][.month].processedTokens,
+            try XCTUnwrap(model.snapshot).codex.month.processedTokens,
             120
         )
     }
@@ -112,12 +112,12 @@ final class UsageServiceTests: XCTestCase {
         let archived = locations.codexArchivedSessions.appending(path: "session.jsonl")
         try write(contents, to: archived)
         let copied = await service.refresh(at: now)
-        XCTAssertEqual(copied[.codex][.today].processedTokens, 120)
+        XCTAssertEqual(copied.codex.today.processedTokens, 120)
 
         try write(codexLog(input: 40, output: 10, thread: "replacement"), to: active)
         try FileManager.default.removeItem(at: archived)
         let replaced = await service.refresh(at: now)
-        XCTAssertEqual(replaced[.codex][.today].processedTokens, 50)
+        XCTAssertEqual(replaced.codex.today.processedTokens, 50)
     }
 
     func testUnknownModelIsIgnoredCompletely() async throws {
@@ -127,7 +127,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot[.codex][.month], .zero)
+        XCTAssertEqual(snapshot.codex.month, .zero)
     }
 
     func testCodexIdenticalRequestUsageAtTheSameTimestampCountsTwice() async throws {
@@ -157,7 +157,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot[.codex][.today].processedTokens, 120)
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
 
     func testColdScanUsesEventTimestampsInsteadOfFileModificationDate() async throws {
@@ -171,7 +171,34 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot[.codex][.today].processedTokens, 120)
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
+    }
+
+    func testColdScanRetainsPreviousComparisonPeriods() async throws {
+        try write(
+            codexLog(
+                input: 100,
+                output: 20,
+                thread: "previous-day",
+                usageTimestamp: "2026-08-24T17:00:00.000Z"
+            ),
+            to: locations.codexSessions.appending(path: "previous-day.jsonl")
+        )
+        try write(
+            codexLog(
+                input: 200,
+                output: 40,
+                thread: "previous-month",
+                usageTimestamp: "2026-07-25T17:00:00.000Z"
+            ),
+            to: locations.codexSessions.appending(path: "previous-month.jsonl")
+        )
+        let service = UsageService(locations: locations, calendar: calendar)
+
+        let snapshot = await service.refresh(at: now)
+
+        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.0008"))
+        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.0016"))
     }
 
     func testColdScanIgnoresJSONLSymlinks() async throws {
@@ -185,7 +212,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot[.codex][.month], .zero)
+        XCTAssertEqual(snapshot.codex.month, .zero)
     }
 
     func testColdScanParsesLinesAcrossReadChunks() async throws {
@@ -198,7 +225,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot[.codex][.today].processedTokens, 120)
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
 
     func testClaudePartialsAndCopiesWithoutStableIDsAreIgnored() async throws {
@@ -210,7 +237,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot[.claude][.month], .zero)
+        XCTAssertEqual(snapshot.claude.month, .zero)
     }
 
     func testCalendarPeriodsUseLocalCalendarAndConfiguredFirstWeekday() throws {
@@ -221,16 +248,49 @@ final class UsageServiceTests: XCTestCase {
         let intervals = UsagePeriodIntervals.containing(date, calendar: local)
 
         XCTAssertEqual(
-            local.dateComponents([.year, .month, .day], from: intervals.today.start),
+            local.dateComponents(
+                [.year, .month, .day],
+                from: intervals.day.current.lowerBound
+            ),
             DateComponents(year: 2026, month: 3, day: 11)
         )
         XCTAssertEqual(
-            local.dateComponents([.year, .month, .day], from: intervals.week.start),
+            local.dateComponents([.year, .month, .day], from: intervals.week.lowerBound),
             DateComponents(year: 2026, month: 3, day: 9)
         )
         XCTAssertEqual(
-            local.dateComponents([.year, .month, .day], from: intervals.month.start),
+            local.dateComponents(
+                [.year, .month, .day],
+                from: intervals.month.current.lowerBound
+            ),
             DateComponents(year: 2026, month: 3, day: 1)
+        )
+        XCTAssertEqual(
+            local.dateComponents(
+                [.year, .month, .day, .hour],
+                from: intervals.day.previous.through
+            ),
+            DateComponents(year: 2026, month: 3, day: 10, hour: 5)
+        )
+        XCTAssertEqual(
+            local.dateComponents(
+                [.year, .month, .day, .hour],
+                from: intervals.month.previous.through
+            ),
+            DateComponents(year: 2026, month: 2, day: 11, hour: 5)
+        )
+    }
+
+    func testPreviousDayComparisonPreservesWallClockTimeAcrossDST() throws {
+        var local = Calendar(identifier: .gregorian)
+        local.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let date = try XCTUnwrap(parseUsageTimestamp("2026-03-08T10:30:00Z"))
+
+        let previousEnd = UsagePeriodIntervals.containing(date, calendar: local).day.previous.through
+
+        XCTAssertEqual(
+            local.dateComponents([.year, .month, .day, .hour, .minute], from: previousEnd),
+            DateComponents(year: 2026, month: 3, day: 7, hour: 3, minute: 30)
         )
     }
 

@@ -23,31 +23,19 @@ private struct UsageSummaryView: View {
     let snapshot: UsageSnapshot
 
     var body: some View {
+        let summary = snapshot.summary
+
         VStack(alignment: .leading, spacing: 14) {
-            UsageSummaryPeriod(title: "Today", usage: total(for: .today))
-            UsageSummaryPeriod(title: "Monthly", usage: total(for: .month))
+            UsageSummaryPeriod(title: "Today", usage: summary.today)
+            UsageSummaryPeriod(title: "Monthly", usage: summary.month)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-
-    private func total(for period: UsagePeriod) -> UsageTotal {
-        let codex = snapshot.codex[period]
-        let claude = snapshot.claude[period]
-        return UsageTotal(
-            processedTokens: codex.processedTokens + claude.processedTokens,
-            costUSD: codex.costUSD + claude.costUSD
-        )
-    }
-}
-
-private struct UsageTotal {
-    let processedTokens: Decimal
-    let costUSD: Decimal
 }
 
 private struct UsageSummaryPeriod: View {
     let title: String
-    let usage: UsageTotal
+    let usage: UsageSummaryPeriodSnapshot
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -55,16 +43,26 @@ private struct UsageSummaryPeriod: View {
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
 
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(UsageFormatting.cost(usage.costUSD))
+            ViewThatFits(in: .horizontal) {
+                UsageSummaryValueLine(usage: usage, fontSize: 18)
+                UsageSummaryValueLine(usage: usage, fontSize: 15)
 
-                Text("and")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Text(UsageFormatting.cost(usage.cost.currentUSD))
+                        UsageCostChangeCapsule(change: usage.cost.change)
+                    }
 
-                Text("\(UsageFormatting.tokens(usage.processedTokens)) tokens")
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Text("and")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+
+                        Text("\(UsageFormatting.tokens(usage.processedTokens)) tokens")
+                    }
+                }
+                .font(.system(size: 15, weight: .bold, design: .rounded))
             }
-            .font(.system(size: 18, weight: .bold, design: .rounded))
             .foregroundStyle(
                 LinearGradient(
                     colors: [
@@ -76,10 +74,80 @@ private struct UsageSummaryPeriod: View {
                 )
             )
             .lineLimit(1)
-            .minimumScaleFactor(0.85)
+            .minimumScaleFactor(0.7)
             .monospacedDigit()
             .contentTransition(.numericText())
         }
+    }
+}
+
+private struct UsageSummaryValueLine: View {
+    let usage: UsageSummaryPeriodSnapshot
+    let fontSize: CGFloat
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(UsageFormatting.cost(usage.cost.currentUSD))
+
+            UsageCostChangeCapsule(change: usage.cost.change)
+
+            Text("and")
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            Text("\(UsageFormatting.tokens(usage.processedTokens)) tokens")
+        }
+        .font(.system(size: fontSize, weight: .bold, design: .rounded))
+        .fixedSize()
+    }
+}
+
+private struct UsageCostChangeCapsule: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let change: UsageCostChange
+
+    var body: some View {
+        let percentage = UsageFormatting.percentage(change.fraction)
+        let style: (text: String, color: Color, accessibilityLabel: String) = switch change.direction {
+        case .increase:
+            (
+                "+\(percentage)",
+                Color(red: 0, green: 128.0 / 255, blue: 9.0 / 255),
+                "Cost increased \(percentage) from the previous period"
+            )
+        case .decrease:
+            (
+                "-\(percentage)",
+                Color(red: 182.0 / 255, green: 68.0 / 255, blue: 0),
+                "Cost decreased \(percentage) from the previous period"
+            )
+        case .unchanged:
+            (
+                percentage,
+                .secondary,
+                "Cost unchanged from the previous period"
+            )
+        }
+
+        Text(style.text)
+            .font(.system(size: 9, weight: .bold, design: .rounded))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(
+                style.color.opacity(colorScheme == .dark ? 0.6 : 0.82),
+                in: Capsule()
+            )
+            .alignmentGuide(.firstTextBaseline) { dimensions in
+                dimensions[.bottom] + 2
+            }
+            .accessibilityRepresentation {
+                Text(style.accessibilityLabel)
+            }
     }
 }
 

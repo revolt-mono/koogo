@@ -95,7 +95,6 @@ actor UsageService {
 
         return snapshotBuilder.build(
             events: canonicalEvents(),
-            at: date,
             intervals: intervals,
             calendar: calendar
         )
