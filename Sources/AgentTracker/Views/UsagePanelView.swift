@@ -102,7 +102,7 @@ private struct ProviderUsageSection: View {
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
             }
 
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 MonthlyUsageChart(month: usage.dailyMonth)
 
                 VStack(spacing: 6) {
@@ -139,13 +139,12 @@ private struct ProviderUsageRow: View {
             Spacer(minLength: 12)
 
             HStack(spacing: 4) {
+                Text("\(UsageFormatting.tokens(usage.processedTokens)) tokens ·")
+                    .foregroundStyle(.secondary)
+
                 Text(UsageFormatting.cost(usage.costUSD))
                     .foregroundStyle(.primary)
-
-                Text("· \(UsageFormatting.tokens(usage.processedTokens)) tokens")
-                    .foregroundStyle(.secondary)
             }
-            .monospacedDigit()
             .lineLimit(1)
         }
         .font(.system(size: 10, design: .rounded))
