@@ -89,21 +89,40 @@ private struct ProviderUsageSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(provider.rawValue.capitalized)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+            HStack(spacing: 5) {
+                symbol
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12, height: 12)
+                    .accessibilityHidden(true)
+
+                Text(provider.rawValue.capitalized)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+            }
 
             VStack(spacing: 10) {
                 MonthlyUsageChart(month: usage.dailyMonth)
 
-                ProviderUsageRow(title: "Today", usage: usage.today)
-                ProviderUsageRow(title: "Weekly", usage: usage.week)
-                ProviderUsageRow(title: "Monthly", usage: usage.month)
+                VStack(spacing: 6) {
+                    ProviderUsageRow(title: "Today", usage: usage.today)
+                    ProviderUsageRow(title: "Weekly", usage: usage.week)
+                    ProviderUsageRow(title: "Monthly", usage: usage.month)
+                }
             }
             .padding(12)
             .background(
                 Color.primary.opacity(0.045),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
+        }
+    }
+
+    private var symbol: Image {
+        switch provider {
+        case .codex: Image("OpenAISymbol", bundle: .module)
+        case .claude: Image("ClaudeSymbol", bundle: .module)
         }
     }
 }

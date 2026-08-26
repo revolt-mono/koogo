@@ -51,10 +51,12 @@ BUILD_DIR="$(xcrun swift build \
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
+RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
 rm -rf "$APP_BUNDLE"
-mkdir -p "$MACOS_DIR"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BUILD_DIR/$APP_NAME" "$MACOS_DIR/$APP_NAME"
+cp -R "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle" "$RESOURCES_DIR"
 chmod +x "$MACOS_DIR/$APP_NAME"
 
 cat >"$CONTENTS_DIR/Info.plist" <<EOF

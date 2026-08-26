@@ -18,7 +18,8 @@ let package = Package(
             name: "AgentTracker",
             dependencies: [
                 .product(name: "Shimmer", package: "SwiftUI-Shimmer")
-            ]
+            ],
+            resources: [.process("Resources")]
         ),
         .testTarget(name: "AgentTrackerTests", dependencies: ["AgentTracker"])
     ]
