@@ -176,7 +176,7 @@ private struct ProviderUsageSection: View {
                         .resizable()
                         .renderingMode(.original)
                         .scaledToFit()
-                        .frame(width: 10, height: 10)
+                        .frame(width: 12)
                         .accessibilityHidden(true)
 
                     Text(
