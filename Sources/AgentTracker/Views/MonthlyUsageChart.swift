@@ -47,7 +47,7 @@ struct MonthlyUsageChart: View {
         .chartYAxis(.hidden)
         .chartLegend(.hidden)
         .chartXSelection(value: $selectedDate)
-        .frame(height: 52)
+        .frame(height: 48)
     }
 }
 
