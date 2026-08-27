@@ -139,8 +139,10 @@ final class UsageLogParserTests: XCTestCase {
         let event = try XCTUnwrap(parse(line, with: &parser))
 
         XCTAssertEqual(event.details.tokens.processed, 140)
-        XCTAssertEqual(event.details.tokens.cacheWrite5MinuteInput, 30)
-        XCTAssertEqual(event.details.tokens.cacheWrite1HourInput, 40)
+        XCTAssertEqual(
+            event.details.tokens.cacheWrite,
+            .byDuration(fiveMinute: 30, oneHour: 40)
+        )
         XCTAssertNil(event.details.reasoningEffort)
         guard case .claude(let event) = event else {
             return XCTFail("unexpected event provider")

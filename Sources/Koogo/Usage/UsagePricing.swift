@@ -6,8 +6,6 @@ struct UsagePriceCatalog: Sendable {
     // https://openai.com/index/gpt-5-6
     // https://platform.claude.com/docs/en/about-claude/pricing
     // https://platform.claude.com/docs/en/models/overview
-    static let pricingAsOf = "2026-08-26"
-
     struct Model: Hashable, Sendable {
         fileprivate let id: String
         let displayName: String
@@ -18,63 +16,43 @@ struct UsagePriceCatalog: Sendable {
         let costNanodollars: Decimal
     }
 
+    private enum CacheWriteRates: Sendable {
+        case unsupported
+        case fiveMinute(Decimal)
+        case byDuration(fiveMinute: Decimal, oneHour: Decimal)
+    }
+
     private struct Rates: Sendable {
         let input: Decimal
         let cachedInput: Decimal
-        let cacheWrite5MinuteInput: Decimal?
-        let cacheWrite1HourInput: Decimal?
+        let cacheWrite: CacheWriteRates
         let output: Decimal
 
-        init(
-            _ input: Decimal,
-            _ cachedInput: Decimal,
-            _ cacheWrite5MinuteInput: Decimal?,
-            _ output: Decimal
-        ) {
-            self.input = input
-            self.cachedInput = cachedInput
-            self.cacheWrite5MinuteInput = cacheWrite5MinuteInput
-            cacheWrite1HourInput = nil
-            self.output = output
-        }
-
-        init(
-            _ input: Decimal,
-            _ cachedInput: Decimal,
-            _ cacheWrite5MinuteInput: Decimal,
-            _ cacheWrite1HourInput: Decimal,
-            _ output: Decimal
-        ) {
-            self.input = input
-            self.cachedInput = cachedInput
-            self.cacheWrite5MinuteInput = cacheWrite5MinuteInput
-            self.cacheWrite1HourInput = cacheWrite1HourInput
-            self.output = output
-        }
-
         func cost(for tokens: UsageTokens) -> Decimal? {
-            guard
-                let cacheWrite5MinuteCost = cost(
-                    tokens.cacheWrite5MinuteInput,
-                    at: cacheWrite5MinuteInput
-                ),
-                let cacheWrite1HourCost = cost(
-                    tokens.cacheWrite1HourInput,
-                    at: cacheWrite1HourInput
-                )
-            else {
+            let cacheWriteCost: Decimal
+            switch (cacheWrite, tokens.cacheWrite) {
+            case (_, .fiveMinute(0)), (_, .byDuration(0, 0)):
+                cacheWriteCost = 0
+            case
+                (.fiveMinute(let rate), .fiveMinute(let amount)),
+                (.byDuration(let rate, _), .fiveMinute(let amount)):
+                cacheWriteCost = Decimal(amount) * rate
+            case (.fiveMinute(let rate), .byDuration(let fiveMinute, 0)):
+                cacheWriteCost = Decimal(fiveMinute) * rate
+            case (
+                .byDuration(let fiveMinuteRate, let oneHourRate),
+                .byDuration(let fiveMinute, let oneHour)
+            ):
+                cacheWriteCost = Decimal(fiveMinute) * fiveMinuteRate
+                    + Decimal(oneHour) * oneHourRate
+            case (.unsupported, _), (.fiveMinute, .byDuration):
                 return nil
             }
 
             return Decimal(tokens.uncachedInput) * input
                 + Decimal(tokens.cachedInput) * cachedInput
-                + cacheWrite5MinuteCost
-                + cacheWrite1HourCost
+                + cacheWriteCost
                 + Decimal(tokens.output) * output
-        }
-
-        private func cost(_ tokens: Int64, at rate: Decimal?) -> Decimal? {
-            tokens == 0 ? 0 : rate.map { Decimal(tokens) * $0 }
         }
     }
 
@@ -102,63 +80,115 @@ struct UsagePriceCatalog: Sendable {
         let standard: Rates
         let fast: Rates?
         let supportsUSInference: Bool
-
-        init(
-            _ displayName: String,
-            _ standard: Rates,
-            fast: Rates? = nil,
-            supportsUSInference: Bool = true
-        ) {
-            self.displayName = displayName
-            self.standard = standard
-            self.fast = fast
-            self.supportsUSInference = supportsUSInference
-        }
     }
 
     private static let codexPrices: [String: CodexModelPrice] = [
         "gpt-5.6-sol": CodexModelPrice(
             displayName: "GPT 5.6 Sol",
             rates: .tiered(
-                short: Rates(5_000, 500, 6_250, 30_000),
-                long: Rates(10_000, 1_000, 12_500, 45_000)
+                short: Rates(
+                    input: 5_000,
+                    cachedInput: 500,
+                    cacheWrite: .fiveMinute(6_250),
+                    output: 30_000
+                ),
+                long: Rates(
+                    input: 10_000,
+                    cachedInput: 1_000,
+                    cacheWrite: .fiveMinute(12_500),
+                    output: 45_000
+                )
             )
         ),
         "gpt-5.6-terra": CodexModelPrice(
             displayName: "GPT 5.6 Terra",
             rates: .tiered(
-                short: Rates(2_000, 200, 2_500, 12_000),
-                long: Rates(4_000, 400, 5_000, 18_000)
+                short: Rates(
+                    input: 2_000,
+                    cachedInput: 200,
+                    cacheWrite: .fiveMinute(2_500),
+                    output: 12_000
+                ),
+                long: Rates(
+                    input: 4_000,
+                    cachedInput: 400,
+                    cacheWrite: .fiveMinute(5_000),
+                    output: 18_000
+                )
             )
         ),
         "gpt-5.6-luna": CodexModelPrice(
             displayName: "GPT 5.6 Luna",
             rates: .tiered(
-                short: Rates(200, 20, 250, 1_200),
-                long: Rates(400, 40, 500, 1_800)
+                short: Rates(
+                    input: 200,
+                    cachedInput: 20,
+                    cacheWrite: .fiveMinute(250),
+                    output: 1_200
+                ),
+                long: Rates(
+                    input: 400,
+                    cachedInput: 40,
+                    cacheWrite: .fiveMinute(500),
+                    output: 1_800
+                )
             )
         ),
         "gpt-5.5": CodexModelPrice(
             displayName: "GPT 5.5",
             rates: .tiered(
-                short: Rates(5_000, 500, nil, 30_000),
-                long: Rates(10_000, 1_000, nil, 45_000)
+                short: Rates(
+                    input: 5_000,
+                    cachedInput: 500,
+                    cacheWrite: .unsupported,
+                    output: 30_000
+                ),
+                long: Rates(
+                    input: 10_000,
+                    cachedInput: 1_000,
+                    cacheWrite: .unsupported,
+                    output: 45_000
+                )
             )
         ),
         "gpt-5.4": CodexModelPrice(
             displayName: "GPT 5.4",
             rates: .tiered(
-                short: Rates(2_500, 250, nil, 15_000),
-                long: Rates(5_000, 500, nil, 22_500)
+                short: Rates(
+                    input: 2_500,
+                    cachedInput: 250,
+                    cacheWrite: .unsupported,
+                    output: 15_000
+                ),
+                long: Rates(
+                    input: 5_000,
+                    cachedInput: 500,
+                    cacheWrite: .unsupported,
+                    output: 22_500
+                )
             )
         ),
         "gpt-5.4-mini": CodexModelPrice(
             displayName: "GPT 5.4 Mini",
-            rates: .flat(Rates(750, 75, nil, 4_500))
+            rates: .flat(
+                Rates(
+                    input: 750,
+                    cachedInput: 75,
+                    cacheWrite: .unsupported,
+                    output: 4_500
+                )
+            )
         ),
         "gpt-5.3-codex": CodexModelPrice(
             displayName: "GPT 5.3 Codex",
-            rates: .flat(Rates(1_750, 175, nil, 14_000))
+            rates: .flat(
+                Rates(
+                    input: 1_750,
+                    cachedInput: 175,
+                    cacheWrite: .unsupported,
+                    output: 14_000
+                )
+            )
         ),
     ]
 
@@ -170,52 +200,134 @@ struct UsagePriceCatalog: Sendable {
 
     private static let claudePrices: [String: ClaudeModelPrice] = [
         "claude-fable-5": ClaudeModelPrice(
-            "Claude Fable 5",
-            Rates(10_000, 1_000, 12_500, 20_000, 50_000)
+            displayName: "Claude Fable 5",
+            standard: Rates(
+                input: 10_000,
+                cachedInput: 1_000,
+                cacheWrite: .byDuration(fiveMinute: 12_500, oneHour: 20_000),
+                output: 50_000
+            ),
+            fast: nil,
+            supportsUSInference: true
         ),
         "claude-mythos-5": ClaudeModelPrice(
-            "Claude Mythos 5",
-            Rates(10_000, 1_000, 12_500, 20_000, 50_000)
+            displayName: "Claude Mythos 5",
+            standard: Rates(
+                input: 10_000,
+                cachedInput: 1_000,
+                cacheWrite: .byDuration(fiveMinute: 12_500, oneHour: 20_000),
+                output: 50_000
+            ),
+            fast: nil,
+            supportsUSInference: true
         ),
         "claude-opus-5": ClaudeModelPrice(
-            "Claude Opus 5",
-            Rates(5_000, 500, 6_250, 10_000, 25_000),
-            fast: Rates(10_000, 1_000, 12_500, 20_000, 50_000)
+            displayName: "Claude Opus 5",
+            standard: Rates(
+                input: 5_000,
+                cachedInput: 500,
+                cacheWrite: .byDuration(fiveMinute: 6_250, oneHour: 10_000),
+                output: 25_000
+            ),
+            fast: Rates(
+                input: 10_000,
+                cachedInput: 1_000,
+                cacheWrite: .byDuration(fiveMinute: 12_500, oneHour: 20_000),
+                output: 50_000
+            ),
+            supportsUSInference: true
         ),
         "claude-opus-4-8": ClaudeModelPrice(
-            "Claude Opus 4.8",
-            Rates(5_000, 500, 6_250, 10_000, 25_000),
-            fast: Rates(10_000, 1_000, 12_500, 20_000, 50_000)
+            displayName: "Claude Opus 4.8",
+            standard: Rates(
+                input: 5_000,
+                cachedInput: 500,
+                cacheWrite: .byDuration(fiveMinute: 6_250, oneHour: 10_000),
+                output: 25_000
+            ),
+            fast: Rates(
+                input: 10_000,
+                cachedInput: 1_000,
+                cacheWrite: .byDuration(fiveMinute: 12_500, oneHour: 20_000),
+                output: 50_000
+            ),
+            supportsUSInference: true
         ),
         "claude-opus-4-7": ClaudeModelPrice(
-            "Claude Opus 4.7",
-            Rates(5_000, 500, 6_250, 10_000, 25_000)
+            displayName: "Claude Opus 4.7",
+            standard: Rates(
+                input: 5_000,
+                cachedInput: 500,
+                cacheWrite: .byDuration(fiveMinute: 6_250, oneHour: 10_000),
+                output: 25_000
+            ),
+            fast: nil,
+            supportsUSInference: true
         ),
         "claude-opus-4-6": ClaudeModelPrice(
-            "Claude Opus 4.6",
-            Rates(5_000, 500, 6_250, 10_000, 25_000)
+            displayName: "Claude Opus 4.6",
+            standard: Rates(
+                input: 5_000,
+                cachedInput: 500,
+                cacheWrite: .byDuration(fiveMinute: 6_250, oneHour: 10_000),
+                output: 25_000
+            ),
+            fast: nil,
+            supportsUSInference: true
         ),
         "claude-opus-4-5-20251101": ClaudeModelPrice(
-            "Claude Opus 4.5",
-            Rates(5_000, 500, 6_250, 10_000, 25_000),
+            displayName: "Claude Opus 4.5",
+            standard: Rates(
+                input: 5_000,
+                cachedInput: 500,
+                cacheWrite: .byDuration(fiveMinute: 6_250, oneHour: 10_000),
+                output: 25_000
+            ),
+            fast: nil,
             supportsUSInference: false
         ),
         "claude-sonnet-5": ClaudeModelPrice(
-            "Claude Sonnet 5",
-            Rates(2_000, 200, 2_500, 4_000, 10_000)
+            displayName: "Claude Sonnet 5",
+            standard: Rates(
+                input: 2_000,
+                cachedInput: 200,
+                cacheWrite: .byDuration(fiveMinute: 2_500, oneHour: 4_000),
+                output: 10_000
+            ),
+            fast: nil,
+            supportsUSInference: true
         ),
         "claude-sonnet-4-6": ClaudeModelPrice(
-            "Claude Sonnet 4.6",
-            Rates(3_000, 300, 3_750, 6_000, 15_000)
+            displayName: "Claude Sonnet 4.6",
+            standard: Rates(
+                input: 3_000,
+                cachedInput: 300,
+                cacheWrite: .byDuration(fiveMinute: 3_750, oneHour: 6_000),
+                output: 15_000
+            ),
+            fast: nil,
+            supportsUSInference: true
         ),
         "claude-sonnet-4-5-20250929": ClaudeModelPrice(
-            "Claude Sonnet 4.5",
-            Rates(3_000, 300, 3_750, 6_000, 15_000),
+            displayName: "Claude Sonnet 4.5",
+            standard: Rates(
+                input: 3_000,
+                cachedInput: 300,
+                cacheWrite: .byDuration(fiveMinute: 3_750, oneHour: 6_000),
+                output: 15_000
+            ),
+            fast: nil,
             supportsUSInference: false
         ),
         "claude-haiku-4-5-20251001": ClaudeModelPrice(
-            "Claude Haiku 4.5",
-            Rates(1_000, 100, 1_250, 2_000, 5_000),
+            displayName: "Claude Haiku 4.5",
+            standard: Rates(
+                input: 1_000,
+                cachedInput: 100,
+                cacheWrite: .byDuration(fiveMinute: 1_250, oneHour: 2_000),
+                output: 5_000
+            ),
+            fast: nil,
             supportsUSInference: false
         ),
     ]
@@ -245,7 +357,7 @@ struct UsagePriceCatalog: Sendable {
         let tokens = event.details.tokens
         let inputTokens = tokens.uncachedInput
             + tokens.cachedInput
-            + tokens.cacheWrite5MinuteInput
+            + tokens.cacheWrite.total
         guard let cost = price.rates.resolved(forInputTokens: inputTokens).cost(for: tokens) else {
             return nil
         }
@@ -263,7 +375,7 @@ struct UsagePriceCatalog: Sendable {
 
         let rates: Rates?
         switch event.speed {
-        case .standard: rates = price.standard
+        case .implicitStandard, .standard: rates = price.standard
         case .fast: rates = price.fast
         }
         guard var cost = rates?.cost(for: event.details.tokens) else {
@@ -350,7 +462,8 @@ struct UsageSnapshotBuilder {
         intervals: UsagePeriodIntervals,
         calendar: Calendar
     ) -> UsageSnapshot {
-        var daysByProvider: [UsageProvider: [Date: Accumulator]] = [:]
+        var codexDays: [Date: Accumulator] = [:]
+        var claudeDays: [Date: Accumulator] = [:]
 
         for event in events {
             let details = event.details
@@ -359,12 +472,13 @@ struct UsageSnapshotBuilder {
             }
 
             let day = calendar.startOfDay(for: details.timestamp)
-            daysByProvider[event.provider, default: [:]][day, default: Accumulator()]
-                .add(details, quote: quote)
+            switch event {
+            case .codex:
+                codexDays[day, default: Accumulator()].add(details, quote: quote)
+            case .claude:
+                claudeDays[day, default: Accumulator()].add(details, quote: quote)
+            }
         }
-
-        let codexDays = daysByProvider[.codex] ?? [:]
-        let claudeDays = daysByProvider[.claude] ?? [:]
 
         return UsageSnapshot(
             codex: providerSnapshot(from: codexDays, intervals: intervals),

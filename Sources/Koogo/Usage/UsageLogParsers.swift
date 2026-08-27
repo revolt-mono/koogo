@@ -35,20 +35,6 @@ enum UsageFileParserState: Sendable {
     case codex(CodexLogParser = CodexLogParser())
     case claude
 
-    init(provider: UsageProvider) {
-        switch provider {
-        case .codex: self = .codex()
-        case .claude: self = .claude
-        }
-    }
-
-    var provider: UsageProvider {
-        switch self {
-        case .codex: .codex
-        case .claude: .claude
-        }
-    }
-
     mutating func parse(
         _ line: UnsafeRawBufferPointer,
         source: String,
@@ -203,11 +189,7 @@ struct CodexLogParser: Sendable {
         let lastUsage = record.info.lastTokenUsage
         let totalUsage = record.info.totalTokenUsage
 
-        if record.info.isSyntheticContextFill(
-            last: lastUsage,
-            total: totalUsage,
-            previous: previousTotalUsage
-        ) {
+        if record.info.isSyntheticContextFill(previous: previousTotalUsage) {
             previousTotalUsage = totalUsage
             return nil
         }
@@ -266,9 +248,7 @@ private func parseClaudeLog(_ line: Data, decoder: JSONDecoder) -> UsageEvent? {
         ),
         speed: usage.speed,
         inferenceGeo: nonempty(usage.inferenceGeo),
-        webSearchRequests: usage.webSearchRequests,
-        hasExplicitSpeed: usage.hasExplicitSpeed,
-        hasExplicitCacheDuration: usage.hasExplicitCacheDuration
+        webSearchRequests: usage.webSearchRequests
     ))
 }
 
@@ -386,17 +366,13 @@ private struct CodexTokenInfo: Decodable {
         case modelContextWindow = "model_context_window"
     }
 
-    func isSyntheticContextFill(
-        last: CodexTokenUsage,
-        total: CodexTokenUsage,
-        previous: CodexTokenUsage?
-    ) -> Bool {
+    func isSyntheticContextFill(previous: CodexTokenUsage?) -> Bool {
         guard
             let modelContextWindow,
             modelContextWindow >= 0,
-            last.componentsAreZero,
-            total.componentsAreZero,
-            total.total == modelContextWindow
+            lastTokenUsage.componentsAreZero,
+            totalTokenUsage.componentsAreZero,
+            totalTokenUsage.total == modelContextWindow
         else {
             return false
         }
@@ -413,7 +389,7 @@ private struct CodexTokenInfo: Decodable {
         } else {
             expectedLastTotal = 0
         }
-        return last.total == expectedLastTotal
+        return lastTokenUsage.total == expectedLastTotal
     }
 }
 
@@ -437,8 +413,7 @@ private struct CodexTokenUsage: Decodable, Equatable, Sendable {
         UsageTokens(
             uncachedInput: input - cachedInput - cacheWriteInput,
             cachedInput: cachedInput,
-            cacheWrite5MinuteInput: cacheWriteInput,
-            cacheWrite1HourInput: 0,
+            cacheWrite: .fiveMinute(cacheWriteInput),
             output: output,
             processed: total
         )
@@ -518,8 +493,6 @@ private struct ClaudeUsage: Decodable {
     let speed: UsageEvent.Claude.Speed
     let inferenceGeo: String?
     let webSearchRequests: Int64
-    let hasExplicitSpeed: Bool
-    let hasExplicitCacheDuration: Bool
 
     private enum CodingKeys: String, CodingKey {
         case inputTokens = "input_tokens"
@@ -554,17 +527,13 @@ private struct ClaudeUsage: Decodable {
         let (splitCacheWrite, cacheOverflow) = cacheWrite5Minute
             .addingReportingOverflow(cacheWrite1Hour)
 
-        let speedValue = try container.decodeIfPresent(String.self, forKey: .speed)
-        switch speedValue {
+        switch try container.decodeIfPresent(String.self, forKey: .speed) {
         case nil:
-            speed = .standard
-            hasExplicitSpeed = false
+            speed = .implicitStandard
         case "standard":
             speed = .standard
-            hasExplicitSpeed = true
         case "fast":
             speed = .fast
-            hasExplicitSpeed = true
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .speed,
@@ -578,7 +547,6 @@ private struct ClaudeUsage: Decodable {
             ClaudeServerToolUse.self,
             forKey: .serverToolUse
         )?.webSearchRequests ?? 0
-        hasExplicitCacheDuration = cacheCreation != nil
 
         let values = [input, cacheRead, cacheWrite5Minute, cacheWrite1Hour, output]
         var processed: Int64 = 0
@@ -608,8 +576,12 @@ private struct ClaudeUsage: Decodable {
         tokens = UsageTokens(
             uncachedInput: input,
             cachedInput: cacheRead,
-            cacheWrite5MinuteInput: cacheWrite5Minute,
-            cacheWrite1HourInput: cacheWrite1Hour,
+            cacheWrite: cacheCreation == nil
+                ? .fiveMinute(cacheWrite5Minute)
+                : .byDuration(
+                    fiveMinute: cacheWrite5Minute,
+                    oneHour: cacheWrite1Hour
+                ),
             output: output,
             processed: processed
         )

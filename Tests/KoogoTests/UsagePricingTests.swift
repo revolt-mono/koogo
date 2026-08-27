@@ -437,8 +437,7 @@ final class UsagePricingTests: XCTestCase {
         let tokens = UsageTokens(
             uncachedInput: uncachedInput,
             cachedInput: cachedInput,
-            cacheWrite5MinuteInput: cacheWriteInput,
-            cacheWrite1HourInput: 0,
+            cacheWrite: .fiveMinute(cacheWriteInput),
             output: output,
             processed: uncachedInput + cachedInput + cacheWriteInput + output
         )
@@ -472,8 +471,10 @@ final class UsagePricingTests: XCTestCase {
         let tokens = UsageTokens(
             uncachedInput: uncachedInput,
             cachedInput: cachedInput,
-            cacheWrite5MinuteInput: cacheWrite5MinuteInput,
-            cacheWrite1HourInput: cacheWrite1HourInput,
+            cacheWrite: .byDuration(
+                fiveMinute: cacheWrite5MinuteInput,
+                oneHour: cacheWrite1HourInput
+            ),
             output: output,
             processed: uncachedInput
                 + cachedInput
@@ -492,9 +493,7 @@ final class UsagePricingTests: XCTestCase {
             ),
             speed: speed,
             inferenceGeo: inferenceGeo,
-            webSearchRequests: webSearchRequests,
-            hasExplicitSpeed: true,
-            hasExplicitCacheDuration: true
+            webSearchRequests: webSearchRequests
         ))
     }
 }

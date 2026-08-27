@@ -4,18 +4,24 @@ import Observation
 @Observable
 final class UsageModel {
     private let usageService: UsageService
+    private var refreshTask: Task<Void, Never>?
 
     private(set) var snapshot: UsageSnapshot?
 
     init(usageService: UsageService) {
         self.usageService = usageService
-
-        Task(priority: .utility) {
-            await refresh()
-        }
+        refresh()
     }
 
-    func refresh() async {
-        snapshot = await usageService.refresh()
+    func refresh() {
+        guard refreshTask == nil else {
+            return
+        }
+        refreshTask = Task(priority: .utility) { [usageService] in
+            defer {
+                refreshTask = nil
+            }
+            snapshot = await usageService.refresh()
+        }
     }
 }

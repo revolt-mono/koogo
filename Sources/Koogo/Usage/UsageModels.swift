@@ -1,10 +1,5 @@
 import Foundation
 
-enum UsageProvider: String, Hashable, Sendable {
-    case codex
-    case claude
-}
-
 struct UsagePeriodSnapshot: Equatable, Sendable {
     let processedTokens: Decimal
     let costUSD: Decimal
@@ -148,10 +143,23 @@ struct UsageLogLocations: Sendable {
 }
 
 struct UsageTokens: Hashable, Sendable {
+    enum CacheWrite: Hashable, Sendable {
+        case fiveMinute(Int64)
+        case byDuration(fiveMinute: Int64, oneHour: Int64)
+
+        var total: Int64 {
+            switch self {
+            case .fiveMinute(let tokens):
+                tokens
+            case .byDuration(let fiveMinute, let oneHour):
+                fiveMinute + oneHour
+            }
+        }
+    }
+
     let uncachedInput: Int64
     let cachedInput: Int64
-    let cacheWrite5MinuteInput: Int64
-    let cacheWrite1HourInput: Int64
+    let cacheWrite: CacheWrite
     let output: Int64
     let processed: Int64
 }
@@ -175,6 +183,7 @@ enum UsageEvent: Sendable {
 
     struct Claude: Sendable {
         enum Speed: Sendable {
+            case implicitStandard
             case standard
             case fast
         }
@@ -185,8 +194,20 @@ enum UsageEvent: Sendable {
         let speed: Speed
         let inferenceGeo: String?
         let webSearchRequests: Int64
-        let hasExplicitSpeed: Bool
-        let hasExplicitCacheDuration: Bool
+
+        var metadataCompleteness: Int {
+            let explicitSpeed = switch speed {
+            case .implicitStandard: 0
+            case .standard, .fast: 1
+            }
+            let explicitCacheDuration = switch details.tokens.cacheWrite {
+            case .fiveMinute: 0
+            case .byDuration: 1
+            }
+            return explicitSpeed
+                + explicitCacheDuration
+                + (details.reasoningEffort == nil ? 0 : 1)
+        }
     }
 
     enum ID: Hashable, Sendable {
@@ -224,13 +245,6 @@ enum UsageEvent: Sendable {
         }
     }
 
-    var provider: UsageProvider {
-        switch self {
-        case .codex: .codex
-        case .claude: .claude
-        }
-    }
-
     var details: Details {
         switch self {
         case .codex(let event): event.details
@@ -246,12 +260,8 @@ enum UsageEvent: Sendable {
             return candidate.details.tokens.output > existing.details.tokens.output
         }
 
-        let candidateMetadata = (candidate.hasExplicitSpeed ? 1 : 0)
-            + (candidate.hasExplicitCacheDuration ? 1 : 0)
-            + (candidate.details.reasoningEffort == nil ? 0 : 1)
-        let existingMetadata = (existing.hasExplicitSpeed ? 1 : 0)
-            + (existing.hasExplicitCacheDuration ? 1 : 0)
-            + (existing.details.reasoningEffort == nil ? 0 : 1)
+        let candidateMetadata = candidate.metadataCompleteness
+        let existingMetadata = existing.metadataCompleteness
         if candidateMetadata != existingMetadata {
             return candidateMetadata > existingMetadata
         }

@@ -152,8 +152,13 @@ private struct UsageCostChangeCapsule: View {
     }
 }
 
+private enum Provider: String {
+    case codex
+    case claude
+}
+
 private struct ProviderUsageSection<Quota: View>: View {
-    let provider: UsageProvider
+    let provider: Provider
     let usage: ProviderUsageSnapshot
     @ViewBuilder let quota: Quota
 

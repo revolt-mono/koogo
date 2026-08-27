@@ -5,7 +5,7 @@ import Synchronization
 actor UsageService {
     private struct LogFile: Sendable {
         let url: URL
-        let provider: UsageProvider
+        let parser: UsageFileParserState
     }
 
     private struct FileIdentity: Equatable, Sendable {
@@ -102,13 +102,13 @@ actor UsageService {
     }
 
     private func scanLogs(since historyStart: Date) {
-        let files = [
-            (locations.codexSessions, UsageProvider.codex),
-            (locations.codexArchivedSessions, UsageProvider.codex),
-            (locations.claudeProjects, UsageProvider.claude),
-        ].flatMap { root, provider in
-            jsonlFiles(in: root).map { LogFile(url: $0, provider: provider) }
-        }
+        let files = (
+            jsonlFiles(in: locations.codexSessions)
+                + jsonlFiles(in: locations.codexArchivedSessions)
+        ).map { LogFile(url: $0, parser: .codex()) }
+            + jsonlFiles(in: locations.claudeProjects).map {
+                LogFile(url: $0, parser: .claude)
+            }
         var seenPaths = Set<String>()
         var filesToParse: [LogFile] = []
 
@@ -120,8 +120,7 @@ actor UsageService {
                 continue
             }
             if var tracked = trackedFiles[path] {
-                let wasReplaced = tracked.parser.provider != file.provider
-                    || tracked.metadata.identity != metadata.identity
+                let wasReplaced = tracked.metadata.identity != metadata.identity
                     || metadata.size < tracked.metadata.size
                     || (
                         metadata.size == tracked.metadata.size
@@ -184,7 +183,7 @@ actor UsageService {
             metadata: metadata,
             parsedOffset: 0,
             parsedTail: Data(),
-            parser: UsageFileParserState(provider: file.provider),
+            parser: file.parser,
             events: [:]
         )
         guard parseBytes(

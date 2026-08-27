@@ -41,7 +41,7 @@ struct ContentView: View {
         .animation(.smooth(duration: 0.25), value: codexQuotaModel.state)
         .task {
             codexQuotaModel.refresh()
-            await usageModel.refresh()
+            usageModel.refresh()
         }
     }
 }
