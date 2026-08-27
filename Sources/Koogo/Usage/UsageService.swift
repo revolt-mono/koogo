@@ -76,22 +76,23 @@ actor UsageService {
     }
 
     func refresh(at date: Date = Date()) -> UsageSnapshot {
-        let intervals = UsagePeriodIntervals.containing(date, calendar: calendar)
+        let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
+        let historyStart = intervals.month.previous.lowerBound
 
-        if let indexedFrom, intervals.earliestStart < indexedFrom {
+        if let indexedFrom, historyStart < indexedFrom {
             trackedFiles.removeAll(keepingCapacity: true)
         } else {
             trackedFiles = trackedFiles.mapValues { tracked in
                 var tracked = tracked
                 tracked.events = tracked.events.filter {
-                    $0.value.details.timestamp >= intervals.earliestStart
+                    $0.value.details.timestamp >= historyStart
                 }
                 return tracked
             }
         }
-        indexedFrom = intervals.earliestStart
+        indexedFrom = historyStart
 
-        scanLogs(since: intervals.earliestStart)
+        scanLogs(since: historyStart)
 
         return snapshotBuilder.build(
             events: canonicalEvents(),
@@ -100,7 +101,7 @@ actor UsageService {
         )
     }
 
-    private func scanLogs(since earliestStart: Date) {
+    private func scanLogs(since historyStart: Date) {
         let files = [
             (locations.codexSessions, UsageProvider.codex),
             (locations.codexArchivedSessions, UsageProvider.codex),
@@ -129,12 +130,12 @@ actor UsageService {
                 if wasReplaced {
                     if let reparsed = Self.parseEntireFile(
                         file,
-                        since: earliestStart
+                        since: historyStart
                     ) {
                         tracked = reparsed
                     }
                 } else if metadata.size > tracked.metadata.size {
-                    parseAppendedBytes(file, tracked: &tracked, since: earliestStart)
+                    parseAppendedBytes(file, tracked: &tracked, since: historyStart)
                 }
                 trackedFiles[path] = tracked
             } else {
@@ -142,7 +143,7 @@ actor UsageService {
             }
         }
 
-        for (path, tracked) in Self.parseEntireFiles(filesToParse, since: earliestStart) {
+        for (path, tracked) in Self.parseEntireFiles(filesToParse, since: historyStart) {
             trackedFiles[path] = tracked
         }
 
@@ -153,13 +154,13 @@ actor UsageService {
 
     nonisolated private static func parseEntireFiles(
         _ files: [LogFile],
-        since earliestStart: Date
+        since historyStart: Date
     ) -> [String: TrackedFile] {
         let parsedFiles = Mutex<[String: TrackedFile]>([:])
         // Keep refresh synchronous so actor state cannot interleave while workers build files.
         DispatchQueue.concurrentPerform(iterations: files.count) { index in
             let file = files[index]
-            guard let tracked = parseEntireFile(file, since: earliestStart) else {
+            guard let tracked = parseEntireFile(file, since: historyStart) else {
                 return
             }
             parsedFiles.withLock { $0[file.url.path] = tracked }
@@ -169,7 +170,7 @@ actor UsageService {
 
     nonisolated private static func parseEntireFile(
         _ file: LogFile,
-        since earliestStart: Date
+        since historyStart: Date
     ) -> TrackedFile? {
         guard let handle = try? FileHandle(forReadingFrom: file.url) else {
             return nil
@@ -192,7 +193,7 @@ actor UsageService {
             through: metadata.size,
             path: file.url.path,
             tracked: &tracked,
-            since: earliestStart
+            since: historyStart
         ) else {
             return nil
         }
@@ -202,7 +203,7 @@ actor UsageService {
     private func parseAppendedBytes(
         _ file: LogFile,
         tracked: inout TrackedFile,
-        since earliestStart: Date
+        since historyStart: Date
     ) {
         guard let handle = try? FileHandle(forReadingFrom: file.url) else {
             return
@@ -220,7 +221,7 @@ actor UsageService {
         {
             if let reparsed = Self.parseEntireFile(
                 file,
-                since: earliestStart
+                since: historyStart
             ) {
                 tracked = reparsed
             }
@@ -234,7 +235,7 @@ actor UsageService {
             through: metadata.size,
             path: file.url.path,
             tracked: &candidate,
-            since: earliestStart
+            since: historyStart
         ) else {
             return
         }
@@ -248,7 +249,7 @@ actor UsageService {
         through endOffset: UInt64,
         path: String,
         tracked: inout TrackedFile,
-        since earliestStart: Date
+        since historyStart: Date
     ) -> Bool {
         do {
             try handle.seek(toOffset: offset)
@@ -288,7 +289,7 @@ actor UsageService {
                         completeData,
                         path: path,
                         tracked: &tracked,
-                        since: earliestStart,
+                        since: historyStart,
                         decoder: decoder
                     )
                     tracked.parsedOffset += UInt64(pendingCount + completeChunkCount)
@@ -309,7 +310,7 @@ actor UsageService {
         _ data: Data,
         path: String,
         tracked: inout TrackedFile,
-        since earliestStart: Date,
+        since historyStart: Date,
         decoder: JSONDecoder
     ) {
         data.withUnsafeBytes { bytes in
@@ -329,7 +330,7 @@ actor UsageService {
 
                 if
                     let event = tracked.parser.parse(line, source: path, decoder: decoder),
-                    event.details.timestamp >= earliestStart
+                    event.details.timestamp >= historyStart
                 {
                     insert(event, into: &tracked.events)
                 }

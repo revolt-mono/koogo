@@ -13,6 +13,13 @@ struct UsagePeriodSnapshot: Equatable, Sendable {
         processedTokens: 0,
         costUSD: 0
     )
+
+    static func + (lhs: Self, rhs: Self) -> Self {
+        UsagePeriodSnapshot(
+            processedTokens: lhs.processedTokens + rhs.processedTokens,
+            costUSD: lhs.costUSD + rhs.costUSD
+        )
+    }
 }
 
 struct UsageDaySnapshot: Equatable, Identifiable, Sendable {
@@ -83,14 +90,13 @@ struct UsageSummaryPeriodSnapshot: Equatable, Sendable {
     let cost: UsageCostComparison
 
     init(
-        codex: UsagePeriodSnapshot,
-        claude: UsagePeriodSnapshot,
-        previousCostUSD: Decimal
+        current: UsagePeriodSnapshot,
+        previous: UsagePeriodSnapshot
     ) {
-        processedTokens = codex.processedTokens + claude.processedTokens
+        processedTokens = current.processedTokens
         cost = UsageCostComparison(
-            currentUSD: codex.costUSD + claude.costUSD,
-            previousUSD: previousCostUSD
+            currentUSD: current.costUSD,
+            previousUSD: previous.costUSD
         )
     }
 }
@@ -108,19 +114,17 @@ struct UsageSnapshot: Equatable, Sendable {
     init(
         codex: ProviderUsageSnapshot,
         claude: ProviderUsageSnapshot,
-        previousDayCostUSD: Decimal,
-        previousMonthCostUSD: Decimal
+        previousDay: UsagePeriodSnapshot,
+        previousMonth: UsagePeriodSnapshot
     ) {
         summary = UsageSummarySnapshot(
             today: UsageSummaryPeriodSnapshot(
-                codex: codex.today,
-                claude: claude.today,
-                previousCostUSD: previousDayCostUSD
+                current: codex.today + claude.today,
+                previous: previousDay
             ),
             month: UsageSummaryPeriodSnapshot(
-                codex: codex.month,
-                claude: claude.month,
-                previousCostUSD: previousMonthCostUSD
+                current: codex.month + claude.month,
+                previous: previousMonth
             )
         )
         self.codex = codex
@@ -260,23 +264,8 @@ enum UsageEvent: Sendable {
 
 struct UsagePeriodIntervals {
     struct Comparison {
-        struct Window {
-            let period: Range<Date>
-            let through: Date
-
-            fileprivate init(period: Range<Date>, through: Date) {
-                precondition(period.lowerBound <= through && through <= period.upperBound)
-                self.period = period
-                self.through = through
-            }
-
-            func contains(_ date: Date) -> Bool {
-                period.contains(date) && date <= through
-            }
-        }
-
         let current: Range<Date>
-        let previous: Window
+        let previous: Range<Date>
 
         fileprivate init(
             component: Calendar.Component,
@@ -286,60 +275,28 @@ struct UsagePeriodIntervals {
             guard
                 let current = calendar.dateInterval(of: component, for: date),
                 let previousDate = calendar.date(byAdding: component, value: -1, to: current.start),
-                let previousPeriod = calendar.dateInterval(of: component, for: previousDate),
-                let alignedDate = calendar.date(byAdding: component, value: -1, to: date)
+                let previous = calendar.dateInterval(of: component, for: previousDate)
             else {
                 preconditionFailure("calendar must provide current and previous period intervals")
             }
 
-            let previousThrough = if component == .month
-                && calendar.component(.day, from: alignedDate) != calendar.component(.day, from: date)
-            {
-                previousPeriod.end
-            } else {
-                min(alignedDate, previousPeriod.end)
-            }
-
             self.current = current.start..<current.end
-            previous = Window(
-                period: previousPeriod.start..<previousPeriod.end,
-                through: previousThrough
-            )
+            self.previous = previous.start..<previous.end
         }
     }
 
-    let through: Date
     let day: Comparison
     let week: Range<Date>
     let month: Comparison
 
-    private init(
-        through: Date,
-        day: Comparison,
-        week: Range<Date>,
-        month: Comparison
-    ) {
-        self.through = through
-        self.day = day
-        self.week = week
-        self.month = month
-    }
-
-    var earliestStart: Date {
-        min(day.previous.period.lowerBound, month.previous.period.lowerBound)
-    }
-
-    static func containing(_ date: Date, calendar: Calendar) -> UsagePeriodIntervals {
+    init(containing date: Date, calendar: Calendar) {
         guard let week = calendar.dateInterval(of: .weekOfYear, for: date) else {
             preconditionFailure("calendar must provide a week interval")
         }
 
-        return UsagePeriodIntervals(
-            through: date,
-            day: Comparison(component: .day, containing: date, calendar: calendar),
-            week: week.start..<week.end,
-            month: Comparison(component: .month, containing: date, calendar: calendar)
-        )
+        day = Comparison(component: .day, containing: date, calendar: calendar)
+        self.week = week.start..<week.end
+        month = Comparison(component: .month, containing: date, calendar: calendar)
     }
 }
 

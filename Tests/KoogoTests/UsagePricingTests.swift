@@ -122,7 +122,7 @@ final class UsagePricingTests: XCTestCase {
     func testSnapshotPreservesExactCostsAndUsesOccurrenceFavorites() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let intervals = UsagePeriodIntervals.containing(timestamp, calendar: calendar)
+        let intervals = UsagePeriodIntervals(containing: timestamp, calendar: calendar)
         let events = [
             codexEvent(
                 id: 1,
@@ -220,7 +220,7 @@ final class UsagePricingTests: XCTestCase {
 
         let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
             events: events,
-            intervals: UsagePeriodIntervals.containing(now, calendar: calendar),
+            intervals: UsagePeriodIntervals(containing: now, calendar: calendar),
             calendar: calendar
         )
 
@@ -236,7 +236,7 @@ final class UsagePricingTests: XCTestCase {
     func testSnapshotPreservesSubcentProviderCostsUntilDisplayFormatting() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let intervals = UsagePeriodIntervals.containing(timestamp, calendar: calendar)
+        let intervals = UsagePeriodIntervals(containing: timestamp, calendar: calendar)
 
         let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
             events: [
@@ -282,11 +282,11 @@ final class UsagePricingTests: XCTestCase {
         )
     }
 
-    func testSnapshotComparesPreviousPeriodsAtTheSameProgress() throws {
+    func testSnapshotComparesCompletePreviousPeriods() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let now = try XCTUnwrap(parseUsageTimestamp("2026-08-25T18:00:00Z"))
-        let intervals = UsagePeriodIntervals.containing(now, calendar: calendar)
+        let intervals = UsagePeriodIntervals(containing: now, calendar: calendar)
 
         let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
             events: [
@@ -296,9 +296,8 @@ final class UsagePricingTests: XCTestCase {
                     uncachedInput: 1_000,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-08-24T17:00:00Z"))
                 ),
-                codexEvent(
-                    id: 2,
-                    model: "gpt-5.6-sol",
+                claudeEvent(
+                    model: "claude-opus-5",
                     uncachedInput: 10_000,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-08-24T19:00:00Z"))
                 ),
@@ -308,9 +307,8 @@ final class UsagePricingTests: XCTestCase {
                     uncachedInput: 2_000,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-07-25T17:00:00Z"))
                 ),
-                codexEvent(
-                    id: 4,
-                    model: "gpt-5.6-sol",
+                claudeEvent(
+                    model: "claude-opus-5",
                     uncachedInput: 20_000,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-07-25T19:00:00Z"))
                 ),
@@ -319,40 +317,11 @@ final class UsagePricingTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.005"))
-        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.01"))
+        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.055"))
+        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.11"))
     }
 
-    func testComparisonIncludesBothAlignedCutoffInstants() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let now = try XCTUnwrap(parseUsageTimestamp("2026-08-25T18:00:00Z"))
-
-        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
-            events: [
-                codexEvent(
-                    id: 1,
-                    model: "gpt-5.6-sol",
-                    uncachedInput: 1_000,
-                    at: now
-                ),
-                codexEvent(
-                    id: 2,
-                    model: "gpt-5.6-sol",
-                    uncachedInput: 1_000,
-                    at: try XCTUnwrap(parseUsageTimestamp("2026-08-24T18:00:00Z"))
-                ),
-            ],
-            intervals: UsagePeriodIntervals.containing(now, calendar: calendar),
-            calendar: calendar
-        )
-
-        XCTAssertEqual(snapshot.summary.today.cost.currentUSD, Decimal(string: "0.005"))
-        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.005"))
-        XCTAssertEqual(snapshot.summary.today.cost.change.direction, .unchanged)
-    }
-
-    func testClippedPreviousMonthExcludesCurrentMonthBoundary() throws {
+    func testPreviousMonthExcludesCurrentMonthBoundary() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let now = try XCTUnwrap(parseUsageTimestamp("2026-03-31T12:00:00Z"))
@@ -372,7 +341,7 @@ final class UsagePricingTests: XCTestCase {
                     at: try XCTUnwrap(parseUsageTimestamp("2026-03-01T00:00:00Z"))
                 ),
             ],
-            intervals: UsagePeriodIntervals.containing(now, calendar: calendar),
+            intervals: UsagePeriodIntervals(containing: now, calendar: calendar),
             calendar: calendar
         )
 
@@ -383,7 +352,7 @@ final class UsagePricingTests: XCTestCase {
     func testSnapshotDerivesPeriodsAndDailySeriesFromDayBuckets() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let intervals = UsagePeriodIntervals.containing(timestamp, calendar: calendar)
+        let intervals = UsagePeriodIntervals(containing: timestamp, calendar: calendar)
         let previousDay = try XCTUnwrap(
             calendar.date(byAdding: .day, value: -1, to: timestamp)
         )
@@ -418,7 +387,7 @@ final class UsagePricingTests: XCTestCase {
         calendar.firstWeekday = 2
         let now = try XCTUnwrap(parseUsageTimestamp("2026-09-01T12:00:00Z"))
         let previousMonth = try XCTUnwrap(parseUsageTimestamp("2026-08-31T12:00:00Z"))
-        let intervals = UsagePeriodIntervals.containing(now, calendar: calendar)
+        let intervals = UsagePeriodIntervals(containing: now, calendar: calendar)
 
         let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
             events: [
@@ -438,7 +407,7 @@ final class UsagePricingTests: XCTestCase {
     func testUnknownModelsDoNotEnterAnyStatistic() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let intervals = UsagePeriodIntervals.containing(timestamp, calendar: calendar)
+        let intervals = UsagePeriodIntervals(containing: timestamp, calendar: calendar)
         let unknown = codexEvent(
             model: "future-model",
             uncachedInput: 1_000_000,
@@ -497,7 +466,8 @@ final class UsagePricingTests: XCTestCase {
         output: Int64 = 0,
         speed: UsageEvent.Claude.Speed = .standard,
         inferenceGeo: String? = nil,
-        webSearchRequests: Int64 = 0
+        webSearchRequests: Int64 = 0,
+        at eventDate: Date? = nil
     ) -> UsageEvent {
         let tokens = UsageTokens(
             uncachedInput: uncachedInput,
@@ -515,7 +485,7 @@ final class UsagePricingTests: XCTestCase {
             messageID: "message",
             requestID: "request",
             details: UsageEvent.Details(
-                timestamp: timestamp,
+                timestamp: eventDate ?? timestamp,
                 model: model,
                 reasoningEffort: nil,
                 tokens: tokens

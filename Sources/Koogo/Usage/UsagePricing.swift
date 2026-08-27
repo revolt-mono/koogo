@@ -351,41 +351,28 @@ struct UsageSnapshotBuilder {
         calendar: Calendar
     ) -> UsageSnapshot {
         var daysByProvider: [UsageProvider: [Date: Accumulator]] = [:]
-        var previousDayCost: Decimal = 0
-        var previousMonthCost: Decimal = 0
 
         for event in events {
             let details = event.details
-            guard
-                intervals.earliestStart <= details.timestamp,
-                details.timestamp <= intervals.through,
-                let quote = priceCatalog.quote(for: event)
-            else {
+            guard let quote = priceCatalog.quote(for: event) else {
                 continue
             }
 
             let day = calendar.startOfDay(for: details.timestamp)
             daysByProvider[event.provider, default: [:]][day, default: Accumulator()]
                 .add(details, quote: quote)
-            if intervals.day.previous.contains(details.timestamp) {
-                previousDayCost += quote.costNanodollars
-            }
-            if intervals.month.previous.contains(details.timestamp) {
-                previousMonthCost += quote.costNanodollars
-            }
         }
 
+        let codexDays = daysByProvider[.codex] ?? [:]
+        let claudeDays = daysByProvider[.claude] ?? [:]
+
         return UsageSnapshot(
-            codex: providerSnapshot(
-                from: daysByProvider[.codex] ?? [:],
-                intervals: intervals
-            ),
-            claude: providerSnapshot(
-                from: daysByProvider[.claude] ?? [:],
-                intervals: intervals
-            ),
-            previousDayCostUSD: previousDayCost / 1_000_000_000,
-            previousMonthCostUSD: previousMonthCost / 1_000_000_000
+            codex: providerSnapshot(from: codexDays, intervals: intervals),
+            claude: providerSnapshot(from: claudeDays, intervals: intervals),
+            previousDay: periodSnapshot(from: codexDays, in: intervals.day.previous)
+                + periodSnapshot(from: claudeDays, in: intervals.day.previous),
+            previousMonth: periodSnapshot(from: codexDays, in: intervals.month.previous)
+                + periodSnapshot(from: claudeDays, in: intervals.month.previous)
         )
     }
 
@@ -422,13 +409,15 @@ struct UsageSnapshotBuilder {
         from days: [Date: Accumulator],
         in interval: Range<Date>
     ) -> UsagePeriodSnapshot {
-        var accumulator = Accumulator()
+        var processedTokens: Decimal = 0
+        var costNanodollars: Decimal = 0
         for (date, day) in days where interval.contains(date) {
-            accumulator.merge(day)
+            processedTokens += day.processedTokens
+            costNanodollars += day.costNanodollars
         }
         return UsagePeriodSnapshot(
-            processedTokens: accumulator.processedTokens,
-            costUSD: accumulator.costNanodollars / 1_000_000_000
+            processedTokens: processedTokens,
+            costUSD: costNanodollars / 1_000_000_000
         )
     }
 }

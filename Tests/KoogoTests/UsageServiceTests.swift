@@ -255,7 +255,7 @@ final class UsageServiceTests: XCTestCase {
         local.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
         local.firstWeekday = 2
         let date = try XCTUnwrap(parseUsageTimestamp("2026-03-11T12:00:00.000Z"))
-        let intervals = UsagePeriodIntervals.containing(date, calendar: local)
+        let intervals = UsagePeriodIntervals(containing: date, calendar: local)
 
         XCTAssertEqual(
             local.dateComponents(
@@ -277,30 +277,24 @@ final class UsageServiceTests: XCTestCase {
         )
         XCTAssertEqual(
             local.dateComponents(
-                [.year, .month, .day, .hour],
-                from: intervals.day.previous.through
+                [.year, .month, .day],
+                from: intervals.day.previous.lowerBound
             ),
-            DateComponents(year: 2026, month: 3, day: 10, hour: 5)
+            DateComponents(year: 2026, month: 3, day: 10)
         )
         XCTAssertEqual(
             local.dateComponents(
-                [.year, .month, .day, .hour],
-                from: intervals.month.previous.through
+                [.year, .month, .day],
+                from: intervals.month.previous.lowerBound
             ),
-            DateComponents(year: 2026, month: 2, day: 11, hour: 5)
+            DateComponents(year: 2026, month: 2, day: 1)
         )
-    }
-
-    func testPreviousDayComparisonPreservesWallClockTimeAcrossDST() throws {
-        var local = Calendar(identifier: .gregorian)
-        local.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
-        let date = try XCTUnwrap(parseUsageTimestamp("2026-03-08T10:30:00Z"))
-
-        let previousEnd = UsagePeriodIntervals.containing(date, calendar: local).day.previous.through
-
         XCTAssertEqual(
-            local.dateComponents([.year, .month, .day, .hour, .minute], from: previousEnd),
-            DateComponents(year: 2026, month: 3, day: 7, hour: 3, minute: 30)
+            local.dateComponents(
+                [.year, .month, .day],
+                from: intervals.month.previous.upperBound
+            ),
+            DateComponents(year: 2026, month: 3, day: 1)
         )
     }
 
