@@ -26,18 +26,11 @@ final class CodexQuotaModel {
             state = .loading
         }
 
-        refreshTask = Task { [weak self, quotaService] in
-            guard let self else {
-                return
-            }
+        refreshTask = Task { [quotaService] in
             defer {
                 refreshTask = nil
             }
-            if let snapshot = await quotaService.fetch() {
-                state = .available(snapshot)
-            } else {
-                state = .hidden
-            }
+            state = (await quotaService.fetch()).map(State.available) ?? .hidden
         }
     }
 }

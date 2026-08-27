@@ -3,7 +3,7 @@ import Foundation
 import Synchronization
 
 struct CodexQuotaSnapshot: Equatable, Sendable {
-    struct Bucket: Equatable, Sendable {
+    struct Limits: Equatable, Sendable {
         let fiveHour: Window?
         let weekly: Window?
 
@@ -16,58 +16,51 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         }
     }
 
-    struct CodexLimits: Equatable, Sendable {
-        let quota: Bucket?
+    struct Account: Equatable, Sendable {
+        let limits: Limits?
         let resetCredits: ResetCredits?
 
-        fileprivate init?(quota: Bucket?, resetCredits: ResetCredits?) {
-            guard quota != nil || resetCredits != nil else {
+        fileprivate init?(limits: Limits?, resetCredits: ResetCredits?) {
+            guard limits != nil || resetCredits != nil else {
                 return nil
             }
-            self.quota = quota
+            self.limits = limits
             self.resetCredits = resetCredits
         }
     }
 
-    struct ResetCredits: Equatable, Sendable, Decodable {
+    struct ResetCredits: Equatable, Sendable {
         let availableCount: Int
         let nextExpiration: Date?
 
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            let availableCount = max(try container.decode(Int.self, forKey: .availableCount), 0)
+        fileprivate init?(availableCount: Int, availableExpirations: [Date]) {
+            guard availableCount >= 0 else {
+                return nil
+            }
             self.availableCount = availableCount
             nextExpiration = availableCount > 0
-                ? try container.decodeIfPresent([Credit].self, forKey: .credits)?
-                    .lazy
-                    .filter { $0.status == .available }
-                    .compactMap(\.expiresAt)
-                    .min()
+                ? availableExpirations.min()
                 : nil
-        }
-
-        private enum CodingKeys: CodingKey {
-            case availableCount
-            case credits
-        }
-
-        private struct Credit: Decodable {
-            enum Status: String, Decodable {
-                case available
-                case redeeming
-                case redeemed
-                case unknown
-            }
-
-            let status: Status
-            let expiresAt: Date?
         }
     }
 
-    struct ModelBucket: Equatable, Identifiable, Sendable {
+    struct Model: Equatable, Identifiable, Sendable {
         let id: String
         let title: String
-        let quota: Bucket
+        let limits: Limits
+
+        fileprivate init?(id: String, title: String?, limits: Limits) {
+            guard !id.isEmpty else {
+                return nil
+            }
+            self.id = id
+            if let title, !title.isEmpty {
+                self.title = title
+            } else {
+                self.title = id
+            }
+            self.limits = limits
+        }
     }
 
     struct Window: Equatable, Sendable {
@@ -80,15 +73,15 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         }
     }
 
-    let codex: CodexLimits?
-    let modelBuckets: [ModelBucket]
+    let account: Account?
+    let models: [Model]
 
-    fileprivate init?(codex: CodexLimits?, modelBuckets: [ModelBucket]) {
-        guard codex != nil || !modelBuckets.isEmpty else {
+    fileprivate init?(account: Account?, models: [Model]) {
+        guard account != nil || !models.isEmpty else {
             return nil
         }
-        self.codex = codex
-        self.modelBuckets = modelBuckets
+        self.account = account
+        self.models = models
     }
 }
 
@@ -225,14 +218,7 @@ struct CodexQuotaService: Sendable {
             guard let envelope = try? decoder.decode(RPCEnvelope.self, from: data), envelope.id == id else {
                 continue
             }
-            let response = try decoder.decode(RPCResponse<Value>.self, from: data)
-            if response.error != nil {
-                throw Failure()
-            }
-            guard let result = response.result else {
-                throw Failure()
-            }
-            return result
+            return try decoder.decode(RPCSuccess<Value>.self, from: data).result
         }
 
         throw Failure()
@@ -370,12 +356,22 @@ struct CodexQuotaService: Sendable {
         let id: Int?
     }
 
-    private struct RPCResponse<Result: Decodable>: Decodable {
-        let result: Result?
-        let error: RPCError?
-    }
+    private struct RPCSuccess<Result: Decodable>: Decodable {
+        let result: Result
 
-    private struct RPCError: Decodable {}
+        private enum CodingKeys: CodingKey {
+            case result
+            case error
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            guard !container.contains(.error) else {
+                throw Failure()
+            }
+            result = try container.decode(Result.self, forKey: .result)
+        }
+    }
 
     private struct InitializeParams: Encodable {
         let clientInfo: ClientInfo
@@ -390,48 +386,63 @@ struct CodexQuotaService: Sendable {
     private struct InitializeResponse: Decodable {}
 
     private struct RateLimitsResponse: Decodable {
+        let rateLimits: RateLimitSnapshot
         let rateLimitsByLimitID: [String: RateLimitSnapshot]?
-        let rateLimitResetCredits: CodexQuotaSnapshot.ResetCredits?
+        let rateLimitResetCredits: RateLimitResetCredits?
 
         var snapshot: CodexQuotaSnapshot? {
-            let rateLimits = rateLimitsByLimitID ?? [:]
-            return CodexQuotaSnapshot(
-                codex: CodexQuotaSnapshot.CodexLimits(
-                    quota: rateLimits["codex"]?.bucket,
-                    resetCredits: rateLimitResetCredits
+            CodexQuotaSnapshot(
+                account: CodexQuotaSnapshot.Account(
+                    limits: rateLimits.limits,
+                    resetCredits: rateLimitResetCredits?.snapshot
                 ),
-                modelBuckets: rateLimits.compactMap { id, rateLimit in
-                    guard id != "codex", let quota = rateLimit.bucket else {
+                models: (rateLimitsByLimitID ?? [:]).compactMap { id, rateLimit in
+                    guard
+                        id != (rateLimits.limitID ?? "codex"),
+                        let limits = rateLimit.limits
+                    else {
                         return nil
                     }
-                    return CodexQuotaSnapshot.ModelBucket(
+                    return CodexQuotaSnapshot.Model(
                         id: id,
-                        title: rateLimit.limitName ?? id,
-                        quota: quota
+                        title: rateLimit.limitName,
+                        limits: limits
                     )
                 }
                 .sorted {
-                    $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                    let order = $0.title.localizedCaseInsensitiveCompare($1.title)
+                    return order == .orderedSame
+                        ? $0.id < $1.id
+                        : order == .orderedAscending
                 }
             )
         }
 
         private enum CodingKeys: String, CodingKey {
+            case rateLimits
             case rateLimitsByLimitID = "rateLimitsByLimitId"
             case rateLimitResetCredits
         }
     }
 
     private struct RateLimitSnapshot: Decodable {
+        let limitID: String?
         let limitName: String?
         let primary: RateLimitWindow?
         let secondary: RateLimitWindow?
 
-        var bucket: CodexQuotaSnapshot.Bucket? {
-            CodexQuotaSnapshot.Bucket(
+        var limits: CodexQuotaSnapshot.Limits? {
+            CodexQuotaSnapshot.Limits(
                 fiveHour: window(around: 300),
                 weekly: window(around: 10_080)
             )
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case limitID = "limitId"
+            case limitName
+            case primary
+            case secondary
         }
 
         private func window(around expectedMinutes: Int64) -> CodexQuotaSnapshot.Window? {
@@ -447,6 +458,25 @@ struct CodexQuotaService: Sendable {
                 usedPercent: window.usedPercent,
                 resetsAt: window.resetsAt
             )
+        }
+    }
+
+    private struct RateLimitResetCredits: Decodable {
+        let availableCount: Int
+        let credits: [Credit]?
+
+        var snapshot: CodexQuotaSnapshot.ResetCredits? {
+            CodexQuotaSnapshot.ResetCredits(
+                availableCount: availableCount,
+                availableExpirations: credits?
+                    .filter { $0.status == "available" }
+                    .compactMap(\.expiresAt) ?? []
+            )
+        }
+
+        struct Credit: Decodable {
+            let status: String
+            let expiresAt: Date?
         }
     }
 

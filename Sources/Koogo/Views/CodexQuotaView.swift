@@ -28,27 +28,27 @@ private struct CodexQuotaContent: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            if let codex = snapshot.codex {
+            if let account = snapshot.account {
                 VStack(spacing: 8) {
-                    if let quota = codex.quota {
-                        CodexQuotaBucketView(title: nil, quota: quota)
+                    if let limits = account.limits {
+                        CodexQuotaLimitsView(title: nil, limits: limits)
                     }
-                    if let resetCredits = codex.resetCredits {
+                    if let resetCredits = account.resetCredits {
                         CodexQuotaResetRow(resetCredits: resetCredits)
                     }
                 }
             }
 
-            ForEach(snapshot.modelBuckets) { model in
-                CodexQuotaBucketView(title: model.title, quota: model.quota)
+            ForEach(snapshot.models) { model in
+                CodexQuotaLimitsView(title: model.title, limits: model.limits)
             }
         }
     }
 }
 
-private struct CodexQuotaBucketView: View {
+private struct CodexQuotaLimitsView: View {
     let title: String?
-    let quota: CodexQuotaSnapshot.Bucket
+    let limits: CodexQuotaSnapshot.Limits
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -65,16 +65,16 @@ private struct CodexQuotaBucketView: View {
                 }
             }
 
-            if let fiveHour = quota.fiveHour {
+            if let fiveHour = limits.fiveHour {
                 CodexQuotaWindowRow(
-                    bucketTitle: title ?? "Codex",
+                    scopeTitle: title ?? "Codex",
                     title: "5h limit",
                     window: fiveHour
                 )
             }
-            if let weekly = quota.weekly {
+            if let weekly = limits.weekly {
                 CodexQuotaWindowRow(
-                    bucketTitle: title ?? "Codex",
+                    scopeTitle: title ?? "Codex",
                     title: "Weekly limit",
                     window: weekly
                 )
@@ -117,7 +117,7 @@ private struct CodexQuotaResetRow: View {
 }
 
 private struct CodexQuotaWindowRow: View {
-    let bucketTitle: String
+    let scopeTitle: String
     let title: String
     let window: CodexQuotaSnapshot.Window
 
@@ -143,7 +143,7 @@ private struct CodexQuotaWindowRow: View {
 
             ProgressView(value: Double(window.remainingPercent), total: 100)
                 .progressViewStyle(CodexQuotaProgressViewStyle())
-                .accessibilityLabel("\(bucketTitle) \(title)")
+                .accessibilityLabel("\(scopeTitle) \(title)")
                 .accessibilityValue("\(window.remainingPercent) percent left")
         }
     }
@@ -161,7 +161,7 @@ private struct QuotaDeadlineLabel: View {
     }
 }
 
-func quotaTimeRemainingText(until date: Date, now: Date = .now) -> String {
+func quotaTimeRemainingText(until date: Date, now: Date) -> String {
     let seconds = max(Int(date.timeIntervalSince(now)), 0)
     if seconds >= 86_400 {
         let days = seconds / 86_400
