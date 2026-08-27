@@ -26,10 +26,12 @@ struct ContentView: View {
         .background {
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0.72), location: 0),
-                    .init(color: .black.opacity(0.52), location: 0.16),
-                    .init(color: .black.opacity(0.22), location: 0.36),
-                    .init(color: .clear, location: 0.62),
+                    .init(color: .black.opacity(0.85), location: 0),
+                    .init(color: .black.opacity(0.78), location: 0.12),
+                    .init(color: .black.opacity(0.58), location: 0.24),
+                    .init(color: .black.opacity(0.32), location: 0.38),
+                    .init(color: .black.opacity(0.12), location: 0.5),
+                    .init(color: .clear, location: 0.6),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
