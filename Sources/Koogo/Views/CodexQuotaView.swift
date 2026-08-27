@@ -10,22 +10,15 @@ struct CodexQuotaView: View {
         case .hidden:
             EmptyView()
         case .loading:
-            quotaSection {
+            VStack(spacing: 12) {
                 CodexQuotaLoadingView()
+                Divider()
             }
         case .available(let snapshot):
-            quotaSection {
+            VStack(spacing: 12) {
                 CodexQuotaContent(snapshot: snapshot)
+                Divider()
             }
-        }
-    }
-
-    private func quotaSection<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(spacing: 12) {
-            content()
-            Divider()
         }
     }
 }
@@ -35,17 +28,27 @@ private struct CodexQuotaContent: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            if !snapshot.limits.isEmpty {
-                VStack(spacing: 8) {
-                    ForEach(snapshot.limits, id: \.period) { limit in
-                        let title = switch limit.period {
-                        case .fiveHour: "5h limit"
-                        case .weekly: "Weekly limit"
-                        }
+            ForEach(snapshot.buckets) { bucket in
+                VStack(alignment: .leading, spacing: 8) {
+                    if let title = bucket.title {
+                        Text(title)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
 
+                    if let fiveHour = bucket.fiveHour {
                         CodexQuotaWindowRow(
-                            title: title,
-                            window: limit.window
+                            bucketTitle: bucket.title ?? "Codex",
+                            title: "5h limit",
+                            window: fiveHour
+                        )
+                    }
+                    if let weekly = bucket.weekly {
+                        CodexQuotaWindowRow(
+                            bucketTitle: bucket.title ?? "Codex",
+                            title: "Weekly limit",
+                            window: weekly
                         )
                     }
                 }
@@ -74,6 +77,7 @@ private struct CodexQuotaContent: View {
 }
 
 private struct CodexQuotaWindowRow: View {
+    let bucketTitle: String
     let title: String
     let window: CodexQuotaSnapshot.Window
 
@@ -100,7 +104,7 @@ private struct CodexQuotaWindowRow: View {
 
             ProgressView(value: Double(window.remainingPercent), total: 100)
                 .progressViewStyle(CodexQuotaProgressViewStyle())
-                .accessibilityLabel(title)
+                .accessibilityLabel("\(bucketTitle) \(title)")
                 .accessibilityValue("\(window.remainingPercent) percent left")
         }
     }

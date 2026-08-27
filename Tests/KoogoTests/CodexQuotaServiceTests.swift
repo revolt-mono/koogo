@@ -16,20 +16,30 @@ final class CodexQuotaServiceTests: XCTestCase {
         try FileManager.default.removeItem(at: root)
     }
 
-    func testFetchUsesCodexBucketAndClassifiesSwappedWindows() async throws {
+    func testFetchUsesAllBucketsAndClassifiesSwappedWindows() async throws {
         let executable = try makeExecutable(rateLimitsResponse: """
-        {"id":2,"result":{"rateLimits":{"primary":null,"secondary":null},"rateLimitsByLimitId":{"codex":{"primary":{"usedPercent":15,"windowDurationMins":10584,"resetsAt":1800000000},"secondary":{"usedPercent":45,"windowDurationMins":285,"resetsAt":1700000000}},"model-specific":{"primary":{"usedPercent":99,"windowDurationMins":300,"resetsAt":1900000000},"secondary":null}},"rateLimitResetCredits":{"availableCount":2,"credits":null}}}
+        {"id":2,"result":{"rateLimits":{"primary":null,"secondary":null},"rateLimitsByLimitId":{"codex_bengalfox":{"limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1900000000},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":2000000000}},"codex":{"limitName":null,"primary":{"usedPercent":15,"windowDurationMins":10584,"resetsAt":1800000000},"secondary":{"usedPercent":45,"windowDurationMins":285,"resetsAt":1700000000}}},"rateLimitResetCredits":{"availableCount":2,"credits":null}}}
         """)
 
         guard let snapshot = await CodexQuotaService(executableURL: executable).fetch() else {
             return XCTFail("expected available quota")
         }
-        let fiveHour = snapshot.limits.first { $0.period == .fiveHour }?.window
-        let weekly = snapshot.limits.first { $0.period == .weekly }?.window
-        XCTAssertEqual(fiveHour?.remainingPercent, 55)
-        XCTAssertEqual(fiveHour?.resetsAt, Date(timeIntervalSince1970: 1_700_000_000))
-        XCTAssertEqual(weekly?.remainingPercent, 85)
-        XCTAssertEqual(weekly?.resetsAt, Date(timeIntervalSince1970: 1_800_000_000))
+        XCTAssertEqual(snapshot.buckets.map(\.id), ["codex", "codex_bengalfox"])
+        XCTAssertNil(snapshot.buckets[0].title)
+        XCTAssertEqual(snapshot.buckets[1].title, "GPT-5.3-Codex-Spark")
+
+        XCTAssertEqual(snapshot.buckets[0].fiveHour?.remainingPercent, 55)
+        XCTAssertEqual(
+            snapshot.buckets[0].fiveHour?.resetsAt,
+            Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        XCTAssertEqual(snapshot.buckets[0].weekly?.remainingPercent, 85)
+        XCTAssertEqual(
+            snapshot.buckets[0].weekly?.resetsAt,
+            Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        XCTAssertEqual(snapshot.buckets[1].fiveHour?.remainingPercent, 90)
+        XCTAssertEqual(snapshot.buckets[1].weekly?.remainingPercent, 80)
         XCTAssertEqual(snapshot.availableResetCount, 2)
     }
 
@@ -41,18 +51,8 @@ final class CodexQuotaServiceTests: XCTestCase {
         guard let snapshot = await CodexQuotaService(executableURL: executable).fetch() else {
             return XCTFail("expected available quota")
         }
-        XCTAssertTrue(snapshot.limits.isEmpty)
+        XCTAssertTrue(snapshot.buckets.isEmpty)
         XCTAssertEqual(snapshot.availableResetCount, 0)
-    }
-
-    func testFetchHidesSnapshotsWithoutACodexBucket() async throws {
-        let executable = try makeExecutable(rateLimitsResponse: """
-        {"id":2,"result":{"rateLimits":{"primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":{"model-specific":{"primary":{"usedPercent":20,"windowDurationMins":300,"resetsAt":1700000000},"secondary":null}},"rateLimitResetCredits":null}}
-        """)
-
-        let snapshot = await CodexQuotaService(executableURL: executable).fetch()
-
-        XCTAssertNil(snapshot)
     }
 
     func testFetchHidesCodexBucketWithoutDisplayableContent() async throws {
@@ -85,7 +85,7 @@ final class CodexQuotaServiceTests: XCTestCase {
 
         let snapshot = await CodexQuotaService(executableURL: executable).fetch()
 
-        XCTAssertEqual(snapshot?.limits.first?.window.remainingPercent, 75)
+        XCTAssertEqual(snapshot?.buckets.first?.fiveHour?.remainingPercent, 75)
     }
 
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
@@ -175,7 +175,7 @@ final class CodexQuotaServiceTests: XCTestCase {
         guard case .available(let snapshot) = model.state else {
             return XCTFail("expected available quota")
         }
-        XCTAssertEqual(snapshot.limits.first?.window.remainingPercent, 75)
+        XCTAssertEqual(snapshot.buckets.first?.fiveHour?.remainingPercent, 75)
         let launchCount = try String(contentsOf: launches, encoding: .utf8)
             .split(separator: "\n")
             .count

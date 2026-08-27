@@ -3,18 +3,20 @@ import Foundation
 import Synchronization
 
 struct CodexQuotaSnapshot: Equatable, Sendable {
-    enum Period: Int64, CaseIterable, Hashable, Sendable {
-        case fiveHour = 300
-        case weekly = 10_080
-    }
+    struct Bucket: Equatable, Identifiable, Sendable {
+        let id: String
+        let title: String?
+        let fiveHour: Window?
+        let weekly: Window?
 
-    struct Limit: Equatable, Sendable {
-        let period: Period
-        let window: Window
-
-        fileprivate init(period: Period, window: Window) {
-            self.period = period
-            self.window = window
+        fileprivate init?(id: String, title: String?, fiveHour: Window?, weekly: Window?) {
+            guard fiveHour != nil || weekly != nil else {
+                return nil
+            }
+            self.id = id
+            self.title = title
+            self.fiveHour = fiveHour
+            self.weekly = weekly
         }
     }
 
@@ -28,14 +30,14 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         }
     }
 
-    let limits: [Limit]
+    let buckets: [Bucket]
     let availableResetCount: Int?
 
-    fileprivate init?(limits: [Limit], availableResetCount: Int?) {
-        guard !limits.isEmpty || availableResetCount != nil else {
+    fileprivate init?(buckets: [Bucket], availableResetCount: Int?) {
+        guard !buckets.isEmpty || availableResetCount != nil else {
             return nil
         }
-        self.limits = limits
+        self.buckets = buckets
         self.availableResetCount = availableResetCount
     }
 }
@@ -150,41 +152,10 @@ struct CodexQuotaService: Sendable {
                 to: input.fileHandleForWriting
             )
             let payload: RateLimitsResponse = try response(id: 2, from: &reader)
-            guard let limits = payload.rateLimitsByLimitID?["codex"] else {
-                return nil
-            }
-            let windows = [limits.primary, limits.secondary].compactMap { $0 }
-
-            return CodexQuotaSnapshot(
-                limits: CodexQuotaSnapshot.Period.allCases.compactMap { period in
-                    quotaWindow(in: windows, period: period).map {
-                        CodexQuotaSnapshot.Limit(period: period, window: $0)
-                    }
-                },
-                availableResetCount: payload.rateLimitResetCredits?.availableCount
-            )
+            return payload.snapshot
         } onCancel: {
             processLifetime.terminate()
         }
-    }
-
-    private static func quotaWindow(
-        in windows: [RateLimitWindow],
-        period: CodexQuotaSnapshot.Period
-    ) -> CodexQuotaSnapshot.Window? {
-        guard let window = windows.first(where: {
-            guard let duration = $0.windowDurationMinutes, duration > 0 else {
-                return false
-            }
-            return (period.rawValue * 95 / 100)...(period.rawValue * 105 / 100) ~= duration
-        }) else {
-            return nil
-        }
-
-        return CodexQuotaSnapshot.Window(
-            usedPercent: window.usedPercent,
-            resetsAt: window.resetsAt
-        )
     }
 
     private static func send<Value: Encodable>(_ value: Value, to handle: FileHandle) throws {
@@ -371,6 +342,32 @@ struct CodexQuotaService: Sendable {
         let rateLimitsByLimitID: [String: RateLimitSnapshot]?
         let rateLimitResetCredits: ResetCredits?
 
+        var snapshot: CodexQuotaSnapshot? {
+            let buckets = (rateLimitsByLimitID ?? [:])
+                .compactMap { id, rateLimit in
+                    CodexQuotaSnapshot.Bucket(
+                        id: id,
+                        title: id == "codex" ? nil : rateLimit.limitName ?? id,
+                        fiveHour: rateLimit.window(around: 300),
+                        weekly: rateLimit.window(around: 10_080)
+                    )
+                }
+                .sorted { lhs, rhs in
+                    if lhs.id == "codex" {
+                        return rhs.id != "codex"
+                    }
+                    if rhs.id == "codex" {
+                        return false
+                    }
+                    return (lhs.title ?? lhs.id).localizedCaseInsensitiveCompare(rhs.title ?? rhs.id)
+                        == .orderedAscending
+                }
+            return CodexQuotaSnapshot(
+                buckets: buckets,
+                availableResetCount: rateLimitResetCredits?.availableCount
+            )
+        }
+
         private enum CodingKeys: String, CodingKey {
             case rateLimitsByLimitID = "rateLimitsByLimitId"
             case rateLimitResetCredits
@@ -378,8 +375,24 @@ struct CodexQuotaService: Sendable {
     }
 
     private struct RateLimitSnapshot: Decodable {
+        let limitName: String?
         let primary: RateLimitWindow?
         let secondary: RateLimitWindow?
+
+        func window(around expectedMinutes: Int64) -> CodexQuotaSnapshot.Window? {
+            guard let window = [primary, secondary].compactMap({ $0 }).first(where: {
+                guard let duration = $0.windowDurationMinutes, duration > 0 else {
+                    return false
+                }
+                return (expectedMinutes * 95 / 100)...(expectedMinutes * 105 / 100) ~= duration
+            }) else {
+                return nil
+            }
+            return CodexQuotaSnapshot.Window(
+                usedPercent: window.usedPercent,
+                resetsAt: window.resetsAt
+            )
+        }
     }
 
     private struct RateLimitWindow: Decodable {
