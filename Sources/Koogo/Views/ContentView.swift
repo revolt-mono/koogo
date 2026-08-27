@@ -17,7 +17,6 @@ struct ContentView: View {
                     .transition(.blurReplace)
             }
         }
-        .fontDesign(.rounded)
         .frame(width: 300)
         .animation(.smooth(duration: 0.35), value: usageModel.snapshot)
         .task {

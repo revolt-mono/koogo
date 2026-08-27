@@ -67,7 +67,7 @@ private struct UsageChartAnnotation: View {
                 .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                 .monospacedDigit()
         }
-        .font(.system(size: 8, design: .rounded))
+        .font(.system(size: 8, weight: .medium))
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(

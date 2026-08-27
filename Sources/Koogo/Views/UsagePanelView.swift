@@ -40,7 +40,7 @@ private struct UsageSummaryPeriod: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
 
             ViewThatFits(in: .horizontal) {
@@ -55,19 +55,19 @@ private struct UsageSummaryPeriod: View {
 
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("and")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
 
                         Text("\(UsageFormatting.tokens(usage.processedTokens)) tokens")
                     }
                 }
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.system(size: 15, weight: .bold))
             }
             .foregroundStyle(
                 LinearGradient(
                     colors: [
+                        Color.primary.opacity(0.98),
                         Color.primary.opacity(0.72),
-                        Color.primary.opacity(0.95),
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -92,19 +92,17 @@ private struct UsageSummaryValueLine: View {
             UsageCostChangeCapsule(change: usage.cost.change)
 
             Text("and")
-                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
 
             Text("\(UsageFormatting.tokens(usage.processedTokens)) tokens")
         }
-        .font(.system(size: fontSize, weight: .bold, design: .rounded))
+        .font(.system(size: fontSize, weight: .bold))
         .fixedSize()
     }
 }
 
 private struct UsageCostChangeCapsule: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     let change: UsageCostChange
 
     var body: some View {
@@ -131,7 +129,7 @@ private struct UsageCostChangeCapsule: View {
         }
 
         Text(style.text)
-            .font(.system(size: 9, weight: .bold, design: .rounded))
+            .font(.system(size: 9, weight: .bold))
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.5)
@@ -139,7 +137,7 @@ private struct UsageCostChangeCapsule: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(
-                style.color.opacity(colorScheme == .dark ? 0.6 : 0.82),
+                style.color.opacity(0.6),
                 in: Capsule()
             )
             .alignmentGuide(.firstTextBaseline) { dimensions in
@@ -167,7 +165,7 @@ private struct ProviderUsageSection: View {
                     .accessibilityHidden(true)
 
                 Text(provider.rawValue.capitalized)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: 11, weight: .semibold))
 
                 if let favorite = usage.favorite {
                     Spacer(minLength: 12)
@@ -184,7 +182,7 @@ private struct ProviderUsageSection: View {
                             "\(favorite.modelName) with \($0)"
                         } ?? favorite.modelName
                     )
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 }
@@ -203,7 +201,7 @@ private struct ProviderUsageSection: View {
             }
             .padding(12)
             .background(
-                .fill.quaternary,
+                Color.black.opacity(0.07),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
         }
@@ -224,7 +222,7 @@ private struct ProviderUsageRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(title)
-                .fontWeight(.medium)
+                .fontWeight(.semibold)
 
             Spacer(minLength: 12)
 
@@ -237,7 +235,7 @@ private struct ProviderUsageRow: View {
             }
             .lineLimit(1)
         }
-        .font(.system(size: 9, design: .rounded))
+        .font(.system(size: 9, weight: .medium))
         .frame(maxWidth: .infinity)
     }
 }
