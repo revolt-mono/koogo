@@ -16,16 +16,51 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         }
     }
 
-    struct CodexBucket: Equatable, Sendable {
+    struct CodexLimits: Equatable, Sendable {
         let quota: Bucket?
-        let availableResetCount: Int?
+        let resetCredits: ResetCredits?
 
-        fileprivate init?(quota: Bucket?, availableResetCount: Int?) {
-            guard quota != nil || availableResetCount != nil else {
+        fileprivate init?(quota: Bucket?, resetCredits: ResetCredits?) {
+            guard quota != nil || resetCredits != nil else {
                 return nil
             }
             self.quota = quota
-            self.availableResetCount = availableResetCount
+            self.resetCredits = resetCredits
+        }
+    }
+
+    struct ResetCredits: Equatable, Sendable, Decodable {
+        let availableCount: Int
+        let nextExpiration: Date?
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let availableCount = max(try container.decode(Int.self, forKey: .availableCount), 0)
+            self.availableCount = availableCount
+            nextExpiration = availableCount > 0
+                ? try container.decodeIfPresent([Credit].self, forKey: .credits)?
+                    .lazy
+                    .filter { $0.status == .available }
+                    .compactMap(\.expiresAt)
+                    .min()
+                : nil
+        }
+
+        private enum CodingKeys: CodingKey {
+            case availableCount
+            case credits
+        }
+
+        private struct Credit: Decodable {
+            enum Status: String, Decodable {
+                case available
+                case redeeming
+                case redeemed
+                case unknown
+            }
+
+            let status: Status
+            let expiresAt: Date?
         }
     }
 
@@ -39,16 +74,16 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         let remainingPercent: Int
         let resetsAt: Date?
 
-        fileprivate init(usedPercent: Int, resetsAt: Int64?) {
+        fileprivate init(usedPercent: Int, resetsAt: Date?) {
             remainingPercent = 100 - min(max(usedPercent, 0), 100)
-            self.resetsAt = resetsAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+            self.resetsAt = resetsAt
         }
     }
 
-    let codex: CodexBucket?
+    let codex: CodexLimits?
     let modelBuckets: [ModelBucket]
 
-    fileprivate init?(codex: CodexBucket?, modelBuckets: [ModelBucket]) {
+    fileprivate init?(codex: CodexLimits?, modelBuckets: [ModelBucket]) {
         guard codex != nil || !modelBuckets.isEmpty else {
             return nil
         }
@@ -184,6 +219,7 @@ struct CodexQuotaService: Sendable {
         from reader: inout LineReader
     ) throws -> Value {
         let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
 
         while let data = try reader.nextLine() {
             guard let envelope = try? decoder.decode(RPCEnvelope.self, from: data), envelope.id == id else {
@@ -355,14 +391,14 @@ struct CodexQuotaService: Sendable {
 
     private struct RateLimitsResponse: Decodable {
         let rateLimitsByLimitID: [String: RateLimitSnapshot]?
-        let rateLimitResetCredits: ResetCredits?
+        let rateLimitResetCredits: CodexQuotaSnapshot.ResetCredits?
 
         var snapshot: CodexQuotaSnapshot? {
             let rateLimits = rateLimitsByLimitID ?? [:]
             return CodexQuotaSnapshot(
-                codex: CodexQuotaSnapshot.CodexBucket(
+                codex: CodexQuotaSnapshot.CodexLimits(
                     quota: rateLimits["codex"]?.bucket,
-                    availableResetCount: rateLimitResetCredits?.availableCount
+                    resetCredits: rateLimitResetCredits
                 ),
                 modelBuckets: rateLimits.compactMap { id, rateLimit in
                     guard id != "codex", let quota = rateLimit.bucket else {
@@ -417,16 +453,12 @@ struct CodexQuotaService: Sendable {
     private struct RateLimitWindow: Decodable {
         let usedPercent: Int
         let windowDurationMinutes: Int64?
-        let resetsAt: Int64?
+        let resetsAt: Date?
 
         private enum CodingKeys: String, CodingKey {
             case usedPercent
             case windowDurationMinutes = "windowDurationMins"
             case resetsAt
         }
-    }
-
-    private struct ResetCredits: Decodable {
-        let availableCount: Int
     }
 }

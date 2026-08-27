@@ -33,8 +33,8 @@ private struct CodexQuotaContent: View {
                     if let quota = codex.quota {
                         CodexQuotaBucketView(title: nil, quota: quota)
                     }
-                    if let availableResetCount = codex.availableResetCount {
-                        CodexQuotaResetRow(availableCount: availableResetCount)
+                    if let resetCredits = codex.resetCredits {
+                        CodexQuotaResetRow(resetCredits: resetCredits)
                     }
                 }
             }
@@ -84,7 +84,7 @@ private struct CodexQuotaBucketView: View {
 }
 
 private struct CodexQuotaResetRow: View {
-    let availableCount: Int
+    let resetCredits: CodexQuotaSnapshot.ResetCredits
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -93,16 +93,26 @@ private struct CodexQuotaResetRow: View {
 
             Spacer(minLength: 12)
 
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                Text("\(availableCount)")
-                    .foregroundStyle(.primary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                Text(" available")
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text("\(resetCredits.availableCount)")
+                        .foregroundStyle(.primary)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                    Text(" available")
+                        .foregroundStyle(.secondary)
+                }
+
+                if let nextExpiration = resetCredits.nextExpiration {
+                    QuotaDeadlineLabel(
+                        action: resetCredits.availableCount == 1 ? "expires" : "next expires",
+                        deadline: nextExpiration
+                    )
+                }
             }
         }
         .font(.system(size: 9, weight: .medium))
+        .lineLimit(1)
     }
 }
 
@@ -125,8 +135,7 @@ private struct CodexQuotaWindowRow: View {
                     .contentTransition(.numericText())
 
                 if let resetsAt = window.resetsAt {
-                    Text("· resets \(resetText(resetsAt))")
-                        .foregroundStyle(.secondary)
+                    QuotaDeadlineLabel(action: "resets", deadline: resetsAt)
                 }
             }
             .font(.system(size: 9, weight: .medium))
@@ -138,16 +147,33 @@ private struct CodexQuotaWindowRow: View {
                 .accessibilityValue("\(window.remainingPercent) percent left")
         }
     }
+}
 
-    private func resetText(_ date: Date) -> String {
-        let calendar = Calendar.autoupdatingCurrent
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = calendar.isDateInToday(date) ? "HH:mm" : "HH:mm 'on' d MMM"
-        return formatter.string(from: date)
+private struct QuotaDeadlineLabel: View {
+    let action: String
+    let deadline: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            Text("· \(action) \(quotaTimeRemainingText(until: deadline, now: timeline.date))")
+        }
+        .foregroundStyle(.secondary)
     }
+}
+
+func quotaTimeRemainingText(until date: Date, now: Date = .now) -> String {
+    let seconds = max(Int(date.timeIntervalSince(now)), 0)
+    if seconds >= 86_400 {
+        let days = seconds / 86_400
+        return "in \(days) \(days == 1 ? "day" : "days")"
+    }
+    if seconds >= 3_600 {
+        return "in \(seconds / 3_600)h"
+    }
+    if seconds >= 60 {
+        return "in \(seconds / 60)m"
+    }
+    return "soon"
 }
 
 private struct CodexQuotaProgressViewStyle: ProgressViewStyle {

@@ -11,13 +11,10 @@ struct UsagePanelView: View {
             Divider()
 
             VStack(spacing: 12) {
-                ProviderUsageSection(
-                    content: .codex(
-                        usage: snapshot.codex,
-                        quotaState: codexQuotaState
-                    )
-                )
-                ProviderUsageSection(content: .claude(usage: snapshot.claude))
+                ProviderUsageSection(provider: .codex, usage: snapshot.codex) {
+                    CodexQuotaView(state: codexQuotaState)
+                }
+                ProviderUsageSection(provider: .claude, usage: snapshot.claude) {}
             }
         }
         .padding(.horizontal, 20)
@@ -155,31 +152,12 @@ private struct UsageCostChangeCapsule: View {
     }
 }
 
-private struct ProviderUsageSection: View {
-    enum Content {
-        case codex(usage: ProviderUsageSnapshot, quotaState: CodexQuotaModel.State)
-        case claude(usage: ProviderUsageSnapshot)
-    }
+private struct ProviderUsageSection<Quota: View>: View {
+    let provider: UsageProvider
+    let usage: ProviderUsageSnapshot
+    @ViewBuilder let quota: Quota
 
-    let content: Content
-
-    @ViewBuilder
     var body: some View {
-        switch content {
-        case .codex(let usage, let quotaState):
-            providerSection(provider: .codex, usage: usage) {
-                CodexQuotaView(state: quotaState)
-            }
-        case .claude(let usage):
-            providerSection(provider: .claude, usage: usage) {}
-        }
-    }
-
-    private func providerSection<Quota: View>(
-        provider: UsageProvider,
-        usage: ProviderUsageSnapshot,
-        @ViewBuilder quota: () -> Quota
-    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
                 Image(
@@ -220,7 +198,7 @@ private struct ProviderUsageSection: View {
             .padding(.horizontal, 6)
 
             VStack(spacing: 12) {
-                quota()
+                quota
 
                 MonthlyUsageChart(month: usage.dailyMonth)
 
