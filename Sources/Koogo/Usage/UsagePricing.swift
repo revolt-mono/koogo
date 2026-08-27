@@ -83,6 +83,23 @@ struct UsagePriceCatalog: Sendable {
     }
 
     private static let codexPrices: [String: CodexModelPrice] = [
+        "gpt-daybreak-blue-latest": CodexModelPrice(
+            displayName: "Daybreak Blue",
+            rates: .tiered(
+                short: Rates(
+                    input: 5_000,
+                    cachedInput: 500,
+                    cacheWrite: .fiveMinute(6_250),
+                    output: 30_000
+                ),
+                long: Rates(
+                    input: 10_000,
+                    cachedInput: 1_000,
+                    cacheWrite: .fiveMinute(12_500),
+                    output: 45_000
+                )
+            )
+        ),
         "gpt-5.6-sol": CodexModelPrice(
             displayName: "GPT 5.6 Sol",
             rates: .tiered(
@@ -194,8 +211,6 @@ struct UsagePriceCatalog: Sendable {
 
     private static let codexAliases: [String: String] = [
         "gpt-5.6": "gpt-5.6-sol",
-        "gpt-daybreak-blue-latest": "gpt-5.6-sol",
-        "daybreak-blue-latest": "gpt-5.6-sol",
     ]
 
     private static let claudePrices: [String: ClaudeModelPrice] = [
