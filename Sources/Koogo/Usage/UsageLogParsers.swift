@@ -155,7 +155,7 @@ private extension UInt8 {
 struct CodexLogParser: Sendable {
     private var threadID: String?
     private var turn: CodexTurn?
-    private var previousTotalUsage: CodexTokenUsage?
+    private var previousTotalUsage: UsageEvent.Codex.Tokens?
 
     mutating func parse(
         _ line: Data,
@@ -213,11 +213,10 @@ struct CodexLogParser: Sendable {
             details: UsageEvent.Details(
                 timestamp: timestamp,
                 model: turn.model,
-                reasoningEffort: turn.reasoningEffort,
-                tokens: lastUsage.tokens
+                reasoningEffort: turn.reasoningEffort
             ),
-            reasoningOutput: lastUsage.reasoningOutput,
-            cumulativeTotal: totalUsage.total
+            tokens: lastUsage,
+            cumulativeTotal: totalUsage.processed
         ))
     }
 }
@@ -243,9 +242,9 @@ private func parseClaudeLog(_ line: Data, decoder: JSONDecoder) -> UsageEvent? {
         details: UsageEvent.Details(
             timestamp: timestamp,
             model: model,
-            reasoningEffort: nonempty(record.effort),
-            tokens: usage.tokens
+            reasoningEffort: nonempty(record.effort)
         ),
+        tokens: usage.tokens,
         speed: usage.speed,
         inferenceGeo: nonempty(usage.inferenceGeo),
         webSearchRequests: usage.webSearchRequests
@@ -356,8 +355,8 @@ private struct CodexTokenCount {
 }
 
 private struct CodexTokenInfo: Decodable {
-    let lastTokenUsage: CodexTokenUsage
-    let totalTokenUsage: CodexTokenUsage
+    let lastTokenUsage: UsageEvent.Codex.Tokens
+    let totalTokenUsage: UsageEvent.Codex.Tokens
     let modelContextWindow: Int64?
 
     private enum CodingKeys: String, CodingKey {
@@ -366,18 +365,18 @@ private struct CodexTokenInfo: Decodable {
         case modelContextWindow = "model_context_window"
     }
 
-    func isSyntheticContextFill(previous: CodexTokenUsage?) -> Bool {
+    func isSyntheticContextFill(previous: UsageEvent.Codex.Tokens?) -> Bool {
         guard
             let modelContextWindow,
             modelContextWindow >= 0,
             lastTokenUsage.componentsAreZero,
             totalTokenUsage.componentsAreZero,
-            totalTokenUsage.total == modelContextWindow
+            totalTokenUsage.processed == modelContextWindow
         else {
             return false
         }
 
-        let previousTotal = previous?.total ?? 0
+        let previousTotal = previous?.processed ?? 0
         let expectedLastTotal: Int64
         if modelContextWindow > previousTotal {
             let (difference, overflow) = modelContextWindow
@@ -389,68 +388,53 @@ private struct CodexTokenInfo: Decodable {
         } else {
             expectedLastTotal = 0
         }
-        return lastTokenUsage.total == expectedLastTotal
+        return lastTokenUsage.processed == expectedLastTotal
     }
 }
 
-private struct CodexTokenUsage: Decodable, Equatable, Sendable {
-    let input: Int64
-    let cachedInput: Int64
-    let cacheWriteInput: Int64
-    let output: Int64
-    let reasoningOutput: Int64
-    let total: Int64
-
+private extension UsageEvent.Codex.Tokens {
     var componentsAreZero: Bool {
         input == 0
             && cachedInput == 0
-            && cacheWriteInput == 0
+            && cacheWrite == 0
             && output == 0
             && reasoningOutput == 0
     }
+}
 
-    var tokens: UsageTokens {
-        UsageTokens(
-            uncachedInput: input - cachedInput - cacheWriteInput,
-            cachedInput: cachedInput,
-            cacheWrite: .fiveMinute(cacheWriteInput),
-            output: output,
-            processed: total
-        )
-    }
-
+extension UsageEvent.Codex.Tokens: Decodable {
     private enum CodingKeys: String, CodingKey {
         case input = "input_tokens"
         case cachedInput = "cached_input_tokens"
-        case cacheWriteInput = "cache_write_input_tokens"
+        case cacheWrite = "cache_write_input_tokens"
         case output = "output_tokens"
         case reasoningOutput = "reasoning_output_tokens"
-        case total = "total_tokens"
+        case processed = "total_tokens"
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         input = try container.decode(Int64.self, forKey: .input)
         cachedInput = try container.decodeIfPresent(Int64.self, forKey: .cachedInput) ?? 0
-        cacheWriteInput = try container.decodeIfPresent(Int64.self, forKey: .cacheWriteInput) ?? 0
+        cacheWrite = try container.decodeIfPresent(Int64.self, forKey: .cacheWrite) ?? 0
         output = try container.decode(Int64.self, forKey: .output)
         reasoningOutput = try container.decodeIfPresent(Int64.self, forKey: .reasoningOutput) ?? 0
-        total = try container.decode(Int64.self, forKey: .total)
+        processed = try container.decode(Int64.self, forKey: .processed)
 
-        let (cachedAndWritten, overflow) = cachedInput.addingReportingOverflow(cacheWriteInput)
+        let (cachedAndWritten, overflow) = cachedInput.addingReportingOverflow(cacheWrite)
         guard
             input >= 0,
             cachedInput >= 0,
-            cacheWriteInput >= 0,
+            cacheWrite >= 0,
             output >= 0,
             reasoningOutput >= 0,
             reasoningOutput <= output,
-            total >= 0,
+            processed >= 0,
             !overflow,
             cachedAndWritten <= input
         else {
             throw DecodingError.dataCorruptedError(
-                forKey: .total,
+                forKey: .processed,
                 in: container,
                 debugDescription: "invalid token usage"
             )
@@ -489,7 +473,7 @@ private struct ClaudeMessage: Decodable {
 }
 
 private struct ClaudeUsage: Decodable {
-    let tokens: UsageTokens
+    let tokens: UsageEvent.Claude.Tokens
     let speed: UsageEvent.Claude.Speed
     let inferenceGeo: String?
     let webSearchRequests: Int64
@@ -511,21 +495,29 @@ private struct ClaudeUsage: Decodable {
         let cacheRead = try container.decodeIfPresent(Int64.self, forKey: .cacheReadInputTokens) ?? 0
         let cacheWrite = try container.decodeIfPresent(Int64.self, forKey: .cacheCreationInputTokens) ?? 0
         let output = try container.decode(Int64.self, forKey: .outputTokens)
-        let cacheCreation = try container.decodeIfPresent(
-            ClaudeCacheCreation.self,
+        let cacheCreationBreakdown = try container.decodeIfPresent(
+            ClaudeCacheCreationBreakdown.self,
             forKey: .cacheCreation
         )
-        let cacheWrite5Minute: Int64
-        let cacheWrite1Hour: Int64
-        if let cacheCreation {
-            cacheWrite5Minute = cacheCreation.ephemeral5MinuteInputTokens ?? 0
-            cacheWrite1Hour = cacheCreation.ephemeral1HourInputTokens ?? 0
+        let cacheCreation: UsageEvent.Claude.Tokens.CacheCreation
+        if let cacheCreationBreakdown {
+            let fiveMinute = cacheCreationBreakdown.ephemeral5MinuteInputTokens ?? 0
+            let oneHour = cacheCreationBreakdown.ephemeral1HourInputTokens ?? 0
+            let (total, overflow) = fiveMinute.addingReportingOverflow(oneHour)
+            guard fiveMinute >= 0, oneHour >= 0, !overflow, total == cacheWrite else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .cacheCreationInputTokens,
+                    in: container,
+                    debugDescription: "invalid usage metadata"
+                )
+            }
+            cacheCreation = .byDuration(
+                fiveMinute: fiveMinute,
+                oneHour: oneHour
+            )
         } else {
-            cacheWrite5Minute = cacheWrite
-            cacheWrite1Hour = 0
+            cacheCreation = .aggregate(cacheWrite)
         }
-        let (splitCacheWrite, cacheOverflow) = cacheWrite5Minute
-            .addingReportingOverflow(cacheWrite1Hour)
 
         switch try container.decodeIfPresent(String.self, forKey: .speed) {
         case nil:
@@ -548,47 +540,36 @@ private struct ClaudeUsage: Decodable {
             forKey: .serverToolUse
         )?.webSearchRequests ?? 0
 
-        let values = [input, cacheRead, cacheWrite5Minute, cacheWrite1Hour, output]
-        var processed: Int64 = 0
-        for value in values {
-            let (sum, overflow) = processed.addingReportingOverflow(value)
-            guard value >= 0, !overflow else {
-                throw DecodingError.dataCorruptedError(
-                    forKey: .inputTokens,
-                    in: container,
-                    debugDescription: "invalid token usage"
-                )
+        _ = try [input, cacheRead, cacheWrite, output]
+            .reduce(into: Int64.zero) { processed, value in
+                let (sum, overflow) = processed.addingReportingOverflow(value)
+                guard value >= 0, !overflow else {
+                    throw DecodingError.dataCorruptedError(
+                        forKey: .inputTokens,
+                        in: container,
+                        debugDescription: "invalid token usage"
+                    )
+                }
+                processed = sum
             }
-            processed = sum
-        }
-        guard
-            !cacheOverflow,
-            splitCacheWrite == cacheWrite,
-            webSearchRequests >= 0
-        else {
+        guard webSearchRequests >= 0 else {
             throw DecodingError.dataCorruptedError(
-                forKey: .cacheCreationInputTokens,
+                forKey: .serverToolUse,
                 in: container,
                 debugDescription: "invalid usage metadata"
             )
         }
 
-        tokens = UsageTokens(
-            uncachedInput: input,
-            cachedInput: cacheRead,
-            cacheWrite: cacheCreation == nil
-                ? .fiveMinute(cacheWrite5Minute)
-                : .byDuration(
-                    fiveMinute: cacheWrite5Minute,
-                    oneHour: cacheWrite1Hour
-                ),
-            output: output,
-            processed: processed
+        tokens = UsageEvent.Claude.Tokens(
+            input: input,
+            cacheRead: cacheRead,
+            cacheCreation: cacheCreation,
+            output: output
         )
     }
 }
 
-private struct ClaudeCacheCreation: Decodable {
+private struct ClaudeCacheCreationBreakdown: Decodable {
     let ephemeral5MinuteInputTokens: Int64?
     let ephemeral1HourInputTokens: Int64?
 

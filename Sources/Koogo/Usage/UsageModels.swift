@@ -142,46 +142,57 @@ struct UsageLogLocations: Sendable {
     }
 }
 
-struct UsageTokens: Hashable, Sendable {
-    enum CacheWrite: Hashable, Sendable {
-        case fiveMinute(Int64)
-        case byDuration(fiveMinute: Int64, oneHour: Int64)
-
-        var total: Int64 {
-            switch self {
-            case .fiveMinute(let tokens):
-                tokens
-            case .byDuration(let fiveMinute, let oneHour):
-                fiveMinute + oneHour
-            }
-        }
-    }
-
-    let uncachedInput: Int64
-    let cachedInput: Int64
-    let cacheWrite: CacheWrite
-    let output: Int64
-    let processed: Int64
-}
-
 enum UsageEvent: Sendable {
     struct Details: Sendable {
         let timestamp: Date
         let model: String
         let reasoningEffort: String?
-        let tokens: UsageTokens
     }
 
     struct Codex: Sendable {
+        struct Tokens: Hashable, Sendable {
+            let input: Int64
+            let cachedInput: Int64
+            let cacheWrite: Int64
+            let output: Int64
+            let reasoningOutput: Int64
+            let processed: Int64
+
+            var uncachedInput: Int64 {
+                input - cachedInput - cacheWrite
+            }
+        }
+
         let threadID: String
         let turnID: String?
         let ordinal: UInt64?
         let details: Details
-        let reasoningOutput: Int64
+        let tokens: Tokens
         let cumulativeTotal: Int64
     }
 
     struct Claude: Sendable {
+        struct Tokens: Hashable, Sendable {
+            enum CacheCreation: Hashable, Sendable {
+                case aggregate(Int64)
+                case byDuration(fiveMinute: Int64, oneHour: Int64)
+            }
+
+            let input: Int64
+            let cacheRead: Int64
+            let cacheCreation: CacheCreation
+            let output: Int64
+
+            var processed: Int64 {
+                switch cacheCreation {
+                case .aggregate(let tokens):
+                    input + cacheRead + tokens + output
+                case .byDuration(let fiveMinute, let oneHour):
+                    input + cacheRead + fiveMinute + oneHour + output
+                }
+            }
+        }
+
         enum Speed: Sendable {
             case implicitStandard
             case standard
@@ -191,6 +202,7 @@ enum UsageEvent: Sendable {
         let messageID: String
         let requestID: String
         let details: Details
+        let tokens: Tokens
         let speed: Speed
         let inferenceGeo: String?
         let webSearchRequests: Int64
@@ -200,8 +212,8 @@ enum UsageEvent: Sendable {
             case .implicitStandard: 0
             case .standard, .fast: 1
             }
-            let explicitCacheDuration = switch details.tokens.cacheWrite {
-            case .fiveMinute: 0
+            let explicitCacheDuration = switch tokens.cacheCreation {
+            case .aggregate: 0
             case .byDuration: 1
             }
             return explicitSpeed
@@ -217,8 +229,7 @@ enum UsageEvent: Sendable {
             ordinal: UInt64?,
             timestamp: Date,
             model: String,
-            tokens: UsageTokens,
-            reasoningOutput: Int64,
+            tokens: Codex.Tokens,
             cumulativeTotal: Int64
         )
         case claude(messageID: String, requestID: String)
@@ -236,8 +247,7 @@ enum UsageEvent: Sendable {
                 ordinal: event.ordinal,
                 timestamp: event.details.timestamp,
                 model: event.details.model,
-                tokens: event.details.tokens,
-                reasoningOutput: event.reasoningOutput,
+                tokens: event.tokens,
                 cumulativeTotal: event.cumulativeTotal
             )
         case .claude(let event):
@@ -252,12 +262,19 @@ enum UsageEvent: Sendable {
         }
     }
 
+    var processedTokens: Int64 {
+        switch self {
+        case .codex(let event): event.tokens.processed
+        case .claude(let event): event.tokens.processed
+        }
+    }
+
     func isPreferred(over existing: UsageEvent) -> Bool {
         guard case .claude(let candidate) = self, case .claude(let existing) = existing else {
             return false
         }
-        if candidate.details.tokens.output != existing.details.tokens.output {
-            return candidate.details.tokens.output > existing.details.tokens.output
+        if candidate.tokens.output != existing.tokens.output {
+            return candidate.tokens.output > existing.tokens.output
         }
 
         let candidateMetadata = candidate.metadataCompleteness
@@ -265,8 +282,8 @@ enum UsageEvent: Sendable {
         if candidateMetadata != existingMetadata {
             return candidateMetadata > existingMetadata
         }
-        if candidate.details.tokens.processed != existing.details.tokens.processed {
-            return candidate.details.tokens.processed > existing.details.tokens.processed
+        if candidate.tokens.processed != existing.tokens.processed {
+            return candidate.tokens.processed > existing.tokens.processed
         }
         return candidate.details.timestamp > existing.details.timestamp
     }

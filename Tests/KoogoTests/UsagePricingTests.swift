@@ -4,7 +4,6 @@ import XCTest
 @testable import Koogo
 
 final class UsagePricingTests: XCTestCase {
-    private let catalog = UsagePriceCatalog()
     private let timestamp = Date(timeIntervalSince1970: 1_787_680_800)
 
     func testCodexPricesOrdinaryCachedWritesAndOutputSeparately() throws {
@@ -17,7 +16,7 @@ final class UsagePricingTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            try XCTUnwrap(catalog.quote(for: event)).costNanodollars,
+            try XCTUnwrap(UsagePricing.quote(for: event)).costNanodollars,
             1_162_500_000
         )
     }
@@ -35,11 +34,11 @@ final class UsagePricingTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            try XCTUnwrap(catalog.quote(for: atBoundary)).costNanodollars,
+            try XCTUnwrap(UsagePricing.quote(for: atBoundary)).costNanodollars,
             1_360_000_000
         )
         XCTAssertEqual(
-            try XCTUnwrap(catalog.quote(for: long)).costNanodollars,
+            try XCTUnwrap(UsagePricing.quote(for: long)).costNanodollars,
             2_720_010_000
         )
     }
@@ -57,7 +56,33 @@ final class UsagePricingTests: XCTestCase {
             webSearchRequests: 2
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: event)).costNanodollars, 5_355_000_000)
+        XCTAssertEqual(try XCTUnwrap(UsagePricing.quote(for: event)).costNanodollars, 5_355_000_000)
+    }
+
+    func testClaudePricesAggregateCacheCreationAtTheDefaultRate() throws {
+        let event = UsageEvent.claude(UsageEvent.Claude(
+            messageID: "message",
+            requestID: "request",
+            details: UsageEvent.Details(
+                timestamp: timestamp,
+                model: "claude-opus-5",
+                reasoningEffort: nil
+            ),
+            tokens: UsageEvent.Claude.Tokens(
+                input: 0,
+                cacheRead: 0,
+                cacheCreation: .aggregate(100),
+                output: 0
+            ),
+            speed: .standard,
+            inferenceGeo: nil,
+            webSearchRequests: 0
+        ))
+
+        XCTAssertEqual(
+            try XCTUnwrap(UsagePricing.quote(for: event)).costNanodollars,
+            625_000
+        )
     }
 
     func testClaudeSnapshotIDsAndAliasesStartAt45() throws {
@@ -72,13 +97,13 @@ final class UsagePricingTests: XCTestCase {
             output: 10
         )
 
-        XCTAssertEqual(try XCTUnwrap(catalog.quote(for: snapshot)).costNanodollars, 450_000)
+        XCTAssertEqual(try XCTUnwrap(UsagePricing.quote(for: snapshot)).costNanodollars, 450_000)
         XCTAssertEqual(
-            catalog.quote(for: snapshot)?.costNanodollars,
-            catalog.quote(for: alias)?.costNanodollars
+            UsagePricing.quote(for: snapshot)?.costNanodollars,
+            UsagePricing.quote(for: alias)?.costNanodollars
         )
         for model in ["claude-opus-4-5", "claude-haiku-4-5"] {
-            XCTAssertNotNil(catalog.quote(for: claudeEvent(
+            XCTAssertNotNil(UsagePricing.quote(for: claudeEvent(
                 model: model,
                 uncachedInput: 1
             )))
@@ -93,7 +118,7 @@ final class UsagePricingTests: XCTestCase {
             "claude-3-5-haiku-20241022",
             "claude-3-5-haiku-latest",
         ] {
-            XCTAssertNil(catalog.quote(for: claudeEvent(
+            XCTAssertNil(UsagePricing.quote(for: claudeEvent(
                 model: model,
                 uncachedInput: 1
             )))
@@ -101,15 +126,15 @@ final class UsagePricingTests: XCTestCase {
     }
 
     func testQuotesNormalizeAliasesAndProvideModelDisplayNames() throws {
-        let codex = try XCTUnwrap(catalog.quote(for: codexEvent(
+        let codex = try XCTUnwrap(UsagePricing.quote(for: codexEvent(
             model: "gpt-5.6-sol",
             uncachedInput: 1
         )))
-        let codexAlias = try XCTUnwrap(catalog.quote(for: codexEvent(
+        let codexAlias = try XCTUnwrap(UsagePricing.quote(for: codexEvent(
             model: "gpt-5.6",
             uncachedInput: 1
         )))
-        let claude = try XCTUnwrap(catalog.quote(for: claudeEvent(
+        let claude = try XCTUnwrap(UsagePricing.quote(for: claudeEvent(
             model: "claude-fable-5",
             uncachedInput: 1
         )))
@@ -147,7 +172,7 @@ final class UsagePricingTests: XCTestCase {
             ),
         ]
 
-        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+        let snapshot = UsageSnapshotBuilder.build(
             events: events,
             intervals: intervals,
             calendar: calendar
@@ -218,7 +243,7 @@ final class UsagePricingTests: XCTestCase {
             ),
         ]
 
-        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+        let snapshot = UsageSnapshotBuilder.build(
             events: events,
             intervals: UsagePeriodIntervals(containing: now, calendar: calendar),
             calendar: calendar
@@ -238,7 +263,7 @@ final class UsagePricingTests: XCTestCase {
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let intervals = UsagePeriodIntervals(containing: timestamp, calendar: calendar)
 
-        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+        let snapshot = UsageSnapshotBuilder.build(
             events: [
                 codexEvent(model: "gpt-5.6-sol", uncachedInput: 1_000),
                 claudeEvent(model: "claude-opus-5", uncachedInput: 1_000),
@@ -288,7 +313,7 @@ final class UsagePricingTests: XCTestCase {
         let now = try XCTUnwrap(parseUsageTimestamp("2026-08-25T18:00:00Z"))
         let intervals = UsagePeriodIntervals(containing: now, calendar: calendar)
 
-        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+        let snapshot = UsageSnapshotBuilder.build(
             events: [
                 codexEvent(
                     id: 1,
@@ -326,7 +351,7 @@ final class UsagePricingTests: XCTestCase {
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let now = try XCTUnwrap(parseUsageTimestamp("2026-03-31T12:00:00Z"))
 
-        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+        let snapshot = UsageSnapshotBuilder.build(
             events: [
                 codexEvent(
                     id: 1,
@@ -357,7 +382,7 @@ final class UsagePricingTests: XCTestCase {
             calendar.date(byAdding: .day, value: -1, to: timestamp)
         )
 
-        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+        let snapshot = UsageSnapshotBuilder.build(
             events: [
                 codexEvent(id: 1, model: "gpt-5.6-sol", uncachedInput: 100),
                 codexEvent(
@@ -389,7 +414,7 @@ final class UsagePricingTests: XCTestCase {
         let previousMonth = try XCTUnwrap(parseUsageTimestamp("2026-08-31T12:00:00Z"))
         let intervals = UsagePeriodIntervals(containing: now, calendar: calendar)
 
-        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+        let snapshot = UsageSnapshotBuilder.build(
             events: [
                 codexEvent(model: "gpt-5.6-sol", uncachedInput: 100, at: now),
                 codexEvent(model: "gpt-5.6-sol", uncachedInput: 50, at: previousMonth),
@@ -414,7 +439,7 @@ final class UsagePricingTests: XCTestCase {
             output: 1_000_000
         )
 
-        let snapshot = UsageSnapshotBuilder(priceCatalog: catalog).build(
+        let snapshot = UsageSnapshotBuilder.build(
             events: [unknown],
             intervals: intervals,
             calendar: calendar
@@ -434,13 +459,7 @@ final class UsagePricingTests: XCTestCase {
         output: Int64 = 0,
         at eventDate: Date? = nil
     ) -> UsageEvent {
-        let tokens = UsageTokens(
-            uncachedInput: uncachedInput,
-            cachedInput: cachedInput,
-            cacheWrite: .fiveMinute(cacheWriteInput),
-            output: output,
-            processed: uncachedInput + cachedInput + cacheWriteInput + output
-        )
+        let processedTokens = uncachedInput + cachedInput + cacheWriteInput + output
         return .codex(UsageEvent.Codex(
             threadID: "thread-\(id)",
             turnID: nil,
@@ -448,11 +467,17 @@ final class UsagePricingTests: XCTestCase {
             details: UsageEvent.Details(
                 timestamp: eventDate ?? timestamp,
                 model: model,
-                reasoningEffort: effort,
-                tokens: tokens
+                reasoningEffort: effort
             ),
-            reasoningOutput: 0,
-            cumulativeTotal: tokens.processed
+            tokens: UsageEvent.Codex.Tokens(
+                input: uncachedInput + cachedInput + cacheWriteInput,
+                cachedInput: cachedInput,
+                cacheWrite: cacheWriteInput,
+                output: output,
+                reasoningOutput: 0,
+                processed: processedTokens
+            ),
+            cumulativeTotal: processedTokens
         ))
     }
 
@@ -468,28 +493,22 @@ final class UsagePricingTests: XCTestCase {
         webSearchRequests: Int64 = 0,
         at eventDate: Date? = nil
     ) -> UsageEvent {
-        let tokens = UsageTokens(
-            uncachedInput: uncachedInput,
-            cachedInput: cachedInput,
-            cacheWrite: .byDuration(
-                fiveMinute: cacheWrite5MinuteInput,
-                oneHour: cacheWrite1HourInput
-            ),
-            output: output,
-            processed: uncachedInput
-                + cachedInput
-                + cacheWrite5MinuteInput
-                + cacheWrite1HourInput
-                + output
-        )
-        return .claude(UsageEvent.Claude(
+        .claude(UsageEvent.Claude(
             messageID: "message",
             requestID: "request",
             details: UsageEvent.Details(
                 timestamp: eventDate ?? timestamp,
                 model: model,
-                reasoningEffort: nil,
-                tokens: tokens
+                reasoningEffort: nil
+            ),
+            tokens: UsageEvent.Claude.Tokens(
+                input: uncachedInput,
+                cacheRead: cachedInput,
+                cacheCreation: .byDuration(
+                    fiveMinute: cacheWrite5MinuteInput,
+                    oneHour: cacheWrite1HourInput
+                ),
+                output: output
             ),
             speed: speed,
             inferenceGeo: inferenceGeo,

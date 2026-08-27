@@ -63,7 +63,6 @@ actor UsageService {
 
     private let locations: UsageLogLocations
     private let calendar: Calendar
-    private let snapshotBuilder = UsageSnapshotBuilder(priceCatalog: UsagePriceCatalog())
     private var trackedFiles: [String: TrackedFile] = [:]
     private var indexedFrom: Date?
 
@@ -94,7 +93,7 @@ actor UsageService {
 
         scanLogs(since: historyStart)
 
-        return snapshotBuilder.build(
+        return UsageSnapshotBuilder.build(
             events: canonicalEvents(),
             intervals: intervals,
             calendar: calendar

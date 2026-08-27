@@ -17,8 +17,8 @@ final class UsageLogParserTests: XCTestCase {
             parse(codexToken(last: usage(150, 30), total: usage(250, 50)), with: &parser)
         )
 
-        XCTAssertEqual(first.details.tokens.processed, 120)
-        XCTAssertEqual(second.details.tokens.processed, 180)
+        XCTAssertEqual(first.processedTokens, 120)
+        XCTAssertEqual(second.processedTokens, 180)
         XCTAssertEqual(second.details.reasoningEffort, "high")
     }
 
@@ -41,7 +41,7 @@ final class UsageLogParserTests: XCTestCase {
             parse(codexToken(last: usage(50, 10), total: usage(200, 40)), with: &parser)
         )
 
-        XCTAssertEqual(first.details.tokens.processed + third.details.tokens.processed, 180)
+        XCTAssertEqual(first.processedTokens + third.processedTokens, 180)
     }
 
     func testCodexTracksCumulativeBaselineBeforeTheFirstTurnContext() throws {
@@ -54,7 +54,7 @@ final class UsageLogParserTests: XCTestCase {
             parse(codexToken(last: usage(50, 10), total: usage(150, 30)), with: &parser)
         )
 
-        XCTAssertEqual(event.details.tokens.processed, 60)
+        XCTAssertEqual(event.processedTokens, 60)
     }
 
     func testCodexAcceptsInheritedFirstBaselineAndProviderTotal() throws {
@@ -81,8 +81,8 @@ final class UsageLogParserTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(inherited.details.tokens.processed, 130)
-        XCTAssertEqual(next.details.tokens.processed, 61)
+        XCTAssertEqual(inherited.processedTokens, 130)
+        XCTAssertEqual(next.processedTokens, 61)
     }
 
     func testCodexZeroUsageSnapshotOnlyUpdatesTheCumulativeBaseline() throws {
@@ -95,7 +95,7 @@ final class UsageLogParserTests: XCTestCase {
             parse(codexToken(last: usage(50, 10), total: usage(50, 10)), with: &parser)
         )
 
-        XCTAssertEqual(event.details.tokens.processed, 60)
+        XCTAssertEqual(event.processedTokens, 60)
     }
 
     func testCodexSyntheticFillIsIgnored() throws {
@@ -108,7 +108,7 @@ final class UsageLogParserTests: XCTestCase {
             parse(codexToken(last: usage(50, 5), total: usage(50, 5, total: 1_055)), with: &parser)
         )
 
-        XCTAssertEqual(event.details.tokens.processed, 55)
+        XCTAssertEqual(event.processedTokens, 55)
         XCTAssertEqual(event.details.reasoningEffort, "medium")
     }
 
@@ -130,6 +130,34 @@ final class UsageLogParserTests: XCTestCase {
         XCTAssertEqual(event.details.reasoningEffort, "high")
     }
 
+    func testCodexPreservesCacheWritesWithoutInventingDuration() throws {
+        var parser = UsageFileParserState.codex()
+        _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
+        let event = try XCTUnwrap(parse(
+            codexToken(
+                last: usage(100, 20, cached: 10, cacheWrite: 30),
+                total: usage(100, 20, cached: 10, cacheWrite: 30)
+            ),
+            with: &parser
+        ))
+        guard case .codex(let event) = event else {
+            return XCTFail("unexpected event provider")
+        }
+
+        XCTAssertEqual(
+            event.tokens,
+            UsageEvent.Codex.Tokens(
+                input: 100,
+                cachedInput: 10,
+                cacheWrite: 30,
+                output: 20,
+                reasoningOutput: 0,
+                processed: 120
+            )
+        )
+        XCTAssertEqual(event.tokens.uncachedInput, 60)
+    }
+
     func testClaudeParsesCacheDurationsSpeedGeoSearchAndMissingEffort() throws {
         var parser = UsageFileParserState.claude
         let line = """
@@ -138,20 +166,36 @@ final class UsageLogParserTests: XCTestCase {
 
         let event = try XCTUnwrap(parse(line, with: &parser))
 
-        XCTAssertEqual(event.details.tokens.processed, 140)
-        XCTAssertEqual(
-            event.details.tokens.cacheWrite,
-            .byDuration(fiveMinute: 30, oneHour: 40)
-        )
-        XCTAssertNil(event.details.reasoningEffort)
         guard case .claude(let event) = event else {
             return XCTFail("unexpected event provider")
         }
+        XCTAssertEqual(event.tokens.processed, 140)
+        XCTAssertEqual(
+            event.tokens.cacheCreation,
+            .byDuration(fiveMinute: 30, oneHour: 40)
+        )
+        XCTAssertNil(event.details.reasoningEffort)
         guard case .fast = event.speed else {
             return XCTFail("unexpected speed")
         }
         XCTAssertEqual(event.inferenceGeo, "us")
         XCTAssertEqual(event.webSearchRequests, 2)
+    }
+
+    func testClaudePreservesAggregateCacheCreationWithoutInventingDuration() throws {
+        var parser = UsageFileParserState.claude
+        let event = try XCTUnwrap(parse(
+            """
+            {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40}}}
+            """,
+            with: &parser
+        ))
+        guard case .claude(let event) = event else {
+            return XCTFail("unexpected event provider")
+        }
+
+        XCTAssertEqual(event.tokens.cacheCreation, .aggregate(70))
+        XCTAssertEqual(event.tokens.processed, 120)
     }
 
     func testClaudeRejectsInconsistentCacheSplit() {
@@ -217,9 +261,15 @@ final class UsageLogParserTests: XCTestCase {
         """
     }
 
-    private func usage(_ input: Int, _ output: Int, total: Int? = nil) -> String {
+    private func usage(
+        _ input: Int,
+        _ output: Int,
+        cached: Int = 0,
+        cacheWrite: Int = 0,
+        total: Int? = nil
+    ) -> String {
         """
-        {"input_tokens":\(input),"cached_input_tokens":0,"output_tokens":\(output),"reasoning_output_tokens":0,"total_tokens":\(total ?? input + output)}
+        {"input_tokens":\(input),"cached_input_tokens":\(cached),"cache_write_input_tokens":\(cacheWrite),"output_tokens":\(output),"reasoning_output_tokens":0,"total_tokens":\(total ?? input + output)}
         """
     }
 }
