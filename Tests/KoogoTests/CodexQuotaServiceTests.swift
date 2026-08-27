@@ -38,9 +38,11 @@ final class CodexQuotaServiceTests: XCTestCase {
     }
 
     func testFetchUsesAccountAndModelLimitsAndClassifiesSwappedWindows() async throws {
-        let executable = try makeExecutable(rateLimitsResponse: """
-        {"id":2,"result":{"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":15,"windowDurationMins":10584,"resetsAt":1800000000},"secondary":{"usedPercent":45,"windowDurationMins":285,"resetsAt":1700000000}},"rateLimitsByLimitId":{"codex_bengalfox":{"limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1900000000},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":2000000000}},"codex":{"limitName":null,"primary":{"usedPercent":99,"windowDurationMins":300,"resetsAt":1600000000},"secondary":null}},"rateLimitResetCredits":{"availableCount":2,"credits":[{"status":"available","expiresAt":2100000000},{"status":"future_status","expiresAt":1900000000},{"status":"available","expiresAt":2000000000}]}}}
-        """)
+        let executable = try makeExecutable(
+            rateLimitsResponse: """
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":15,"windowDurationMins":10584,"resetsAt":1800000000},"secondary":{"usedPercent":45,"windowDurationMins":285,"resetsAt":1700000000}},"rateLimitsByLimitId":{"codex_bengalfox":{"limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1900000000},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":2000000000}},"codex":{"limitName":null,"primary":{"usedPercent":99,"windowDurationMins":300,"resetsAt":1600000000},"secondary":null}},"rateLimitResetCredits":{"availableCount":2,"credits":[{"status":"available","expiresAt":2100000000},{"status":"future_status","expiresAt":1900000000},{"status":"available","expiresAt":2000000000}]}}}
+                """
+        )
 
         guard let snapshot = await CodexQuotaService(executableURL: executable).fetch() else {
             return XCTFail("expected available quota")
@@ -68,9 +70,11 @@ final class CodexQuotaServiceTests: XCTestCase {
     }
 
     func testFetchOmitsUnknownWindowsAndPreservesKnownZeroResets() async throws {
-        let executable = try makeExecutable(rateLimitsResponse: """
-        {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":20,"windowDurationMins":1440,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":{"availableCount":0,"credits":[]}}}
-        """)
+        let executable = try makeExecutable(
+            rateLimitsResponse: """
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":20,"windowDurationMins":1440,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":{"availableCount":0,"credits":[]}}}
+                """
+        )
 
         guard let snapshot = await CodexQuotaService(executableURL: executable).fetch() else {
             return XCTFail("expected available quota")
@@ -82,9 +86,11 @@ final class CodexQuotaServiceTests: XCTestCase {
     }
 
     func testFetchHidesSnapshotWithoutDisplayableContent() async throws {
-        let executable = try makeExecutable(rateLimitsResponse: """
-        {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":null,"secondary":null},"rateLimitsByLimitId":{"codex":{"primary":null,"secondary":null}},"rateLimitResetCredits":{"availableCount":-1,"credits":[]}}}
-        """)
+        let executable = try makeExecutable(
+            rateLimitsResponse: """
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":null,"secondary":null},"rateLimitsByLimitId":{"codex":{"primary":null,"secondary":null}},"rateLimitResetCredits":{"availableCount":-1,"credits":[]}}}
+                """
+        )
 
         let snapshot = await CodexQuotaService(executableURL: executable).fetch()
 
@@ -92,9 +98,11 @@ final class CodexQuotaServiceTests: XCTestCase {
     }
 
     func testFetchRejectsResponseContainingResultAndError() async throws {
-        let executable = try makeExecutable(rateLimitsResponse: """
-        {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null},"error":{"code":-32603,"message":"invalid response"}}
-        """)
+        let executable = try makeExecutable(
+            rateLimitsResponse: """
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null},"error":{"code":-32603,"message":"invalid response"}}
+                """
+        )
 
         let snapshot = await CodexQuotaService(executableURL: executable).fetch()
 
@@ -115,8 +123,8 @@ final class CodexQuotaServiceTests: XCTestCase {
         let executable = try makeExecutable(
             shebang: "#!/usr/bin/env koogo-test-runtime",
             rateLimitsResponse: """
-            {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}
-            """
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}
+                """
         )
 
         let snapshot = await CodexQuotaService(executableURL: executable).fetch()
@@ -126,11 +134,12 @@ final class CodexQuotaServiceTests: XCTestCase {
 
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
         let executable = root.appending(path: UUID().uuidString)
-        try "#!/bin/sh\nIFS= read -r initialize\nexec 0<&-\nprintf '%s\\n' '{\"id\":1,\"result\":{}}'\nsleep 1\n".write(
-            to: executable,
-            atomically: true,
-            encoding: .utf8
-        )
+        try "#!/bin/sh\nIFS= read -r initialize\nexec 0<&-\nprintf '%s\\n' '{\"id\":1,\"result\":{}}'\nsleep 1\n"
+            .write(
+                to: executable,
+                atomically: true,
+                encoding: .utf8
+            )
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o755],
             ofItemAtPath: executable.path
@@ -170,7 +179,8 @@ final class CodexQuotaServiceTests: XCTestCase {
         }
         let markerDeadline = ContinuousClock.now + .seconds(2)
         while !FileManager.default.fileExists(atPath: readyMarker.path),
-              ContinuousClock.now < markerDeadline {
+            ContinuousClock.now < markerDeadline
+        {
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: readyMarker.path))
@@ -191,8 +201,8 @@ final class CodexQuotaServiceTests: XCTestCase {
             launchMarker: launches,
             responseDelay: 0.2,
             rateLimitsResponse: """
-            {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}
-            """
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}
+                """
         )
         let model = CodexQuotaModel(
             quotaService: CodexQuotaService(executableURL: executable)
@@ -220,9 +230,11 @@ final class CodexQuotaServiceTests: XCTestCase {
 
     @MainActor
     func testQuotaModelKeepsExistingSnapshotUntilFailedRefreshCompletes() async throws {
-        let executable = try makeExecutable(rateLimitsResponse: """
-        {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}
-        """)
+        let executable = try makeExecutable(
+            rateLimitsResponse: """
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}
+                """
+        )
         let model = CodexQuotaModel(
             quotaService: CodexQuotaService(executableURL: executable)
         )
@@ -255,16 +267,16 @@ final class CodexQuotaServiceTests: XCTestCase {
         let executable = root.appending(path: UUID().uuidString)
         let launchLine = launchMarker.map { "printf 'launch\\n' >> '\($0.path)'" } ?? ":"
         let script = """
-        \(shebang)
-        \(launchLine)
-        IFS= read -r initialize
-        printf '%s\\n' '{"id":1,"result":{}}'
-        IFS= read -r initialized
-        IFS= read -r rate_limits
-        printf '%s\\n' '{"method":"unrelated/notification","params":{}}'
-        sleep \(responseDelay)
-        printf '%s\\n' '\(rateLimitsResponse)'
-        """
+            \(shebang)
+            \(launchLine)
+            IFS= read -r initialize
+            printf '%s\\n' '{"id":1,"result":{}}'
+            IFS= read -r initialized
+            IFS= read -r rate_limits
+            printf '%s\\n' '{"method":"unrelated/notification","params":{}}'
+            sleep \(responseDelay)
+            printf '%s\\n' '\(rateLimitsResponse)'
+            """
         try script.write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o755],
