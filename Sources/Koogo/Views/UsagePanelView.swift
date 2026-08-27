@@ -201,7 +201,7 @@ private struct ProviderUsageSection: View {
             }
             .padding(12)
             .background(
-                Color.primary.opacity(0.045),
+                .fill.quaternary,
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
         }
