@@ -3,21 +3,36 @@ import Foundation
 import Synchronization
 
 struct CodexQuotaSnapshot: Equatable, Sendable {
-    struct Bucket: Equatable, Identifiable, Sendable {
-        let id: String
-        let title: String?
+    struct Bucket: Equatable, Sendable {
         let fiveHour: Window?
         let weekly: Window?
 
-        fileprivate init?(id: String, title: String?, fiveHour: Window?, weekly: Window?) {
+        fileprivate init?(fiveHour: Window?, weekly: Window?) {
             guard fiveHour != nil || weekly != nil else {
                 return nil
             }
-            self.id = id
-            self.title = title
             self.fiveHour = fiveHour
             self.weekly = weekly
         }
+    }
+
+    struct CodexBucket: Equatable, Sendable {
+        let quota: Bucket?
+        let availableResetCount: Int?
+
+        fileprivate init?(quota: Bucket?, availableResetCount: Int?) {
+            guard quota != nil || availableResetCount != nil else {
+                return nil
+            }
+            self.quota = quota
+            self.availableResetCount = availableResetCount
+        }
+    }
+
+    struct ModelBucket: Equatable, Identifiable, Sendable {
+        let id: String
+        let title: String
+        let quota: Bucket
     }
 
     struct Window: Equatable, Sendable {
@@ -30,15 +45,15 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         }
     }
 
-    let buckets: [Bucket]
-    let availableResetCount: Int?
+    let codex: CodexBucket?
+    let modelBuckets: [ModelBucket]
 
-    fileprivate init?(buckets: [Bucket], availableResetCount: Int?) {
-        guard !buckets.isEmpty || availableResetCount != nil else {
+    fileprivate init?(codex: CodexBucket?, modelBuckets: [ModelBucket]) {
+        guard codex != nil || !modelBuckets.isEmpty else {
             return nil
         }
-        self.buckets = buckets
-        self.availableResetCount = availableResetCount
+        self.codex = codex
+        self.modelBuckets = modelBuckets
     }
 }
 
@@ -343,28 +358,25 @@ struct CodexQuotaService: Sendable {
         let rateLimitResetCredits: ResetCredits?
 
         var snapshot: CodexQuotaSnapshot? {
-            let buckets = (rateLimitsByLimitID ?? [:])
-                .compactMap { id, rateLimit in
-                    CodexQuotaSnapshot.Bucket(
+            let rateLimits = rateLimitsByLimitID ?? [:]
+            return CodexQuotaSnapshot(
+                codex: CodexQuotaSnapshot.CodexBucket(
+                    quota: rateLimits["codex"]?.bucket,
+                    availableResetCount: rateLimitResetCredits?.availableCount
+                ),
+                modelBuckets: rateLimits.compactMap { id, rateLimit in
+                    guard id != "codex", let quota = rateLimit.bucket else {
+                        return nil
+                    }
+                    return CodexQuotaSnapshot.ModelBucket(
                         id: id,
-                        title: id == "codex" ? nil : rateLimit.limitName ?? id,
-                        fiveHour: rateLimit.window(around: 300),
-                        weekly: rateLimit.window(around: 10_080)
+                        title: rateLimit.limitName ?? id,
+                        quota: quota
                     )
                 }
-                .sorted { lhs, rhs in
-                    if lhs.id == "codex" {
-                        return rhs.id != "codex"
-                    }
-                    if rhs.id == "codex" {
-                        return false
-                    }
-                    return (lhs.title ?? lhs.id).localizedCaseInsensitiveCompare(rhs.title ?? rhs.id)
-                        == .orderedAscending
+                .sorted {
+                    $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
                 }
-            return CodexQuotaSnapshot(
-                buckets: buckets,
-                availableResetCount: rateLimitResetCredits?.availableCount
             )
         }
 
@@ -379,7 +391,14 @@ struct CodexQuotaService: Sendable {
         let primary: RateLimitWindow?
         let secondary: RateLimitWindow?
 
-        func window(around expectedMinutes: Int64) -> CodexQuotaSnapshot.Window? {
+        var bucket: CodexQuotaSnapshot.Bucket? {
+            CodexQuotaSnapshot.Bucket(
+                fiveHour: window(around: 300),
+                weekly: window(around: 10_080)
+            )
+        }
+
+        private func window(around expectedMinutes: Int64) -> CodexQuotaSnapshot.Window? {
             guard let window = [primary, secondary].compactMap({ $0 }).first(where: {
                 guard let duration = $0.windowDurationMinutes, duration > 0 else {
                     return false

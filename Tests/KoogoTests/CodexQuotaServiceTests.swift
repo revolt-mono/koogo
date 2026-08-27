@@ -24,23 +24,22 @@ final class CodexQuotaServiceTests: XCTestCase {
         guard let snapshot = await CodexQuotaService(executableURL: executable).fetch() else {
             return XCTFail("expected available quota")
         }
-        XCTAssertEqual(snapshot.buckets.map(\.id), ["codex", "codex_bengalfox"])
-        XCTAssertNil(snapshot.buckets[0].title)
-        XCTAssertEqual(snapshot.buckets[1].title, "GPT-5.3-Codex-Spark")
+        XCTAssertEqual(snapshot.modelBuckets.map(\.id), ["codex_bengalfox"])
+        XCTAssertEqual(snapshot.modelBuckets[0].title, "GPT-5.3-Codex-Spark")
 
-        XCTAssertEqual(snapshot.buckets[0].fiveHour?.remainingPercent, 55)
+        XCTAssertEqual(snapshot.codex?.quota?.fiveHour?.remainingPercent, 55)
         XCTAssertEqual(
-            snapshot.buckets[0].fiveHour?.resetsAt,
+            snapshot.codex?.quota?.fiveHour?.resetsAt,
             Date(timeIntervalSince1970: 1_700_000_000)
         )
-        XCTAssertEqual(snapshot.buckets[0].weekly?.remainingPercent, 85)
+        XCTAssertEqual(snapshot.codex?.quota?.weekly?.remainingPercent, 85)
         XCTAssertEqual(
-            snapshot.buckets[0].weekly?.resetsAt,
+            snapshot.codex?.quota?.weekly?.resetsAt,
             Date(timeIntervalSince1970: 1_800_000_000)
         )
-        XCTAssertEqual(snapshot.buckets[1].fiveHour?.remainingPercent, 90)
-        XCTAssertEqual(snapshot.buckets[1].weekly?.remainingPercent, 80)
-        XCTAssertEqual(snapshot.availableResetCount, 2)
+        XCTAssertEqual(snapshot.modelBuckets[0].quota.fiveHour?.remainingPercent, 90)
+        XCTAssertEqual(snapshot.modelBuckets[0].quota.weekly?.remainingPercent, 80)
+        XCTAssertEqual(snapshot.codex?.availableResetCount, 2)
     }
 
     func testFetchOmitsUnknownWindowsAndPreservesKnownZeroResets() async throws {
@@ -51,8 +50,9 @@ final class CodexQuotaServiceTests: XCTestCase {
         guard let snapshot = await CodexQuotaService(executableURL: executable).fetch() else {
             return XCTFail("expected available quota")
         }
-        XCTAssertTrue(snapshot.buckets.isEmpty)
-        XCTAssertEqual(snapshot.availableResetCount, 0)
+        XCTAssertNil(snapshot.codex?.quota)
+        XCTAssertEqual(snapshot.codex?.availableResetCount, 0)
+        XCTAssertTrue(snapshot.modelBuckets.isEmpty)
     }
 
     func testFetchHidesCodexBucketWithoutDisplayableContent() async throws {
@@ -85,7 +85,7 @@ final class CodexQuotaServiceTests: XCTestCase {
 
         let snapshot = await CodexQuotaService(executableURL: executable).fetch()
 
-        XCTAssertEqual(snapshot?.buckets.first?.fiveHour?.remainingPercent, 75)
+        XCTAssertEqual(snapshot?.codex?.quota?.fiveHour?.remainingPercent, 75)
     }
 
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
@@ -175,7 +175,7 @@ final class CodexQuotaServiceTests: XCTestCase {
         guard case .available(let snapshot) = model.state else {
             return XCTFail("expected available quota")
         }
-        XCTAssertEqual(snapshot.buckets.first?.fiveHour?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.codex?.quota?.fiveHour?.remainingPercent, 75)
         let launchCount = try String(contentsOf: launches, encoding: .utf8)
             .split(separator: "\n")
             .count
