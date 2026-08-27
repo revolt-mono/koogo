@@ -21,6 +21,6 @@ let package = Package(
             ],
             resources: [.process("Resources")]
         ),
-        .testTarget(name: "KoogoTests", dependencies: ["Koogo"])
+        .testTarget(name: "KoogoTests", dependencies: ["Koogo"]),
     ]
 )

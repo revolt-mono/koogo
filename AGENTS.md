@@ -1,4 +1,4 @@
-# Koogoo repository guide
+# Koogo repository guide
 
 ## Engineering rules
 
@@ -16,6 +16,25 @@
 ## Toolchain
 
 - Use the beta Xcode toolchain at `/Applications/Xcode-beta.app` (Xcode 27, macOS SDK 27, Swift 6.4) by pinning `DEVELOPER_DIR`; never default to the stable Xcode 26.6.
+
+## Commands
+
+- format: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift format --configuration .swift-format --in-place Package.swift --recursive Sources Tests`
+- lint: `swiftlint lint --strict Package.swift Sources Tests`
+- test: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test`
+
+## Repo structure
+
+```
+├── Sources/Koogo       menu bar application
+│   ├── App             lifecycle and observable application state
+│   ├── Quota           Codex quota session and service
+│   ├── Usage           provider log parsing, pricing, indexing, and snapshots
+│   ├── Views           SwiftUI menu panels, charts, loading states, and formatting
+│   └── Resources       bundled image assets
+├── Tests/KoogoTests    usage and quota behavior tests with shared fixtures
+└── script              signing, app bundle assembly, launch, and verification
+```
 
 ## Components and UI
 
