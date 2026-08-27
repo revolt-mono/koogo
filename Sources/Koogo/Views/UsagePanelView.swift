@@ -2,6 +2,7 @@ import SwiftUI
 
 struct UsagePanelView: View {
     let snapshot: UsageSnapshot
+    let codexQuotaState: CodexQuotaModel.State
 
     var body: some View {
         VStack(spacing: 20) {
@@ -10,8 +11,13 @@ struct UsagePanelView: View {
             Divider()
 
             VStack(spacing: 12) {
-                ProviderUsageSection(provider: .codex, usage: snapshot.codex)
-                ProviderUsageSection(provider: .claude, usage: snapshot.claude)
+                ProviderUsageSection(
+                    content: .codex(
+                        usage: snapshot.codex,
+                        quotaState: codexQuotaState
+                    )
+                )
+                ProviderUsageSection(content: .claude(usage: snapshot.claude))
             }
         }
         .padding(.horizontal, 20)
@@ -150,13 +156,36 @@ private struct UsageCostChangeCapsule: View {
 }
 
 private struct ProviderUsageSection: View {
-    let provider: UsageProvider
-    let usage: ProviderUsageSnapshot
+    enum Content {
+        case codex(usage: ProviderUsageSnapshot, quotaState: CodexQuotaModel.State)
+        case claude(usage: ProviderUsageSnapshot)
+    }
 
+    let content: Content
+
+    @ViewBuilder
     var body: some View {
+        switch content {
+        case .codex(let usage, let quotaState):
+            providerSection(provider: .codex, usage: usage) {
+                CodexQuotaView(state: quotaState)
+            }
+        case .claude(let usage):
+            providerSection(provider: .claude, usage: usage) {}
+        }
+    }
+
+    private func providerSection<Quota: View>(
+        provider: UsageProvider,
+        usage: ProviderUsageSnapshot,
+        @ViewBuilder quota: () -> Quota
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
-                symbol
+                Image(
+                    provider == .codex ? "OpenAISymbol" : "ClaudeSymbol",
+                    bundle: .module
+                )
                     .resizable()
                     .renderingMode(.template)
                     .scaledToFit()
@@ -191,6 +220,8 @@ private struct ProviderUsageSection: View {
             .padding(.horizontal, 6)
 
             VStack(spacing: 12) {
+                quota()
+
                 MonthlyUsageChart(month: usage.dailyMonth)
 
                 VStack(spacing: 6) {
@@ -204,13 +235,6 @@ private struct ProviderUsageSection: View {
                 Color.black.opacity(0.07),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
-        }
-    }
-
-    private var symbol: Image {
-        switch provider {
-        case .codex: Image("OpenAISymbol", bundle: .module)
-        case .claude: Image("ClaudeSymbol", bundle: .module)
         }
     }
 }

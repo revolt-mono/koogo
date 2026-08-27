@@ -2,15 +2,20 @@ import SwiftUI
 
 struct ContentView: View {
     private let usageModel: UsageModel
+    private let codexQuotaModel: CodexQuotaModel
 
-    init(usageModel: UsageModel) {
+    init(usageModel: UsageModel, codexQuotaModel: CodexQuotaModel) {
         self.usageModel = usageModel
+        self.codexQuotaModel = codexQuotaModel
     }
 
     var body: some View {
         Group {
             if let snapshot = usageModel.snapshot {
-                UsagePanelView(snapshot: snapshot)
+                UsagePanelView(
+                    snapshot: snapshot,
+                    codexQuotaState: codexQuotaModel.state
+                )
                     .transition(.blurReplace)
             } else {
                 UsageLoadingView()
@@ -31,7 +36,9 @@ struct ContentView: View {
             )
         }
         .animation(.smooth(duration: 0.35), value: usageModel.snapshot)
+        .animation(.smooth(duration: 0.25), value: codexQuotaModel.state)
         .task {
+            codexQuotaModel.refresh()
             await usageModel.refresh()
         }
     }
