@@ -189,6 +189,8 @@ private struct ProviderUsageSection: View {
                     .lineLimit(1)
                 }
             }
+            // A 12-point inset matches the card content geometrically; 6 points aligns the header optically.
+            .padding(.horizontal, 6)
 
             VStack(spacing: 12) {
                 MonthlyUsageChart(month: usage.dailyMonth)
