@@ -9,13 +9,14 @@ enum ClaudeUsagePricing {
         let output: Decimal
 
         func cost(for tokens: UsageEvent.Claude.Tokens) -> Decimal {
-            let cacheCreationCost = switch tokens.cacheCreation {
-            case .aggregate(let amount):
-                Decimal(amount) * cacheWriteFiveMinute
-            case .byDuration(let fiveMinute, let oneHour):
-                Decimal(fiveMinute) * cacheWriteFiveMinute
-                    + Decimal(oneHour) * cacheWriteOneHour
-            }
+            let cacheCreationCost =
+                switch tokens.cacheCreation {
+                case .aggregate(let amount):
+                    Decimal(amount) * cacheWriteFiveMinute
+                case .byDuration(let fiveMinute, let oneHour):
+                    Decimal(fiveMinute) * cacheWriteFiveMinute
+                        + Decimal(oneHour) * cacheWriteOneHour
+                }
             return Decimal(tokens.input) * input
                 + Decimal(tokens.cacheRead) * cacheRead
                 + cacheCreationCost
@@ -180,20 +181,22 @@ enum ClaudeUsagePricing {
         ),
     ]
 
-    static func quote(for event: UsageEvent.Claude) -> UsagePricing.Quote? {
-        let modelID = switch event.details.model {
-        case "claude-opus-4-5": "claude-opus-4-5-20251101"
-        case "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
-        case "claude-haiku-4-5": "claude-haiku-4-5-20251001"
-        default: event.details.model
-        }
+    static func quote(for event: UsageEvent.Claude) -> UsageQuote? {
+        let modelID =
+            switch event.details.model {
+            case "claude-opus-4-5": "claude-opus-4-5-20251101"
+            case "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
+            case "claude-haiku-4-5": "claude-haiku-4-5-20251001"
+            default: event.details.model
+            }
         guard let price = prices[modelID] else {
             return nil
         }
-        let rates = switch event.speed {
-        case .implicitStandard, .standard: Optional(price.standard)
-        case .fast: price.fast
-        }
+        let rates =
+            switch event.speed {
+            case .implicitStandard, .standard: Optional(price.standard)
+            case .fast: price.fast
+            }
         guard let rates else {
             return nil
         }
@@ -205,8 +208,8 @@ enum ClaudeUsagePricing {
             }
             cost = cost * 11 / 10
         }
-        return UsagePricing.Quote(
-            model: UsagePricing.Model(id: modelID, displayName: price.displayName),
+        return UsageQuote(
+            model: UsageQuote.Model(id: modelID, displayName: price.displayName),
             costNanodollars: cost + Decimal(event.webSearchRequests) * 10_000_000
         )
     }

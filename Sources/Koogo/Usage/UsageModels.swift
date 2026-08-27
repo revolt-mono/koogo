@@ -63,7 +63,8 @@ struct UsageCostChange: Equatable, Sendable {
     let fraction: Decimal
 
     init(currentUSD: Decimal, previousUSD: Decimal) {
-        let signedFraction = previousUSD == 0
+        let signedFraction =
+            previousUSD == 0
             ? (currentUSD == 0 ? 0 : 1)
             : (currentUSD - previousUSD) / previousUSD
 
@@ -136,7 +137,10 @@ struct UsageLogLocations: Sendable {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return UsageLogLocations(
             codexSessions: home.appending(path: ".codex/sessions", directoryHint: .isDirectory),
-            codexArchivedSessions: home.appending(path: ".codex/archived_sessions", directoryHint: .isDirectory),
+            codexArchivedSessions: home.appending(
+                path: ".codex/archived_sessions",
+                directoryHint: .isDirectory
+            ),
             claudeProjects: home.appending(path: ".claude/projects", directoryHint: .isDirectory)
         )
     }
@@ -207,15 +211,17 @@ enum UsageEvent: Sendable {
         let inferenceGeo: String?
         let webSearchRequests: Int64
 
-        var metadataCompleteness: Int {
-            let explicitSpeed = switch speed {
-            case .implicitStandard: 0
-            case .standard, .fast: 1
-            }
-            let explicitCacheDuration = switch tokens.cacheCreation {
-            case .aggregate: 0
-            case .byDuration: 1
-            }
+        private var metadataCompleteness: Int {
+            let explicitSpeed =
+                switch speed {
+                case .implicitStandard: 0
+                case .standard, .fast: 1
+                }
+            let explicitCacheDuration =
+                switch tokens.cacheCreation {
+                case .aggregate: 0
+                case .byDuration: 1
+                }
             return explicitSpeed
                 + explicitCacheDuration
                 + (details.reasoningEffort == nil ? 0 : 1)
@@ -268,24 +274,23 @@ enum UsageEvent: Sendable {
         case .claude(let event): event.tokens.processed
         }
     }
+}
 
-    func isPreferred(over existing: UsageEvent) -> Bool {
-        guard case .claude(let candidate) = self, case .claude(let existing) = existing else {
-            return false
-        }
-        if candidate.tokens.output != existing.tokens.output {
-            return candidate.tokens.output > existing.tokens.output
+extension UsageEvent.Claude {
+    func isPreferred(over existing: Self) -> Bool {
+        if tokens.output != existing.tokens.output {
+            return tokens.output > existing.tokens.output
         }
 
-        let candidateMetadata = candidate.metadataCompleteness
+        let candidateMetadata = metadataCompleteness
         let existingMetadata = existing.metadataCompleteness
         if candidateMetadata != existingMetadata {
             return candidateMetadata > existingMetadata
         }
-        if candidate.tokens.processed != existing.tokens.processed {
-            return candidate.tokens.processed > existing.tokens.processed
+        if tokens.processed != existing.tokens.processed {
+            return tokens.processed > existing.tokens.processed
         }
-        return candidate.details.timestamp > existing.details.timestamp
+        return details.timestamp > existing.details.timestamp
     }
 }
 

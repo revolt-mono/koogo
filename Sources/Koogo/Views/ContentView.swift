@@ -16,7 +16,7 @@ struct ContentView: View {
                     snapshot: snapshot,
                     codexQuotaState: codexQuotaModel.state
                 )
-                    .transition(.blurReplace)
+                .transition(.blurReplace)
             } else {
                 UsageLoadingView()
                     .transition(.blurReplace)

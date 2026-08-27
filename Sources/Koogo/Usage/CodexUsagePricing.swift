@@ -178,8 +178,9 @@ enum CodexUsagePricing {
         ),
     ]
 
-    static func quote(for event: UsageEvent.Codex) -> UsagePricing.Quote? {
-        let modelID = event.details.model == "gpt-5.6"
+    static func quote(for event: UsageEvent.Codex) -> UsageQuote? {
+        let modelID =
+            event.details.model == "gpt-5.6"
             ? "gpt-5.6-sol"
             : event.details.model
         guard
@@ -190,8 +191,8 @@ enum CodexUsagePricing {
         }
 
         // Codex rollout logs do not reliably record service tiers, so usage uses standard rates.
-        return UsagePricing.Quote(
-            model: UsagePricing.Model(id: modelID, displayName: price.displayName),
+        return UsageQuote(
+            model: UsageQuote.Model(id: modelID, displayName: price.displayName),
             costNanodollars: cost
         )
     }

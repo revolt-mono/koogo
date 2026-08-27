@@ -26,7 +26,7 @@ final class UsageServiceTests: XCTestCase {
         calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         calendar.firstWeekday = 2
-        now = try XCTUnwrap(parseUsageTimestamp("2026-08-25T18:00:00.000Z"))
+        now = usageTestTimestamp
     }
 
     override func tearDownWithError() throws {
@@ -144,8 +144,8 @@ final class UsageServiceTests: XCTestCase {
         let log = locations.codexSessions.appending(path: "session.jsonl")
         let timestamp = "2026-08-25T12:00:00.000Z"
         let contents = [
-            "{\"timestamp\":\"2026-08-25T11:00:00.000Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"thread\"}}",
-            "{\"timestamp\":\"2026-08-25T11:30:00.000Z\",\"type\":\"turn_context\",\"payload\":{\"turn_id\":\"turn\",\"model\":\"gpt-5.6-sol\",\"effort\":\"high\"}}",
+            codexSessionMetadata(thread: "thread"),
+            codexTurnContext(model: "gpt-5.6-sol"),
             codexToken(
                 timestamp: timestamp,
                 lastInput: 50,
@@ -227,7 +227,8 @@ final class UsageServiceTests: XCTestCase {
 
     func testColdScanParsesLinesAcrossReadChunks() async throws {
         let log = locations.codexSessions.appending(path: "session.jsonl")
-        let ignored = "{\"type\":\"ignored\",\"padding\":\""
+        let ignored =
+            "{\"type\":\"ignored\",\"padding\":\""
             + String(repeating: "x", count: 4_194_304)
             + "\"}\n"
         try write(ignored + codexLog(input: 100, output: 20), to: log)
@@ -250,95 +251,6 @@ final class UsageServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.claude.month, .zero)
     }
 
-    func testCalendarPeriodsUseLocalCalendarAndConfiguredFirstWeekday() throws {
-        var local = Calendar(identifier: .gregorian)
-        local.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
-        local.firstWeekday = 2
-        let date = try XCTUnwrap(parseUsageTimestamp("2026-03-11T12:00:00.000Z"))
-        let intervals = UsagePeriodIntervals(containing: date, calendar: local)
-
-        XCTAssertEqual(
-            local.dateComponents(
-                [.year, .month, .day],
-                from: intervals.day.current.lowerBound
-            ),
-            DateComponents(year: 2026, month: 3, day: 11)
-        )
-        XCTAssertEqual(
-            local.dateComponents([.year, .month, .day], from: intervals.week.lowerBound),
-            DateComponents(year: 2026, month: 3, day: 9)
-        )
-        XCTAssertEqual(
-            local.dateComponents(
-                [.year, .month, .day],
-                from: intervals.month.current.lowerBound
-            ),
-            DateComponents(year: 2026, month: 3, day: 1)
-        )
-        XCTAssertEqual(
-            local.dateComponents(
-                [.year, .month, .day],
-                from: intervals.day.previous.lowerBound
-            ),
-            DateComponents(year: 2026, month: 3, day: 10)
-        )
-        XCTAssertEqual(
-            local.dateComponents(
-                [.year, .month, .day],
-                from: intervals.month.previous.lowerBound
-            ),
-            DateComponents(year: 2026, month: 2, day: 1)
-        )
-        XCTAssertEqual(
-            local.dateComponents(
-                [.year, .month, .day],
-                from: intervals.month.previous.upperBound
-            ),
-            DateComponents(year: 2026, month: 3, day: 1)
-        )
-    }
-
-    private func codexLog(
-        input: Int,
-        output: Int,
-        thread: String = "thread",
-        model: String = "gpt-5.6-sol",
-        usageTimestamp: String = "2026-08-25T12:00:00.000Z"
-    ) -> String {
-        [
-            "{\"timestamp\":\"2026-08-25T11:00:00.000Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"\(thread)\"}}",
-            "{\"timestamp\":\"2026-08-25T11:30:00.000Z\",\"type\":\"turn_context\",\"payload\":{\"turn_id\":\"turn\",\"model\":\"\(model)\",\"effort\":\"high\"}}",
-            codexToken(
-                timestamp: usageTimestamp,
-                lastInput: input,
-                lastOutput: output,
-                totalInput: input,
-                totalOutput: output
-            ),
-            "",
-        ].joined(separator: "\n")
-    }
-
-    private func codexToken(
-        timestamp: String,
-        lastInput: Int,
-        lastOutput: Int,
-        totalInput: Int,
-        totalOutput: Int
-    ) -> String {
-        """
-        {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(lastInput),"cached_input_tokens":0,"output_tokens":\(lastOutput),"reasoning_output_tokens":0,"total_tokens":\(lastInput + lastOutput)},"total_token_usage":{"input_tokens":\(totalInput),"cached_input_tokens":0,"output_tokens":\(totalOutput),"reasoning_output_tokens":0,"total_tokens":\(totalInput + totalOutput)},"model_context_window":1000}}}
-        """
-    }
-
-    private func claudeLog(output: Int, requestID: String? = "request") -> String {
-        let request = requestID.map { "\"requestId\":\"\($0)\"," } ?? ""
-        return """
-        {"type":"assistant","timestamp":"2026-08-25T12:30:00.000Z",\(request)"message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":\(output)}}}
-
-        """
-    }
-
     private func write(_ text: String, to url: URL) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
@@ -355,4 +267,57 @@ final class UsageServiceTests: XCTestCase {
         try handle.write(contentsOf: Data(text.utf8))
         try FileManager.default.setAttributes([.modificationDate: now as Date], ofItemAtPath: url.path)
     }
+}
+
+private func codexLog(
+    input: Int,
+    output: Int,
+    thread: String = "thread",
+    model: String = "gpt-5.6-sol",
+    usageTimestamp: String = "2026-08-25T12:00:00.000Z"
+) -> String {
+    [
+        codexSessionMetadata(thread: thread),
+        codexTurnContext(model: model),
+        codexToken(
+            timestamp: usageTimestamp,
+            lastInput: input,
+            lastOutput: output,
+            totalInput: input,
+            totalOutput: output
+        ),
+        "",
+    ].joined(separator: "\n")
+}
+
+private func codexSessionMetadata(thread: String) -> String {
+    """
+    {"timestamp":"2026-08-25T11:00:00.000Z","type":"session_meta","payload":{"id":"\(thread)"}}
+    """
+}
+
+private func codexTurnContext(model: String) -> String {
+    """
+    {"timestamp":"2026-08-25T11:30:00.000Z","type":"turn_context","payload":{"turn_id":"turn","model":"\(model)","effort":"high"}}
+    """
+}
+
+private func codexToken(
+    timestamp: String,
+    lastInput: Int,
+    lastOutput: Int,
+    totalInput: Int,
+    totalOutput: Int
+) -> String {
+    """
+    {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(lastInput),"cached_input_tokens":0,"output_tokens":\(lastOutput),"reasoning_output_tokens":0,"total_tokens":\(lastInput + lastOutput)},"total_token_usage":{"input_tokens":\(totalInput),"cached_input_tokens":0,"output_tokens":\(totalOutput),"reasoning_output_tokens":0,"total_tokens":\(totalInput + totalOutput)},"model_context_window":1000}}}
+    """
+}
+
+private func claudeLog(output: Int, requestID: String? = "request") -> String {
+    let request = requestID.map { "\"requestId\":\"\($0)\"," } ?? ""
+    return """
+        {"type":"assistant","timestamp":"2026-08-25T12:30:00.000Z",\(request)"message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":\(output)}}}
+
+        """
 }

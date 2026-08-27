@@ -21,9 +21,9 @@ enum UsageSnapshotBuilder {
     private struct Accumulator {
         var processedTokens: Decimal = 0
         var costNanodollars: Decimal = 0
-        var models: [UsagePricing.Model: ModelUsage] = [:]
+        var models: [UsageQuote.Model: ModelUsage] = [:]
 
-        mutating func add(_ event: UsageEvent, quote: UsagePricing.Quote) {
+        mutating func add(_ event: UsageEvent, quote: UsageQuote) {
             processedTokens += Decimal(event.processedTokens)
             costNanodollars += quote.costNanodollars
             models[quote.model, default: ModelUsage()].add(
@@ -40,11 +40,13 @@ enum UsageSnapshotBuilder {
         }
 
         var favorite: ProviderUsageSnapshot.Favorite? {
-            guard let (model, usage) = models.max(by: { lhs, rhs in
-                lhs.value.occurrences == rhs.value.occurrences
-                    ? lhs.key.id > rhs.key.id
-                    : lhs.value.occurrences < rhs.value.occurrences
-            }) else {
+            guard
+                let (model, usage) = models.max(by: { lhs, rhs in
+                    lhs.value.occurrences == rhs.value.occurrences
+                        ? lhs.key.id > rhs.key.id
+                        : lhs.value.occurrences < rhs.value.occurrences
+                })
+            else {
                 return nil
             }
             return ProviderUsageSnapshot.Favorite(
@@ -65,7 +67,7 @@ enum UsageSnapshotBuilder {
         var claudeDays: [Date: Accumulator] = [:]
 
         for event in events {
-            guard let quote = UsagePricing.quote(for: event) else {
+            guard let quote = event.quote else {
                 continue
             }
             let day = calendar.startOfDay(for: event.details.timestamp)
@@ -102,7 +104,8 @@ enum UsageSnapshotBuilder {
             month: periodSnapshot(from: days, in: intervals.month.current),
             dailyMonth: UsageMonthSnapshot(
                 range: intervals.month.current,
-                days: days
+                days:
+                    days
                     .filter { intervals.month.current.contains($0.key) }
                     .sorted { $0.key < $1.key }
                     .map { date, accumulator in

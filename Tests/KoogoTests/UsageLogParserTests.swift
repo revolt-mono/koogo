@@ -11,7 +11,9 @@ final class UsageLogParserTests: XCTestCase {
         XCTAssertNil(parse(codexMeta(), with: &parser))
         XCTAssertNil(parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser))
 
-        let first = try XCTUnwrap(parse(codexToken(last: usage(100, 20), total: usage(100, 20)), with: &parser))
+        let first = try XCTUnwrap(
+            parse(codexToken(last: usage(100, 20), total: usage(100, 20)), with: &parser)
+        )
         XCTAssertNil(parse(codexToken(last: usage(100, 20), total: usage(100, 20)), with: &parser))
         let second = try XCTUnwrap(
             parse(codexToken(last: usage(150, 30), total: usage(250, 50)), with: &parser)
@@ -116,12 +118,14 @@ final class UsageLogParserTests: XCTestCase {
         var parser = UsageFileParserState.codex()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
-        XCTAssertNil(parse(
-            """
-            {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-luna","reasoning_effort":"low","service_tier":"priority"}}}
-            """,
-            with: &parser
-        ))
+        XCTAssertNil(
+            parse(
+                """
+                {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-luna","reasoning_effort":"low","service_tier":"priority"}}}
+                """,
+                with: &parser
+            )
+        )
         let event = try XCTUnwrap(
             parse(codexToken(last: usage(100, 20), total: usage(100, 20)), with: &parser)
         )
@@ -133,13 +137,15 @@ final class UsageLogParserTests: XCTestCase {
     func testCodexPreservesCacheWritesWithoutInventingDuration() throws {
         var parser = UsageFileParserState.codex()
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
-        let event = try XCTUnwrap(parse(
-            codexToken(
-                last: usage(100, 20, cached: 10, cacheWrite: 30),
-                total: usage(100, 20, cached: 10, cacheWrite: 30)
-            ),
-            with: &parser
-        ))
+        let event = try XCTUnwrap(
+            parse(
+                codexToken(
+                    last: usage(100, 20, cached: 10, cacheWrite: 30),
+                    total: usage(100, 20, cached: 10, cacheWrite: 30)
+                ),
+                with: &parser
+            )
+        )
         guard case .codex(let event) = event else {
             return XCTFail("unexpected event provider")
         }
@@ -161,8 +167,8 @@ final class UsageLogParserTests: XCTestCase {
     func testClaudeParsesCacheDurationsSpeedGeoSearchAndMissingEffort() throws {
         var parser = UsageFileParserState.claude
         let line = """
-        {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":70,"output_tokens":40,"cache_creation":{"ephemeral_5m_input_tokens":30,"ephemeral_1h_input_tokens":40},"speed":"fast","inference_geo":"us","server_tool_use":{"web_search_requests":2}}}}
-        """
+            {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":70,"output_tokens":40,"cache_creation":{"ephemeral_5m_input_tokens":30,"ephemeral_1h_input_tokens":40},"speed":"fast","inference_geo":"us","server_tool_use":{"web_search_requests":2}}}}
+            """
 
         let event = try XCTUnwrap(parse(line, with: &parser))
 
@@ -184,12 +190,14 @@ final class UsageLogParserTests: XCTestCase {
 
     func testClaudePreservesAggregateCacheCreationWithoutInventingDuration() throws {
         var parser = UsageFileParserState.claude
-        let event = try XCTUnwrap(parse(
-            """
-            {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40}}}
-            """,
-            with: &parser
-        ))
+        let event = try XCTUnwrap(
+            parse(
+                """
+                {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40}}}
+                """,
+                with: &parser
+            )
+        )
         guard case .claude(let event) = event else {
             return XCTFail("unexpected event provider")
         }
@@ -201,8 +209,8 @@ final class UsageLogParserTests: XCTestCase {
     func testClaudeRejectsInconsistentCacheSplit() {
         var parser = UsageFileParserState.claude
         let line = """
-        {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40,"cache_creation":{"ephemeral_5m_input_tokens":20,"ephemeral_1h_input_tokens":40}}}}
-        """
+            {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40,"cache_creation":{"ephemeral_5m_input_tokens":20,"ephemeral_1h_input_tokens":40}}}}
+            """
 
         XCTAssertNil(parse(line, with: &parser))
     }
@@ -210,8 +218,8 @@ final class UsageLogParserTests: XCTestCase {
     func testClaudeRejectsRecordsWithoutBothStableIDs() {
         var parser = UsageFileParserState.claude
         let line = """
-        {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"output_tokens":40}}}
-        """
+            {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"output_tokens":40}}}
+            """
 
         XCTAssertNil(parse(line, with: &parser))
     }
@@ -220,14 +228,14 @@ final class UsageLogParserTests: XCTestCase {
         var codexParser = UsageFileParserState.codex()
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &codexParser)
         let codex = """
-        {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":9223372036854775807,"cached_input_tokens":9223372036854775807,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":9223372036854775807},"total_token_usage":{"input_tokens":9223372036854775807,"cached_input_tokens":9223372036854775807,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":9223372036854775807},"model_context_window":1000}}}
-        """
+            {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":9223372036854775807,"cached_input_tokens":9223372036854775807,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":9223372036854775807},"total_token_usage":{"input_tokens":9223372036854775807,"cached_input_tokens":9223372036854775807,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":9223372036854775807},"model_context_window":1000}}}
+            """
         XCTAssertNil(parse(codex, with: &codexParser))
 
         var claudeParser = UsageFileParserState.claude
         let claude = """
-        {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":0,"cache_creation_input_tokens":9223372036854775807,"output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":9223372036854775807,"ephemeral_1h_input_tokens":1}}}}
-        """
+            {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":0,"cache_creation_input_tokens":9223372036854775807,"output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":9223372036854775807,"ephemeral_1h_input_tokens":1}}}}
+            """
         XCTAssertNil(parse(claude, with: &claudeParser))
     }
 

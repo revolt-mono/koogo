@@ -64,8 +64,8 @@ private struct UsageChartAnnotation: View {
                 "\(UsageFormatting.cost(day.costUSD)) · "
                     + "\(UsageFormatting.tokens(day.processedTokens)) tokens"
             )
-                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
-                .monospacedDigit()
+            .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+            .monospacedDigit()
         }
         .font(.system(size: 8, weight: .medium))
         .padding(.horizontal, 8)

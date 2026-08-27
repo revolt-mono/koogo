@@ -110,26 +110,27 @@ private struct UsageCostChangeCapsule: View {
 
     var body: some View {
         let percentage = UsageFormatting.percentage(change.fraction)
-        let style: (text: String, color: Color, accessibilityLabel: String) = switch change.direction {
-        case .increase:
-            (
-                "+\(percentage)",
-                Color(red: 0, green: 128.0 / 255, blue: 9.0 / 255),
-                "Cost increased \(percentage) from the previous period"
-            )
-        case .decrease:
-            (
-                "-\(percentage)",
-                Color(red: 182.0 / 255, green: 68.0 / 255, blue: 0),
-                "Cost decreased \(percentage) from the previous period"
-            )
-        case .unchanged:
-            (
-                percentage,
-                .secondary,
-                "Cost unchanged from the previous period"
-            )
-        }
+        let style: (text: String, color: Color, accessibilityLabel: String) =
+            switch change.direction {
+            case .increase:
+                (
+                    "+\(percentage)",
+                    Color(red: 0, green: 128.0 / 255, blue: 9.0 / 255),
+                    "Cost increased \(percentage) from the previous period"
+                )
+            case .decrease:
+                (
+                    "-\(percentage)",
+                    Color(red: 182.0 / 255, green: 68.0 / 255, blue: 0),
+                    "Cost decreased \(percentage) from the previous period"
+                )
+            case .unchanged:
+                (
+                    percentage,
+                    .secondary,
+                    "Cost unchanged from the previous period"
+                )
+            }
 
         Text(style.text)
             .font(.system(size: 9, weight: .bold))
@@ -169,12 +170,12 @@ private struct ProviderUsageSection<Quota: View>: View {
                     provider == .codex ? "OpenAISymbol" : "ClaudeSymbol",
                     bundle: .module
                 )
-                    .resizable()
-                    .renderingMode(.template)
-                    .scaledToFit()
-                    .foregroundStyle(.secondary)
-                    .frame(width: 12, height: 12)
-                    .accessibilityHidden(true)
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .foregroundStyle(.secondary)
+                .frame(width: 12, height: 12)
+                .accessibilityHidden(true)
 
                 Text(provider.rawValue.capitalized)
                     .font(.system(size: 11, weight: .semibold))
