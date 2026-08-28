@@ -35,7 +35,7 @@ struct UsagePanelView: View {
                 UsageSummaryView(summary: snapshot.summary)
             }
 
-            Divider()
+            QuickActionsControl()
 
             VStack(spacing: 12) {
                 ProviderUsageSection(provider: .codex, usage: snapshot.codex) {

@@ -89,6 +89,7 @@ cat >"$CONTENTS_DIR/Info.plist" <<EOF
   <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
   <key>LSUIElement</key><true/>
   <key>LSMinimumSystemVersion</key><string>$MIN_SYSTEM_VERSION</string>
+  <key>NSAppleEventsUsageDescription</key><string>Koogo uses System Events to switch the system between light and dark appearance when you choose the quick action.</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>SUEnableAutomaticChecks</key><true/>
