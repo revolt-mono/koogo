@@ -99,13 +99,39 @@ private struct SystemAppearanceQuickAction: View {
     }
 }
 
-private struct MountedDiskImagesQuickAction: View {
-    private enum State {
+struct MountedDiskImagesQuickAction: View {
+    enum State {
         case loading
         case none
         case available(MountedDiskImages)
         case ejecting(MountedDiskImages)
         case failed(String)
+
+        init(_ diskImages: MountedDiskImages?) {
+            self =
+                if let diskImages {
+                    .available(diskImages)
+                } else {
+                    .none
+                }
+        }
+
+        @MainActor
+        static func eject(
+            _ diskImages: MountedDiskImages,
+            using ejectDiskImages: @escaping @Sendable (MountedDiskImages) async throws -> Void =
+                SystemQuickActions.eject,
+            mountedDiskImages: @escaping @Sendable () async throws -> MountedDiskImages? =
+                SystemQuickActions.mountedDiskImages
+        ) async -> Self {
+            do {
+                try await ejectDiskImages(diskImages)
+                let diskImages = try await mountedDiskImages()
+                return Task.isCancelled ? .loading : Self(diskImages)
+            } catch {
+                return .failed(error.localizedDescription)
+            }
+        }
     }
 
     @State private var state = State.loading
@@ -176,12 +202,7 @@ private struct MountedDiskImagesQuickAction: View {
             guard !Task.isCancelled else {
                 return
             }
-            state =
-                if let diskImages {
-                    .available(diskImages)
-                } else {
-                    .none
-                }
+            state = State(diskImages)
         } catch {
             state = .failed(error.localizedDescription)
         }
@@ -190,12 +211,7 @@ private struct MountedDiskImagesQuickAction: View {
     private func eject(_ diskImages: MountedDiskImages) {
         state = .ejecting(diskImages)
         Task {
-            do {
-                try await SystemQuickActions.eject(diskImages)
-                await load()
-            } catch {
-                state = .failed(error.localizedDescription)
-            }
+            state = await State.eject(diskImages)
         }
     }
 }
