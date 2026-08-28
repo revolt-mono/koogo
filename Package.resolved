@@ -1,6 +1,15 @@
 {
-  "originHash" : "f90483a76ba46fcdc9533e39e65793d1f36160dba3cd34bce2f4326502545e74",
+  "originHash" : "97270f087c019c63ed554fae790ca9e28de959b47a5da4d5d16095c3f1730414",
   "pins" : [
+    {
+      "identity" : "sparkle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sparkle-project/Sparkle",
+      "state" : {
+        "revision" : "ac2def288cbff5cfc7df3ffef6abdf45b72bcb0a",
+        "version" : "2.9.6"
+      }
+    },
     {
       "identity" : "swiftui-shimmer",
       "kind" : "remoteSourceControl",

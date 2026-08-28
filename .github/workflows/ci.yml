@@ -21,6 +21,8 @@ jobs:
       SIGNING_IDENTITY: Local Development Code Signing
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - name: select xcode 27
         run: |
           for app in /Applications/Xcode*.app; do
@@ -66,11 +68,23 @@ jobs:
       - name: build and package
         run: |
           script/build.sh
-          ditto -c -k --keepParent dist/Koogo.app dist/Koogo-macos-arm64.zip
+          ditto -c -k --sequesterRsrc --keepParent dist/Koogo.app dist/Koogo-macos-arm64.zip
+      - name: generate appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | \
+            .build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+              --ed-key-file - \
+              --download-url-prefix https://github.com/revolt-mono/koogo/releases/latest/download/ \
+              dist
+          grep -Fq 'sparkle:edSignature=' dist/appcast.xml
       - name: publish rolling latest
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest dist/Koogo-macos-arm64.zip \
+          gh release create latest \
+            dist/Koogo-macos-arm64.zip \
+            dist/appcast.xml \
             --target "$GITHUB_SHA" \
             --title latest \
             --notes "rolling release from ${GITHUB_SHA}"

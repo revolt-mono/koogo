@@ -11,16 +11,28 @@ let package = Package(
         .executable(name: "Koogo", targets: ["Koogo"])
     ],
     dependencies: [
-        .package(url: "https://github.com/markiv/SwiftUI-Shimmer.git", from: "1.5.1")
+        .package(url: "https://github.com/markiv/SwiftUI-Shimmer.git", from: "1.5.1"),
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.6"),
     ],
     targets: [
         .executableTarget(
             name: "Koogo",
             dependencies: [
-                .product(name: "Shimmer", package: "SwiftUI-Shimmer")
+                .product(name: "Shimmer", package: "SwiftUI-Shimmer"),
+                .product(name: "Sparkle", package: "Sparkle"),
             ],
             resources: [.process("Resources")]
         ),
-        .testTarget(name: "KoogoTests", dependencies: ["Koogo"]),
+        .testTarget(
+            name: "KoogoTests",
+            dependencies: ["Koogo"],
+            // SwiftPM leaves binary frameworks beside the test bundle instead of embedding them.
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "@loader_path/../../..",
+                ])
+            ]
+        ),
     ]
 )

@@ -3,10 +3,16 @@ import SwiftUI
 struct ContentView: View {
     private let usageModel: UsageModel
     private let codexQuotaModel: CodexQuotaModel
+    private let updateModel: UpdateModel
 
-    init(usageModel: UsageModel, codexQuotaModel: CodexQuotaModel) {
+    init(
+        usageModel: UsageModel,
+        codexQuotaModel: CodexQuotaModel,
+        updateModel: UpdateModel
+    ) {
         self.usageModel = usageModel
         self.codexQuotaModel = codexQuotaModel
+        self.updateModel = updateModel
     }
 
     var body: some View {
@@ -14,7 +20,9 @@ struct ContentView: View {
             if let snapshot = usageModel.snapshot {
                 UsagePanelView(
                     snapshot: snapshot,
-                    codexQuotaState: codexQuotaModel.state
+                    codexQuotaState: codexQuotaModel.state,
+                    isUpdateAvailable: updateModel.isUpdateAvailable,
+                    showUpdate: updateModel.showUpdate
                 )
                 .transition(.blurReplace)
             } else {

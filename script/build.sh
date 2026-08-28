@@ -6,6 +6,7 @@ APP_NAME="Koogo"
 BUNDLE_ID="com.revolt.koogo"
 MIN_SYSTEM_VERSION="26.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
+BUILD_NUMBER="$(git -C "$ROOT_DIR" rev-list --count HEAD)"
 DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode-beta.app/Contents/Developer}"
 SDK_NAME="macosx27.0"
 
@@ -42,6 +43,8 @@ xcrun swift build \
   -Xlinker macos \
   -Xlinker "$MIN_SYSTEM_VERSION" \
   -Xlinker "$SDK_VERSION" \
+  -Xlinker -rpath \
+  -Xlinker @executable_path/../Frameworks \
   --product "$APP_NAME"
 
 BUILD_DIR="$(xcrun swift build \
@@ -53,11 +56,13 @@ APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
 
 rm -rf "$APP_BUNDLE"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
 cp "$BUILD_DIR/$APP_NAME" "$MACOS_DIR/$APP_NAME"
-cp -R "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle" "$RESOURCES_DIR"
+ditto "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle" "$RESOURCES_DIR/${APP_NAME}_${APP_NAME}.bundle"
+ditto "$BUILD_DIR/Sparkle.framework" "$FRAMEWORKS_DIR/Sparkle.framework"
 chmod +x "$MACOS_DIR/$APP_NAME"
 
 cat >"$CONTENTS_DIR/Info.plist" <<EOF
@@ -69,21 +74,26 @@ cat >"$CONTENTS_DIR/Info.plist" <<EOF
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundleName</key><string>$APP_NAME</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>1.0.$BUILD_NUMBER</string>
+  <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
   <key>LSUIElement</key><true/>
   <key>LSMinimumSystemVersion</key><string>$MIN_SYSTEM_VERSION</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>SUEnableAutomaticChecks</key><true/>
+  <key>SUFeedURL</key><string>https://github.com/revolt-mono/koogo/releases/latest/download/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>2RXhmQRhki0JYXIP9PMcjh1GIsVVIn7Nsae3tHl555M=</string>
+  <key>SUScheduledCheckInterval</key><integer>86400</integer>
 </dict>
 </plist>
 EOF
 
 codesign \
   --force --options runtime --timestamp=none \
+  --entitlements "$ROOT_DIR/script/Koogo.entitlements" \
   --keychain "${SIGNING_KEYCHAIN:-$HOME/Library/Keychains/login.keychain-db}" \
   --sign "$SIGNING_IDENTITY" \
   "$APP_BUNDLE"
 
-codesign --verify --strict --verbose=2 "$APP_BUNDLE"
+codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 printf '%s\n' "$APP_BUNDLE"

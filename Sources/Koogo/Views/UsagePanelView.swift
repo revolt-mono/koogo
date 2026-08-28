@@ -3,10 +3,37 @@ import SwiftUI
 struct UsagePanelView: View {
     let snapshot: UsageSnapshot
     let codexQuotaState: CodexQuotaModel.State
+    let isUpdateAvailable: Bool
+    let showUpdate: () -> Void
+
+    private var showsUpdateIndicator: Bool {
+        #if DEBUG
+        true
+        #else
+        isUpdateAvailable
+        #endif
+    }
 
     var body: some View {
         VStack(spacing: 20) {
-            UsageSummaryView(snapshot: snapshot)
+            VStack(spacing: 8) {
+                if showsUpdateIndicator {
+                    Button(action: showUpdate) {
+                        Text("Update")
+                            .font(.system(size: 9, weight: .medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .foregroundStyle(.white)
+                            .background(.tint, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Update available")
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                UsageSummaryView(snapshot: snapshot)
+            }
 
             Divider()
 
@@ -18,7 +45,9 @@ struct UsagePanelView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 24)
+        .padding(.top, showsUpdateIndicator ? 16 : 24)
+        .padding(.bottom, 24)
+        .animation(.smooth(duration: 0.25), value: showsUpdateIndicator)
     }
 }
 
