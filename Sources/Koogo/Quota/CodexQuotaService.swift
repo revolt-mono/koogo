@@ -28,13 +28,10 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
     }
 
     struct ResetCredits: Equatable, Sendable {
-        let availableCount: Int
+        let availableCount: UInt64
         let nextExpiration: Date?
 
-        init?(availableCount: Int, availableExpirations: [Date]) {
-            guard availableCount >= 0 else {
-                return nil
-            }
+        init(availableCount: UInt64, availableExpirations: [Date]) {
             self.availableCount = availableCount
             nextExpiration = availableCount > 0 ? availableExpirations.min() : nil
         }

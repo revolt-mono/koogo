@@ -318,11 +318,14 @@ private struct RateLimitSnapshot: Decodable {
 }
 
 private struct RateLimitResetCredits: Decodable {
-    let availableCount: Int
+    let availableCount: Int64
     let credits: [Credit]?
 
     var snapshot: CodexQuotaSnapshot.ResetCredits? {
-        CodexQuotaSnapshot.ResetCredits(
+        guard let availableCount = UInt64(exactly: availableCount) else {
+            return nil
+        }
+        return CodexQuotaSnapshot.ResetCredits(
             availableCount: availableCount,
             availableExpirations: credits?
                 .filter { $0.status == "available" }

@@ -85,16 +85,17 @@ final class CodexQuotaServiceTests: XCTestCase {
         XCTAssertTrue(snapshot.models.isEmpty)
     }
 
-    func testFetchHidesSnapshotWithoutDisplayableContent() async throws {
+    func testFetchKeepsLimitsWhenResetCreditsAreInvalid() async throws {
         let executable = try makeExecutable(
             rateLimitsResponse: """
-                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":null,"secondary":null},"rateLimitsByLimitId":{"codex":{"primary":null,"secondary":null}},"rateLimitResetCredits":{"availableCount":-1,"credits":[]}}}
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":{"availableCount":-1,"credits":[]}}}
                 """
         )
 
         let snapshot = await CodexQuotaService(executableURL: executable).fetch()
 
-        XCTAssertNil(snapshot)
+        XCTAssertEqual(snapshot?.account?.limits?.fiveHour?.remainingPercent, 75)
+        XCTAssertNil(snapshot?.account?.resetCredits)
     }
 
     func testFetchRejectsResponseContainingResultAndError() async throws {
