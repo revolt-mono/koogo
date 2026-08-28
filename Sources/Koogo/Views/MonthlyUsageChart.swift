@@ -4,6 +4,7 @@ import SwiftUI
 
 struct MonthlyUsageChart: View {
     let month: UsageMonthSnapshot
+    let barColor: Color
 
     @State private var selectedDate: Date?
 
@@ -23,7 +24,7 @@ struct MonthlyUsageChart: View {
                     x: .value("Day", day.date, unit: .day),
                     y: .value("Cost", NSDecimalNumber(decimal: day.costUSD).doubleValue)
                 )
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(barColor)
                 .cornerRadius(1)
             }
 

@@ -206,7 +206,12 @@ private struct ProviderUsageSection<Quota: View>: View {
             VStack(spacing: 12) {
                 quota
 
-                MonthlyUsageChart(month: usage.dailyMonth)
+                MonthlyUsageChart(
+                    month: usage.dailyMonth,
+                    barColor: provider == .codex
+                        ? .primary
+                        : Color(red: 217.0 / 255, green: 119.0 / 255, blue: 87.0 / 255)
+                )
 
                 VStack(spacing: 6) {
                     ProviderUsageRow(title: "Today", usage: usage.today)
