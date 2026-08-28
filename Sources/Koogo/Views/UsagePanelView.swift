@@ -181,11 +181,6 @@ private struct UsageCostChangeCapsule: View {
     }
 }
 
-private enum ProviderSymbol {
-    case image(String)
-    case text(String)
-}
-
 private extension UsageProvider {
     var title: String {
         switch self {
@@ -195,11 +190,11 @@ private extension UsageProvider {
         }
     }
 
-    var symbol: ProviderSymbol {
+    var symbolName: String {
         switch self {
-        case .codex: .image("OpenAISymbol")
-        case .claude: .image("ClaudeSymbol")
-        case .piAgent: .text("π")
+        case .codex: "OpenAISymbol"
+        case .claude: "ClaudeSymbol"
+        case .piAgent: "PiSymbol"
         }
     }
 
@@ -250,22 +245,13 @@ private struct ProviderUsageHeader: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            switch provider.symbol {
-            case .image(let name):
-                Image(name, bundle: .module)
-                    .resizable()
-                    .renderingMode(.template)
-                    .scaledToFit()
-                    .foregroundStyle(.secondary)
-                    .frame(width: 12, height: 12)
-                    .accessibilityHidden(true)
-            case .text(let symbol):
-                Text(symbol)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 12, height: 12)
-                    .accessibilityHidden(true)
-            }
+            Image(provider.symbolName, bundle: .module)
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .foregroundStyle(.secondary)
+                .frame(width: 12, height: 12)
+                .accessibilityHidden(true)
 
             Text(provider.title)
                 .font(.system(size: 11, weight: .semibold))
