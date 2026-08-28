@@ -2,56 +2,61 @@ import SwiftUI
 
 struct UsagePanelView: View {
     let snapshot: UsageSnapshot
-    let codexQuotaState: CodexQuotaModel.State
-    let isUpdateAvailable: Bool
-    let showUpdate: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            UsagePanelHeader(summary: snapshot.summary)
+
+            QuickActionsControl()
+
+            VStack(spacing: 12) {
+                ProviderUsageSection(provider: .codex, usage: snapshot.codex)
+                ProviderUsageSection(provider: .claude, usage: snapshot.claude)
+                ProviderUsageSection(provider: .piAgent, usage: snapshot.piAgent)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 24)
+    }
+}
+
+private struct UsagePanelHeader: View {
+    @Environment(UpdateModel.self) private var updateModel
+
+    let summary: UsageSummarySnapshot
 
     private var showsUpdateIndicator: Bool {
         #if DEBUG
         true
         #else
-        isUpdateAvailable
+        updateModel.isUpdateAvailable
         #endif
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
-                if showsUpdateIndicator {
-                    Button(action: showUpdate) {
-                        Text("Update")
-                            .font(.system(size: 9, weight: .medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .foregroundStyle(.white)
-                            .background(.tint, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Update available")
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+        VStack(spacing: 8) {
+            if showsUpdateIndicator {
+                Button(action: updateModel.showUpdate) {
+                    Text("Update")
+                        .font(.system(size: 9, weight: .medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .foregroundStyle(.white)
+                        .background(.tint, in: Capsule())
                 }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    UsageSummaryPeriod(title: "Today", usage: snapshot.summary.today)
-                    UsageSummaryPeriod(title: "Monthly", usage: snapshot.summary.month)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Update available")
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            QuickActionsControl()
-
-            VStack(spacing: 12) {
-                ProviderUsageSection(provider: .codex, usage: snapshot.codex) {
-                    CodexQuotaView(state: codexQuotaState)
-                }
-                ProviderUsageSection(provider: .claude, usage: snapshot.claude) {}
-                ProviderUsageSection(provider: .piAgent, usage: snapshot.piAgent) {}
+            VStack(alignment: .leading, spacing: 12) {
+                UsageSummaryPeriod(title: "Today", usage: summary.today)
+                UsageSummaryPeriod(title: "Monthly", usage: summary.month)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 20)
         .padding(.top, showsUpdateIndicator ? 16 : 24)
-        .padding(.bottom, 24)
         .animation(.smooth(duration: 0.25), value: showsUpdateIndicator)
     }
 }
@@ -100,6 +105,7 @@ private struct UsageSummaryPeriod: View {
             .minimumScaleFactor(0.7)
             .monospacedDigit()
             .contentTransition(.numericText())
+            .animation(.smooth(duration: 0.35), value: usage)
         }
     }
 }
@@ -202,17 +208,18 @@ private extension UsageProvider {
     }
 }
 
-private struct ProviderUsageSection<Quota: View>: View {
+private struct ProviderUsageSection: View {
     let provider: UsageProvider
     let usage: ProviderUsageSnapshot
-    @ViewBuilder let quota: Quota
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ProviderUsageHeader(provider: provider, favorite: usage.favorite)
 
             VStack(spacing: 12) {
-                quota
+                if provider == .codex {
+                    CodexQuotaView()
+                }
 
                 MonthlyUsageChart(
                     month: usage.dailyMonth,

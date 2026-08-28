@@ -13,12 +13,11 @@ struct KoogoApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            ContentView(
-                usageModel: usageModel,
-                codexQuotaModel: codexQuotaModel,
-                updateModel: updateModel
-            )
-            .fontDesign(.rounded)
+            ContentView()
+                .environment(usageModel)
+                .environment(codexQuotaModel)
+                .environment(updateModel)
+                .fontDesign(.rounded)
         } label: {
             Image(systemName: "chart.bar.xaxis")
         }

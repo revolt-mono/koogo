@@ -49,6 +49,7 @@ struct MonthlyUsageChart: View {
         .chartLegend(.hidden)
         .chartXSelection(value: $selectedDate)
         .frame(height: 48)
+        .animation(.smooth(duration: 0.35), value: month)
     }
 }
 

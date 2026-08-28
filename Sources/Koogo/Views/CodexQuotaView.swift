@@ -2,24 +2,26 @@ import Shimmer
 import SwiftUI
 
 struct CodexQuotaView: View {
-    let state: CodexQuotaModel.State
+    @Environment(CodexQuotaModel.self) private var codexQuotaModel
 
-    @ViewBuilder
     var body: some View {
-        switch state {
-        case .hidden:
-            EmptyView()
-        case .loading:
-            VStack(spacing: 16) {
-                CodexQuotaLoadingView()
-                Divider()
-            }
-        case .available(let snapshot):
-            VStack(spacing: 16) {
-                CodexQuotaContent(snapshot: snapshot)
-                Divider()
+        Group {
+            switch codexQuotaModel.state {
+            case .hidden:
+                EmptyView()
+            case .loading:
+                VStack(spacing: 16) {
+                    CodexQuotaLoadingView()
+                    Divider()
+                }
+            case .available(let snapshot):
+                VStack(spacing: 16) {
+                    CodexQuotaContent(snapshot: snapshot)
+                    Divider()
+                }
             }
         }
+        .animation(.smooth(duration: 0.25), value: codexQuotaModel.state)
     }
 }
 

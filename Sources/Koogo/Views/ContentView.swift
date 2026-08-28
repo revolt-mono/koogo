@@ -1,30 +1,14 @@
 import SwiftUI
 
 struct ContentView: View {
-    private let usageModel: UsageModel
-    private let codexQuotaModel: CodexQuotaModel
-    private let updateModel: UpdateModel
-
-    init(
-        usageModel: UsageModel,
-        codexQuotaModel: CodexQuotaModel,
-        updateModel: UpdateModel
-    ) {
-        self.usageModel = usageModel
-        self.codexQuotaModel = codexQuotaModel
-        self.updateModel = updateModel
-    }
+    @Environment(UsageModel.self) private var usageModel
+    @Environment(CodexQuotaModel.self) private var codexQuotaModel
 
     var body: some View {
         Group {
             if let snapshot = usageModel.snapshot {
-                UsagePanelView(
-                    snapshot: snapshot,
-                    codexQuotaState: codexQuotaModel.state,
-                    isUpdateAvailable: updateModel.isUpdateAvailable,
-                    showUpdate: updateModel.showUpdate
-                )
-                .transition(.blurReplace)
+                UsagePanelView(snapshot: snapshot)
+                    .transition(.blurReplace)
             } else {
                 UsageLoadingView()
                     .transition(.blurReplace)
@@ -45,8 +29,7 @@ struct ContentView: View {
                 endPoint: .bottom
             )
         }
-        .animation(.smooth(duration: 0.35), value: usageModel.snapshot)
-        .animation(.smooth(duration: 0.25), value: codexQuotaModel.state)
+        .animation(.smooth(duration: 0.35), value: usageModel.snapshot != nil)
         .task {
             codexQuotaModel.refresh()
             usageModel.refresh()
