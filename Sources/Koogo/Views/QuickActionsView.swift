@@ -34,23 +34,17 @@ struct QuickActionsControl: View {
             attachmentAnchor: .rect(.bounds),
             arrowEdge: .trailing
         ) {
-            QuickActionsPanelView()
-        }
-    }
-}
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Quick Actions")
+                    .font(.system(size: 11, weight: .semibold))
+                    .padding(.horizontal, 2)
 
-private struct QuickActionsPanelView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Quick Actions")
-                .font(.system(size: 11, weight: .semibold))
-                .padding(.horizontal, 2)
-
-            SystemAppearanceQuickAction()
-            MountedDiskImagesQuickAction()
+                SystemAppearanceQuickAction()
+                MountedDiskImagesQuickAction()
+            }
+            .padding(12)
+            .frame(width: 228)
         }
-        .padding(12)
-        .frame(width: 228)
     }
 }
 
