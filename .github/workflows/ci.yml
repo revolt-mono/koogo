@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-latest
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: blacksmith-6vcpu-macos-latest
+    env:
+      CONFIGURATION: release
+      GH_TOKEN: ${{ github.token }}
+      SIGNING_IDENTITY: Local Development Code Signing
+    steps:
+      - uses: actions/checkout@v6
+      - name: select xcode 27
+        run: |
+          for developer_dir in /Applications/Xcode*.app/Contents/Developer; do
+            version="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version 2>/dev/null)" || continue
+            if [[ "$version" == Xcode\ 27.* ]]; then
+              echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo "xcode 27 is not installed" >&2
+          exit 1
+      - run: swift test
+      - name: import signing identity
+        env:
+          P12_BASE64: ${{ secrets.KOOGO_SIGNING_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.KOOGO_SIGNING_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+        run: |
+          keychain="$RUNNER_TEMP/koogo.keychain-db"
+          p12="$RUNNER_TEMP/koogo.p12"
+          printf %s "$P12_BASE64" | base64 --decode > "$p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security import "$p12" \
+            -k "$keychain" \
+            -f pkcs12 \
+            -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$p12"
+          security find-identity -p codesigning "$keychain"
+          security find-identity -p codesigning "$keychain" | grep -Fq '"Local Development Code Signing"' || {
+            echo "imported p12 did not produce the signing identity" >&2
+            exit 1
+          }
+          echo "SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+      - name: build and package
+        run: |
+          script/build.sh
+          ditto -c -k --keepParent dist/Koogo.app dist/Koogo-macos-arm64.zip
+      - name: publish rolling latest
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest dist/Koogo-macos-arm64.zip \
+            --target "$GITHUB_SHA" \
+            --title latest \
+            --notes "rolling release from ${GITHUB_SHA}"

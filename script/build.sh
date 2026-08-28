@@ -6,13 +6,14 @@ APP_NAME="Koogo"
 BUNDLE_ID="com.revolt.koogo"
 MIN_SYSTEM_VERSION="26.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
-DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode-beta.app/Contents/Developer}"
 SDK_NAME="macosx27.0"
 
 export DEVELOPER_DIR
 export MACOSX_DEPLOYMENT_TARGET="$MIN_SYSTEM_VERSION"
 
-[[ "$(xcodebuild -version | head -1)" == "Xcode 27."* ]] || {
+XCODE_VERSION="$(xcodebuild -version)"
+[[ "${XCODE_VERSION%%$'\n'*}" == "Xcode 27."* ]] || {
   echo "xcode 27 is required at $DEVELOPER_DIR" >&2
   exit 1
 }
@@ -31,7 +32,7 @@ case "$CONFIGURATION" in
   *) echo "CONFIGURATION must be debug or release" >&2; exit 2 ;;
 esac
 
-SIGNING_IDENTITY="$("$ROOT_DIR/script/setup_signing.sh")"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-$("$ROOT_DIR/script/setup_signing.sh")}"
 
 xcrun swift build \
   --package-path "$ROOT_DIR" \
@@ -80,6 +81,7 @@ EOF
 
 codesign \
   --force --options runtime --timestamp=none \
+  --keychain "${SIGNING_KEYCHAIN:-$HOME/Library/Keychains/login.keychain-db}" \
   --sign "$SIGNING_IDENTITY" \
   "$APP_BUNDLE"
 
