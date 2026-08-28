@@ -172,24 +172,4 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(snapshot.codex.dailyMonth.days.map(\.processedTokens), [100])
     }
 
-    func testUnknownModelsDoNotEnterAnyStatistic() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let intervals = UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar)
-        let unknown = codexUsageEvent(
-            model: "future-model",
-            uncachedInput: 1_000_000,
-            output: 1_000_000
-        )
-
-        let snapshot = UsageSnapshotBuilder.build(
-            events: [unknown],
-            intervals: intervals,
-            calendar: calendar
-        )
-
-        XCTAssertEqual(snapshot.codex.month, .zero)
-        XCTAssertNil(snapshot.codex.favorite)
-    }
-
 }

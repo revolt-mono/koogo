@@ -14,27 +14,47 @@ func codexUsageEvent(
     output: Int64 = 0,
     at eventDate: Date = usageTestTimestamp
 ) -> UsageEvent {
-    let processedTokens = uncachedInput + cachedInput + cacheWriteInput + output
+    let tokens = codexTokenUsage(
+        uncachedInput: uncachedInput,
+        cachedInput: cachedInput,
+        cacheWriteInput: cacheWriteInput,
+        output: output
+    )
+    guard let quote = CodexUsagePricing.quote(model: model, tokens: tokens) else {
+        preconditionFailure("unsupported codex model in test fixture")
+    }
     return .codex(
-        UsageEvent.Codex(
+        id: UsageEvent.CodexID(
             threadID: "thread-\(id)",
             turnID: nil,
             ordinal: nil,
-            details: UsageEvent.Details(
-                timestamp: eventDate,
-                model: model,
-                reasoningEffort: effort
-            ),
-            tokens: UsageEvent.Codex.Tokens(
-                input: uncachedInput + cachedInput + cacheWriteInput,
-                cachedInput: cachedInput,
-                cacheWrite: cacheWriteInput,
-                output: output,
-                reasoningOutput: 0,
-                processed: processedTokens
-            ),
-            cumulativeTotal: processedTokens
+            timestamp: eventDate,
+            model: model,
+            tokens: tokens,
+            cumulativeTotal: tokens.processed
+        ),
+        usage: UsageRecord(
+            timestamp: eventDate,
+            processedTokens: tokens.processed,
+            costUSD: quote.costUSD,
+            modelTurn: UsageRecord.ModelTurn(model: quote.model, reasoningEffort: effort)
         )
+    )
+}
+
+func codexTokenUsage(
+    uncachedInput: Int64,
+    cachedInput: Int64 = 0,
+    cacheWriteInput: Int64 = 0,
+    output: Int64 = 0
+) -> CodexTokenUsage {
+    CodexTokenUsage(
+        input: uncachedInput + cachedInput + cacheWriteInput,
+        cachedInput: cachedInput,
+        cacheWrite: cacheWriteInput,
+        output: output,
+        reasoningOutput: 0,
+        processed: uncachedInput + cachedInput + cacheWriteInput + output
     )
 }
 
@@ -45,32 +65,63 @@ func claudeUsageEvent(
     cacheWrite5MinuteInput: Int64 = 0,
     cacheWrite1HourInput: Int64 = 0,
     output: Int64 = 0,
-    speed: UsageEvent.Claude.Speed = .standard,
+    speed: ClaudeUsageSpeed = .standard,
     inferenceGeo: String? = nil,
     webSearchRequests: Int64 = 0,
     at eventDate: Date = usageTestTimestamp
 ) -> UsageEvent {
-    .claude(
-        UsageEvent.Claude(
-            messageID: "message",
-            requestID: "request",
-            details: UsageEvent.Details(
-                timestamp: eventDate,
-                model: model,
-                reasoningEffort: nil
-            ),
-            tokens: UsageEvent.Claude.Tokens(
-                input: uncachedInput,
-                cacheRead: cachedInput,
-                cacheCreation: .byDuration(
-                    fiveMinute: cacheWrite5MinuteInput,
-                    oneHour: cacheWrite1HourInput
-                ),
-                output: output
-            ),
-            speed: speed,
-            inferenceGeo: inferenceGeo,
-            webSearchRequests: webSearchRequests
+    let usage = claudeBillableUsage(
+        uncachedInput: uncachedInput,
+        cachedInput: cachedInput,
+        cacheWrite5MinuteInput: cacheWrite5MinuteInput,
+        cacheWrite1HourInput: cacheWrite1HourInput,
+        output: output,
+        speed: speed,
+        inferenceGeo: inferenceGeo,
+        webSearchRequests: webSearchRequests
+    )
+    guard let quote = ClaudeUsagePricing.quote(model: model, usage: usage) else {
+        preconditionFailure("unsupported claude model in test fixture")
+    }
+    return .claude(
+        id: UsageEvent.ClaudeID(messageID: "message", requestID: "request"),
+        usage: UsageRecord(
+            timestamp: eventDate,
+            processedTokens: usage.tokens.processed,
+            costUSD: quote.costUSD,
+            modelTurn: UsageRecord.ModelTurn(model: quote.model, reasoningEffort: nil)
+        ),
+        revision: UsageEvent.ClaudeRevision(
+            outputTokens: usage.tokens.output,
+            metadataCompleteness: usage.metadataCompleteness(reasoningEffort: nil),
+            processedTokens: usage.tokens.processed,
+            timestamp: eventDate
         )
+    )
+}
+
+func claudeBillableUsage(
+    uncachedInput: Int64 = 0,
+    cachedInput: Int64 = 0,
+    cacheWrite5MinuteInput: Int64 = 0,
+    cacheWrite1HourInput: Int64 = 0,
+    output: Int64 = 0,
+    speed: ClaudeUsageSpeed = .standard,
+    inferenceGeo: String? = nil,
+    webSearchRequests: Int64 = 0
+) -> ClaudeBillableUsage {
+    ClaudeBillableUsage(
+        tokens: ClaudeTokenUsage(
+            input: uncachedInput,
+            cacheRead: cachedInput,
+            cacheCreation: .byDuration(
+                fiveMinute: cacheWrite5MinuteInput,
+                oneHour: cacheWrite1HourInput
+            ),
+            output: output
+        ),
+        speed: speed,
+        inferenceGeo: inferenceGeo,
+        webSearchRequests: webSearchRequests
     )
 }

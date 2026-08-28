@@ -2,14 +2,16 @@ import Foundation
 
 actor UsageService {
     private let calendar: Calendar
+    private let piModels: UsageLocations.PiModels
     private var logIndex: UsageLogIndex
 
     init(
-        locations: UsageLogLocations = .standard,
+        locations: UsageLocations = .standard,
         calendar: Calendar = .autoupdatingCurrent
     ) {
         self.calendar = calendar
-        logIndex = UsageLogIndex(locations: locations)
+        piModels = locations.piModels
+        logIndex = UsageLogIndex(locations: locations.logs)
     }
 
     func refresh(at date: Date = Date()) -> UsageSnapshot {
@@ -17,7 +19,8 @@ actor UsageService {
         return UsageSnapshotBuilder.build(
             events: logIndex.events(since: intervals.month.previous.lowerBound),
             intervals: intervals,
-            calendar: calendar
+            calendar: calendar,
+            piModels: PiModelCatalog(locations: piModels)
         )
     }
 }

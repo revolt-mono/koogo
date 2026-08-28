@@ -32,7 +32,7 @@ struct UsagePanelView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                UsageSummaryView(snapshot: snapshot)
+                UsageSummaryView(summary: snapshot.summary)
             }
 
             Divider()
@@ -42,6 +42,7 @@ struct UsagePanelView: View {
                     CodexQuotaView(state: codexQuotaState)
                 }
                 ProviderUsageSection(provider: .claude, usage: snapshot.claude) {}
+                ProviderUsageSection(provider: .piAgent, usage: snapshot.piAgent) {}
             }
         }
         .padding(.horizontal, 20)
@@ -52,11 +53,9 @@ struct UsagePanelView: View {
 }
 
 private struct UsageSummaryView: View {
-    let snapshot: UsageSnapshot
+    let summary: UsageSummarySnapshot
 
     var body: some View {
-        let summary = snapshot.summary
-
         VStack(alignment: .leading, spacing: 12) {
             UsageSummaryPeriod(title: "Today", usage: summary.today)
             UsageSummaryPeriod(title: "Monthly", usage: summary.month)
@@ -182,64 +181,52 @@ private struct UsageCostChangeCapsule: View {
     }
 }
 
-private enum Provider: String {
-    case codex
-    case claude
+private enum ProviderSymbol {
+    case image(String)
+    case text(String)
+}
+
+private extension UsageProvider {
+    var title: String {
+        switch self {
+        case .codex: "Codex"
+        case .claude: "Claude"
+        case .piAgent: "Pi"
+        }
+    }
+
+    var symbol: ProviderSymbol {
+        switch self {
+        case .codex: .image("OpenAISymbol")
+        case .claude: .image("ClaudeSymbol")
+        case .piAgent: .text("π")
+        }
+    }
+
+    var barColor: Color {
+        switch self {
+        case .codex: .primary
+        case .claude: Color(red: 217.0 / 255, green: 119.0 / 255, blue: 87.0 / 255)
+        case .piAgent: .accentColor
+        }
+    }
 }
 
 private struct ProviderUsageSection<Quota: View>: View {
-    let provider: Provider
+    let provider: UsageProvider
     let usage: ProviderUsageSnapshot
     @ViewBuilder let quota: Quota
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 4) {
-                Image(
-                    provider == .codex ? "OpenAISymbol" : "ClaudeSymbol",
-                    bundle: .module
-                )
-                .resizable()
-                .renderingMode(.template)
-                .scaledToFit()
-                .foregroundStyle(.secondary)
-                .frame(width: 12, height: 12)
-                .accessibilityHidden(true)
-
-                Text(provider.rawValue.capitalized)
-                    .font(.system(size: 11, weight: .semibold))
-
-                if let favorite = usage.favorite {
-                    Spacer(minLength: 12)
-
-                    Image("FavoriteHeart", bundle: .module)
-                        .resizable()
-                        .renderingMode(.original)
-                        .scaledToFit()
-                        .frame(width: 12)
-                        .accessibilityHidden(true)
-
-                    Text(
-                        favorite.reasoningEffort.map {
-                            "\(favorite.modelName) with \($0)"
-                        } ?? favorite.modelName
-                    )
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                }
-            }
-            // A 12-point inset matches the card content geometrically; 6 points aligns the header optically.
-            .padding(.horizontal, 6)
+            ProviderUsageHeader(provider: provider, favorite: usage.favorite)
 
             VStack(spacing: 12) {
                 quota
 
                 MonthlyUsageChart(
                     month: usage.dailyMonth,
-                    barColor: provider == .codex
-                        ? .primary
-                        : Color(red: 217.0 / 255, green: 119.0 / 255, blue: 87.0 / 255)
+                    barColor: provider.barColor
                 )
 
                 VStack(spacing: 6) {
@@ -254,6 +241,60 @@ private struct ProviderUsageSection<Quota: View>: View {
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
         }
+    }
+}
+
+private struct ProviderUsageHeader: View {
+    let provider: UsageProvider
+    let favorite: ProviderUsageSnapshot.Favorite?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            switch provider.symbol {
+            case .image(let name):
+                Image(name, bundle: .module)
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12, height: 12)
+                    .accessibilityHidden(true)
+            case .text(let symbol):
+                Text(symbol)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12, height: 12)
+                    .accessibilityHidden(true)
+            }
+
+            Text(provider.title)
+                .font(.system(size: 11, weight: .semibold))
+
+            if let favorite {
+                Spacer(minLength: 12)
+
+                Image("FavoriteHeart", bundle: .module)
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 12)
+                    .accessibilityHidden(true)
+
+                Group {
+                    switch favorite.reasoningEffort {
+                    case .some(let effort) where effort != "off":
+                        Text("\(favorite.modelName) · \(effort)")
+                    default:
+                        Text(favorite.modelName)
+                    }
+                }
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+        }
+        // A 12-point inset matches the card content geometrically; 6 points aligns the header optically.
+        .padding(.horizontal, 6)
     }
 }
 

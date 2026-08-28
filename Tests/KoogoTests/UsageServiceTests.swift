@@ -5,7 +5,7 @@ import XCTest
 
 final class UsageServiceTests: XCTestCase {
     private var root: URL!
-    private var locations: UsageLogLocations!
+    private var locations: UsageLocations!
     private var calendar: Calendar!
     private var now: Date!
 
@@ -15,13 +15,25 @@ final class UsageServiceTests: XCTestCase {
         let codexSessions = root.appending(path: "codex/sessions", directoryHint: .isDirectory)
         let codexArchive = root.appending(path: "codex/archive", directoryHint: .isDirectory)
         let claudeProjects = root.appending(path: "claude/projects", directoryHint: .isDirectory)
+        let piAgent = root.appending(path: "pi", directoryHint: .isDirectory)
+        let piSessions = piAgent.appending(path: "sessions", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: codexSessions, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: codexArchive, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: claudeProjects, withIntermediateDirectories: true)
-        locations = UsageLogLocations(
-            codexSessions: codexSessions,
-            codexArchivedSessions: codexArchive,
-            claudeProjects: claudeProjects
+        try FileManager.default.createDirectory(at: piSessions, withIntermediateDirectories: true)
+        locations = UsageLocations(
+            logs: UsageLocations.Logs(
+                codex: UsageLocations.Logs.Codex(
+                    sessions: codexSessions,
+                    archivedSessions: codexArchive
+                ),
+                claudeProjects: claudeProjects,
+                piAgent: piSessions
+            ),
+            piModels: UsageLocations.PiModels(
+                custom: piAgent.appending(path: "models.json"),
+                store: piAgent.appending(path: "models-store.json")
+            )
         )
         calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
@@ -34,11 +46,11 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testColdScanDeduplicatesClaudePartialsAndProviderSnapshots() async throws {
-        let codex = locations.codexSessions.appending(path: "session.jsonl")
+        let codex = locations.logs.codex.sessions.appending(path: "session.jsonl")
         try write(codexLog(input: 100, output: 20), to: codex)
 
-        let claudeMain = locations.claudeProjects.appending(path: "project/main.jsonl")
-        let claudeCopy = locations.claudeProjects.appending(path: "project/agent/copy.jsonl")
+        let claudeMain = locations.logs.claudeProjects.appending(path: "project/main.jsonl")
+        let claudeCopy = locations.logs.claudeProjects.appending(path: "project/agent/copy.jsonl")
         try write(claudeLog(output: 2), to: claudeMain)
         try write(claudeLog(output: 40), to: claudeCopy)
 
@@ -64,7 +76,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testRefreshReadsOnlyCompleteAppendedLines() async throws {
-        let log = locations.codexSessions.appending(path: "session.jsonl")
+        let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
         try write(codexLog(input: 100, output: 20), to: log)
         let service = UsageService(locations: locations, calendar: calendar)
         _ = await service.refresh(at: now)
@@ -95,7 +107,7 @@ final class UsageServiceTests: XCTestCase {
                     from: calendar.startOfDay(for: Date())
                 )
             ),
-            to: locations.codexSessions.appending(path: "session.jsonl")
+            to: locations.logs.codex.sessions.appending(path: "session.jsonl")
         )
         let model = UsageModel(
             usageService: UsageService(locations: locations, calendar: calendar)
@@ -113,13 +125,13 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testArchiveCopyDoesNotDoubleCountAndReplacementDropsRemovedEvents() async throws {
-        let active = locations.codexSessions.appending(path: "session.jsonl")
+        let active = locations.logs.codex.sessions.appending(path: "session.jsonl")
         let contents = codexLog(input: 100, output: 20)
         try write(contents, to: active)
         let service = UsageService(locations: locations, calendar: calendar)
         _ = await service.refresh(at: now)
 
-        let archived = locations.codexArchivedSessions.appending(path: "session.jsonl")
+        let archived = locations.logs.codex.archivedSessions.appending(path: "session.jsonl")
         try write(contents, to: archived)
         let copied = await service.refresh(at: now)
         XCTAssertEqual(copied.codex.today.processedTokens, 120)
@@ -131,7 +143,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testUnknownModelIsIgnoredCompletely() async throws {
-        let log = locations.codexSessions.appending(path: "session.jsonl")
+        let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
         try write(codexLog(input: 100, output: 20, model: "unknown-model"), to: log)
         let service = UsageService(locations: locations, calendar: calendar)
 
@@ -141,7 +153,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testCodexIdenticalRequestUsageAtTheSameTimestampCountsTwice() async throws {
-        let log = locations.codexSessions.appending(path: "session.jsonl")
+        let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
         let timestamp = "2026-08-25T12:00:00.000Z"
         let contents = [
             codexSessionMetadata(thread: "thread"),
@@ -171,7 +183,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testColdScanUsesEventTimestampsInsteadOfFileModificationDate() async throws {
-        let log = locations.codexSessions.appending(path: "session.jsonl")
+        let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
         try write(codexLog(input: 100, output: 20), to: log)
         try FileManager.default.setAttributes(
             [.modificationDate: Date(timeIntervalSince1970: 0)],
@@ -192,7 +204,7 @@ final class UsageServiceTests: XCTestCase {
                 thread: "previous-day",
                 usageTimestamp: "2026-08-24T17:00:00.000Z"
             ),
-            to: locations.codexSessions.appending(path: "previous-day.jsonl")
+            to: locations.logs.codex.sessions.appending(path: "previous-day.jsonl")
         )
         try write(
             codexLog(
@@ -201,7 +213,7 @@ final class UsageServiceTests: XCTestCase {
                 thread: "previous-month",
                 usageTimestamp: "2026-07-25T17:00:00.000Z"
             ),
-            to: locations.codexSessions.appending(path: "previous-month.jsonl")
+            to: locations.logs.codex.sessions.appending(path: "previous-month.jsonl")
         )
         let service = UsageService(locations: locations, calendar: calendar)
 
@@ -215,7 +227,7 @@ final class UsageServiceTests: XCTestCase {
         let target = root.appending(path: "target.log")
         try write(codexLog(input: 100, output: 20), to: target)
         try FileManager.default.createSymbolicLink(
-            at: locations.codexSessions.appending(path: "session.jsonl"),
+            at: locations.logs.codex.sessions.appending(path: "session.jsonl"),
             withDestinationURL: target
         )
         let service = UsageService(locations: locations, calendar: calendar)
@@ -226,7 +238,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testColdScanParsesLinesAcrossReadChunks() async throws {
-        let log = locations.codexSessions.appending(path: "session.jsonl")
+        let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
         let ignored =
             "{\"type\":\"ignored\",\"padding\":\""
             + String(repeating: "x", count: 4_194_304)
@@ -240,8 +252,8 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testClaudePartialsAndCopiesWithoutStableIDsAreIgnored() async throws {
-        let partial = locations.claudeProjects.appending(path: "project/main.jsonl")
-        let copy = locations.claudeProjects.appending(path: "project/agent/copy.jsonl")
+        let partial = locations.logs.claudeProjects.appending(path: "project/main.jsonl")
+        let copy = locations.logs.claudeProjects.appending(path: "project/agent/copy.jsonl")
         try write(claudeLog(output: 2, requestID: nil), to: partial)
         try write(claudeLog(output: 40, requestID: nil), to: copy)
         let service = UsageService(locations: locations, calendar: calendar)

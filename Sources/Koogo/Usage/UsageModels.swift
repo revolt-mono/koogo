@@ -1,5 +1,34 @@
 import Foundation
 
+enum UsageProvider: Hashable, Sendable {
+    case codex
+    case claude
+    case piAgent
+}
+
+enum UsageModelReference: Hashable, Sendable {
+    case codex(id: String, name: String)
+    case claude(id: String, name: String)
+    case piAgent(provider: String, id: String)
+}
+
+struct UsageRecord: Hashable, Sendable {
+    struct ModelTurn: Hashable, Sendable {
+        let model: UsageModelReference
+        let reasoningEffort: String?
+    }
+
+    let timestamp: Date
+    let processedTokens: Int64
+    let costUSD: Decimal
+    let modelTurn: ModelTurn?
+}
+
+struct UsageQuote: Sendable {
+    let model: UsageModelReference
+    let costUSD: Decimal
+}
+
 struct UsagePeriodSnapshot: Equatable, Sendable {
     let processedTokens: Decimal
     let costUSD: Decimal
@@ -106,191 +135,158 @@ struct UsageSnapshot: Equatable, Sendable {
     let summary: UsageSummarySnapshot
     let codex: ProviderUsageSnapshot
     let claude: ProviderUsageSnapshot
+    let piAgent: ProviderUsageSnapshot
 
     init(
         codex: ProviderUsageSnapshot,
         claude: ProviderUsageSnapshot,
+        piAgent: ProviderUsageSnapshot,
         previousDay: UsagePeriodSnapshot,
         previousMonth: UsagePeriodSnapshot
     ) {
         summary = UsageSummarySnapshot(
             today: UsageSummaryPeriodSnapshot(
-                current: codex.today + claude.today,
+                current: codex.today + claude.today + piAgent.today,
                 previous: previousDay
             ),
             month: UsageSummaryPeriodSnapshot(
-                current: codex.month + claude.month,
+                current: codex.month + claude.month + piAgent.month,
                 previous: previousMonth
             )
         )
         self.codex = codex
         self.claude = claude
+        self.piAgent = piAgent
     }
 }
 
-struct UsageLogLocations: Sendable {
-    let codexSessions: URL
-    let codexArchivedSessions: URL
-    let claudeProjects: URL
+struct UsageLocations: Sendable {
+    struct Logs: Sendable {
+        struct Codex: Sendable {
+            let sessions: URL
+            let archivedSessions: URL
+        }
 
-    static var standard: UsageLogLocations {
+        let codex: Codex
+        let claudeProjects: URL
+        let piAgent: URL
+    }
+
+    struct PiModels: Sendable {
+        let custom: URL
+        let store: URL
+    }
+
+    let logs: Logs
+    let piModels: PiModels
+
+    static var standard: UsageLocations {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        return UsageLogLocations(
-            codexSessions: home.appending(path: ".codex/sessions", directoryHint: .isDirectory),
-            codexArchivedSessions: home.appending(
-                path: ".codex/archived_sessions",
-                directoryHint: .isDirectory
+        let piAgent = home.appending(path: ".pi/agent", directoryHint: .isDirectory)
+        return UsageLocations(
+            logs: Logs(
+                codex: Logs.Codex(
+                    sessions: home.appending(path: ".codex/sessions", directoryHint: .isDirectory),
+                    archivedSessions: home.appending(
+                        path: ".codex/archived_sessions",
+                        directoryHint: .isDirectory
+                    )
+                ),
+                claudeProjects: home.appending(
+                    path: ".claude/projects",
+                    directoryHint: .isDirectory
+                ),
+                piAgent: piAgent.appending(path: "sessions", directoryHint: .isDirectory)
             ),
-            claudeProjects: home.appending(path: ".claude/projects", directoryHint: .isDirectory)
+            piModels: PiModels(
+                custom: piAgent.appending(path: "models.json", directoryHint: .notDirectory),
+                store: piAgent.appending(path: "models-store.json", directoryHint: .notDirectory)
+            )
         )
     }
 }
 
 enum UsageEvent: Sendable {
-    struct Details: Sendable {
-        let timestamp: Date
-        let model: String
-        let reasoningEffort: String?
-    }
-
-    struct Codex: Sendable {
-        struct Tokens: Hashable, Sendable {
-            let input: Int64
-            let cachedInput: Int64
-            let cacheWrite: Int64
-            let output: Int64
-            let reasoningOutput: Int64
-            let processed: Int64
-
-            var uncachedInput: Int64 {
-                input - cachedInput - cacheWrite
-            }
-        }
-
+    struct CodexID: Hashable, Sendable {
         let threadID: String
         let turnID: String?
         let ordinal: UInt64?
-        let details: Details
-        let tokens: Tokens
+        let timestamp: Date
+        let model: String
+        let tokens: CodexTokenUsage
         let cumulativeTotal: Int64
     }
 
-    struct Claude: Sendable {
-        struct Tokens: Hashable, Sendable {
-            enum CacheCreation: Hashable, Sendable {
-                case aggregate(Int64)
-                case byDuration(fiveMinute: Int64, oneHour: Int64)
-            }
-
-            let input: Int64
-            let cacheRead: Int64
-            let cacheCreation: CacheCreation
-            let output: Int64
-
-            var processed: Int64 {
-                switch cacheCreation {
-                case .aggregate(let tokens):
-                    input + cacheRead + tokens + output
-                case .byDuration(let fiveMinute, let oneHour):
-                    input + cacheRead + fiveMinute + oneHour + output
-                }
-            }
-        }
-
-        enum Speed: Sendable {
-            case implicitStandard
-            case standard
-            case fast
-        }
-
+    struct ClaudeID: Hashable, Sendable {
         let messageID: String
         let requestID: String
-        let details: Details
-        let tokens: Tokens
-        let speed: Speed
-        let inferenceGeo: String?
-        let webSearchRequests: Int64
+    }
 
-        private var metadataCompleteness: Int {
-            let explicitSpeed =
-                switch speed {
-                case .implicitStandard: 0
-                case .standard, .fast: 1
-                }
-            let explicitCacheDuration =
-                switch tokens.cacheCreation {
-                case .aggregate: 0
-                case .byDuration: 1
-                }
-            return explicitSpeed
-                + explicitCacheDuration
-                + (details.reasoningEffort == nil ? 0 : 1)
+    struct ClaudeRevision: Sendable {
+        let outputTokens: Int64
+        let metadataCompleteness: Int
+        let processedTokens: Int64
+        let timestamp: Date
+
+        fileprivate func isPreferred(over existing: Self) -> Bool {
+            if outputTokens != existing.outputTokens {
+                return outputTokens > existing.outputTokens
+            }
+            if metadataCompleteness != existing.metadataCompleteness {
+                return metadataCompleteness > existing.metadataCompleteness
+            }
+            if processedTokens != existing.processedTokens {
+                return processedTokens > existing.processedTokens
+            }
+            return timestamp > existing.timestamp
         }
     }
 
     enum ID: Hashable, Sendable {
-        case codex(
-            threadID: String,
-            turnID: String?,
-            ordinal: UInt64?,
-            timestamp: Date,
-            model: String,
-            tokens: Codex.Tokens,
-            cumulativeTotal: Int64
-        )
-        case claude(messageID: String, requestID: String)
+        case codex(CodexID)
+        case claude(ClaudeID)
+        case piAgent(entryID: String, usage: UsageRecord)
     }
 
-    case codex(Codex)
-    case claude(Claude)
+    case codex(id: CodexID, usage: UsageRecord)
+    case claude(id: ClaudeID, usage: UsageRecord, revision: ClaudeRevision)
+    case piAgent(entryID: String, usage: UsageRecord)
 
     var id: ID {
         switch self {
-        case .codex(let event):
-            return .codex(
-                threadID: event.threadID,
-                turnID: event.turnID,
-                ordinal: event.ordinal,
-                timestamp: event.details.timestamp,
-                model: event.details.model,
-                tokens: event.tokens,
-                cumulativeTotal: event.cumulativeTotal
-            )
-        case .claude(let event):
-            return .claude(messageID: event.messageID, requestID: event.requestID)
+        case .codex(let id, _): .codex(id)
+        case .claude(let id, _, _): .claude(id)
+        case .piAgent(let entryID, let usage): .piAgent(entryID: entryID, usage: usage)
         }
     }
 
-    var details: Details {
+    var provider: UsageProvider {
         switch self {
-        case .codex(let event): event.details
-        case .claude(let event): event.details
+        case .codex: .codex
+        case .claude: .claude
+        case .piAgent: .piAgent
         }
     }
 
-    var processedTokens: Int64 {
+    var usage: UsageRecord {
         switch self {
-        case .codex(let event): event.tokens.processed
-        case .claude(let event): event.tokens.processed
+        case .codex(_, let usage), .claude(_, let usage, _), .piAgent(_, let usage): usage
         }
     }
-}
 
-extension UsageEvent.Claude {
     func isPreferred(over existing: Self) -> Bool {
-        if tokens.output != existing.tokens.output {
-            return tokens.output > existing.tokens.output
+        switch (self, existing) {
+        case (.codex, .codex), (.piAgent, .piAgent):
+            false
+        case (
+            .claude(_, _, let candidate),
+            .claude(_, _, let existing)
+        ):
+            candidate.isPreferred(over: existing)
+        case (.codex, .claude), (.codex, .piAgent), (.claude, .codex),
+            (.claude, .piAgent), (.piAgent, .codex), (.piAgent, .claude):
+            preconditionFailure("usage event id must identify one provider")
         }
-
-        let candidateMetadata = metadataCompleteness
-        let existingMetadata = existing.metadataCompleteness
-        if candidateMetadata != existingMetadata {
-            return candidateMetadata > existingMetadata
-        }
-        if tokens.processed != existing.tokens.processed {
-            return tokens.processed > existing.tokens.processed
-        }
-        return details.timestamp > existing.details.timestamp
     }
 }
 

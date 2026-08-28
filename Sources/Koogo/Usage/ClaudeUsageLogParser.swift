@@ -26,24 +26,34 @@ func parseClaudeLog(_ line: Data, decoder: JSONDecoder) -> UsageEvent? {
         let messageID = nonempty(message.id),
         let requestID = nonempty(record.requestID),
         let model = nonempty(message.model),
-        let usage = message.usage
+        let usage = message.usage,
+        let quote = ClaudeUsagePricing.quote(model: model, usage: usage)
     else {
         return nil
     }
 
+    let reasoningEffort = nonempty(record.effort)
     return .claude(
-        UsageEvent.Claude(
+        id: UsageEvent.ClaudeID(
             messageID: messageID,
-            requestID: requestID,
-            details: UsageEvent.Details(
-                timestamp: timestamp,
-                model: model,
-                reasoningEffort: nonempty(record.effort)
+            requestID: requestID
+        ),
+        usage: UsageRecord(
+            timestamp: timestamp,
+            processedTokens: usage.tokens.processed,
+            costUSD: quote.costUSD,
+            modelTurn: UsageRecord.ModelTurn(
+                model: quote.model,
+                reasoningEffort: reasoningEffort
+            )
+        ),
+        revision: UsageEvent.ClaudeRevision(
+            outputTokens: usage.tokens.output,
+            metadataCompleteness: usage.metadataCompleteness(
+                reasoningEffort: reasoningEffort
             ),
-            tokens: usage.tokens,
-            speed: usage.speed,
-            inferenceGeo: nonempty(usage.inferenceGeo),
-            webSearchRequests: usage.webSearchRequests
+            processedTokens: usage.tokens.processed,
+            timestamp: timestamp
         )
     )
 }
@@ -67,7 +77,7 @@ private struct ClaudeLogRecord: Decodable {
 private struct ClaudeMessage: Decodable {
     let id: String?
     let model: String?
-    let usage: ClaudeUsage?
+    let usage: ClaudeBillableUsage?
 
     static let usageMarker = Data(("\"" + CodingKeys.usage.rawValue + "\"").utf8)
 
@@ -78,12 +88,7 @@ private struct ClaudeMessage: Decodable {
     }
 }
 
-private struct ClaudeUsage: Decodable {
-    let tokens: UsageEvent.Claude.Tokens
-    let speed: UsageEvent.Claude.Speed
-    let inferenceGeo: String?
-    let webSearchRequests: Int64
-
+extension ClaudeBillableUsage: Decodable {
     private enum CodingKeys: String, CodingKey {
         case inputTokens = "input_tokens"
         case cacheReadInputTokens = "cache_read_input_tokens"
@@ -137,7 +142,7 @@ private struct ClaudeUsage: Decodable {
                 debugDescription: "invalid usage metadata"
             )
         }
-        tokens = UsageEvent.Claude.Tokens(
+        tokens = ClaudeTokenUsage(
             input: input,
             cacheRead: cacheRead,
             cacheCreation: cacheCreation,
@@ -149,7 +154,7 @@ private struct ClaudeUsage: Decodable {
         aggregate: Int64,
         breakdown: ClaudeCacheCreationBreakdown?,
         in container: KeyedDecodingContainer<CodingKeys>
-    ) throws -> UsageEvent.Claude.Tokens.CacheCreation {
+    ) throws -> ClaudeTokenUsage.CacheCreation {
         guard let breakdown else {
             return .aggregate(aggregate)
         }
@@ -168,7 +173,7 @@ private struct ClaudeUsage: Decodable {
 
     private static func speed(
         in container: KeyedDecodingContainer<CodingKeys>
-    ) throws -> UsageEvent.Claude.Speed {
+    ) throws -> ClaudeUsageSpeed {
         switch try container.decodeIfPresent(String.self, forKey: .speed) {
         case nil: .implicitStandard
         case "standard": .standard

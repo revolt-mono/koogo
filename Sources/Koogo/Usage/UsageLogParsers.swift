@@ -19,6 +19,7 @@ extension LogRecordKind {
 enum UsageFileParserState: Sendable {
     case codex(CodexLogParser = CodexLogParser())
     case claude
+    case piAgent(PiLogParser = PiLogParser())
 
     mutating func parse(
         _ line: UnsafeRawBufferPointer,
@@ -29,6 +30,7 @@ enum UsageFileParserState: Sendable {
             switch self {
             case .codex: CodexLogParser.mayContainEvent(line)
             case .claude: claudeLogMayContainEvent(line)
+            case .piAgent: true
             }
         guard containsMarker, let baseAddress = line.baseAddress else {
             return nil
@@ -45,6 +47,10 @@ enum UsageFileParserState: Sendable {
             return event
         case .claude:
             return parseClaudeLog(data, decoder: decoder)
+        case .piAgent(var parser):
+            let event = parser.parse(data, decoder: decoder)
+            self = .piAgent(parser)
+            return event
         }
     }
 }

@@ -1,5 +1,55 @@
 import Foundation
 
+struct ClaudeTokenUsage: Hashable, Sendable {
+    enum CacheCreation: Hashable, Sendable {
+        case aggregate(Int64)
+        case byDuration(fiveMinute: Int64, oneHour: Int64)
+    }
+
+    let input: Int64
+    let cacheRead: Int64
+    let cacheCreation: CacheCreation
+    let output: Int64
+
+    var processed: Int64 {
+        switch cacheCreation {
+        case .aggregate(let tokens):
+            input + cacheRead + tokens + output
+        case .byDuration(let fiveMinute, let oneHour):
+            input + cacheRead + fiveMinute + oneHour + output
+        }
+    }
+}
+
+enum ClaudeUsageSpeed: Sendable {
+    case implicitStandard
+    case standard
+    case fast
+}
+
+struct ClaudeBillableUsage: Sendable {
+    let tokens: ClaudeTokenUsage
+    let speed: ClaudeUsageSpeed
+    let inferenceGeo: String?
+    let webSearchRequests: Int64
+
+    func metadataCompleteness(reasoningEffort: String?) -> Int {
+        let explicitSpeed =
+            switch speed {
+            case .implicitStandard: 0
+            case .standard, .fast: 1
+            }
+        let explicitCacheDuration =
+            switch tokens.cacheCreation {
+            case .aggregate: 0
+            case .byDuration: 1
+            }
+        return explicitSpeed
+            + explicitCacheDuration
+            + (reasoningEffort == nil ? 0 : 1)
+    }
+}
+
 enum ClaudeUsagePricing {
     private struct Rates: Sendable {
         let input: Decimal
@@ -8,7 +58,7 @@ enum ClaudeUsagePricing {
         let cacheWriteOneHour: Decimal
         let output: Decimal
 
-        func cost(for tokens: UsageEvent.Claude.Tokens) -> Decimal {
+        func costNanodollars(for tokens: ClaudeTokenUsage) -> Decimal {
             let cacheCreationCost =
                 switch tokens.cacheCreation {
                 case .aggregate(let amount):
@@ -181,19 +231,19 @@ enum ClaudeUsagePricing {
         ),
     ]
 
-    static func quote(for event: UsageEvent.Claude) -> UsageQuote? {
+    static func quote(model: String, usage: ClaudeBillableUsage) -> UsageQuote? {
         let modelID =
-            switch event.details.model {
+            switch model {
             case "claude-opus-4-5": "claude-opus-4-5-20251101"
             case "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
             case "claude-haiku-4-5": "claude-haiku-4-5-20251001"
-            default: event.details.model
+            default: model
             }
         guard let price = prices[modelID] else {
             return nil
         }
         let rates =
-            switch event.speed {
+            switch usage.speed {
             case .implicitStandard, .standard: Optional(price.standard)
             case .fast: price.fast
             }
@@ -201,16 +251,17 @@ enum ClaudeUsagePricing {
             return nil
         }
 
-        var cost = rates.cost(for: event.tokens)
-        if event.inferenceGeo == "us" {
+        var costNanodollars = rates.costNanodollars(for: usage.tokens)
+        if usage.inferenceGeo == "us" {
             guard price.supportsUSInference else {
                 return nil
             }
-            cost = cost * 11 / 10
+            costNanodollars = costNanodollars * 11 / 10
         }
         return UsageQuote(
-            model: UsageQuote.Model(id: modelID, displayName: price.displayName),
-            costNanodollars: cost + Decimal(event.webSearchRequests) * 10_000_000
+            model: .claude(id: modelID, name: price.displayName),
+            costUSD: (costNanodollars + Decimal(usage.webSearchRequests) * 10_000_000)
+                / 1_000_000_000
         )
     }
 }

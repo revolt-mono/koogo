@@ -15,7 +15,7 @@ private enum CodexPayloadKind: String, LogRecordKind {
 struct CodexLogParser: Sendable {
     private var threadID: String?
     private var turn: CodexTurn?
-    private var previousTotalUsage: UsageEvent.Codex.Tokens?
+    private var previousTotalUsage: CodexTokenUsage?
 
     static func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
         line.containsTypeValue(in: eventMarkers)
@@ -64,23 +64,30 @@ struct CodexLogParser: Sendable {
         guard
             let timestampValue = record.timestamp,
             let timestamp = parseUsageTimestamp(timestampValue),
-            let turn
+            let turn,
+            let quote = CodexUsagePricing.quote(model: turn.model, tokens: lastUsage)
         else {
             return nil
         }
 
         return .codex(
-            UsageEvent.Codex(
+            id: UsageEvent.CodexID(
                 threadID: threadID ?? source,
                 turnID: turn.id,
                 ordinal: record.ordinal,
-                details: UsageEvent.Details(
-                    timestamp: timestamp,
-                    model: turn.model,
-                    reasoningEffort: turn.reasoningEffort
-                ),
+                timestamp: timestamp,
+                model: turn.model,
                 tokens: lastUsage,
                 cumulativeTotal: totalUsage.processed
+            ),
+            usage: UsageRecord(
+                timestamp: timestamp,
+                processedTokens: lastUsage.processed,
+                costUSD: quote.costUSD,
+                modelTurn: UsageRecord.ModelTurn(
+                    model: quote.model,
+                    reasoningEffort: turn.reasoningEffort
+                )
             )
         )
     }
@@ -184,8 +191,8 @@ private struct CodexTokenCount {
 }
 
 private struct CodexTokenInfo: Decodable {
-    let lastTokenUsage: UsageEvent.Codex.Tokens
-    let totalTokenUsage: UsageEvent.Codex.Tokens
+    let lastTokenUsage: CodexTokenUsage
+    let totalTokenUsage: CodexTokenUsage
     let modelContextWindow: Int64?
 
     private enum CodingKeys: String, CodingKey {
@@ -194,7 +201,7 @@ private struct CodexTokenInfo: Decodable {
         case modelContextWindow = "model_context_window"
     }
 
-    func isSyntheticContextFill(previous: UsageEvent.Codex.Tokens?) -> Bool {
+    func isSyntheticContextFill(previous: CodexTokenUsage?) -> Bool {
         guard
             let modelContextWindow,
             modelContextWindow >= 0,
@@ -222,7 +229,7 @@ private struct CodexTokenInfo: Decodable {
     }
 }
 
-extension UsageEvent.Codex.Tokens {
+extension CodexTokenUsage {
     fileprivate var componentsAreZero: Bool {
         input == 0
             && cachedInput == 0
@@ -232,7 +239,7 @@ extension UsageEvent.Codex.Tokens {
     }
 }
 
-extension UsageEvent.Codex.Tokens: Decodable {
+extension CodexTokenUsage: Decodable {
     private enum CodingKeys: String, CodingKey {
         case input = "input_tokens"
         case cachedInput = "cached_input_tokens"

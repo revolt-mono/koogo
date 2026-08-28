@@ -99,7 +99,7 @@ private struct TrackedUsageFile: Sendable {
     }
 
     mutating func discardEvents(before historyStart: Date) {
-        events = events.filter { $0.value.details.timestamp >= historyStart }
+        events = events.filter { $0.value.usage.timestamp >= historyStart }
     }
 
     private mutating func readAppendedBytes(
@@ -215,7 +215,7 @@ private struct TrackedUsageFile: Sendable {
                 let lineCount = start.distance(to: newline)
                 let line = UnsafeRawBufferPointer(start: start, count: lineCount)
                 if let event = parser.parse(line, source: path, decoder: decoder),
-                    event.details.timestamp >= historyStart
+                    event.usage.timestamp >= historyStart
                 {
                     events.insertPreferred(event)
                 }
@@ -255,11 +255,11 @@ private struct TrackedUsageFile: Sendable {
 }
 
 struct UsageLogIndex {
-    private let locations: UsageLogLocations
+    private let locations: UsageLocations.Logs
     private var trackedFiles: [String: TrackedUsageFile] = [:]
     private var indexedFrom: Date?
 
-    init(locations: UsageLogLocations) {
+    init(locations: UsageLocations.Logs) {
         self.locations = locations
     }
 
@@ -287,12 +287,15 @@ struct UsageLogIndex {
 
     private mutating func scanLogs(since historyStart: Date) {
         let sources =
-            (Self.jsonlFiles(in: locations.codexSessions)
-            + Self.jsonlFiles(in: locations.codexArchivedSessions)).map {
+            (Self.jsonlFiles(in: locations.codex.sessions)
+            + Self.jsonlFiles(in: locations.codex.archivedSessions)).map {
                 UsageLogSource(url: $0, parser: .codex())
             }
             + Self.jsonlFiles(in: locations.claudeProjects).map {
                 UsageLogSource(url: $0, parser: .claude)
+            }
+            + Self.jsonlFiles(in: locations.piAgent).map {
+                UsageLogSource(url: $0, parser: .piAgent())
             }
         var seenPaths = Set<String>()
         var newSources: [UsageLogSource] = []
@@ -360,15 +363,8 @@ private extension Dictionary where Key == UsageEvent.ID, Value == UsageEvent {
             self[event.id] = event
             return
         }
-        switch (event, existing) {
-        case (.codex, .codex):
-            break
-        case (.claude(let candidate), .claude(let existing)):
-            if candidate.isPreferred(over: existing) {
-                self[event.id] = event
-            }
-        case (.codex, .claude), (.claude, .codex):
-            preconditionFailure("usage event id must identify one provider")
+        if event.isPreferred(over: existing) {
+            self[event.id] = event
         }
     }
 }

@@ -1,5 +1,18 @@
 import Foundation
 
+struct CodexTokenUsage: Hashable, Sendable {
+    let input: Int64
+    let cachedInput: Int64
+    let cacheWrite: Int64
+    let output: Int64
+    let reasoningOutput: Int64
+    let processed: Int64
+
+    var uncachedInput: Int64 {
+        input - cachedInput - cacheWrite
+    }
+}
+
 enum CodexUsagePricing {
     private enum CacheWriteRate: Sendable {
         case unsupported
@@ -12,7 +25,7 @@ enum CodexUsagePricing {
         let cacheWrite: CacheWriteRate
         let output: Decimal
 
-        func cost(for tokens: UsageEvent.Codex.Tokens) -> Decimal? {
+        func costNanodollars(for tokens: CodexTokenUsage) -> Decimal? {
             let cacheWriteCost: Decimal
             switch (cacheWrite, tokens.cacheWrite) {
             case (.unsupported, 0):
@@ -33,12 +46,12 @@ enum CodexUsagePricing {
         case flat(Rates)
         case tiered(short: Rates, long: Rates)
 
-        func cost(for tokens: UsageEvent.Codex.Tokens) -> Decimal? {
+        func costNanodollars(for tokens: CodexTokenUsage) -> Decimal? {
             switch self {
             case .flat(let rates):
-                rates.cost(for: tokens)
+                rates.costNanodollars(for: tokens)
             case .tiered(let short, let long):
-                (tokens.input > 272_000 ? long : short).cost(for: tokens)
+                (tokens.input > 272_000 ? long : short).costNanodollars(for: tokens)
             }
         }
     }
@@ -178,22 +191,22 @@ enum CodexUsagePricing {
         ),
     ]
 
-    static func quote(for event: UsageEvent.Codex) -> UsageQuote? {
+    static func quote(model: String, tokens: CodexTokenUsage) -> UsageQuote? {
         let modelID =
-            event.details.model == "gpt-5.6"
+            model == "gpt-5.6"
             ? "gpt-5.6-sol"
-            : event.details.model
+            : model
         guard
             let price = prices[modelID],
-            let cost = price.rates.cost(for: event.tokens)
+            let costNanodollars = price.rates.costNanodollars(for: tokens)
         else {
             return nil
         }
 
         // Codex rollout logs do not reliably record service tiers, so usage uses standard rates.
         return UsageQuote(
-            model: UsageQuote.Model(id: modelID, displayName: price.displayName),
-            costNanodollars: cost
+            model: .codex(id: modelID, name: price.displayName),
+            costUSD: costNanodollars / 1_000_000_000
         )
     }
 }
