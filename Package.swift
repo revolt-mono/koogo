@@ -21,6 +21,7 @@ let package = Package(
                 .product(name: "Shimmer", package: "SwiftUI-Shimmer"),
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
+            exclude: ["Resources/Koogo.icon"],
             resources: [.process("Resources")]
         ),
         .testTarget(

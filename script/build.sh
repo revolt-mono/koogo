@@ -57,6 +57,7 @@ CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
+APP_ICON="$ROOT_DIR/Sources/Koogo/Resources/$APP_NAME.icon"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
@@ -64,6 +65,14 @@ cp "$BUILD_DIR/$APP_NAME" "$MACOS_DIR/$APP_NAME"
 ditto "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle" "$RESOURCES_DIR/${APP_NAME}_${APP_NAME}.bundle"
 ditto "$BUILD_DIR/Sparkle.framework" "$FRAMEWORKS_DIR/Sparkle.framework"
 chmod +x "$MACOS_DIR/$APP_NAME"
+xcrun actool \
+  --compile "$RESOURCES_DIR" \
+  --platform macosx \
+  --minimum-deployment-target "$MIN_SYSTEM_VERSION" \
+  --app-icon "$APP_NAME" \
+  --standalone-icon-behavior all \
+  --output-partial-info-plist "$CONTENTS_DIR/AppIcon.plist" \
+  "$APP_ICON"
 
 cat >"$CONTENTS_DIR/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -72,6 +81,8 @@ cat >"$CONTENTS_DIR/Info.plist" <<EOF
 <dict>
   <key>CFBundleExecutable</key><string>$APP_NAME</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key><string>$APP_NAME</string>
+  <key>CFBundleIconName</key><string>$APP_NAME</string>
   <key>CFBundleName</key><string>$APP_NAME</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0.$BUILD_NUMBER</string>
@@ -87,6 +98,7 @@ cat >"$CONTENTS_DIR/Info.plist" <<EOF
 </dict>
 </plist>
 EOF
+rm "$CONTENTS_DIR/AppIcon.plist"
 
 codesign \
   --force --options runtime --timestamp=none \
