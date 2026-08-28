@@ -8,10 +8,10 @@ func codexUsageEvent(
     id: Int = 0,
     model: String,
     effort: String? = nil,
-    uncachedInput: Int64,
-    cachedInput: Int64 = 0,
-    cacheWriteInput: Int64 = 0,
-    output: Int64 = 0,
+    uncachedInput: UInt64,
+    cachedInput: UInt64 = 0,
+    cacheWriteInput: UInt64 = 0,
+    output: UInt64 = 0,
     at eventDate: Date = usageTestTimestamp
 ) -> UsageEvent {
     let tokens = codexTokenUsage(
@@ -43,31 +43,36 @@ func codexUsageEvent(
 }
 
 func codexTokenUsage(
-    uncachedInput: Int64,
-    cachedInput: Int64 = 0,
-    cacheWriteInput: Int64 = 0,
-    output: Int64 = 0
+    uncachedInput: UInt64,
+    cachedInput: UInt64 = 0,
+    cacheWriteInput: UInt64 = 0,
+    output: UInt64 = 0
 ) -> CodexTokenUsage {
-    CodexTokenUsage(
-        input: uncachedInput + cachedInput + cacheWriteInput,
-        cachedInput: cachedInput,
-        cacheWrite: cacheWriteInput,
-        output: output,
-        reasoningOutput: 0,
-        processed: uncachedInput + cachedInput + cacheWriteInput + output
-    )
+    guard
+        let usage = CodexTokenUsage(
+            input: uncachedInput + cachedInput + cacheWriteInput,
+            cachedInput: cachedInput,
+            cacheWrite: cacheWriteInput,
+            output: output,
+            reasoningOutput: 0,
+            processed: uncachedInput + cachedInput + cacheWriteInput + output
+        )
+    else {
+        preconditionFailure("invalid codex usage fixture")
+    }
+    return usage
 }
 
 func claudeUsageEvent(
     model: String,
-    uncachedInput: Int64 = 0,
-    cachedInput: Int64 = 0,
-    cacheWrite5MinuteInput: Int64 = 0,
-    cacheWrite1HourInput: Int64 = 0,
-    output: Int64 = 0,
+    uncachedInput: UInt64 = 0,
+    cachedInput: UInt64 = 0,
+    cacheWrite5MinuteInput: UInt64 = 0,
+    cacheWrite1HourInput: UInt64 = 0,
+    output: UInt64 = 0,
     speed: ClaudeUsageSpeed = .standard,
     inferenceGeo: String? = nil,
-    webSearchRequests: Int64 = 0,
+    webSearchRequests: UInt64 = 0,
     at eventDate: Date = usageTestTimestamp
 ) -> UsageEvent {
     let usage = claudeBillableUsage(
@@ -101,17 +106,17 @@ func claudeUsageEvent(
 }
 
 func claudeBillableUsage(
-    uncachedInput: Int64 = 0,
-    cachedInput: Int64 = 0,
-    cacheWrite5MinuteInput: Int64 = 0,
-    cacheWrite1HourInput: Int64 = 0,
-    output: Int64 = 0,
+    uncachedInput: UInt64 = 0,
+    cachedInput: UInt64 = 0,
+    cacheWrite5MinuteInput: UInt64 = 0,
+    cacheWrite1HourInput: UInt64 = 0,
+    output: UInt64 = 0,
     speed: ClaudeUsageSpeed = .standard,
     inferenceGeo: String? = nil,
-    webSearchRequests: Int64 = 0
+    webSearchRequests: UInt64 = 0
 ) -> ClaudeBillableUsage {
-    ClaudeBillableUsage(
-        tokens: ClaudeTokenUsage(
+    guard
+        let tokens = ClaudeTokenUsage(
             input: uncachedInput,
             cacheRead: cachedInput,
             cacheCreation: .byDuration(
@@ -119,7 +124,12 @@ func claudeBillableUsage(
                 oneHour: cacheWrite1HourInput
             ),
             output: output
-        ),
+        )
+    else {
+        preconditionFailure("invalid claude usage fixture")
+    }
+    return ClaudeBillableUsage(
+        tokens: tokens,
         speed: speed,
         inferenceGeo: inferenceGeo,
         webSearchRequests: webSearchRequests

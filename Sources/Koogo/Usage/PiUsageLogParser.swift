@@ -25,7 +25,7 @@ struct PiLogParser: Sendable {
         guard let record = try? decoder.decode(PiLogRecord.self, from: line) else {
             return nil
         }
-        guard case .entry(let entryID, let parentID, let timestampValue, let action) = record else {
+        guard case .entry(let entryID, let parentID, let entryTimestamp, let action) = record else {
             return nil
         }
 
@@ -38,15 +38,17 @@ struct PiLogParser: Sendable {
             thinkingByEntry[entryID] = thinking
         }
         guard
-            case .billed(let billedUsage, let model, let messageTimestamp) = action,
+            case .billed(let billedUsage, let model, let timestampSource) = action,
             model != nil || billedUsage.processedTokens > 0 || billedUsage.costUSD > 0
         else {
             return nil
         }
         let timestamp =
-            messageTimestamp.map {
-                Date(timeIntervalSince1970: TimeInterval($0) / 1_000)
-            } ?? timestampValue.flatMap(parseUsageTimestamp)
+            switch timestampSource {
+            case .entry: parseUsageTimestamp(entryTimestamp)
+            case .milliseconds(let milliseconds):
+                Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
+            }
         guard let timestamp else {
             return nil
         }
@@ -70,9 +72,14 @@ struct PiLogParser: Sendable {
 
 private enum PiLogRecord: Decodable {
     enum Action: Decodable {
+        enum TimestampSource {
+            case entry
+            case milliseconds(UInt64)
+        }
+
         case inherit
         case thinking(String)
-        case billed(usage: PiLoggedUsage, model: PiModel?, timestampMilliseconds: Int64?)
+        case billed(usage: PiLoggedUsage, model: PiModel?, timestamp: TimestampSource)
 
         private enum CodingKeys: String, CodingKey {
             case role
@@ -92,16 +99,10 @@ private enum PiLogRecord: Decodable {
             let model: PiModel?
             switch role {
             case .assistant:
-                model =
-                    if let provider = nonempty(
-                        try container.decodeIfPresent(String.self, forKey: .provider)
-                    ),
-                        let id = nonempty(try container.decodeIfPresent(String.self, forKey: .model))
-                    {
-                        PiModel(provider: provider, id: id)
-                    } else {
-                        nil
-                    }
+                model = PiModel(
+                    provider: try container.decode(String.self, forKey: .provider),
+                    id: try container.decode(String.self, forKey: .model)
+                )
             case .toolResult:
                 model = nil
             case .other:
@@ -111,13 +112,13 @@ private enum PiLogRecord: Decodable {
             self = .billed(
                 usage: usage,
                 model: model,
-                timestampMilliseconds: try container.decodeIfPresent(Int64.self, forKey: .timestamp)
+                timestamp: .milliseconds(try container.decode(UInt64.self, forKey: .timestamp))
             )
         }
     }
 
     case session
-    case entry(id: String, parentID: String?, timestamp: String?, action: Action)
+    case entry(id: String, parentID: String?, timestamp: String, action: Action)
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -139,33 +140,21 @@ private enum PiLogRecord: Decodable {
         let action: Action
         switch type {
         case .message:
-            action =
-                try container.decodeIfPresent(Action.self, forKey: .message)
-                ?? .inherit
+            action = try container.decode(Action.self, forKey: .message)
         case .thinkingLevelChange:
-            action =
-                try container.decodeIfPresent(String.self, forKey: .thinkingLevel)
-                .flatMap(nonempty)
-                .map(Action.thinking) ?? .inherit
+            action = .thinking(try container.decode(String.self, forKey: .thinkingLevel))
         case .compaction, .branchSummary:
             action =
                 try container.decodeIfPresent(PiLoggedUsage.self, forKey: .usage)
-                .map { .billed(usage: $0, model: nil, timestampMilliseconds: nil) }
+                .map { .billed(usage: $0, model: nil, timestamp: .entry) }
                 ?? .inherit
         case .session, .other:
             action = .inherit
         }
-        guard let id = nonempty(try container.decodeIfPresent(String.self, forKey: .id)) else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .id,
-                in: container,
-                debugDescription: "missing entry id"
-            )
-        }
         self = .entry(
-            id: id,
-            parentID: nonempty(try container.decodeIfPresent(String.self, forKey: .parentID)),
-            timestamp: try container.decodeIfPresent(String.self, forKey: .timestamp),
+            id: try container.decode(String.self, forKey: .id),
+            parentID: try container.decodeIfPresent(String.self, forKey: .parentID),
+            timestamp: try container.decode(String.self, forKey: .timestamp),
             action: action
         )
     }
@@ -177,14 +166,11 @@ private struct PiModel {
 }
 
 private struct PiLoggedUsage: Decodable {
-    let processedTokens: Int64
+    let processedTokens: UInt64
     let costUSD: Decimal
 
     private enum CodingKeys: String, CodingKey {
-        case input
-        case output
-        case cacheRead
-        case cacheWrite
+        case totalTokens
         case cost
     }
 
@@ -194,23 +180,7 @@ private struct PiLoggedUsage: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        var processedTokens: Int64 = 0
-        for tokenCount in [
-            try container.decode(Int64.self, forKey: .input),
-            try container.decode(Int64.self, forKey: .output),
-            try container.decode(Int64.self, forKey: .cacheRead),
-            try container.decode(Int64.self, forKey: .cacheWrite),
-        ] {
-            let (sum, overflow) = processedTokens.addingReportingOverflow(tokenCount)
-            guard tokenCount >= 0, !overflow else {
-                throw DecodingError.dataCorruptedError(
-                    forKey: .input,
-                    in: container,
-                    debugDescription: "invalid token usage"
-                )
-            }
-            processedTokens = sum
-        }
+        processedTokens = try container.decode(UInt64.self, forKey: .totalTokens)
         let costUSD = try container.nestedContainer(
             keyedBy: CostCodingKeys.self,
             forKey: .cost
@@ -222,7 +192,6 @@ private struct PiLoggedUsage: Decodable {
                 debugDescription: "invalid usage cost"
             )
         }
-        self.processedTokens = processedTokens
         self.costUSD = costUSD
     }
 }

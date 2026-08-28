@@ -98,13 +98,13 @@ final class PiUsageTests: XCTestCase {
         XCTAssertEqual(events.map(\.usage.costUSD).reduce(0, +), Decimal(string: "0.06"))
     }
 
-    func testParserRejectsOverflowingTokens() {
+    func testParserUsesProviderTotalTokens() throws {
         var parser = UsageFileParserState.piAgent()
         let log = """
-            {"type":"compaction","id":"compaction","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","usage":{"input":9223372036854775807,"output":1,"cacheRead":0,"cacheWrite":0,"cost":{"total":1}}}
+            {"type":"compaction","id":"compaction","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","usage":{"input":10,"output":20,"cacheRead":30,"cacheWrite":40,"totalTokens":125,"cost":{"total":1}}}
             """
 
-        XCTAssertNil(parse(log, with: &parser))
+        XCTAssertEqual(try XCTUnwrap(parse(log, with: &parser)).usage.processedTokens, 125)
     }
 
     func testParserKeepsZeroUsageAssistantTurnsForFavorites() throws {
@@ -142,6 +142,7 @@ final class PiUsageTests: XCTestCase {
         let catalog = PiModelCatalog(locations: locations.piModels)
         XCTAssertEqual(catalog.displayName(provider: "provider", model: "model-a"), "Readable Model A")
         XCTAssertEqual(catalog.displayName(provider: "provider", model: "model-b"), "Preferred Model B")
+        XCTAssertEqual(catalog.displayName(provider: "provider", model: "unnamed"), "unnamed")
         XCTAssertEqual(catalog.displayName(provider: "provider", model: "unknown"), "unknown")
 
         let contents = piSessionLog
@@ -153,8 +154,8 @@ final class PiUsageTests: XCTestCase {
 
         XCTAssertEqual(snapshot.piAgent.today.processedTokens, 210)
         XCTAssertEqual(snapshot.piAgent.today.costUSD, Decimal(string: "0.21"))
-        XCTAssertEqual(snapshot.summary.today.processedTokens, 210)
-        XCTAssertEqual(snapshot.summary.today.cost.currentUSD, Decimal(string: "0.21"))
+        XCTAssertEqual(snapshot.summary.today.current.processedTokens, 210)
+        XCTAssertEqual(snapshot.summary.today.current.costUSD, Decimal(string: "0.21"))
         XCTAssertEqual(
             snapshot.piAgent.favorite,
             ProviderUsageSnapshot.Favorite(
@@ -198,7 +199,7 @@ final class PiUsageTests: XCTestCase {
 
     private func parse(_ line: String, with parser: inout UsageFileParserState) -> UsageEvent? {
         Data(line.utf8).withUnsafeBytes {
-            parser.parse($0, source: "/tmp/session.jsonl", decoder: decoder)
+            parser.parse($0, decoder: decoder)
         }
     }
 
@@ -224,7 +225,7 @@ private let piUser = """
     """
 
 private let piModelStore = """
-    {"provider":{"models":[{"id":"model-a","name":"Cached Model A"},{"id":"model-b","name":"Model B"}]}}
+    {"provider":{"models":[{"id":"model-a","name":"Cached Model A"},{"id":"model-b","name":"Model B"},{"id":"unnamed","name":"Stored Name"}]}}
     """
 
 private let piCustomModels = """
@@ -233,7 +234,10 @@ private let piCustomModels = """
       "providers": {
         "provider": {
           "apiKey": "ignored",
-          "models": [{"id": "model-a", "name": "Readable Model A"}],
+          "models": [
+            {"id": "model-a", "name": "Readable Model A"},
+            {"id": "unnamed"},
+          ],
           "modelOverrides": {
             "model-b": {"name": "Preferred Model B"},
           },

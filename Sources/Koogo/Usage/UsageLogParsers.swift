@@ -1,5 +1,64 @@
 import Foundation
 
+enum UsageEvent: Sendable {
+    struct CodexID: Hashable, Sendable {
+        let threadID: String
+        let turnID: String?
+        let ordinal: UInt64?
+        let timestamp: Date
+        let model: String
+        let tokens: CodexTokenUsage
+        let cumulativeTotal: UInt64
+    }
+
+    struct ClaudeID: Hashable, Sendable {
+        let messageID: String
+        let requestID: String
+    }
+
+    struct ClaudeRevision: Sendable {
+        let outputTokens: UInt64
+        let metadataCompleteness: Int
+        let processedTokens: UInt64
+        let timestamp: Date
+
+        func isPreferred(over existing: Self) -> Bool {
+            (outputTokens, metadataCompleteness, processedTokens, timestamp)
+                > (
+                    existing.outputTokens,
+                    existing.metadataCompleteness,
+                    existing.processedTokens,
+                    existing.timestamp
+                )
+        }
+    }
+
+    case codex(id: CodexID, usage: UsageRecord)
+    case claude(id: ClaudeID, usage: UsageRecord, revision: ClaudeRevision)
+    case piAgent(entryID: String, usage: UsageRecord)
+
+    var provider: UsageProvider {
+        switch self {
+        case .codex: .codex
+        case .claude: .claude
+        case .piAgent: .piAgent
+        }
+    }
+
+    var usage: UsageRecord {
+        switch self {
+        case .codex(_, let usage), .claude(_, let usage, _), .piAgent(_, let usage): usage
+        }
+    }
+}
+
+func parseUsageTimestamp(_ value: String) -> Date? {
+    if let date = try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(value) {
+        return date
+    }
+    return try? Date.ISO8601FormatStyle().parse(value)
+}
+
 private let logTypeKey = Data("\"type\"".utf8)
 
 protocol LogRecordKind: RawRepresentable, Decodable, Sendable where RawValue == String {
@@ -23,7 +82,6 @@ enum UsageFileParserState: Sendable {
 
     mutating func parse(
         _ line: UnsafeRawBufferPointer,
-        source: String,
         decoder: JSONDecoder
     ) -> UsageEvent? {
         let containsMarker =
@@ -42,7 +100,7 @@ enum UsageFileParserState: Sendable {
         )
         switch self {
         case .codex(var parser):
-            let event = parser.parse(data, source: source, decoder: decoder)
+            let event = parser.parse(data, decoder: decoder)
             self = .codex(parser)
             return event
         case .claude:
@@ -115,11 +173,4 @@ extension UInt8 {
     fileprivate var isJSONWhitespace: Bool {
         self == 0x20 || self == 0x09 || self == 0x0A || self == 0x0D
     }
-}
-
-func nonempty(_ value: String?) -> String? {
-    guard let value, !value.isEmpty else {
-        return nil
-    }
-    return value
 }

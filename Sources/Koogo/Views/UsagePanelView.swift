@@ -32,7 +32,11 @@ struct UsagePanelView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                UsageSummaryView(summary: snapshot.summary)
+                VStack(alignment: .leading, spacing: 12) {
+                    UsageSummaryPeriod(title: "Today", usage: snapshot.summary.today)
+                    UsageSummaryPeriod(title: "Monthly", usage: snapshot.summary.month)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             QuickActionsControl()
@@ -52,18 +56,6 @@ struct UsagePanelView: View {
     }
 }
 
-private struct UsageSummaryView: View {
-    let summary: UsageSummarySnapshot
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            UsageSummaryPeriod(title: "Today", usage: summary.today)
-            UsageSummaryPeriod(title: "Monthly", usage: summary.month)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 private struct UsageSummaryPeriod: View {
     let title: String
     let usage: UsageSummaryPeriodSnapshot
@@ -80,8 +72,8 @@ private struct UsageSummaryPeriod: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(UsageFormatting.cost(usage.cost.currentUSD))
-                        UsageCostChangeCapsule(change: usage.cost.change)
+                        Text(UsageFormatting.cost(usage.current.costUSD))
+                        UsageCostChangeCapsule(change: usage.costChange)
                     }
 
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -89,7 +81,7 @@ private struct UsageSummaryPeriod: View {
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
 
-                        Text("\(UsageFormatting.tokens(usage.processedTokens)) tokens")
+                        Text("\(UsageFormatting.tokens(usage.current.processedTokens)) tokens")
                     }
                 }
                 .font(.system(size: 15, weight: .bold))
@@ -118,15 +110,15 @@ private struct UsageSummaryValueLine: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(UsageFormatting.cost(usage.cost.currentUSD))
+            Text(UsageFormatting.cost(usage.current.costUSD))
 
-            UsageCostChangeCapsule(change: usage.cost.change)
+            UsageCostChangeCapsule(change: usage.costChange)
 
             Text("and")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            Text("\(UsageFormatting.tokens(usage.processedTokens)) tokens")
+            Text("\(UsageFormatting.tokens(usage.current.processedTokens)) tokens")
         }
         .font(.system(size: fontSize, weight: .bold))
         .fixedSize()
@@ -137,30 +129,26 @@ private struct UsageCostChangeCapsule: View {
     let change: UsageCostChange
 
     var body: some View {
-        let percentage = UsageFormatting.percentage(change.fraction)
-        let style: (text: String, color: Color, accessibilityLabel: String) =
-            switch change.direction {
-            case .increase:
+        let style: (prefix: String, fraction: Decimal, color: Color) =
+            switch change {
+            case .increase(let fraction):
                 (
-                    "+\(percentage)",
-                    Color(red: 0, green: 128.0 / 255, blue: 9.0 / 255),
-                    "Cost increased \(percentage) from the previous period"
+                    "+",
+                    fraction,
+                    Color(red: 0, green: 128.0 / 255, blue: 9.0 / 255)
                 )
-            case .decrease:
+            case .decrease(let fraction):
                 (
-                    "-\(percentage)",
-                    Color(red: 182.0 / 255, green: 68.0 / 255, blue: 0),
-                    "Cost decreased \(percentage) from the previous period"
+                    "-",
+                    fraction,
+                    Color(red: 182.0 / 255, green: 68.0 / 255, blue: 0)
                 )
             case .unchanged:
-                (
-                    percentage,
-                    .secondary,
-                    "Cost unchanged from the previous period"
-                )
+                ("", 0, .secondary)
             }
+        let percentage = UsageFormatting.percentage(style.fraction)
 
-        Text(style.text)
+        Text(style.prefix + percentage)
             .font(.system(size: 9, weight: .bold))
             .monospacedDigit()
             .lineLimit(1)
@@ -176,7 +164,14 @@ private struct UsageCostChangeCapsule: View {
                 dimensions[.bottom] + 2
             }
             .accessibilityRepresentation {
-                Text(style.accessibilityLabel)
+                switch change {
+                case .increase:
+                    Text("Cost increased \(percentage) from the previous period")
+                case .decrease:
+                    Text("Cost decreased \(percentage) from the previous period")
+                case .unchanged:
+                    Text("Cost unchanged from the previous period")
+                }
             }
     }
 }

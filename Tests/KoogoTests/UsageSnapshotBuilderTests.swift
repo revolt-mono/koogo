@@ -30,17 +30,16 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         )
     }
 
-    func testCostComparisonUsesStockStyleZeroBaseline() throws {
-        for (current, previous, direction, fraction) in [
-            (Decimal(5), Decimal(0), UsageCostChange.Direction.increase, Decimal(1)),
-            (Decimal(0), Decimal(5), .decrease, Decimal(1)),
-            (Decimal(0), Decimal(0), .unchanged, Decimal(0)),
-            (Decimal(15), Decimal(10), .increase, Decimal(1) / 2),
-            (Decimal(5), Decimal(10), .decrease, Decimal(1) / 2),
+    func testCostChangeUsesStockStyleZeroBaseline() throws {
+        for (current, previous, expected) in [
+            (Decimal(5), Decimal(0), UsageCostChange.increase(fraction: 1)),
+            (Decimal(0), Decimal(5), .decrease(fraction: 1)),
+            (Decimal(0), Decimal(0), .unchanged),
+            (Decimal(15), Decimal(10), .increase(fraction: Decimal(1) / 2)),
+            (Decimal(5), Decimal(10), .decrease(fraction: Decimal(1) / 2)),
         ] {
             let change = UsageCostChange(currentUSD: current, previousUSD: previous)
-            XCTAssertEqual(change.direction, direction)
-            XCTAssertEqual(change.fraction, fraction)
+            XCTAssertEqual(change, expected)
         }
 
         XCTAssertEqual(UsageFormatting.percentage(1), "100%")
@@ -85,8 +84,8 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.055"))
-        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.11"))
+        XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
+        XCTAssertEqual(snapshot.summary.month.costChange, .decrease(fraction: Decimal(1) / 2))
     }
 
     func testPreviousMonthExcludesCurrentMonthBoundary() throws {
@@ -113,8 +112,8 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.summary.month.cost.currentUSD, Decimal(string: "0.05"))
-        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.005"))
+        XCTAssertEqual(snapshot.summary.month.current.costUSD, Decimal(string: "0.05"))
+        XCTAssertEqual(snapshot.summary.month.costChange, .increase(fraction: 9))
     }
 
     func testSnapshotDerivesPeriodsAndDailySeriesFromDayBuckets() throws {

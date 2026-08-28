@@ -12,6 +12,63 @@ private struct UsageFileIdentity: Equatable, Sendable {
     let inode: UInt64
 }
 
+private struct IndexedUsageEvents: Sendable {
+    private var codex: [UsageEvent.CodexID: UsageRecord] = [:]
+    private var claude: [UsageEvent.ClaudeID: (usage: UsageRecord, revision: UsageEvent.ClaudeRevision)] = [:]
+    private var piAgent: [String: UsageRecord] = [:]
+
+    var values: [UsageEvent] {
+        var events: [UsageEvent] = []
+        events.reserveCapacity(codex.count + claude.count + piAgent.count)
+        events.append(
+            contentsOf: codex.lazy.map { .codex(id: $0.key, usage: $0.value) }
+        )
+        events.append(
+            contentsOf: claude.lazy.map {
+                .claude(id: $0.key, usage: $0.value.usage, revision: $0.value.revision)
+            }
+        )
+        events.append(
+            contentsOf: piAgent.lazy.map { .piAgent(entryID: $0.key, usage: $0.value) }
+        )
+        return events
+    }
+
+    mutating func insert(_ event: UsageEvent) {
+        switch event {
+        case .codex(let id, let usage):
+            guard codex[id] == nil else {
+                return
+            }
+            codex[id] = usage
+        case .claude(let id, let usage, let revision):
+            if let existing = claude[id], !revision.isPreferred(over: existing.revision) {
+                return
+            }
+            claude[id] = (usage, revision)
+        case .piAgent(let entryID, let usage):
+            guard piAgent[entryID] == nil else {
+                return
+            }
+            piAgent[entryID] = usage
+        }
+    }
+
+    mutating func merge(_ other: Self) {
+        codex.merge(other.codex) { current, _ in current }
+        claude.merge(other.claude) { current, candidate in
+            candidate.revision.isPreferred(over: current.revision) ? candidate : current
+        }
+        piAgent.merge(other.piAgent) { current, _ in current }
+    }
+
+    mutating func discard(before historyStart: Date) {
+        codex = codex.filter { $0.value.timestamp >= historyStart }
+        claude = claude.filter { $0.value.usage.timestamp >= historyStart }
+        piAgent = piAgent.filter { $0.value.timestamp >= historyStart }
+    }
+}
+
 private struct UsageFileMetadata: Sendable {
     let identity: UsageFileIdentity
     let size: UInt64
@@ -51,13 +108,12 @@ private struct UsageFileMetadata: Sendable {
 
 private struct TrackedUsageFile: Sendable {
     private static let parsedTailSize = 64
-    private static let readChunkSize = 1_048_576
 
     private var metadata: UsageFileMetadata
     private var parsedOffset: UInt64
     private var parsedTail: Data
     private var parser: UsageFileParserState
-    private(set) var events: [UsageEvent.ID: UsageEvent]
+    var events: IndexedUsageEvents
 
     init?(source: UsageLogSource, since historyStart: Date) {
         guard let handle = try? FileHandle(forReadingFrom: source.url) else {
@@ -72,9 +128,8 @@ private struct TrackedUsageFile: Sendable {
         parsedOffset = 0
         parsedTail = Data()
         parser = source.parser
-        events = [:]
-        guard readBytes(handle, in: 0..<metadata.size, path: source.url.path, since: historyStart)
-        else {
+        events = IndexedUsageEvents()
+        guard readBytes(handle, in: 0..<metadata.size, since: historyStart) else {
             return nil
         }
     }
@@ -96,10 +151,6 @@ private struct TrackedUsageFile: Sendable {
         } else if metadata.size > self.metadata.size {
             readAppendedBytes(from: source, since: historyStart)
         }
-    }
-
-    mutating func discardEvents(before historyStart: Date) {
-        events = events.filter { $0.value.usage.timestamp >= historyStart }
     }
 
     private mutating func readAppendedBytes(
@@ -129,7 +180,6 @@ private struct TrackedUsageFile: Sendable {
             candidate.readBytes(
                 handle,
                 in: parsedOffset..<metadata.size,
-                path: source.url.path,
                 since: historyStart
             )
         else {
@@ -142,7 +192,6 @@ private struct TrackedUsageFile: Sendable {
     private mutating func readBytes(
         _ handle: FileHandle,
         in offsets: Range<UInt64>,
-        path: String,
         since historyStart: Date
     ) -> Bool {
         do {
@@ -154,7 +203,7 @@ private struct TrackedUsageFile: Sendable {
             while readOffset < offsets.upperBound {
                 guard
                     try autoreleasepool(invoking: { () -> Bool in
-                        let count = Int(min(offsets.upperBound - readOffset, UInt64(Self.readChunkSize)))
+                        let count = Int(min(offsets.upperBound - readOffset, 1_048_576))
                         guard let chunk = try handle.read(upToCount: count), !chunk.isEmpty else {
                             return false
                         }
@@ -177,7 +226,6 @@ private struct TrackedUsageFile: Sendable {
                         }
                         parseCompleteLines(
                             completeData,
-                            path: path,
                             since: historyStart,
                             decoder: decoder
                         )
@@ -197,7 +245,6 @@ private struct TrackedUsageFile: Sendable {
 
     private mutating func parseCompleteLines(
         _ data: Data,
-        path: String,
         since historyStart: Date,
         decoder: JSONDecoder
     ) {
@@ -214,10 +261,10 @@ private struct TrackedUsageFile: Sendable {
                 }
                 let lineCount = start.distance(to: newline)
                 let line = UnsafeRawBufferPointer(start: start, count: lineCount)
-                if let event = parser.parse(line, source: path, decoder: decoder),
+                if let event = parser.parse(line, decoder: decoder),
                     event.usage.timestamp >= historyStart
                 {
-                    events.insertPreferred(event)
+                    events.insert(event)
                 }
                 lineStart += lineCount + 1
             }
@@ -269,20 +316,18 @@ struct UsageLogIndex {
         } else {
             trackedFiles = trackedFiles.mapValues { tracked in
                 var tracked = tracked
-                tracked.discardEvents(before: historyStart)
+                tracked.events.discard(before: historyStart)
                 return tracked
             }
         }
         indexedFrom = historyStart
         scanLogs(since: historyStart)
 
-        var events: [UsageEvent.ID: UsageEvent] = [:]
+        var events = IndexedUsageEvents()
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
-            for event in tracked.events.values {
-                events.insertPreferred(event)
-            }
+            events.merge(tracked.events)
         }
-        return Array(events.values)
+        return events.values
     }
 
     private mutating func scanLogs(since historyStart: Date) {
@@ -353,18 +398,6 @@ struct UsageLogIndex {
                 return nil
             }
             return url
-        }
-    }
-}
-
-private extension Dictionary where Key == UsageEvent.ID, Value == UsageEvent {
-    mutating func insertPreferred(_ event: UsageEvent) {
-        guard let existing = self[event.id] else {
-            self[event.id] = event
-            return
-        }
-        if event.isPreferred(over: existing) {
-            self[event.id] = event
         }
     }
 }

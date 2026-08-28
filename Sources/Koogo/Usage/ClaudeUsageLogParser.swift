@@ -23,16 +23,16 @@ func parseClaudeLog(_ line: Data, decoder: JSONDecoder) -> UsageEvent? {
         let timestampValue = record.timestamp,
         let timestamp = parseUsageTimestamp(timestampValue),
         let message = record.message,
-        let messageID = nonempty(message.id),
-        let requestID = nonempty(record.requestID),
-        let model = nonempty(message.model),
+        let messageID = nonEmpty(message.id),
+        let requestID = nonEmpty(record.requestID),
+        let model = nonEmpty(message.model),
         let usage = message.usage,
         let quote = ClaudeUsagePricing.quote(model: model, usage: usage)
     else {
         return nil
     }
 
-    let reasoningEffort = nonempty(record.effort)
+    let reasoningEffort = nonEmpty(record.effort)
     return .claude(
         id: UsageEvent.ClaudeID(
             messageID: messageID,
@@ -102,19 +102,6 @@ extension ClaudeBillableUsage: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let input = try container.decode(Int64.self, forKey: .inputTokens)
-        let cacheRead = try container.decodeIfPresent(Int64.self, forKey: .cacheReadInputTokens) ?? 0
-        let cacheWrite = try container.decodeIfPresent(Int64.self, forKey: .cacheCreationInputTokens) ?? 0
-        let output = try container.decode(Int64.self, forKey: .outputTokens)
-        let cacheCreation = try Self.cacheCreation(
-            aggregate: cacheWrite,
-            breakdown: container.decodeIfPresent(
-                ClaudeCacheCreationBreakdown.self,
-                forKey: .cacheCreation
-            ),
-            in: container
-        )
-
         speed = try Self.speed(in: container)
         inferenceGeo = try container.decodeIfPresent(String.self, forKey: .inferenceGeo)
         webSearchRequests =
@@ -123,35 +110,38 @@ extension ClaudeBillableUsage: Decodable {
                 forKey: .serverToolUse
             )?.webSearchRequests ?? 0
 
-        _ = try [input, cacheRead, cacheWrite, output]
-            .reduce(into: Int64.zero) { processed, value in
-                let (sum, overflow) = processed.addingReportingOverflow(value)
-                guard value >= 0, !overflow else {
-                    throw DecodingError.dataCorruptedError(
-                        forKey: .inputTokens,
-                        in: container,
-                        debugDescription: "invalid token usage"
-                    )
-                }
-                processed = sum
-            }
-        guard webSearchRequests >= 0 else {
+        guard
+            let tokens = ClaudeTokenUsage(
+                input: try container.decode(UInt64.self, forKey: .inputTokens),
+                cacheRead: try container.decodeIfPresent(
+                    UInt64.self,
+                    forKey: .cacheReadInputTokens
+                ) ?? 0,
+                cacheCreation: try Self.cacheCreation(
+                    aggregate: container.decodeIfPresent(
+                        UInt64.self,
+                        forKey: .cacheCreationInputTokens
+                    ) ?? 0,
+                    breakdown: container.decodeIfPresent(
+                        ClaudeCacheCreationBreakdown.self,
+                        forKey: .cacheCreation
+                    ),
+                    in: container
+                ),
+                output: try container.decode(UInt64.self, forKey: .outputTokens)
+            )
+        else {
             throw DecodingError.dataCorruptedError(
-                forKey: .serverToolUse,
+                forKey: .inputTokens,
                 in: container,
-                debugDescription: "invalid usage metadata"
+                debugDescription: "invalid token usage"
             )
         }
-        tokens = ClaudeTokenUsage(
-            input: input,
-            cacheRead: cacheRead,
-            cacheCreation: cacheCreation,
-            output: output
-        )
+        self.tokens = tokens
     }
 
     private static func cacheCreation(
-        aggregate: Int64,
+        aggregate: UInt64,
         breakdown: ClaudeCacheCreationBreakdown?,
         in container: KeyedDecodingContainer<CodingKeys>
     ) throws -> ClaudeTokenUsage.CacheCreation {
@@ -161,7 +151,7 @@ extension ClaudeBillableUsage: Decodable {
         let fiveMinute = breakdown.ephemeral5MinuteInputTokens ?? 0
         let oneHour = breakdown.ephemeral1HourInputTokens ?? 0
         let (total, overflow) = fiveMinute.addingReportingOverflow(oneHour)
-        guard fiveMinute >= 0, oneHour >= 0, !overflow, total == aggregate else {
+        guard !overflow, total == aggregate else {
             throw DecodingError.dataCorruptedError(
                 forKey: .cacheCreationInputTokens,
                 in: container,
@@ -189,8 +179,8 @@ extension ClaudeBillableUsage: Decodable {
 }
 
 private struct ClaudeCacheCreationBreakdown: Decodable {
-    let ephemeral5MinuteInputTokens: Int64?
-    let ephemeral1HourInputTokens: Int64?
+    let ephemeral5MinuteInputTokens: UInt64?
+    let ephemeral1HourInputTokens: UInt64?
 
     private enum CodingKeys: String, CodingKey {
         case ephemeral5MinuteInputTokens = "ephemeral_5m_input_tokens"
@@ -199,9 +189,16 @@ private struct ClaudeCacheCreationBreakdown: Decodable {
 }
 
 private struct ClaudeServerToolUse: Decodable {
-    let webSearchRequests: Int64?
+    let webSearchRequests: UInt64?
 
     private enum CodingKeys: String, CodingKey {
         case webSearchRequests = "web_search_requests"
     }
+}
+
+private func nonEmpty(_ value: String?) -> String? {
+    guard let value, !value.isEmpty else {
+        return nil
+    }
+    return value
 }

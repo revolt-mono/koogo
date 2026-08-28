@@ -62,11 +62,13 @@ final class UsagePricingTests: XCTestCase {
             ClaudeUsagePricing.quote(
                 model: "claude-opus-5",
                 usage: ClaudeBillableUsage(
-                    tokens: ClaudeTokenUsage(
-                        input: 0,
-                        cacheRead: 0,
-                        cacheCreation: .aggregate(100),
-                        output: 0
+                    tokens: try XCTUnwrap(
+                        ClaudeTokenUsage(
+                            input: 0,
+                            cacheRead: 0,
+                            cacheCreation: .aggregate(100),
+                            output: 0
+                        )
                     ),
                     speed: .standard,
                     inferenceGeo: nil,

@@ -6,8 +6,13 @@ struct PiModelCatalog: Sendable {
         let model: String
     }
 
-    private struct Model: Decodable {
-        let id: String?
+    private struct StoredModel: Decodable {
+        let id: String
+        let name: String
+    }
+
+    private struct CustomModel: Decodable {
+        let id: String
         let name: String?
     }
 
@@ -15,13 +20,17 @@ struct PiModelCatalog: Sendable {
         let name: String?
     }
 
-    private struct ProviderModels: Decodable {
-        let models: [Model]?
+    private struct StoredProvider: Decodable {
+        let models: [StoredModel]
+    }
+
+    private struct CustomProvider: Decodable {
+        let models: [CustomModel]?
         let modelOverrides: [String: ModelOverride]?
     }
 
     private struct CustomModels: Decodable {
-        let providers: [String: ProviderModels]
+        let providers: [String: CustomProvider]
     }
 
     static let empty = PiModelCatalog(names: [:])
@@ -29,28 +38,20 @@ struct PiModelCatalog: Sendable {
     private let names: [ID: String]
 
     init(locations: UsageLocations.PiModels) {
-        let custom = Self.decode(
-            CustomModels.self,
-            from: locations.custom,
-            allowsJSON5: true
-        )
         var names: [ID: String] = [:]
-        for providers in [
-            Self.decode([String: ProviderModels].self, from: locations.store) ?? [:],
-            custom?.providers ?? [:],
-        ] {
-            for (provider, configuration) in providers {
-                for model in configuration.models ?? [] {
-                    guard let id = nonempty(model.id), let name = nonempty(model.name) else {
-                        continue
-                    }
-                    names[ID(provider: provider, model: id)] = name
-                }
+        for (provider, configuration) in Self.decode([String: StoredProvider].self, from: locations.store) ?? [:] {
+            for model in configuration.models {
+                names[ID(provider: provider, model: model.id)] = model.name
             }
         }
-        for (provider, configuration) in custom?.providers ?? [:] {
+        for (provider, configuration) in Self.decode(CustomModels.self, from: locations.custom, allowsJSON5: true)?
+            .providers ?? [:]
+        {
+            for model in configuration.models ?? [] {
+                names[ID(provider: provider, model: model.id)] = model.name ?? model.id
+            }
             for (model, override) in configuration.modelOverrides ?? [:] {
-                guard let model = nonempty(model), let name = nonempty(override.name) else {
+                guard let name = override.name else {
                     continue
                 }
                 names[ID(provider: provider, model: model)] = name

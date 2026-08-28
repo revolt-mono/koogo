@@ -219,8 +219,8 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.summary.today.cost.previousUSD, Decimal(string: "0.0011"))
-        XCTAssertEqual(snapshot.summary.month.cost.previousUSD, Decimal(string: "0.0022"))
+        XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
+        XCTAssertEqual(snapshot.summary.month.costChange, .decrease(fraction: Decimal(1) / 2))
     }
 
     func testColdScanIgnoresJSONLSymlinks() async throws {

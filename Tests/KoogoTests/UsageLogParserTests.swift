@@ -139,6 +139,7 @@ final class UsageLogParserTests: XCTestCase {
 
     func testCodexPreservesCacheWritesWithoutInventingDuration() throws {
         var parser = UsageFileParserState.codex()
+        _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
         let event = try XCTUnwrap(
             parse(
@@ -155,13 +156,15 @@ final class UsageLogParserTests: XCTestCase {
 
         XCTAssertEqual(
             id.tokens,
-            CodexTokenUsage(
-                input: 100,
-                cachedInput: 10,
-                cacheWrite: 30,
-                output: 20,
-                reasoningOutput: 0,
-                processed: 120
+            try XCTUnwrap(
+                CodexTokenUsage(
+                    input: 100,
+                    cachedInput: 10,
+                    cacheWrite: 30,
+                    output: 20,
+                    reasoningOutput: 0,
+                    processed: 120
+                )
             )
         )
         XCTAssertEqual(id.tokens.uncachedInput, 60)
@@ -217,20 +220,20 @@ final class UsageLogParserTests: XCTestCase {
         var codexParser = UsageFileParserState.codex()
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &codexParser)
         let codex = """
-            {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":9223372036854775807,"cached_input_tokens":9223372036854775807,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":9223372036854775807},"total_token_usage":{"input_tokens":9223372036854775807,"cached_input_tokens":9223372036854775807,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":9223372036854775807},"model_context_window":1000}}}
+            {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":18446744073709551615,"cached_input_tokens":18446744073709551615,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":18446744073709551615},"total_token_usage":{"input_tokens":18446744073709551615,"cached_input_tokens":18446744073709551615,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":18446744073709551615},"model_context_window":1000}}}
             """
         XCTAssertNil(parse(codex, with: &codexParser))
 
         var claudeParser = UsageFileParserState.claude
         let claude = """
-            {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":0,"cache_creation_input_tokens":9223372036854775807,"output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":9223372036854775807,"ephemeral_1h_input_tokens":1}}}}
+            {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":0,"cache_creation_input_tokens":18446744073709551615,"output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":18446744073709551615,"ephemeral_1h_input_tokens":1}}}}
             """
         XCTAssertNil(parse(claude, with: &claudeParser))
     }
 
     private func parse(_ line: String, with parser: inout UsageFileParserState) -> UsageEvent? {
         Data(line.utf8).withUnsafeBytes {
-            parser.parse($0, source: "/tmp/session.jsonl", decoder: decoder)
+            parser.parse($0, decoder: decoder)
         }
     }
 

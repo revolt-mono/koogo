@@ -1,14 +1,34 @@
 import Foundation
 
 struct CodexTokenUsage: Hashable, Sendable {
-    let input: Int64
-    let cachedInput: Int64
-    let cacheWrite: Int64
-    let output: Int64
-    let reasoningOutput: Int64
-    let processed: Int64
+    let input: UInt64
+    let cachedInput: UInt64
+    let cacheWrite: UInt64
+    let output: UInt64
+    let reasoningOutput: UInt64
+    let processed: UInt64
 
-    var uncachedInput: Int64 {
+    init?(
+        input: UInt64,
+        cachedInput: UInt64,
+        cacheWrite: UInt64,
+        output: UInt64,
+        reasoningOutput: UInt64,
+        processed: UInt64
+    ) {
+        let (cachedAndWritten, overflow) = cachedInput.addingReportingOverflow(cacheWrite)
+        guard !overflow, cachedAndWritten <= input, reasoningOutput <= output else {
+            return nil
+        }
+        self.input = input
+        self.cachedInput = cachedInput
+        self.cacheWrite = cacheWrite
+        self.output = output
+        self.reasoningOutput = reasoningOutput
+        self.processed = processed
+    }
+
+    var uncachedInput: UInt64 {
         input - cachedInput - cacheWrite
     }
 }

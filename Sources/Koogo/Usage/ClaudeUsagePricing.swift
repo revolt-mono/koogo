@@ -2,22 +2,41 @@ import Foundation
 
 struct ClaudeTokenUsage: Hashable, Sendable {
     enum CacheCreation: Hashable, Sendable {
-        case aggregate(Int64)
-        case byDuration(fiveMinute: Int64, oneHour: Int64)
+        case aggregate(UInt64)
+        case byDuration(fiveMinute: UInt64, oneHour: UInt64)
     }
 
-    let input: Int64
-    let cacheRead: Int64
+    let input: UInt64
+    let cacheRead: UInt64
     let cacheCreation: CacheCreation
-    let output: Int64
+    let output: UInt64
+    let processed: UInt64
 
-    var processed: Int64 {
-        switch cacheCreation {
-        case .aggregate(let tokens):
-            input + cacheRead + tokens + output
-        case .byDuration(let fiveMinute, let oneHour):
-            input + cacheRead + fiveMinute + oneHour + output
+    init?(
+        input: UInt64,
+        cacheRead: UInt64,
+        cacheCreation: CacheCreation,
+        output: UInt64
+    ) {
+        var processed = UInt64.zero
+        let amounts =
+            switch cacheCreation {
+            case .aggregate(let tokens): [input, cacheRead, tokens, output]
+            case .byDuration(let fiveMinute, let oneHour):
+                [input, cacheRead, fiveMinute, oneHour, output]
+            }
+        for amount in amounts {
+            let (sum, overflow) = processed.addingReportingOverflow(amount)
+            guard !overflow else {
+                return nil
+            }
+            processed = sum
         }
+        self.input = input
+        self.cacheRead = cacheRead
+        self.cacheCreation = cacheCreation
+        self.output = output
+        self.processed = processed
     }
 }
 
@@ -31,7 +50,7 @@ struct ClaudeBillableUsage: Sendable {
     let tokens: ClaudeTokenUsage
     let speed: ClaudeUsageSpeed
     let inferenceGeo: String?
-    let webSearchRequests: Int64
+    let webSearchRequests: UInt64
 
     func metadataCompleteness(reasoningEffort: String?) -> Int {
         let explicitSpeed =

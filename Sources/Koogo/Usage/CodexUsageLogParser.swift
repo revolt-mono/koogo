@@ -23,7 +23,6 @@ struct CodexLogParser: Sendable {
 
     mutating func parse(
         _ line: Data,
-        source: String,
         decoder: JSONDecoder
     ) -> UsageEvent? {
         guard let record = try? decoder.decode(CodexLogRecord.self, from: line) else {
@@ -35,20 +34,15 @@ struct CodexLogParser: Sendable {
             self.threadID = threadID
         case .turnContext(let turn):
             self.turn = turn
-        case .clearTurn:
-            turn = nil
         case .tokenCount(let tokenCount):
-            return parseTokenCount(tokenCount, source: source)
+            return parseTokenCount(tokenCount)
         case .other:
             break
         }
         return nil
     }
 
-    private mutating func parseTokenCount(
-        _ record: CodexTokenCount,
-        source: String
-    ) -> UsageEvent? {
+    private mutating func parseTokenCount(_ record: CodexTokenCount) -> UsageEvent? {
         let lastUsage = record.info.lastTokenUsage
         let totalUsage = record.info.totalTokenUsage
 
@@ -58,12 +52,12 @@ struct CodexLogParser: Sendable {
         }
         defer { previousTotalUsage = totalUsage }
 
-        guard !lastUsage.componentsAreZero, previousTotalUsage != totalUsage else {
+        guard !lastUsage.billableTokensAreZero, previousTotalUsage != totalUsage else {
             return nil
         }
         guard
-            let timestampValue = record.timestamp,
-            let timestamp = parseUsageTimestamp(timestampValue),
+            let timestamp = parseUsageTimestamp(record.timestamp),
+            let threadID,
             let turn,
             let quote = CodexUsagePricing.quote(model: turn.model, tokens: lastUsage)
         else {
@@ -72,7 +66,7 @@ struct CodexLogParser: Sendable {
 
         return .codex(
             id: UsageEvent.CodexID(
-                threadID: threadID ?? source,
+                threadID: threadID,
                 turnID: turn.id,
                 ordinal: record.ordinal,
                 timestamp: timestamp,
@@ -100,9 +94,8 @@ struct CodexLogParser: Sendable {
 }
 
 private enum CodexLogRecord: Decodable {
-    case sessionMeta(threadID: String?)
+    case sessionMeta(threadID: String)
     case turnContext(CodexTurn)
-    case clearTurn
     case tokenCount(CodexTokenCount)
     case other
 
@@ -117,19 +110,16 @@ private enum CodexLogRecord: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         switch try container.decode(CodexRecordKind.self, forKey: .type) {
         case .sessionMeta:
-            let payload = try container.decode(CodexSessionMetadata.self, forKey: .payload)
-            self = .sessionMeta(threadID: nonempty(payload.id) ?? nonempty(payload.sessionID))
+            self = .sessionMeta(
+                threadID: try container.decode(CodexSessionMetadata.self, forKey: .payload).id
+            )
         case .turnContext:
             let payload = try container.decode(CodexTurnContext.self, forKey: .payload)
-            guard let model = nonempty(payload.model) else {
-                self = .clearTurn
-                return
-            }
             self = .turnContext(
                 CodexTurn(
-                    id: nonempty(payload.turnID),
-                    model: model,
-                    reasoningEffort: nonempty(payload.effort)
+                    id: payload.turnID,
+                    model: payload.model,
+                    reasoningEffort: payload.effort
                 )
             )
         case .eventMessage:
@@ -140,7 +130,7 @@ private enum CodexLogRecord: Decodable {
             }
             self = .tokenCount(
                 CodexTokenCount(
-                    timestamp: try container.decodeIfPresent(String.self, forKey: .timestamp),
+                    timestamp: try container.decode(String.self, forKey: .timestamp),
                     ordinal: try container.decodeIfPresent(UInt64.self, forKey: .ordinal),
                     info: info
                 )
@@ -152,18 +142,12 @@ private enum CodexLogRecord: Decodable {
 }
 
 private struct CodexSessionMetadata: Decodable {
-    let id: String?
-    let sessionID: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case sessionID = "session_id"
-    }
+    let id: String
 }
 
 private struct CodexTurnContext: Decodable {
     let turnID: String?
-    let model: String?
+    let model: String
     let effort: String?
 
     private enum CodingKeys: String, CodingKey {
@@ -185,7 +169,7 @@ private struct CodexTurn: Sendable {
 }
 
 private struct CodexTokenCount {
-    let timestamp: String?
+    let timestamp: String
     let ordinal: UInt64?
     let info: CodexTokenInfo
 }
@@ -204,33 +188,22 @@ private struct CodexTokenInfo: Decodable {
     func isSyntheticContextFill(previous: CodexTokenUsage?) -> Bool {
         guard
             let modelContextWindow,
-            modelContextWindow >= 0,
-            lastTokenUsage.componentsAreZero,
-            totalTokenUsage.componentsAreZero,
-            totalTokenUsage.processed == modelContextWindow
+            let contextWindow = UInt64(exactly: modelContextWindow),
+            lastTokenUsage.billableTokensAreZero,
+            totalTokenUsage.billableTokensAreZero,
+            totalTokenUsage.processed == contextWindow
         else {
             return false
         }
 
         let previousTotal = previous?.processed ?? 0
-        let expectedLastTotal: Int64
-        if modelContextWindow > previousTotal {
-            let (difference, overflow) =
-                modelContextWindow
-                .subtractingReportingOverflow(previousTotal)
-            guard !overflow else {
-                return false
-            }
-            expectedLastTotal = difference
-        } else {
-            expectedLastTotal = 0
-        }
-        return lastTokenUsage.processed == expectedLastTotal
+        return lastTokenUsage.processed
+            == (contextWindow > previousTotal ? contextWindow - previousTotal : 0)
     }
 }
 
 extension CodexTokenUsage {
-    fileprivate var componentsAreZero: Bool {
+    fileprivate var billableTokensAreZero: Bool {
         input == 0
             && cachedInput == 0
             && cacheWrite == 0
@@ -251,24 +224,15 @@ extension CodexTokenUsage: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        input = try container.decode(Int64.self, forKey: .input)
-        cachedInput = try container.decodeIfPresent(Int64.self, forKey: .cachedInput) ?? 0
-        cacheWrite = try container.decodeIfPresent(Int64.self, forKey: .cacheWrite) ?? 0
-        output = try container.decode(Int64.self, forKey: .output)
-        reasoningOutput = try container.decodeIfPresent(Int64.self, forKey: .reasoningOutput) ?? 0
-        processed = try container.decode(Int64.self, forKey: .processed)
-
-        let (cachedAndWritten, overflow) = cachedInput.addingReportingOverflow(cacheWrite)
         guard
-            input >= 0,
-            cachedInput >= 0,
-            cacheWrite >= 0,
-            output >= 0,
-            reasoningOutput >= 0,
-            reasoningOutput <= output,
-            processed >= 0,
-            !overflow,
-            cachedAndWritten <= input
+            let usage = CodexTokenUsage(
+                input: try container.decode(UInt64.self, forKey: .input),
+                cachedInput: try container.decode(UInt64.self, forKey: .cachedInput),
+                cacheWrite: try container.decodeIfPresent(UInt64.self, forKey: .cacheWrite) ?? 0,
+                output: try container.decode(UInt64.self, forKey: .output),
+                reasoningOutput: try container.decode(UInt64.self, forKey: .reasoningOutput),
+                processed: try container.decode(UInt64.self, forKey: .processed)
+            )
         else {
             throw DecodingError.dataCorruptedError(
                 forKey: .processed,
@@ -276,5 +240,6 @@ extension CodexTokenUsage: Decodable {
                 debugDescription: "invalid token usage"
             )
         }
+        self = usage
     }
 }
