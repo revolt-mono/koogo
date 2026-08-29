@@ -33,6 +33,9 @@ struct QuickActionsControl: View {
             QuickActionsPopover(isPresented: $isPresented)
                 .allowsHitTesting(false)
         }
+        .onDisappear {
+            isPresented = false
+        }
     }
 }
 
@@ -43,12 +46,12 @@ private struct QuickActionsPopover: NSViewRepresentable {
         Coordinator(isPresented: $isPresented)
     }
 
-    func makeNSView(context: Context) -> NSView {
-        context.coordinator.anchor
+    func makeNSView(context _: Context) -> NSView {
+        NSView()
     }
 
-    func updateNSView(_: NSView, context: Context) {
-        context.coordinator.update(isPresented: $isPresented)
+    func updateNSView(_ anchor: NSView, context: Context) {
+        context.coordinator.update(isPresented: $isPresented, relativeTo: anchor)
     }
 
     static func dismantleNSView(_: NSView, coordinator: Coordinator) {
@@ -57,7 +60,6 @@ private struct QuickActionsPopover: NSViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, NSPopoverDelegate {
-        let anchor = NSView()
         let popover = NSPopover()
         private var isPresented: Binding<Bool>
 
@@ -74,7 +76,7 @@ private struct QuickActionsPopover: NSViewRepresentable {
             popover.delegate = self
         }
 
-        func update(isPresented: Binding<Bool>) {
+        func update(isPresented: Binding<Bool>, relativeTo anchor: NSView) {
             self.isPresented = isPresented
             let shouldShow = isPresented.wrappedValue
             guard shouldShow != popover.isShown else {
