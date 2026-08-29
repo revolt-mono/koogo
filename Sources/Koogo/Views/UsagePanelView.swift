@@ -5,7 +5,11 @@ struct UsagePanelView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            UsagePanelHeader(summary: snapshot.summary)
+            VStack(alignment: .leading, spacing: 12) {
+                UsageSummaryPeriod(title: "Today", usage: snapshot.summary.today)
+                UsageSummaryPeriod(title: "Monthly", usage: snapshot.summary.month)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             QuickActionsControl()
 
@@ -17,47 +21,6 @@ struct UsagePanelView: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 24)
-    }
-}
-
-private struct UsagePanelHeader: View {
-    @Environment(UpdateModel.self) private var updateModel
-
-    let summary: UsageSummarySnapshot
-
-    private var showsUpdateIndicator: Bool {
-        #if DEBUG
-        true
-        #else
-        updateModel.isUpdateAvailable
-        #endif
-    }
-
-    var body: some View {
-        VStack(spacing: 8) {
-            if showsUpdateIndicator {
-                Button(action: updateModel.showUpdate) {
-                    Text("Update")
-                        .font(.system(size: 9, weight: .medium))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .foregroundStyle(.white)
-                        .background(.tint, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Update available")
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
-            VStack(alignment: .leading, spacing: 12) {
-                UsageSummaryPeriod(title: "Today", usage: summary.today)
-                UsageSummaryPeriod(title: "Monthly", usage: summary.month)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.top, showsUpdateIndicator ? 16 : 24)
-        .animation(.smooth(duration: 0.25), value: showsUpdateIndicator)
     }
 }
 

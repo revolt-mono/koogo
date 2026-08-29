@@ -18,7 +18,7 @@ final class UpdateModel: NSObject {
         _ = updaterController
     }
 
-    func showUpdate() {
+    func checkForUpdates() {
         updaterController.checkForUpdates(nil)
     }
 }

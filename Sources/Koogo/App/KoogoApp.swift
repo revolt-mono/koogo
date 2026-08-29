@@ -22,5 +22,12 @@ struct KoogoApp: App {
             Image(systemName: "chart.bar.xaxis")
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView()
+                .environment(updateModel)
+                .fontDesign(.rounded)
+        }
+        .windowResizability(.contentSize)
     }
 }
