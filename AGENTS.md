@@ -29,7 +29,10 @@
 ├── Sources/Koogo       menu bar application
 │   ├── App             lifecycle and observable application state
 │   ├── Quota           Codex quota session and service
-│   ├── Usage           provider log parsing, pricing, indexing, and snapshots
+│   ├── Usage           usage models and service orchestration
+│   │   ├── Aggregation calendar-based snapshots and summaries
+│   │   ├── Ingestion   incremental log reading, parsing, and event indexing
+│   │   └── Providers   Claude, Codex, and Pi Agent adapters and pricing
 │   ├── Views           SwiftUI menu panels, charts, loading states, and formatting
 │   └── Resources       bundled image assets
 ├── Tests/KoogoTests    usage and quota behavior tests with shared fixtures
