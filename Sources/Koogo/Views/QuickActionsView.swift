@@ -29,11 +29,74 @@ struct QuickActionsControl: View {
             )
         }
         .buttonStyle(.plain)
-        .popover(
-            isPresented: $isPresented,
-            attachmentAnchor: .rect(.bounds),
-            arrowEdge: .trailing
-        ) {
+        .background {
+            QuickActionsPopover(isPresented: $isPresented)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
+private struct QuickActionsPopover: NSViewRepresentable {
+    @Binding var isPresented: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isPresented: $isPresented)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        context.coordinator.anchor
+    }
+
+    func updateNSView(_: NSView, context: Context) {
+        context.coordinator.update(isPresented: $isPresented)
+    }
+
+    static func dismantleNSView(_: NSView, coordinator: Coordinator) {
+        coordinator.popover.close()
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSPopoverDelegate {
+        let anchor = NSView()
+        let popover = NSPopover()
+        private var isPresented: Binding<Bool>
+
+        init(isPresented: Binding<Bool>) {
+            self.isPresented = isPresented
+            super.init()
+
+            let hostingController = NSHostingController(rootView: Content())
+            hostingController.sizingOptions = .preferredContentSize
+            popover.contentViewController = hostingController
+            popover.behavior = .semitransient
+            // NSPopover's native transition cannot reverse, so animation would queue rapid toggles.
+            popover.animates = false
+            popover.delegate = self
+        }
+
+        func update(isPresented: Binding<Bool>) {
+            self.isPresented = isPresented
+            let shouldShow = isPresented.wrappedValue
+            guard shouldShow != popover.isShown else {
+                return
+            }
+
+            if shouldShow {
+                popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxX)
+            } else {
+                popover.close()
+            }
+        }
+
+        func popoverDidClose(_: Notification) {
+            if isPresented.wrappedValue {
+                isPresented.wrappedValue = false
+            }
+        }
+    }
+
+    private struct Content: View {
+        var body: some View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Quick Actions")
                     .font(.system(size: 11, weight: .semibold))
