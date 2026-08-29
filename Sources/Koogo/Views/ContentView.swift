@@ -16,13 +16,21 @@ struct ContentView: View {
         }
         .frame(width: 300)
         .background {
+            let tint = Color(
+                .sRGB,
+                red: 12.0 / 255,
+                green: 21.0 / 255,
+                blue: 22.0 / 255,
+                opacity: 1
+            )
+
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0.85), location: 0),
-                    .init(color: .black.opacity(0.78), location: 0.12),
-                    .init(color: .black.opacity(0.58), location: 0.24),
-                    .init(color: .black.opacity(0.32), location: 0.38),
-                    .init(color: .black.opacity(0.12), location: 0.5),
+                    .init(color: .black.opacity(0.94), location: 0),
+                    .init(color: .black.opacity(0.92), location: 0.07),
+                    .init(color: tint.opacity(0.7), location: 0.22),
+                    .init(color: tint.opacity(0.4), location: 0.36),
+                    .init(color: tint.opacity(0.16), location: 0.48),
                     .init(color: .clear, location: 0.6),
                 ],
                 startPoint: .top,
