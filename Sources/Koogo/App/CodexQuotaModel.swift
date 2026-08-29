@@ -10,16 +10,23 @@ final class CodexQuotaModel {
     }
 
     private let quotaService: CodexQuotaService
+    private let refreshInterval: Duration
     private var refreshTask: Task<Void, Never>?
+    private var refreshAfter: ContinuousClock.Instant
 
     private(set) var state = State.loading
 
-    init(quotaService: CodexQuotaService) {
+    init(
+        quotaService: CodexQuotaService,
+        refreshInterval: Duration = .seconds(60)
+    ) {
         self.quotaService = quotaService
+        self.refreshInterval = refreshInterval
+        refreshAfter = .now
     }
 
     func refresh() {
-        guard refreshTask == nil else {
+        guard refreshTask == nil, ContinuousClock.now >= refreshAfter else {
             return
         }
         if case .hidden = state {
@@ -31,6 +38,7 @@ final class CodexQuotaModel {
                 refreshTask = nil
             }
             state = (await quotaService.fetch()).map(State.available) ?? .hidden
+            refreshAfter = .now + refreshInterval
         }
     }
 }

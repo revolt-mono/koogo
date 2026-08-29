@@ -97,6 +97,22 @@ final class UsageServiceTests: XCTestCase {
         XCTAssertEqual(afterNewline.codex.today.processedTokens, 180)
     }
 
+    func testRefreshRebuildsCachedSnapshotForNewDay() async throws {
+        try write(
+            codexLog(input: 100, output: 20),
+            to: locations.logs.codex.sessions.appending(path: "session.jsonl")
+        )
+        let service = UsageService(locations: locations, calendar: calendar)
+        let current = await service.refresh(at: now)
+
+        let nextDay = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
+        let refreshed = await service.refresh(at: nextDay)
+
+        XCTAssertEqual(current.codex.today.processedTokens, 120)
+        XCTAssertEqual(refreshed.codex.today, .zero)
+        XCTAssertEqual(refreshed.codex.week.processedTokens, 120)
+    }
+
     @MainActor
     func testUsageModelStartsColdScanOnInitialization() async throws {
         try write(

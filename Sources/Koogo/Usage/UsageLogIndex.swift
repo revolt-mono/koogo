@@ -12,60 +12,7 @@ private struct UsageFileIdentity: Equatable, Sendable {
     let inode: UInt64
 }
 
-private struct IndexedUsageEvents: Sendable {
-    private var codex: [UsageEvent.CodexID: UsageRecord] = [:]
-    private var claude: [UsageEvent.ClaudeID: (usage: UsageRecord, revision: UsageEvent.ClaudeRevision)] = [:]
-    private var piAgent: [String: UsageRecord] = [:]
-
-    var values: [UsageEvent] {
-        var events: [UsageEvent] = []
-        events.reserveCapacity(codex.count + claude.count + piAgent.count)
-        events.append(contentsOf: codex.lazy.map { .codex(id: $0.key, usage: $0.value) })
-        events.append(
-            contentsOf: claude.lazy.map {
-                .claude(id: $0.key, usage: $0.value.usage, revision: $0.value.revision)
-            }
-        )
-        events.append(contentsOf: piAgent.lazy.map { .piAgent(entryID: $0.key, usage: $0.value) })
-        return events
-    }
-
-    mutating func insert(_ event: UsageEvent) {
-        switch event {
-        case .codex(let id, let usage):
-            guard codex[id] == nil else {
-                return
-            }
-            codex[id] = usage
-        case .claude(let id, let usage, let revision):
-            if let existing = claude[id], !revision.isPreferred(over: existing.revision) {
-                return
-            }
-            claude[id] = (usage, revision)
-        case .piAgent(let entryID, let usage):
-            guard piAgent[entryID] == nil else {
-                return
-            }
-            piAgent[entryID] = usage
-        }
-    }
-
-    mutating func merge(_ other: Self) {
-        codex.merge(other.codex) { current, _ in current }
-        claude.merge(other.claude) { current, candidate in
-            candidate.revision.isPreferred(over: current.revision) ? candidate : current
-        }
-        piAgent.merge(other.piAgent) { current, _ in current }
-    }
-
-    mutating func discard(before historyStart: Date) {
-        codex = codex.filter { $0.value.timestamp >= historyStart }
-        claude = claude.filter { $0.value.usage.timestamp >= historyStart }
-        piAgent = piAgent.filter { $0.value.timestamp >= historyStart }
-    }
-}
-
-private struct UsageFileMetadata: Sendable {
+private struct UsageFileMetadata: Equatable, Sendable {
     let identity: UsageFileIdentity
     let size: UInt64
     let modificationDate: Date
@@ -109,7 +56,7 @@ private struct TrackedUsageFile: Sendable {
     private var parsedOffset: UInt64
     private var parsedTail: Data
     private var parser: UsageFileParserState
-    var events: IndexedUsageEvents
+    var eventIndex: UsageEventIndex
 
     init?(source: UsageLogSource, since historyStart: Date) {
         guard let handle = try? FileHandle(forReadingFrom: source.url) else {
@@ -124,7 +71,7 @@ private struct TrackedUsageFile: Sendable {
         parsedOffset = 0
         parsedTail = Data()
         parser = source.parser
-        events = IndexedUsageEvents()
+        eventIndex = UsageEventIndex()
         guard readBytes(handle, in: 0..<metadata.size, since: historyStart) else {
             return nil
         }
@@ -134,7 +81,8 @@ private struct TrackedUsageFile: Sendable {
         from source: UsageLogSource,
         observed metadata: UsageFileMetadata,
         since historyStart: Date
-    ) {
+    ) -> Bool {
+        let previousMetadata = self.metadata
         let wasReplaced =
             self.metadata.identity != metadata.identity
             || metadata.size < self.metadata.size
@@ -147,6 +95,7 @@ private struct TrackedUsageFile: Sendable {
         } else if metadata.size > self.metadata.size {
             readAppendedBytes(from: source, since: historyStart)
         }
+        return self.metadata != previousMetadata
     }
 
     private mutating func readAppendedBytes(
@@ -260,7 +209,7 @@ private struct TrackedUsageFile: Sendable {
                 if let event = parser.parse(line, decoder: decoder),
                     event.usage.timestamp >= historyStart
                 {
-                    events.insert(event)
+                    eventIndex.insert(event)
                 }
                 lineStart += lineCount + 1
             }
@@ -298,35 +247,45 @@ private struct TrackedUsageFile: Sendable {
 }
 
 struct UsageLogIndex {
+    struct Revision: Equatable, Sendable {
+        fileprivate let value: UInt64
+    }
+
     private let locations: UsageLocations.Logs
     private var trackedFiles: [String: TrackedUsageFile] = [:]
     private var indexedFrom: Date?
+    private var revision = Revision(value: 0)
 
     init(locations: UsageLocations.Logs) {
         self.locations = locations
     }
 
-    mutating func events(since historyStart: Date) -> [UsageEvent] {
+    mutating func refresh(since historyStart: Date) -> Revision {
         if let indexedFrom, historyStart < indexedFrom {
             trackedFiles.removeAll(keepingCapacity: true)
-        } else {
+        } else if let indexedFrom, historyStart > indexedFrom {
             trackedFiles = trackedFiles.mapValues { tracked in
                 var tracked = tracked
-                tracked.events.discard(before: historyStart)
+                tracked.eventIndex.discard(before: historyStart)
                 return tracked
             }
         }
-        indexedFrom = historyStart
-        scanLogs(since: historyStart)
-
-        var events = IndexedUsageEvents()
-        for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
-            events.merge(tracked.events)
+        if scanLogs(since: historyStart) || indexedFrom != historyStart {
+            revision = Revision(value: revision.value + 1)
         }
-        return events.values
+        indexedFrom = historyStart
+        return revision
     }
 
-    private mutating func scanLogs(since historyStart: Date) {
+    func events() -> [UsageEvent] {
+        var merged = UsageEventIndex()
+        for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
+            merged.merge(tracked.eventIndex)
+        }
+        return merged.values
+    }
+
+    private mutating func scanLogs(since historyStart: Date) -> Bool {
         let sources =
             (Self.jsonlFiles(in: locations.codex.sessions)
             + Self.jsonlFiles(in: locations.codex.archivedSessions)).map {
@@ -340,6 +299,7 @@ struct UsageLogIndex {
             }
         var seenPaths = Set<String>()
         var newSources: [UsageLogSource] = []
+        var changed = false
 
         for source in sources {
             let path = source.url.path
@@ -348,19 +308,25 @@ struct UsageLogIndex {
                 continue
             }
             if var tracked = trackedFiles[path] {
-                tracked.refresh(from: source, observed: metadata, since: historyStart)
+                if tracked.refresh(from: source, observed: metadata, since: historyStart) {
+                    changed = true
+                }
                 trackedFiles[path] = tracked
             } else {
                 newSources.append(source)
             }
         }
 
-        for (path, tracked) in Self.load(newSources, since: historyStart) {
+        let loaded = Self.load(newSources, since: historyStart)
+        changed = !loaded.isEmpty || changed
+        for (path, tracked) in loaded {
             trackedFiles[path] = tracked
         }
         for path in Set(trackedFiles.keys).subtracting(seenPaths) {
             trackedFiles[path] = nil
+            changed = true
         }
+        return changed
     }
 
     private static func load(

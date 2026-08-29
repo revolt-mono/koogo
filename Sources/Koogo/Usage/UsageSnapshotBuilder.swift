@@ -1,7 +1,7 @@
 import Foundation
 
-struct UsagePeriodIntervals {
-    struct Comparison {
+struct UsagePeriodIntervals: Equatable {
+    struct Comparison: Equatable {
         let current: Range<Date>
         let previous: Range<Date>
 

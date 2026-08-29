@@ -165,6 +165,32 @@ final class PiUsageTests: XCTestCase {
         )
     }
 
+    func testServiceRefreshesFavoriteWhenModelCatalogChanges() async throws {
+        try write(
+            piSessionLog,
+            to: locations.logs.piAgent.appending(path: "session.jsonl")
+        )
+        try write(
+            """
+            {"provider":{"models":[{"id":"model-a","name":"Initial Name"}]}}
+            """,
+            to: locations.piModels.store
+        )
+        let service = UsageService(locations: locations, calendar: calendar)
+        let initial = await service.refresh(at: usageTestTimestamp)
+        XCTAssertEqual(initial.piAgent.favorite?.modelName, "Initial Name")
+
+        try write(
+            """
+            {"provider":{"models":[{"id":"model-a","name":"Updated Name"}]}}
+            """,
+            to: locations.piModels.store
+        )
+        let updated = await service.refresh(at: usageTestTimestamp)
+
+        XCTAssertEqual(updated.piAgent.favorite?.modelName, "Updated Name")
+    }
+
     func testServiceDeduplicatesForkHistoryDuringColdAndIncrementalScans() async throws {
         try write(piSessionLog, to: locations.logs.piAgent.appending(path: "original.jsonl"))
         let service = UsageService(locations: locations, calendar: calendar)

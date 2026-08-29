@@ -196,7 +196,7 @@ final class CodexQuotaServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testQuotaModelCoalescesOverlappingRefreshes() async throws {
+    func testQuotaModelCoalescesAndCachesRefreshes() async throws {
         let launches = root.appending(path: "launches")
         let executable = try makeExecutable(
             launchMarker: launches,
@@ -211,7 +211,6 @@ final class CodexQuotaServiceTests: XCTestCase {
 
         model.refresh()
         model.refresh()
-        model.refresh()
         XCTAssertEqual(model.state, .loading)
 
         let deadline = ContinuousClock.now + .seconds(2)
@@ -223,6 +222,9 @@ final class CodexQuotaServiceTests: XCTestCase {
             return XCTFail("expected available quota")
         }
         XCTAssertEqual(snapshot.account?.limits?.fiveHour?.remainingPercent, 75)
+        model.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+
         let launchCount = try String(contentsOf: launches, encoding: .utf8)
             .split(separator: "\n")
             .count
@@ -237,21 +239,21 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
         let model = CodexQuotaModel(
-            quotaService: CodexQuotaService(executableURL: executable)
+            quotaService: CodexQuotaService(executableURL: executable),
+            refreshInterval: .zero
         )
         model.refresh()
         var deadline = ContinuousClock.now + .seconds(2)
         while model.state == .loading, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
-        guard case .available = model.state else {
+        guard case .available(let snapshot) = model.state else {
             return XCTFail("expected available quota")
         }
-        let available = model.state
 
         try FileManager.default.removeItem(at: executable)
         model.refresh()
-        XCTAssertEqual(model.state, available)
+        XCTAssertEqual(model.state, .available(snapshot))
         deadline = ContinuousClock.now + .seconds(2)
         while model.state != .hidden, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
