@@ -20,24 +20,20 @@ struct ContentView: View {
                 }
             }
         }
-        .frame(width: 300)
+        .frame(width: 320)
         .background {
-            let tint = Color(
-                .sRGB,
-                red: 12.0 / 255,
-                green: 21.0 / 255,
-                blue: 22.0 / 255,
-                opacity: 1
-            )
-
             LinearGradient(
                 stops: [
                     .init(color: .black.opacity(0.94), location: 0),
-                    .init(color: .black.opacity(0.92), location: 0.07),
-                    .init(color: tint.opacity(0.7), location: 0.22),
-                    .init(color: tint.opacity(0.4), location: 0.36),
-                    .init(color: tint.opacity(0.16), location: 0.48),
-                    .init(color: .clear, location: 0.6),
+                    .init(color: .black.opacity(0.94), location: 0.07),
+                    .init(color: .black.opacity(0.92), location: 0.14),
+                    .init(color: .black.opacity(0.84), location: 0.22),
+                    .init(color: .black.opacity(0.68), location: 0.3),
+                    .init(color: .black.opacity(0.47), location: 0.37),
+                    .init(color: .black.opacity(0.26), location: 0.45),
+                    .init(color: .black.opacity(0.1), location: 0.53),
+                    .init(color: .black.opacity(0.02), location: 0.61),
+                    .init(color: .clear, location: 0.68),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
