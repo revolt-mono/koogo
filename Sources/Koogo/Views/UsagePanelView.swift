@@ -253,7 +253,7 @@ private struct ProviderUsageHeader: View {
                 Group {
                     switch favorite.reasoningEffort {
                     case .some(let effort) where effort != "off":
-                        Text("\(favorite.modelName) · \(effort)")
+                        Text("\(favorite.modelName) in \(effort)")
                     default:
                         Text(favorite.modelName)
                     }

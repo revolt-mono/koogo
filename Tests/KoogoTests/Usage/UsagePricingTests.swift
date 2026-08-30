@@ -143,6 +143,6 @@ final class UsagePricingTests: XCTestCase {
 
         XCTAssertEqual(codex.model, codexAlias.model)
         XCTAssertEqual(codex.model, .codex(id: "gpt-5.6-sol", name: "GPT 5.6 Sol"))
-        XCTAssertEqual(claude.model, .claude(id: "claude-fable-5", name: "Claude Fable 5"))
+        XCTAssertEqual(claude.model, .claude(id: "claude-fable-5", name: "Fable 5"))
     }
 }

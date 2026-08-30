@@ -69,7 +69,7 @@ final class UsageServiceTests: XCTestCase {
         XCTAssertEqual(
             snapshot.claude.favorite,
             ProviderUsageSnapshot.Favorite(
-                modelName: "Claude Opus 5",
+                modelName: "Opus 5",
                 reasoningEffort: nil
             )
         )

@@ -105,7 +105,7 @@ enum ClaudeUsagePricing {
     // https://platform.claude.com/docs/en/models/overview
     private static let prices: [String: ModelPrice] = [
         "claude-fable-5": ModelPrice(
-            displayName: "Claude Fable 5",
+            displayName: "Fable 5",
             standard: Rates(
                 input: 10_000,
                 cacheRead: 1_000,
@@ -117,7 +117,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: true
         ),
         "claude-mythos-5": ModelPrice(
-            displayName: "Claude Mythos 5",
+            displayName: "Mythos 5",
             standard: Rates(
                 input: 10_000,
                 cacheRead: 1_000,
@@ -129,7 +129,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: true
         ),
         "claude-opus-5": ModelPrice(
-            displayName: "Claude Opus 5",
+            displayName: "Opus 5",
             standard: Rates(
                 input: 5_000,
                 cacheRead: 500,
@@ -147,7 +147,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: true
         ),
         "claude-opus-4-8": ModelPrice(
-            displayName: "Claude Opus 4.8",
+            displayName: "Opus 4.8",
             standard: Rates(
                 input: 5_000,
                 cacheRead: 500,
@@ -165,7 +165,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: true
         ),
         "claude-opus-4-7": ModelPrice(
-            displayName: "Claude Opus 4.7",
+            displayName: "Opus 4.7",
             standard: Rates(
                 input: 5_000,
                 cacheRead: 500,
@@ -177,7 +177,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: true
         ),
         "claude-opus-4-6": ModelPrice(
-            displayName: "Claude Opus 4.6",
+            displayName: "Opus 4.6",
             standard: Rates(
                 input: 5_000,
                 cacheRead: 500,
@@ -189,7 +189,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: true
         ),
         "claude-opus-4-5-20251101": ModelPrice(
-            displayName: "Claude Opus 4.5",
+            displayName: "Opus 4.5",
             standard: Rates(
                 input: 5_000,
                 cacheRead: 500,
@@ -201,7 +201,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: false
         ),
         "claude-sonnet-5": ModelPrice(
-            displayName: "Claude Sonnet 5",
+            displayName: "Sonnet 5",
             standard: Rates(
                 input: 2_000,
                 cacheRead: 200,
@@ -213,7 +213,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: true
         ),
         "claude-sonnet-4-6": ModelPrice(
-            displayName: "Claude Sonnet 4.6",
+            displayName: "Sonnet 4.6",
             standard: Rates(
                 input: 3_000,
                 cacheRead: 300,
@@ -225,7 +225,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: true
         ),
         "claude-sonnet-4-5-20250929": ModelPrice(
-            displayName: "Claude Sonnet 4.5",
+            displayName: "Sonnet 4.5",
             standard: Rates(
                 input: 3_000,
                 cacheRead: 300,
@@ -237,7 +237,7 @@ enum ClaudeUsagePricing {
             supportsUSInference: false
         ),
         "claude-haiku-4-5-20251001": ModelPrice(
-            displayName: "Claude Haiku 4.5",
+            displayName: "Haiku 4.5",
             standard: Rates(
                 input: 1_000,
                 cacheRead: 100,
