@@ -1,9 +1,11 @@
+import Shimmer
 import SwiftUI
 
 struct ContentView: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
     @Environment(BreakReminderModel.self) private var breakReminderModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 8) {
@@ -16,7 +18,13 @@ struct ContentView: View {
                     UsagePanelView(snapshot: snapshot)
                         .transition(.blurReplace)
                 } else {
-                    UsageLoadingView()
+                    Text("Parsing logs…")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .shimmering(active: !reduceMotion)
+                        .frame(maxWidth: .infinity, minHeight: 96)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 24)
                         .transition(.blurReplace)
                 }
             }
