@@ -41,6 +41,7 @@ private struct UsageSummaryPeriod: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(UsageFormatting.cost(usage.current.costUSD))
+                            .animatingNumericText(value: usage.current.costUSD)
                         UsageCostChangeCapsule(change: usage.costChange)
                     }
 
@@ -50,6 +51,7 @@ private struct UsageSummaryPeriod: View {
                             .foregroundStyle(.secondary)
 
                         Text("\(UsageFormatting.tokens(usage.current.processedTokens)) tokens")
+                            .animatingNumericText(value: usage.current.processedTokens)
                     }
                 }
                 .font(.system(size: 15, weight: .bold))
@@ -67,8 +69,6 @@ private struct UsageSummaryPeriod: View {
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .monospacedDigit()
-            .contentTransition(.numericText())
-            .animation(.smooth(duration: 0.35), value: usage)
         }
     }
 }
@@ -80,6 +80,7 @@ private struct UsageSummaryValueLine: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(UsageFormatting.cost(usage.current.costUSD))
+                .animatingNumericText(value: usage.current.costUSD)
 
             UsageCostChangeCapsule(change: usage.costChange)
 
@@ -88,6 +89,7 @@ private struct UsageSummaryValueLine: View {
                 .foregroundStyle(.secondary)
 
             Text("\(UsageFormatting.tokens(usage.current.processedTokens)) tokens")
+                .animatingNumericText(value: usage.current.processedTokens)
         }
         .font(.system(size: fontSize, weight: .bold))
         .fixedSize()
@@ -118,6 +120,7 @@ private struct UsageCostChangeCapsule: View {
         let percentage = UsageFormatting.percentage(style.fraction)
 
         Text(style.prefix + percentage)
+            .animatingNumericText(value: change)
             .font(.system(size: 9, weight: .bold))
             .monospacedDigit()
             .lineLimit(1)
@@ -142,6 +145,13 @@ private struct UsageCostChangeCapsule: View {
                     Text("Cost unchanged from the previous period")
                 }
             }
+    }
+}
+
+private extension Text {
+    func animatingNumericText<Value: Equatable>(value: Value) -> some View {
+        contentTransition(.numericText())
+            .animation(.smooth(duration: 0.35), value: value)
     }
 }
 
