@@ -40,8 +40,7 @@ private struct UsageSummaryPeriod: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(UsageFormatting.cost(usage.current.costUSD))
-                            .animatingNumericText(value: usage.current.costUSD)
+                        AnimatedNumericText(text: UsageFormatting.cost(usage.current.costUSD))
                         UsageCostChangeCapsule(change: usage.costChange)
                     }
 
@@ -50,8 +49,9 @@ private struct UsageSummaryPeriod: View {
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
 
-                        Text("\(UsageFormatting.tokens(usage.current.processedTokens)) tokens")
-                            .animatingNumericText(value: usage.current.processedTokens)
+                        AnimatedNumericText(
+                            text: "\(UsageFormatting.tokens(usage.current.processedTokens)) tokens"
+                        )
                     }
                 }
                 .font(.system(size: 15, weight: .bold))
@@ -79,8 +79,7 @@ private struct UsageSummaryValueLine: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(UsageFormatting.cost(usage.current.costUSD))
-                .animatingNumericText(value: usage.current.costUSD)
+            AnimatedNumericText(text: UsageFormatting.cost(usage.current.costUSD))
 
             UsageCostChangeCapsule(change: usage.costChange)
 
@@ -88,8 +87,9 @@ private struct UsageSummaryValueLine: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            Text("\(UsageFormatting.tokens(usage.current.processedTokens)) tokens")
-                .animatingNumericText(value: usage.current.processedTokens)
+            AnimatedNumericText(
+                text: "\(UsageFormatting.tokens(usage.current.processedTokens)) tokens"
+            )
         }
         .font(.system(size: fontSize, weight: .bold))
         .fixedSize()
@@ -119,8 +119,7 @@ private struct UsageCostChangeCapsule: View {
             }
         let percentage = UsageFormatting.percentage(style.fraction)
 
-        Text(style.prefix + percentage)
-            .animatingNumericText(value: change)
+        AnimatedNumericText(text: style.prefix + percentage)
             .font(.system(size: 9, weight: .bold))
             .monospacedDigit()
             .lineLimit(1)
@@ -148,10 +147,20 @@ private struct UsageCostChangeCapsule: View {
     }
 }
 
-private extension Text {
-    func animatingNumericText<Value: Equatable>(value: Value) -> some View {
-        contentTransition(.numericText())
-            .animation(.smooth(duration: 0.35), value: value)
+private struct AnimatedNumericText: View {
+    let text: String
+
+    var body: some View {
+        // Keep final geometry outside the animated subtree so sibling layout cannot drift.
+        Text(text)
+            .hidden()
+            .accessibilityHidden(true)
+            .overlay(alignment: .leading) {
+                Text(text)
+                    .contentTransition(.numericText())
+                    .animation(.smooth(duration: 0.35), value: text)
+            }
+            .clipped()
     }
 }
 
