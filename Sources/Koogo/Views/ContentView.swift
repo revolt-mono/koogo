@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
+    @Environment(BreakReminderModel.self) private var breakReminderModel
 
     var body: some View {
         VStack(spacing: 8) {
@@ -44,6 +45,7 @@ struct ContentView: View {
             codexQuotaModel.refresh()
             usageModel.refresh()
         }
+        .breakReminderIssueAlert(breakReminderModel)
     }
 }
 
@@ -60,6 +62,8 @@ private struct PanelToolbar: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            BreakReminderControl()
+
             Spacer()
 
             if showsUpdateIndicator {

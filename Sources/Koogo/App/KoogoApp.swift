@@ -6,6 +6,7 @@ struct KoogoApp: App {
     @State private var usageModel = UsageModel(usageService: UsageService())
     @State private var codexQuotaModel = CodexQuotaModel(quotaService: CodexQuotaService())
     @State private var updateModel = UpdateModel()
+    @State private var breakReminderModel = BreakReminderModel()
 
     init() {
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
@@ -17,6 +18,7 @@ struct KoogoApp: App {
                 .environment(usageModel)
                 .environment(codexQuotaModel)
                 .environment(updateModel)
+                .environment(breakReminderModel)
                 .fontDesign(.rounded)
         } label: {
             Image(systemName: "chart.bar.xaxis")
@@ -26,6 +28,7 @@ struct KoogoApp: App {
         Settings {
             SettingsView()
                 .environment(updateModel)
+                .environment(breakReminderModel)
                 .fontDesign(.rounded)
         }
         .windowResizability(.contentSize)
