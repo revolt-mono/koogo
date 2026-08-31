@@ -1,35 +1,26 @@
-import Shimmer
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
     @Environment(BreakReminderModel.self) private var breakReminderModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 8) {
             PanelToolbar()
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
+                .contentShape(.rect)
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        dismissPanelInput()
+                    }
+                )
 
-            Group {
-                if let snapshot = usageModel.snapshot {
-                    UsagePanelView(snapshot: snapshot)
-                        .transition(.blurReplace)
-                } else {
-                    Text("Parsing logs…")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .shimmering(active: !reduceMotion)
-                        .frame(maxWidth: .infinity, minHeight: 96)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 24)
-                        .transition(.blurReplace)
-                }
-            }
+            PanelPagesView(dismissInput: dismissPanelInput)
         }
-        .frame(width: 320)
+        .frame(width: 320, height: 863, alignment: .top)
         .background {
             LinearGradient(
                 stops: [
@@ -48,12 +39,18 @@ struct ContentView: View {
                 endPoint: .bottom
             )
         }
-        .animation(.smooth(duration: 0.35), value: usageModel.snapshot != nil)
         .task {
             codexQuotaModel.refresh()
             usageModel.refresh()
         }
         .breakReminderIssueAlert(breakReminderModel)
+    }
+
+    private func dismissPanelInput() {
+        let window = NSApp.keyWindow
+        DispatchQueue.main.async {
+            window?.makeFirstResponder(nil)
+        }
     }
 }
 
