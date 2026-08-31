@@ -27,29 +27,61 @@ struct MonthlyUsageChart: View {
                 .foregroundStyle(barColor)
                 .cornerRadius(1)
             }
-
-            if let selectedDay {
-                RuleMark(x: .value("Selected day", selectedDay.date, unit: .day))
-                    .foregroundStyle(.clear)
-                    .annotation(
-                        position: .top,
-                        spacing: 0,
-                        overflowResolution: .init(
-                            x: .fit(to: .chart),
-                            y: .disabled
-                        )
-                    ) {
-                        UsageChartAnnotation(day: selectedDay)
-                    }
-            }
         }
         .chartXScale(domain: month.range.lowerBound...month.range.upperBound)
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartLegend(.hidden)
         .chartXSelection(value: $selectedDate)
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                if let selectedDay, let plotFrame = proxy.plotFrame,
+                    let selectedX = proxy.position(forX: selectedDay.date)
+                {
+                    // A mark annotation changes the plot origin as its content moves.
+                    ChartAnnotationLayout(anchorX: geometry[plotFrame].minX + selectedX) {
+                        UsageChartAnnotation(day: selectedDay)
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+            }
+            .allowsHitTesting(false)
+        }
         .frame(height: 48)
         .animation(.smooth(duration: 0.35), value: month)
+    }
+}
+
+private struct ChartAnnotationLayout: Layout {
+    let anchorX: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews _: Subviews,
+        cache _: inout ()
+    ) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal _: ProposedViewSize,
+        subviews: Subviews,
+        cache _: inout ()
+    ) {
+        let annotation = subviews[0]
+        let size = annotation.sizeThatFits(.unspecified)
+        annotation.place(
+            at: CGPoint(
+                x: min(
+                    max(bounds.minX + anchorX, bounds.minX + size.width / 2),
+                    bounds.maxX - size.width / 2
+                ),
+                y: bounds.minY
+            ),
+            anchor: .top,
+            proposal: .unspecified
+        )
     }
 }
 
