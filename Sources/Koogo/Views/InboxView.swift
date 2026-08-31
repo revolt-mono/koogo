@@ -43,7 +43,7 @@ struct InboxView: View {
                         .font(.system(size: 9, weight: .bold))
                         .frame(width: 20, height: 20)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .buttonBorderShape(.circle)
                 .disabled(Todo.normalizedText(from: draft) == nil)
                 .accessibilityLabel("Add todo")
