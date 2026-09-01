@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct UsagePanelView: View {
+    @Environment(CodexQuotaModel.self) private var codexQuotaModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let snapshot: UsageSnapshot
 
     var body: some View {
@@ -18,6 +21,10 @@ struct UsagePanelView: View {
                 ProviderUsageSection(provider: .claude, usage: snapshot.claude)
                 ProviderUsageSection(provider: .piAgent, usage: snapshot.piAgent)
             }
+            .animation(
+                reduceMotion ? nil : .smooth(duration: 0.25),
+                value: codexQuotaModel.state
+            )
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 32)

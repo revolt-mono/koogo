@@ -21,7 +21,6 @@ struct CodexQuotaView: View {
                 }
             }
         }
-        .animation(.smooth(duration: 0.25), value: codexQuotaModel.state)
     }
 }
 
