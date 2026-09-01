@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-@main
 struct KoogoApp: App {
     @State private var usageModel: UsageModel
     @State private var codexQuotaModel: CodexQuotaModel

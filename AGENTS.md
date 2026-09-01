@@ -22,6 +22,13 @@
 - format: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift format --configuration .swift-format --in-place Package.swift --recursive Sources Tests`
 - lint: `swiftlint lint --strict Package.swift Sources Tests`
 - test: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test`
+- report: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift run Koogo --report` (or `script/build_and_run.sh report` for the signed bundle)
+
+## Observability
+
+- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file and event counts, unpriced model ids, the full usage snapshot, and the Codex quota outcome with a typed reason. Prefer it over screenshots when verifying pipeline behavior.
+- Parsing failures are silent by design; events dropped for missing pricing surface only as `unpricedModels` in the report and as telemetry warnings.
+- Runtime telemetry logs under subsystem `com.revolt.koogo` (categories `usage`, `quota`); stream it with `script/build_and_run.sh telemetry`.
 
 ## Repo structure
 

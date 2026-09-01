@@ -1,7 +1,7 @@
 import Foundation
 
-struct CodexQuotaSnapshot: Equatable, Sendable {
-    struct Limits: Equatable, Sendable {
+struct CodexQuotaSnapshot: Equatable, Sendable, Encodable {
+    struct Limits: Equatable, Sendable, Encodable {
         let fiveHour: Window?
         let weekly: Window?
 
@@ -14,7 +14,7 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         }
     }
 
-    struct Account: Equatable, Sendable {
+    struct Account: Equatable, Sendable, Encodable {
         let limits: Limits?
         let resetCredits: ResetCredits?
 
@@ -27,7 +27,7 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         }
     }
 
-    struct ResetCredits: Equatable, Sendable {
+    struct ResetCredits: Equatable, Sendable, Encodable {
         let availableCount: UInt64
         let nextExpiration: Date?
 
@@ -37,7 +37,7 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         }
     }
 
-    struct Model: Equatable, Identifiable, Sendable {
+    struct Model: Equatable, Identifiable, Sendable, Encodable {
         let id: String
         let title: String
         let limits: Limits
@@ -56,7 +56,7 @@ struct CodexQuotaSnapshot: Equatable, Sendable {
         }
     }
 
-    struct Window: Equatable, Sendable {
+    struct Window: Equatable, Sendable, Encodable {
         let remainingPercent: Int
         let resetsAt: Date?
 
