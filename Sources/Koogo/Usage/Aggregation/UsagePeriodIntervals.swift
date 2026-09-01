@@ -1,7 +1,7 @@
 import Foundation
 
-struct UsagePeriodIntervals: Equatable, Sendable {
-    struct Comparison: Equatable, Sendable {
+struct UsagePeriodIntervals: Sendable {
+    struct Comparison: Sendable {
         let current: Range<Date>
         let previous: Range<Date>
 

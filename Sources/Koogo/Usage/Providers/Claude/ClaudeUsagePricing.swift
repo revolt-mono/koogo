@@ -1,7 +1,7 @@
 import Foundation
 
-struct ClaudeTokenUsage: Hashable, Sendable {
-    enum CacheCreation: Hashable, Sendable {
+struct ClaudeTokenUsage: Sendable {
+    enum CacheCreation: Sendable {
         case aggregate(UInt64)
         case byDuration(fiveMinute: UInt64, oneHour: UInt64)
     }

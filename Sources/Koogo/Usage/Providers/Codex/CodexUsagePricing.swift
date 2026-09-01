@@ -1,6 +1,6 @@
 import Foundation
 
-struct CodexTokenUsage: Hashable, Sendable {
+struct CodexTokenUsage: Equatable, Sendable {
     let input: UInt64
     let cachedInput: UInt64
     let cacheWrite: UInt64

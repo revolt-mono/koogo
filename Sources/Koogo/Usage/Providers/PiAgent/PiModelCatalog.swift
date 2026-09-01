@@ -1,6 +1,6 @@
 import Foundation
 
-struct PiModelCatalog: Equatable, Sendable {
+struct PiModelCatalog: Sendable {
     private struct ID: Hashable, Sendable {
         let provider: String
         let model: String

@@ -14,7 +14,7 @@ actor UsageService {
         logIndex = UsageLogIndex(locations: locations.logs)
     }
 
-    func refresh(at date: Date = Date()) -> UsageSnapshot {
+    func refresh(at date: Date) -> UsageSnapshot {
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
         logIndex.refresh(since: intervals.historyStart)
         return UsageSnapshotBuilder.build(

@@ -66,7 +66,7 @@ struct UsageTestWorkspace {
     func append(
         _ text: String,
         to url: URL,
-        modificationDate: Date = usageTestTimestamp
+        modificationDate: Date
     ) throws {
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }

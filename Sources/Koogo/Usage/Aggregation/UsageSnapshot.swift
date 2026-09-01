@@ -30,7 +30,7 @@ struct UsageMonthSnapshot: Equatable, Sendable {
     let days: [UsageDaySnapshot]
 }
 
-struct ProviderUsageSnapshot: Equatable, Sendable {
+struct ProviderUsageSnapshot: Sendable {
     struct Favorite: Equatable, Sendable {
         let modelName: String
         let reasoningEffort: String?
@@ -64,7 +64,7 @@ enum UsageCostChange: Equatable, Sendable {
     }
 }
 
-struct UsageSummaryPeriodSnapshot: Equatable, Sendable {
+struct UsageSummaryPeriodSnapshot: Sendable {
     let current: UsagePeriodSnapshot
     let costChange: UsageCostChange
 
@@ -77,12 +77,12 @@ struct UsageSummaryPeriodSnapshot: Equatable, Sendable {
     }
 }
 
-struct UsageSummarySnapshot: Equatable, Sendable {
+struct UsageSummarySnapshot: Sendable {
     let today: UsageSummaryPeriodSnapshot
     let month: UsageSummaryPeriodSnapshot
 }
 
-struct UsageSnapshot: Equatable, Sendable {
+struct UsageSnapshot: Sendable {
     let summary: UsageSummarySnapshot
     let codex: ProviderUsageSnapshot
     let claude: ProviderUsageSnapshot

@@ -1,6 +1,6 @@
 import Foundation
 
-enum UsageProvider: Hashable, Sendable {
+enum UsageProvider: Equatable, Sendable {
     case codex
     case claude
     case piAgent
@@ -12,8 +12,8 @@ enum UsageModelReference: Hashable, Sendable {
     case piAgent(provider: String, id: String)
 }
 
-struct UsageRecord: Hashable, Sendable {
-    struct ModelTurn: Hashable, Sendable {
+struct UsageRecord: Sendable {
+    struct ModelTurn: Sendable {
         let model: UsageModelReference
         let reasoningEffort: String?
     }
