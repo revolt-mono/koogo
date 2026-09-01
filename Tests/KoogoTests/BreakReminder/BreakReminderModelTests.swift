@@ -11,22 +11,33 @@ final class BreakReminderModelTests: XCTestCase {
         var schedulingIssue: BreakReminderIssue?
         var scheduledDeadlines: [Date] = []
         var cancellationCount = 0
+        var notificationsEnabled = true
+        var isReminderPending = false
 
         init(now: @escaping @MainActor () -> Date = { .now }) {
             self.now = now
         }
 
         func schedule(after duration: TimeInterval) async throws(BreakReminderIssue) -> Date {
+            guard notificationsEnabled else {
+                throw .notificationsDisabled
+            }
             if let schedulingIssue {
                 throw schedulingIssue
             }
             let deadline = now().addingTimeInterval(duration)
             scheduledDeadlines.append(deadline)
+            isReminderPending = true
             return deadline
+        }
+
+        func hasDeliverableReminder() async -> Bool {
+            notificationsEnabled && isReminderPending
         }
 
         func cancel() {
             cancellationCount += 1
+            isReminderPending = false
         }
     }
 
@@ -195,6 +206,69 @@ final class BreakReminderModelTests: XCTestCase {
 
         XCTAssertEqual(restoredPausedModel.interval, .twoHours)
         XCTAssertEqual(restoredPausedModel.status(at: clock.now), .paused(remaining: 6_300))
+    }
+
+    func testReconciliationKeepsExistingAndRestoresMissingSystemNotification() async throws {
+        let (defaults, suiteName) = try makeDefaults()
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let clock = TestClock(now: Date(timeIntervalSince1970: 1_000))
+        let notifications = TestNotifications(now: { clock.now })
+        let firstModel = BreakReminderModel(
+            notifications: notifications,
+            defaults: defaults,
+            now: { clock.now }
+        )
+        await firstModel.toggle()
+
+        let restoredModel = BreakReminderModel(
+            notifications: notifications,
+            defaults: defaults,
+            now: { clock.now }
+        )
+        await restoredModel.reconcile()
+        XCTAssertEqual(notifications.scheduledDeadlines, [Date(timeIntervalSince1970: 4_600)])
+
+        clock.now.addTimeInterval(900)
+        notifications.isReminderPending = false
+        await restoredModel.reconcile()
+
+        XCTAssertTrue(notifications.isReminderPending)
+        XCTAssertEqual(
+            notifications.scheduledDeadlines,
+            [Date(timeIntervalSince1970: 4_600), Date(timeIntervalSince1970: 4_600)]
+        )
+        XCTAssertEqual(restoredModel.status(at: clock.now), .running(remaining: 2_700))
+    }
+
+    func testReconciliationPausesWhenNotificationsAreDisabled() async throws {
+        let (defaults, suiteName) = try makeDefaults()
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let clock = TestClock(now: Date(timeIntervalSince1970: 1_000))
+        let notifications = TestNotifications(now: { clock.now })
+        let firstModel = BreakReminderModel(
+            notifications: notifications,
+            defaults: defaults,
+            now: { clock.now }
+        )
+        await firstModel.toggle()
+
+        clock.now.addTimeInterval(900)
+        notifications.notificationsEnabled = false
+        let restoredModel = BreakReminderModel(
+            notifications: notifications,
+            defaults: defaults,
+            now: { clock.now }
+        )
+
+        await restoredModel.reconcile()
+
+        XCTAssertEqual(restoredModel.status(at: clock.now), .paused(remaining: 2_700))
+        XCTAssertEqual(restoredModel.issue, .notificationsDisabled)
+        XCTAssertFalse(notifications.isReminderPending)
     }
 
     func testTimeTextUsesHoursOnlyWhenNeeded() {

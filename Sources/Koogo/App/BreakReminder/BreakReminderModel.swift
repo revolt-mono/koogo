@@ -43,6 +43,7 @@ enum BreakReminderIssue: Error, Equatable {
 @MainActor
 protocol BreakReminderNotifications: AnyObject {
     func schedule(after duration: TimeInterval) async throws(BreakReminderIssue) -> Date
+    func hasDeliverableReminder() async -> Bool
     func cancel()
 }
 
@@ -131,6 +132,24 @@ final class BreakReminderModel {
         case .expired:
             await start(interval: interval, after: interval.duration)
         }
+    }
+
+    func reconcile() async {
+        guard !isScheduling, case .running = status(at: now()) else {
+            return
+        }
+
+        isScheduling = true
+        defer {
+            isScheduling = false
+        }
+
+        guard !(await notifications.hasDeliverableReminder()),
+            case .running(let remaining) = status(at: now())
+        else {
+            return
+        }
+        await start(interval: interval, after: remaining)
     }
 
     func restart() async {

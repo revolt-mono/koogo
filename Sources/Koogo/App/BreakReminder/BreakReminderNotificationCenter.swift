@@ -48,6 +48,19 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
         }
     }
 
+    func hasDeliverableReminder() async -> Bool {
+        switch await center.notificationSettings().authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return await center.pendingNotificationRequests().contains {
+                $0.identifier == Self.requestIdentifier
+            }
+        case .notDetermined, .denied:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
     func cancel() {
         center.removePendingNotificationRequests(withIdentifiers: [Self.requestIdentifier])
     }
