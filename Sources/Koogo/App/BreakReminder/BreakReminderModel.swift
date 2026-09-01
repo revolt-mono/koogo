@@ -96,7 +96,7 @@ final class BreakReminderModel {
     private(set) var isScheduling = false
 
     init(
-        notifications: any BreakReminderNotifications = BreakReminderNotificationCenter(),
+        notifications: any BreakReminderNotifications,
         defaults: UserDefaults = .standard,
         now: @escaping @MainActor () -> Date = { .now }
     ) {
