@@ -100,10 +100,22 @@ enum ClaudeUsagePricing {
         let supportsUSInference: Bool
     }
 
-    // Sources, checked 2026-08-26:
+    // Sources, checked 2026-09-02:
     // https://platform.claude.com/docs/en/about-claude/pricing
     // https://platform.claude.com/docs/en/models/overview
     private static let prices: [String: ModelPrice] = [
+        "claude-fable-5-1": ModelPrice(
+            displayName: "Fable 5.1",
+            standard: Rates(
+                input: 10_000,
+                cacheRead: 250,
+                cacheWriteFiveMinute: 12_500,
+                cacheWriteOneHour: 20_000,
+                output: 50_000
+            ),
+            fast: nil,
+            supportsUSInference: true
+        ),
         "claude-fable-5": ModelPrice(
             displayName: "Fable 5",
             standard: Rates(
