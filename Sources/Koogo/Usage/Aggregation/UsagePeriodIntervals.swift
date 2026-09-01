@@ -1,49 +1,39 @@
 import Foundation
 
-struct UsageInterval: Equatable, Sendable {
-    let upperBound: Date
-    private let duration: TimeInterval
-
-    var lowerBound: Date {
-        upperBound.addingTimeInterval(-duration)
-    }
-
-    fileprivate init(duration: TimeInterval, endingAt upperBound: Date) {
-        self.upperBound = upperBound
-        self.duration = duration
-    }
-
-    fileprivate var previous: Self {
-        Self(duration: duration, endingAt: lowerBound)
-    }
-
-    func contains(_ date: Date) -> Bool {
-        date > lowerBound && date <= upperBound
-    }
-}
-
 struct UsagePeriodIntervals: Equatable, Sendable {
     struct Comparison: Equatable, Sendable {
-        let current: UsageInterval
-        let previous: UsageInterval
+        let current: Range<Date>
+        let previous: Range<Date>
 
-        fileprivate init(current: UsageInterval) {
-            self.current = current
-            previous = current.previous
+        fileprivate init(
+            component: Calendar.Component,
+            containing date: Date,
+            calendar: Calendar
+        ) {
+            guard
+                let current = calendar.dateInterval(of: component, for: date),
+                let previousDate = calendar.date(byAdding: component, value: -1, to: current.start),
+                let previous = calendar.dateInterval(of: component, for: previousDate)
+            else {
+                preconditionFailure("calendar must provide current and previous period intervals")
+            }
+
+            self.current = current.start..<current.end
+            self.previous = previous.start..<previous.end
         }
     }
 
-    let last24Hours: Comparison
-    let last7Days: UsageInterval
-    let last30Days: Comparison
+    let day: Comparison
+    let week: Range<Date>
+    let month: Comparison
 
-    init(endingAt date: Date) {
-        last24Hours = Comparison(
-            current: UsageInterval(duration: 24 * 60 * 60, endingAt: date)
-        )
-        last7Days = UsageInterval(duration: 7 * 24 * 60 * 60, endingAt: date)
-        last30Days = Comparison(
-            current: UsageInterval(duration: 30 * 24 * 60 * 60, endingAt: date)
-        )
+    init(containing date: Date, calendar: Calendar) {
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: date) else {
+            preconditionFailure("calendar must provide a week interval")
+        }
+
+        day = Comparison(component: .day, containing: date, calendar: calendar)
+        self.week = week.start..<week.end
+        month = Comparison(component: .month, containing: date, calendar: calendar)
     }
 }

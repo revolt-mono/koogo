@@ -57,7 +57,7 @@ final class UsageServiceTests: XCTestCase {
         let service = UsageService(locations: locations, calendar: calendar)
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.codex.last24Hours.processedTokens, 120)
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
         XCTAssertEqual(
             snapshot.codex.favorite,
             ProviderUsageSnapshot.Favorite(
@@ -65,7 +65,7 @@ final class UsageServiceTests: XCTestCase {
                 reasoningEffort: "high"
             )
         )
-        XCTAssertEqual(snapshot.claude.last24Hours.processedTokens, 50)
+        XCTAssertEqual(snapshot.claude.today.processedTokens, 50)
         XCTAssertEqual(
             snapshot.claude.favorite,
             ProviderUsageSnapshot.Favorite(
@@ -90,14 +90,14 @@ final class UsageServiceTests: XCTestCase {
         )
         try append(appended, to: log)
         let beforeNewline = await service.refresh(at: now)
-        XCTAssertEqual(beforeNewline.codex.last24Hours.processedTokens, 120)
+        XCTAssertEqual(beforeNewline.codex.today.processedTokens, 120)
 
         try append("\n", to: log)
         let afterNewline = await service.refresh(at: now)
-        XCTAssertEqual(afterNewline.codex.last24Hours.processedTokens, 180)
+        XCTAssertEqual(afterNewline.codex.today.processedTokens, 180)
     }
 
-    func testRefreshAdvancesRollingWindow() async throws {
+    func testRefreshRebuildsSnapshotForNewDay() async throws {
         try write(
             codexLog(input: 100, output: 20),
             to: locations.logs.codex.sessions.appending(path: "session.jsonl")
@@ -108,9 +108,9 @@ final class UsageServiceTests: XCTestCase {
         let nextDay = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
         let refreshed = await service.refresh(at: nextDay)
 
-        XCTAssertEqual(current.codex.last24Hours.processedTokens, 120)
-        XCTAssertEqual(refreshed.codex.last24Hours, .zero)
-        XCTAssertEqual(refreshed.codex.last7Days.processedTokens, 120)
+        XCTAssertEqual(current.codex.today.processedTokens, 120)
+        XCTAssertEqual(refreshed.codex.today, .zero)
+        XCTAssertEqual(refreshed.codex.week.processedTokens, 120)
     }
 
     @MainActor
@@ -135,7 +135,7 @@ final class UsageServiceTests: XCTestCase {
         }
 
         XCTAssertEqual(
-            try XCTUnwrap(model.snapshot).codex.last30Days.processedTokens,
+            try XCTUnwrap(model.snapshot).codex.month.processedTokens,
             120
         )
     }
@@ -150,12 +150,12 @@ final class UsageServiceTests: XCTestCase {
         let archived = locations.logs.codex.archivedSessions.appending(path: "session.jsonl")
         try write(contents, to: archived)
         let copied = await service.refresh(at: now)
-        XCTAssertEqual(copied.codex.last24Hours.processedTokens, 120)
+        XCTAssertEqual(copied.codex.today.processedTokens, 120)
 
         try write(codexLog(input: 40, output: 10, thread: "replacement"), to: active)
         try FileManager.default.removeItem(at: archived)
         let replaced = await service.refresh(at: now)
-        XCTAssertEqual(replaced.codex.last24Hours.processedTokens, 50)
+        XCTAssertEqual(replaced.codex.today.processedTokens, 50)
     }
 
     func testUnknownModelIsIgnoredCompletely() async throws {
@@ -165,7 +165,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.codex.last30Days, .zero)
+        XCTAssertEqual(snapshot.codex.month, .zero)
     }
 
     func testCodexIdenticalRequestUsageAtTheSameTimestampCountsTwice() async throws {
@@ -195,7 +195,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.codex.last24Hours.processedTokens, 120)
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
 
     func testColdScanUsesEventTimestampsInsteadOfFileModificationDate() async throws {
@@ -209,7 +209,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.codex.last24Hours.processedTokens, 120)
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
 
     func testColdScanRetainsPreviousComparisonPeriods() async throws {
@@ -217,26 +217,26 @@ final class UsageServiceTests: XCTestCase {
             codexLog(
                 input: 100,
                 output: 20,
-                thread: "previous-24-hours",
+                thread: "previous-day",
                 usageTimestamp: "2026-08-24T17:00:00.000Z"
             ),
-            to: locations.logs.codex.sessions.appending(path: "previous-24-hours.jsonl")
+            to: locations.logs.codex.sessions.appending(path: "previous-day.jsonl")
         )
         try write(
             codexLog(
                 input: 200,
                 output: 40,
-                thread: "previous-30-days",
+                thread: "previous-month",
                 usageTimestamp: "2026-07-25T17:00:00.000Z"
             ),
-            to: locations.logs.codex.sessions.appending(path: "previous-30-days.jsonl")
+            to: locations.logs.codex.sessions.appending(path: "previous-month.jsonl")
         )
         let service = UsageService(locations: locations, calendar: calendar)
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.summary.last24Hours.costChange, .decrease(fraction: 1))
-        XCTAssertEqual(snapshot.summary.last30Days.costChange, .decrease(fraction: Decimal(1) / 2))
+        XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
+        XCTAssertEqual(snapshot.summary.month.costChange, .decrease(fraction: Decimal(1) / 2))
     }
 
     func testColdScanIgnoresJSONLSymlinks() async throws {
@@ -250,7 +250,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.codex.last30Days, .zero)
+        XCTAssertEqual(snapshot.codex.month, .zero)
     }
 
     func testColdScanParsesLinesAcrossReadChunks() async throws {
@@ -264,7 +264,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.codex.last24Hours.processedTokens, 120)
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
 
     func testClaudePartialsAndCopiesWithoutStableIDsAreIgnored() async throws {
@@ -276,7 +276,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.claude.last30Days, .zero)
+        XCTAssertEqual(snapshot.claude.month, .zero)
     }
 
     private func write(_ text: String, to url: URL) throws {

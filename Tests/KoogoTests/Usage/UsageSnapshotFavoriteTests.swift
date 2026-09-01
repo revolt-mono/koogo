@@ -29,12 +29,12 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
                     uncachedInput: 200_000
                 ),
             ],
-            intervals: UsagePeriodIntervals(endingAt: usageTestTimestamp),
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.codex.last24Hours.processedTokens, 240_000)
-        XCTAssertEqual(snapshot.codex.last24Hours.costUSD, Decimal(string: "1.008"))
+        XCTAssertEqual(snapshot.codex.today.processedTokens, 240_000)
+        XCTAssertEqual(snapshot.codex.today.costUSD, Decimal(string: "1.008"))
         XCTAssertEqual(
             snapshot.codex.favorite,
             ProviderUsageSnapshot.Favorite(
@@ -43,7 +43,7 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
             )
         )
         XCTAssertEqual(
-            snapshot.codex.last30DaysByDay.days,
+            snapshot.codex.dailyMonth.days,
             [
                 UsageDaySnapshot(
                     date: calendar.startOfDay(for: usageTestTimestamp),
@@ -95,7 +95,7 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
                     uncachedInput: 1
                 ),
             ],
-            intervals: UsagePeriodIntervals(endingAt: usageTestTimestamp),
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
             calendar: calendar
         )
 

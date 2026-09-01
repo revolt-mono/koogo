@@ -62,10 +62,10 @@ enum UsageSnapshotBuilder {
 
     private struct ProviderAccumulator {
         var favorite = FavoriteAccumulator()
-        var last24Hours = Totals()
-        var last7Days = Totals()
-        var last30Days = Totals()
-        var last30DaysByDay: [Date: Totals] = [:]
+        var today = Totals()
+        var week = Totals()
+        var month = Totals()
+        var monthByDay: [Date: Totals] = [:]
 
         mutating func add(
             _ usage: UsageRecord,
@@ -73,15 +73,15 @@ enum UsageSnapshotBuilder {
             calendar: Calendar
         ) {
             favorite.add(usage.modelTurn)
-            if intervals.last24Hours.current.contains(usage.timestamp) {
-                last24Hours.add(usage)
+            if intervals.day.current.contains(usage.timestamp) {
+                today.add(usage)
             }
-            if intervals.last7Days.contains(usage.timestamp) {
-                last7Days.add(usage)
+            if intervals.week.contains(usage.timestamp) {
+                week.add(usage)
             }
-            if intervals.last30Days.current.contains(usage.timestamp) {
-                last30Days.add(usage)
-                last30DaysByDay[
+            if intervals.month.current.contains(usage.timestamp) {
+                month.add(usage)
+                monthByDay[
                     calendar.startOfDay(for: usage.timestamp),
                     default: Totals()
                 ].add(usage)
@@ -94,12 +94,12 @@ enum UsageSnapshotBuilder {
         ) -> ProviderUsageSnapshot {
             ProviderUsageSnapshot(
                 favorite: favorite.snapshot(piModels: piModels),
-                last24Hours: last24Hours.snapshot,
-                last7Days: last7Days.snapshot,
-                last30Days: last30Days.snapshot,
-                last30DaysByDay: UsageDailySnapshot(
-                    interval: intervals.last30Days.current,
-                    days: last30DaysByDay.sorted { $0.key < $1.key }.map {
+                today: today.snapshot,
+                week: week.snapshot,
+                month: month.snapshot,
+                dailyMonth: UsageMonthSnapshot(
+                    range: intervals.month.current,
+                    days: monthByDay.sorted { $0.key < $1.key }.map {
                         UsageDaySnapshot(
                             date: $0.key,
                             processedTokens: $0.value.processedTokens,
@@ -120,8 +120,8 @@ enum UsageSnapshotBuilder {
         var codex = ProviderAccumulator()
         var claude = ProviderAccumulator()
         var piAgent = ProviderAccumulator()
-        var previous24Hours = Totals()
-        var previous30Days = Totals()
+        var previousDay = Totals()
+        var previousMonth = Totals()
 
         for event in events {
             let usage = event.usage
@@ -133,11 +133,11 @@ enum UsageSnapshotBuilder {
             case .piAgent:
                 piAgent.add(usage, intervals: intervals, calendar: calendar)
             }
-            if intervals.last24Hours.previous.contains(usage.timestamp) {
-                previous24Hours.add(usage)
+            if intervals.day.previous.contains(usage.timestamp) {
+                previousDay.add(usage)
             }
-            if intervals.last30Days.previous.contains(usage.timestamp) {
-                previous30Days.add(usage)
+            if intervals.month.previous.contains(usage.timestamp) {
+                previousMonth.add(usage)
             }
         }
 
@@ -145,8 +145,8 @@ enum UsageSnapshotBuilder {
             codex: codex.snapshot(intervals: intervals, piModels: piModels),
             claude: claude.snapshot(intervals: intervals, piModels: piModels),
             piAgent: piAgent.snapshot(intervals: intervals, piModels: piModels),
-            previous24Hours: previous24Hours.snapshot,
-            previous30Days: previous30Days.snapshot
+            previousDay: previousDay.snapshot,
+            previousMonth: previousMonth.snapshot
         )
     }
 }
