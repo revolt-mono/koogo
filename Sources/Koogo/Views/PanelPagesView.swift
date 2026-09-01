@@ -18,7 +18,7 @@ struct PanelPagesView: View {
                     Group {
                         switch page {
                         case .usage:
-                            Group {
+                            ZStack(alignment: .top) {
                                 if let snapshot = usageModel.snapshot {
                                     UsagePanelView(snapshot: snapshot)
                                         .transition(.blurReplace)
@@ -33,6 +33,10 @@ struct PanelPagesView: View {
                                         .transition(.blurReplace)
                                 }
                             }
+                            .animation(
+                                reduceMotion ? nil : .smooth(duration: 0.35),
+                                value: usageModel.snapshot != nil
+                            )
                         case .inbox:
                             InboxView(dismissInput: dismissInput)
                         }
@@ -64,10 +68,6 @@ struct PanelPagesView: View {
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .animation(
-            reduceMotion ? nil : .smooth(duration: 0.35),
-            value: usageModel.snapshot != nil
-        )
     }
 
     private func move(_ direction: PanelPageDirection) {

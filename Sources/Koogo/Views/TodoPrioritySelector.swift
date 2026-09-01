@@ -28,31 +28,104 @@ private extension TodoPriority {
     }
 }
 
+struct TodoPrioritySpring {
+    private static let omega = 2 * CGFloat.pi / 0.42
+    private static let stiffness = omega * omega
+    private static let damping = 2 * 0.86 * omega
+
+    private(set) var progress: CGFloat
+    private(set) var velocity: CGFloat
+    private(set) var target: CGFloat
+
+    var isActive: Bool {
+        progress != target || velocity != 0
+    }
+
+    init(isSelected: Bool) {
+        let target: CGFloat = isSelected ? 1 : 0
+        progress = target
+        velocity = 0
+        self.target = target
+    }
+
+    mutating func retarget(isSelected: Bool) {
+        target = isSelected ? 1 : 0
+    }
+
+    mutating func snap() {
+        progress = target
+        velocity = 0
+    }
+
+    mutating func advance(by duration: CGFloat) -> Bool {
+        guard isActive else {
+            return false
+        }
+
+        velocity +=
+            (-Self.stiffness * (progress - target) - Self.damping * velocity) * duration
+        progress += velocity * duration
+
+        if abs(progress - target) < 0.001, abs(velocity) < 0.005 {
+            snap()
+            return false
+        }
+        return true
+    }
+}
+
 struct TodoPrioritySelector: View {
     @Binding var selection: TodoPriority
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focusedPriority: TodoPriority?
 
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(TodoPriority.allCases, id: \.self) { priority in
-                let isSelected = selection == priority
+    @State private var springs: [TodoPriority: TodoPrioritySpring]
+    @State private var expandedWidths: [TodoPriority: CGFloat] = [:]
+    @State private var lastFrame: ContinuousClock.Instant?
 
-                Button {
-                    selection = priority
-                } label: {
-                    TodoPriorityOption(
-                        priority: priority,
-                        isSelected: isSelected
+    init(selection: Binding<TodoPriority>) {
+        _selection = selection
+        _springs = State(
+            initialValue: Dictionary(
+                uniqueKeysWithValues: TodoPriority.allCases.map { priority in
+                    (
+                        priority,
+                        TodoPrioritySpring(isSelected: priority == selection.wrappedValue)
                     )
                 }
-                .buttonStyle(TodoPriorityButtonStyle())
-                .focused($focusedPriority, equals: priority)
-                .accessibilityLabel(priority.rawValue)
-                .accessibilityValue(isSelected ? "Selected priority" : "")
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            )
+        )
+    }
+
+    var body: some View {
+        TimelineView(.animation(paused: reduceMotion || !springsAreActive)) { timeline in
+            HStack(spacing: 4) {
+                ForEach(TodoPriority.allCases, id: \.self) { priority in
+                    let isSelected = selection == priority
+
+                    Button {
+                        selection = priority
+                    } label: {
+                        TodoPriorityOption(
+                            priority: priority,
+                            pillWidth: expandedWidths[priority] ?? 20,
+                            isSelected: isSelected,
+                            progress: springs[priority]?.progress ?? (isSelected ? 1 : 0)
+                        ) { width in
+                            recordExpandedWidth(width, for: priority)
+                        }
+                    }
+                    .buttonStyle(TodoPriorityButtonStyle())
+                    .focused($focusedPriority, equals: priority)
+                    .accessibilityLabel(priority.rawValue)
+                    .accessibilityValue(isSelected ? "Selected priority" : "")
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                }
             }
+            .opacity(widthsAreReady ? 1 : 0)
+            .accessibilityHidden(!widthsAreReady)
+            .onChange(of: timeline.date, advanceSprings)
         }
         .onKeyPress(
             keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .home, .end],
@@ -60,10 +133,23 @@ struct TodoPrioritySelector: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Priority")
-        .animation(
-            reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86),
-            value: selection
-        )
+        .onChange(of: selection, retargetSprings)
+        .onChange(of: reduceMotion) {
+            if reduceMotion {
+                retargetSprings()
+            }
+        }
+        .onDisappear {
+            lastFrame = nil
+        }
+    }
+
+    private var widthsAreReady: Bool {
+        expandedWidths.count == TodoPriority.allCases.count
+    }
+
+    private var springsAreActive: Bool {
+        springs.values.contains(where: \.isActive)
     }
 
     private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
@@ -84,21 +170,88 @@ struct TodoPrioritySelector: View {
         focusedPriority = destination
         return .handled
     }
+
+    private func recordExpandedWidth(_ width: CGFloat, for priority: TodoPriority) {
+        guard width > 0, expandedWidths[priority] != width else {
+            return
+        }
+
+        let wasReady = widthsAreReady
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            expandedWidths[priority] = width
+        }
+
+        if !wasReady, widthsAreReady {
+            retargetSprings()
+        }
+    }
+
+    private func retargetSprings() {
+        let wasActive = springsAreActive
+        let shouldSnap = reduceMotion || !widthsAreReady
+        var springs = springs
+        for priority in TodoPriority.allCases {
+            springs[priority]?.retarget(isSelected: priority == selection)
+            if shouldSnap {
+                springs[priority]?.snap()
+            }
+        }
+
+        self.springs = springs
+        if shouldSnap || !wasActive {
+            lastFrame = nil
+        }
+    }
+
+    private func advanceSprings() {
+        let now = ContinuousClock.now
+        let duration: CGFloat
+        if let lastFrame {
+            let elapsed = (now - lastFrame).components
+            duration = min(
+                CGFloat(elapsed.seconds)
+                    + CGFloat(elapsed.attoseconds) / 1_000_000_000_000_000_000,
+                0.032
+            )
+        } else {
+            duration = 1.0 / 60
+        }
+        self.lastFrame = now
+
+        var springs = springs
+        var remainsActive = false
+        for priority in TodoPriority.allCases {
+            guard var spring = springs[priority] else {
+                continue
+            }
+            remainsActive = spring.advance(by: duration) || remainsActive
+            springs[priority] = spring
+        }
+        self.springs = springs
+
+        if !remainsActive {
+            lastFrame = nil
+        }
+    }
 }
 
 private struct TodoPriorityOption: View {
     let priority: TodoPriority
+    let pillWidth: CGFloat
     let isSelected: Bool
+    let progress: CGFloat
+    let onMeasure: (CGFloat) -> Void
 
-    @State private var expandedWidth: CGFloat = 20
     @State private var isHovered = false
 
     var body: some View {
         TodoPriorityMorph(
             priority: priority,
-            pillWidth: expandedWidth,
+            pillWidth: pillWidth,
             showsHover: isHovered && !isSelected,
-            progress: isSelected ? 1 : 0
+            progress: progress
         )
         .onHover { isHovered = $0 }
         .background {
@@ -108,7 +261,7 @@ private struct TodoPriorityOption: View {
                 .onGeometryChange(for: CGFloat.self) { geometry in
                     geometry.size.width
                 } action: { width in
-                    expandedWidth = width
+                    onMeasure(width)
                 }
         }
     }
@@ -130,16 +283,11 @@ private struct TodoPriorityOption: View {
     }
 }
 
-private struct TodoPriorityMorph: View, Animatable {
+private struct TodoPriorityMorph: View {
     let priority: TodoPriority
     let pillWidth: CGFloat
     let showsHover: Bool
-    var progress: CGFloat
-
-    nonisolated var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
+    let progress: CGFloat
 
     var body: some View {
         let morphProgress = min(max(progress, -0.08), 1.12)
