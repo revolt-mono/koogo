@@ -27,15 +27,21 @@
 
 ```
 ├── Sources/Koogo       menu bar application
-│   ├── App             lifecycle and observable application state
-│   ├── Quota           Codex quota session and service
-│   ├── Usage           usage models and service orchestration
+│   ├── App             lifecycle and feature-owned observable state
+│   │   ├── BreakReminder
+│   │   ├── Inbox
+│   │   ├── Quota
+│   │   ├── Update
+│   │   └── Usage
+│   ├── QuickActions    system quick-action adapters
+│   ├── Quota           Codex quota transport, session, and service
+│   ├── Usage           usage records and service orchestration
 │   │   ├── Aggregation calendar-based snapshots and summaries
 │   │   ├── Ingestion   incremental log reading, parsing, and event indexing
 │   │   └── Providers   Claude, Codex, and Pi Agent adapters and pricing
-│   ├── Views           SwiftUI menu panels, charts, loading states, and formatting
+│   ├── Views           feature-owned SwiftUI panels and controls
 │   └── Resources       bundled image assets
-├── Tests/KoogoTests    usage and quota behavior tests with shared fixtures
+├── Tests/KoogoTests    feature-aligned behavior tests and shared fixtures
 └── script              signing, app bundle assembly, launch, and verification
 ```
 
