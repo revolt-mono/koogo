@@ -108,7 +108,18 @@ extension ClaudeBillableUsage: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        speed = try Self.speed(in: container)
+        speed =
+            switch try container.decodeIfPresent(String.self, forKey: .speed) {
+            case nil: .implicitStandard
+            case "standard": .standard
+            case "fast": .fast
+            default:
+                throw DecodingError.dataCorruptedError(
+                    forKey: .speed,
+                    in: container,
+                    debugDescription: "unknown speed"
+                )
+            }
         inferenceGeo = try container.decodeIfPresent(String.self, forKey: .inferenceGeo)
         webSearchRequests =
             try container.decodeIfPresent(
@@ -165,22 +176,6 @@ extension ClaudeBillableUsage: Decodable {
             )
         }
         return .byDuration(fiveMinute: fiveMinute, oneHour: oneHour)
-    }
-
-    private static func speed(
-        in container: KeyedDecodingContainer<CodingKeys>
-    ) throws -> ClaudeUsageSpeed {
-        switch try container.decodeIfPresent(String.self, forKey: .speed) {
-        case nil: .implicitStandard
-        case "standard": .standard
-        case "fast": .fast
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .speed,
-                in: container,
-                debugDescription: "unknown speed"
-            )
-        }
     }
 }
 

@@ -109,7 +109,7 @@ final class PiUsageTests: XCTestCase {
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
             calendar: calendar
         )
-        XCTAssertEqual(snapshot.piAgent.month, .zero)
+        XCTAssertEqual(snapshot.piAgent.month, UsagePeriodSnapshot())
         XCTAssertEqual(
             snapshot.piAgent.favorite,
             ProviderUsageSnapshot.Favorite(modelName: "free-model", reasoningEffort: nil)

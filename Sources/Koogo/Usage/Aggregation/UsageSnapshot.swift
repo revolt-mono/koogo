@@ -1,13 +1,13 @@
 import Foundation
 
 struct UsagePeriodSnapshot: Equatable, Sendable, Encodable {
-    let processedTokens: Decimal
-    let costUSD: Decimal
+    var processedTokens: Decimal = 0
+    var costUSD: Decimal = 0
 
-    static let zero = UsagePeriodSnapshot(
-        processedTokens: 0,
-        costUSD: 0
-    )
+    mutating func add(_ usage: UsageRecord) {
+        processedTokens += Decimal(usage.processedTokens)
+        costUSD += usage.costUSD
+    }
 
     static func + (lhs: Self, rhs: Self) -> Self {
         UsagePeriodSnapshot(

@@ -83,7 +83,7 @@ final class UsageServiceTests: XCTestCase {
         let refreshed = await service.refresh(at: nextDay).snapshot
 
         XCTAssertEqual(current.codex.today.processedTokens, 120)
-        XCTAssertEqual(refreshed.codex.today, .zero)
+        XCTAssertEqual(refreshed.codex.today, UsagePeriodSnapshot())
         XCTAssertEqual(refreshed.codex.week.processedTokens, 120)
     }
 
@@ -112,7 +112,7 @@ final class UsageServiceTests: XCTestCase {
 
         let report = await service.refresh(at: now)
 
-        XCTAssertEqual(report.snapshot.codex.month, .zero)
+        XCTAssertEqual(report.snapshot.codex.month, UsagePeriodSnapshot())
         XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1])
         XCTAssertEqual(report.ingestion.events, [:])
         XCTAssertEqual(report.ingestion.unpricedModels, ["unknown-model"])
@@ -232,7 +232,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now).snapshot
 
-        XCTAssertEqual(snapshot.codex.month, .zero)
+        XCTAssertEqual(snapshot.codex.month, UsagePeriodSnapshot())
     }
 
     func testColdScanParsesLinesAcrossReadChunks() async throws {
@@ -258,7 +258,7 @@ final class UsageServiceTests: XCTestCase {
 
         let snapshot = await service.refresh(at: now).snapshot
 
-        XCTAssertEqual(snapshot.claude.month, .zero)
+        XCTAssertEqual(snapshot.claude.month, UsagePeriodSnapshot())
     }
 
     private func write(_ text: String, to url: URL) throws {

@@ -1,7 +1,6 @@
 import Foundation
 
 private enum PiRecordKind: String, LogRecordKind {
-    case session
     case message
     case thinkingLevelChange = "thinking_level_change"
     case compaction
@@ -25,27 +24,24 @@ struct PiLogParser: Sendable {
         guard let record = try? decoder.decode(PiLogRecord.self, from: line) else {
             return nil
         }
-        guard case .entry(let entryID, let parentID, let entryTimestamp, let action) = record else {
-            return nil
-        }
 
         let thinking =
-            switch action {
+            switch record.action {
             case .thinking(let level): level
-            case .inherit, .billed: parentID.flatMap { thinkingByEntry[$0] }
+            case .inherit, .billed: record.parentID.flatMap { thinkingByEntry[$0] }
             }
         if let thinking {
-            thinkingByEntry[entryID] = thinking
+            thinkingByEntry[record.id] = thinking
         }
         guard
-            case .billed(let billedUsage, let model, let timestampSource) = action,
+            case .billed(let billedUsage, let model, let timestampSource) = record.action,
             model != nil || billedUsage.processedTokens > 0 || billedUsage.costUSD > 0
         else {
             return nil
         }
         let timestamp =
             switch timestampSource {
-            case .entry: parseUsageTimestamp(entryTimestamp)
+            case .entry: parseUsageTimestamp(record.timestamp)
             case .milliseconds(let milliseconds):
                 Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
             }
@@ -55,16 +51,13 @@ struct PiLogParser: Sendable {
 
         return .event(
             .piAgent(
-                entryID: entryID,
+                entryID: record.id,
                 usage: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: billedUsage.processedTokens,
                     costUSD: billedUsage.costUSD,
                     modelTurn: model.map {
-                        UsageRecord.ModelTurn(
-                            model: .piAgent(provider: $0.provider, id: $0.id),
-                            reasoningEffort: thinking
-                        )
+                        UsageRecord.ModelTurn(model: $0, reasoningEffort: thinking)
                     }
                 )
             )
@@ -72,7 +65,7 @@ struct PiLogParser: Sendable {
     }
 }
 
-private enum PiLogRecord: Decodable {
+private struct PiLogRecord: Decodable {
     enum Action: Decodable {
         enum TimestampSource {
             case entry
@@ -81,7 +74,7 @@ private enum PiLogRecord: Decodable {
 
         case inherit
         case thinking(String)
-        case billed(usage: PiLoggedUsage, model: PiModel?, timestamp: TimestampSource)
+        case billed(usage: PiLoggedUsage, model: UsageModelReference?, timestamp: TimestampSource)
 
         private enum CodingKeys: String, CodingKey {
             case role
@@ -98,10 +91,10 @@ private enum PiLogRecord: Decodable {
                 self = .inherit
                 return
             }
-            let model: PiModel?
+            let model: UsageModelReference?
             switch role {
             case .assistant:
-                model = PiModel(
+                model = .piAgent(
                     provider: try container.decode(String.self, forKey: .provider),
                     id: try container.decode(String.self, forKey: .model)
                 )
@@ -119,8 +112,10 @@ private enum PiLogRecord: Decodable {
         }
     }
 
-    case session
-    case entry(id: String, parentID: String?, timestamp: String, action: Action)
+    let id: String
+    let parentID: String?
+    let timestamp: String
+    let action: Action
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -134,37 +129,23 @@ private enum PiLogRecord: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(PiRecordKind.self, forKey: .type)
-        guard type != .session else {
-            self = .session
-            return
-        }
-        let action: Action
-        switch type {
-        case .message:
-            action = try container.decode(Action.self, forKey: .message)
-        case .thinkingLevelChange:
-            action = .thinking(try container.decode(String.self, forKey: .thinkingLevel))
-        case .compaction, .branchSummary:
-            action =
+        id = try container.decode(String.self, forKey: .id)
+        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
+        timestamp = try container.decode(String.self, forKey: .timestamp)
+        action =
+            switch try container.decode(PiRecordKind.self, forKey: .type) {
+            case .message:
+                try container.decode(Action.self, forKey: .message)
+            case .thinkingLevelChange:
+                .thinking(try container.decode(String.self, forKey: .thinkingLevel))
+            case .compaction, .branchSummary:
                 try container.decodeIfPresent(PiLoggedUsage.self, forKey: .usage)
-                .map { .billed(usage: $0, model: nil, timestamp: .entry) }
-                ?? .inherit
-        case .session, .other:
-            action = .inherit
-        }
-        self = .entry(
-            id: try container.decode(String.self, forKey: .id),
-            parentID: try container.decodeIfPresent(String.self, forKey: .parentID),
-            timestamp: try container.decode(String.self, forKey: .timestamp),
-            action: action
-        )
+                    .map { .billed(usage: $0, model: nil, timestamp: .entry) }
+                    ?? .inherit
+            case .other:
+                .inherit
+            }
     }
-}
-
-private struct PiModel {
-    let provider: String
-    let id: String
 }
 
 private struct PiLoggedUsage: Decodable {

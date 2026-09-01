@@ -116,14 +116,7 @@ private enum CodexLogRecord: Decodable {
                 threadID: try container.decode(CodexSessionMetadata.self, forKey: .payload).id
             )
         case .turnContext:
-            let payload = try container.decode(CodexTurnContext.self, forKey: .payload)
-            self = .turnContext(
-                CodexTurn(
-                    id: payload.turnID,
-                    model: payload.model,
-                    reasoningEffort: payload.effort
-                )
-            )
+            self = .turnContext(try container.decode(CodexTurn.self, forKey: .payload))
         case .eventMessage:
             let payload = try container.decode(CodexEventMessage.self, forKey: .payload)
             guard payload.type == .tokenCount, let info = payload.info else {
@@ -147,27 +140,21 @@ private struct CodexSessionMetadata: Decodable {
     let id: String
 }
 
-private struct CodexTurnContext: Decodable {
-    let turnID: String?
-    let model: String
-    let effort: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case turnID = "turn_id"
-        case model
-        case effort
-    }
-}
-
 private struct CodexEventMessage: Decodable {
     let type: CodexPayloadKind
     let info: CodexTokenInfo?
 }
 
-private struct CodexTurn: Sendable {
+private struct CodexTurn: Decodable, Sendable {
     let id: String?
     let model: String
     let reasoningEffort: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id = "turn_id"
+        case model
+        case reasoningEffort = "effort"
+    }
 }
 
 private struct CodexTokenCount {

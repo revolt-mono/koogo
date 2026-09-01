@@ -1,23 +1,6 @@
 import Foundation
 
 enum UsageSnapshotBuilder {
-    private struct Totals {
-        var processedTokens: Decimal = 0
-        var costUSD: Decimal = 0
-
-        mutating func add(_ usage: UsageRecord) {
-            processedTokens += Decimal(usage.processedTokens)
-            costUSD += usage.costUSD
-        }
-
-        var snapshot: UsagePeriodSnapshot {
-            UsagePeriodSnapshot(
-                processedTokens: processedTokens,
-                costUSD: costUSD
-            )
-        }
-    }
-
     private struct ModelUsage {
         var occurrences = 0
         var reasoningEfforts: [String: Int] = [:]
@@ -62,10 +45,10 @@ enum UsageSnapshotBuilder {
 
     private struct ProviderAccumulator {
         var favorite = FavoriteAccumulator()
-        var today = Totals()
-        var week = Totals()
-        var month = Totals()
-        var monthByDay: [Date: Totals] = [:]
+        var today = UsagePeriodSnapshot()
+        var week = UsagePeriodSnapshot()
+        var month = UsagePeriodSnapshot()
+        var monthByDay: [Date: UsagePeriodSnapshot] = [:]
 
         mutating func add(
             _ usage: UsageRecord,
@@ -81,10 +64,7 @@ enum UsageSnapshotBuilder {
             }
             if intervals.month.current.contains(usage.timestamp) {
                 month.add(usage)
-                monthByDay[
-                    calendar.startOfDay(for: usage.timestamp),
-                    default: Totals()
-                ].add(usage)
+                monthByDay[calendar.startOfDay(for: usage.timestamp), default: .init()].add(usage)
             }
         }
 
@@ -94,9 +74,9 @@ enum UsageSnapshotBuilder {
         ) -> ProviderUsageSnapshot {
             ProviderUsageSnapshot(
                 favorite: favorite.snapshot(piModels: piModels),
-                today: today.snapshot,
-                week: week.snapshot,
-                month: month.snapshot,
+                today: today,
+                week: week,
+                month: month,
                 dailyMonth: UsageMonthSnapshot(
                     range: intervals.month.current,
                     days: monthByDay.sorted { $0.key < $1.key }.map {
@@ -120,8 +100,8 @@ enum UsageSnapshotBuilder {
         var codex = ProviderAccumulator()
         var claude = ProviderAccumulator()
         var piAgent = ProviderAccumulator()
-        var previousDay = Totals()
-        var previousMonth = Totals()
+        var previousDay = UsagePeriodSnapshot()
+        var previousMonth = UsagePeriodSnapshot()
 
         for event in events {
             let usage = event.usage
@@ -145,8 +125,8 @@ enum UsageSnapshotBuilder {
             codex: codex.snapshot(intervals: intervals, piModels: piModels),
             claude: claude.snapshot(intervals: intervals, piModels: piModels),
             piAgent: piAgent.snapshot(intervals: intervals, piModels: piModels),
-            previousDay: previousDay.snapshot,
-            previousMonth: previousMonth.snapshot
+            previousDay: previousDay,
+            previousMonth: previousMonth
         )
     }
 }
