@@ -126,10 +126,10 @@ final class PiUsageTests: XCTestCase {
         )
         let snapshot = UsageSnapshotBuilder.build(
             events: [event],
-            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
+            intervals: UsagePeriodIntervals(endingAt: usageTestTimestamp),
             calendar: calendar
         )
-        XCTAssertEqual(snapshot.piAgent.month, .zero)
+        XCTAssertEqual(snapshot.piAgent.last30Days, .zero)
         XCTAssertEqual(
             snapshot.piAgent.favorite,
             ProviderUsageSnapshot.Favorite(modelName: "free-model", reasoningEffort: nil)
@@ -152,10 +152,10 @@ final class PiUsageTests: XCTestCase {
             at: usageTestTimestamp
         )
 
-        XCTAssertEqual(snapshot.piAgent.today.processedTokens, 210)
-        XCTAssertEqual(snapshot.piAgent.today.costUSD, Decimal(string: "0.21"))
-        XCTAssertEqual(snapshot.summary.today.current.processedTokens, 210)
-        XCTAssertEqual(snapshot.summary.today.current.costUSD, Decimal(string: "0.21"))
+        XCTAssertEqual(snapshot.piAgent.last24Hours.processedTokens, 210)
+        XCTAssertEqual(snapshot.piAgent.last24Hours.costUSD, Decimal(string: "0.21"))
+        XCTAssertEqual(snapshot.summary.last24Hours.current.processedTokens, 210)
+        XCTAssertEqual(snapshot.summary.last24Hours.current.costUSD, Decimal(string: "0.21"))
         XCTAssertEqual(
             snapshot.piAgent.favorite,
             ProviderUsageSnapshot.Favorite(
@@ -196,7 +196,7 @@ final class PiUsageTests: XCTestCase {
         let service = UsageService(locations: locations, calendar: calendar)
 
         let original = await service.refresh(at: usageTestTimestamp)
-        XCTAssertEqual(original.piAgent.today.processedTokens, 210)
+        XCTAssertEqual(original.piAgent.last24Hours.processedTokens, 210)
 
         let forkHeader = piSessionHeader.replacingOccurrences(
             of: "\"id\":\"session\"",
@@ -218,8 +218,8 @@ final class PiUsageTests: XCTestCase {
             at: usageTestTimestamp
         )
         for snapshot in [incremental, cold] {
-            XCTAssertEqual(snapshot.piAgent.today.processedTokens, 280)
-            XCTAssertEqual(snapshot.piAgent.today.costUSD, Decimal(string: "0.28"))
+            XCTAssertEqual(snapshot.piAgent.last24Hours.processedTokens, 280)
+            XCTAssertEqual(snapshot.piAgent.last24Hours.costUSD, Decimal(string: "0.28"))
         }
     }
 

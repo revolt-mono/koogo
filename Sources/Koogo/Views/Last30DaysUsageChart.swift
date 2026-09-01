@@ -2,8 +2,8 @@ import AppKit
 import Charts
 import SwiftUI
 
-struct MonthlyUsageChart: View {
-    let month: UsageMonthSnapshot
+struct Last30DaysUsageChart: View {
+    let usage: UsageDailySnapshot
     let barColor: Color
 
     @State private var selectedDate: Date?
@@ -12,14 +12,14 @@ struct MonthlyUsageChart: View {
         guard let selectedDate else {
             return nil
         }
-        return month.days.first {
+        return usage.days.first {
             Calendar.autoupdatingCurrent.isDate($0.date, inSameDayAs: selectedDate)
         }
     }
 
     var body: some View {
         Chart {
-            ForEach(month.days) { day in
+            ForEach(usage.days) { day in
                 BarMark(
                     x: .value("Day", day.date, unit: .day),
                     y: .value("Cost", NSDecimalNumber(decimal: day.costUSD).doubleValue)
@@ -28,7 +28,9 @@ struct MonthlyUsageChart: View {
                 .cornerRadius(1)
             }
         }
-        .chartXScale(domain: month.range.lowerBound...month.range.upperBound)
+        .chartXScale(
+            domain: usage.interval.lowerBound...usage.interval.upperBound
+        )
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartLegend(.hidden)
@@ -48,7 +50,7 @@ struct MonthlyUsageChart: View {
             .allowsHitTesting(false)
         }
         .frame(height: 48)
-        .animation(.smooth(duration: 0.35), value: month)
+        .animation(.smooth(duration: 0.35), value: usage)
     }
 }
 

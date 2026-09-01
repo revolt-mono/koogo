@@ -54,8 +54,8 @@ struct UsageDaySnapshot: Equatable, Identifiable, Sendable {
     var id: Date { date }
 }
 
-struct UsageMonthSnapshot: Equatable, Sendable {
-    let range: Range<Date>
+struct UsageDailySnapshot: Equatable, Sendable {
+    let interval: UsageInterval
     let days: [UsageDaySnapshot]
 }
 
@@ -66,10 +66,10 @@ struct ProviderUsageSnapshot: Equatable, Sendable {
     }
 
     let favorite: Favorite?
-    let today: UsagePeriodSnapshot
-    let week: UsagePeriodSnapshot
-    let month: UsagePeriodSnapshot
-    let dailyMonth: UsageMonthSnapshot
+    let last24Hours: UsagePeriodSnapshot
+    let last7Days: UsagePeriodSnapshot
+    let last30Days: UsagePeriodSnapshot
+    let last30DaysByDay: UsageDailySnapshot
 }
 
 enum UsageCostChange: Equatable, Sendable {
@@ -107,8 +107,8 @@ struct UsageSummaryPeriodSnapshot: Equatable, Sendable {
 }
 
 struct UsageSummarySnapshot: Equatable, Sendable {
-    let today: UsageSummaryPeriodSnapshot
-    let month: UsageSummaryPeriodSnapshot
+    let last24Hours: UsageSummaryPeriodSnapshot
+    let last30Days: UsageSummaryPeriodSnapshot
 }
 
 struct UsageSnapshot: Equatable, Sendable {
@@ -121,17 +121,17 @@ struct UsageSnapshot: Equatable, Sendable {
         codex: ProviderUsageSnapshot,
         claude: ProviderUsageSnapshot,
         piAgent: ProviderUsageSnapshot,
-        previousDay: UsagePeriodSnapshot,
-        previousMonth: UsagePeriodSnapshot
+        previous24Hours: UsagePeriodSnapshot,
+        previous30Days: UsagePeriodSnapshot
     ) {
         summary = UsageSummarySnapshot(
-            today: UsageSummaryPeriodSnapshot(
-                current: codex.today + claude.today + piAgent.today,
-                previous: previousDay
+            last24Hours: UsageSummaryPeriodSnapshot(
+                current: codex.last24Hours + claude.last24Hours + piAgent.last24Hours,
+                previous: previous24Hours
             ),
-            month: UsageSummaryPeriodSnapshot(
-                current: codex.month + claude.month + piAgent.month,
-                previous: previousMonth
+            last30Days: UsageSummaryPeriodSnapshot(
+                current: codex.last30Days + claude.last30Days + piAgent.last30Days,
+                previous: previous30Days
             )
         )
         self.codex = codex

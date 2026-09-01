@@ -81,8 +81,7 @@ private struct TrackedUsageFile: Sendable {
         from source: UsageLogSource,
         observed metadata: UsageFileMetadata,
         since historyStart: Date
-    ) -> Bool {
-        let previousMetadata = self.metadata
+    ) {
         let wasReplaced =
             self.metadata.identity != metadata.identity
             || metadata.size < self.metadata.size
@@ -95,7 +94,6 @@ private struct TrackedUsageFile: Sendable {
         } else if metadata.size > self.metadata.size {
             readAppendedBytes(from: source, since: historyStart)
         }
-        return self.metadata != previousMetadata
     }
 
     private mutating func readAppendedBytes(
@@ -247,20 +245,15 @@ private struct TrackedUsageFile: Sendable {
 }
 
 struct UsageLogIndex {
-    struct Revision: Equatable, Sendable {
-        fileprivate let value: UInt64
-    }
-
     private let locations: UsageLocations.Logs
     private var trackedFiles: [String: TrackedUsageFile] = [:]
     private var indexedFrom: Date?
-    private var revision = Revision(value: 0)
 
     init(locations: UsageLocations.Logs) {
         self.locations = locations
     }
 
-    mutating func refresh(since historyStart: Date) -> Revision {
+    mutating func refresh(since historyStart: Date) {
         if let indexedFrom, historyStart < indexedFrom {
             trackedFiles.removeAll(keepingCapacity: true)
         } else if let indexedFrom, historyStart > indexedFrom {
@@ -270,11 +263,8 @@ struct UsageLogIndex {
                 return tracked
             }
         }
-        if scanLogs(since: historyStart) || indexedFrom != historyStart {
-            revision = Revision(value: revision.value + 1)
-        }
+        scanLogs(since: historyStart)
         indexedFrom = historyStart
-        return revision
     }
 
     func events() -> [UsageEvent] {
@@ -285,7 +275,7 @@ struct UsageLogIndex {
         return merged.values
     }
 
-    private mutating func scanLogs(since historyStart: Date) -> Bool {
+    private mutating func scanLogs(since historyStart: Date) {
         let sources =
             (Self.jsonlFiles(in: locations.codex.sessions)
             + Self.jsonlFiles(in: locations.codex.archivedSessions)).map {
@@ -299,7 +289,6 @@ struct UsageLogIndex {
             }
         var seenPaths = Set<String>()
         var newSources: [UsageLogSource] = []
-        var changed = false
 
         for source in sources {
             let path = source.url.path
@@ -308,9 +297,7 @@ struct UsageLogIndex {
                 continue
             }
             if var tracked = trackedFiles[path] {
-                if tracked.refresh(from: source, observed: metadata, since: historyStart) {
-                    changed = true
-                }
+                tracked.refresh(from: source, observed: metadata, since: historyStart)
                 trackedFiles[path] = tracked
             } else {
                 newSources.append(source)
@@ -318,15 +305,12 @@ struct UsageLogIndex {
         }
 
         let loaded = Self.load(newSources, since: historyStart)
-        changed = !loaded.isEmpty || changed
         for (path, tracked) in loaded {
             trackedFiles[path] = tracked
         }
         for path in Set(trackedFiles.keys).subtracting(seenPaths) {
             trackedFiles[path] = nil
-            changed = true
         }
-        return changed
     }
 
     private static func load(

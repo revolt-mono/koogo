@@ -4,36 +4,38 @@ import XCTest
 @testable import Koogo
 
 final class UsagePeriodIntervalsTests: XCTestCase {
-    func testCalendarPeriodsUseLocalCalendarAndConfiguredFirstWeekday() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
-        calendar.firstWeekday = 2
+    func testRollingPeriodsUseFixedDurations() throws {
         let date = try XCTUnwrap(parseUsageTimestamp("2026-03-11T12:00:00.000Z"))
-        let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
+        let intervals = UsagePeriodIntervals(endingAt: date)
 
         XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: intervals.day.current.lowerBound),
-            DateComponents(year: 2026, month: 3, day: 11)
+            intervals.last24Hours.current.lowerBound,
+            date.addingTimeInterval(-24 * 60 * 60)
         )
         XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: intervals.week.lowerBound),
-            DateComponents(year: 2026, month: 3, day: 9)
+            intervals.last24Hours.previous.lowerBound,
+            date.addingTimeInterval(-48 * 60 * 60)
         )
         XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: intervals.month.current.lowerBound),
-            DateComponents(year: 2026, month: 3, day: 1)
+            intervals.last7Days.lowerBound,
+            date.addingTimeInterval(-7 * 24 * 60 * 60)
         )
         XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: intervals.day.previous.lowerBound),
-            DateComponents(year: 2026, month: 3, day: 10)
+            intervals.last30Days.current.lowerBound,
+            date.addingTimeInterval(-30 * 24 * 60 * 60)
         )
         XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: intervals.month.previous.lowerBound),
-            DateComponents(year: 2026, month: 2, day: 1)
+            intervals.last30Days.previous.lowerBound,
+            date.addingTimeInterval(-60 * 24 * 60 * 60)
         )
-        XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: intervals.month.previous.upperBound),
-            DateComponents(year: 2026, month: 3, day: 1)
-        )
+    }
+
+    func testRollingPeriodIncludesEndAndAssignsSharedBoundaryToPreviousPeriod() throws {
+        let date = try XCTUnwrap(parseUsageTimestamp("2026-03-11T12:00:00.000Z"))
+        let periods = UsagePeriodIntervals(endingAt: date).last24Hours
+
+        XCTAssertTrue(periods.current.contains(date))
+        XCTAssertFalse(periods.current.contains(periods.current.lowerBound))
+        XCTAssertTrue(periods.previous.contains(periods.current.lowerBound))
     }
 }

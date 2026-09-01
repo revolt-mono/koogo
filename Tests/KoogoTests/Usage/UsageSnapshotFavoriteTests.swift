@@ -29,12 +29,12 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
                     uncachedInput: 200_000
                 ),
             ],
-            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
+            intervals: UsagePeriodIntervals(endingAt: usageTestTimestamp),
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.codex.today.processedTokens, 240_000)
-        XCTAssertEqual(snapshot.codex.today.costUSD, Decimal(string: "1.008"))
+        XCTAssertEqual(snapshot.codex.last24Hours.processedTokens, 240_000)
+        XCTAssertEqual(snapshot.codex.last24Hours.costUSD, Decimal(string: "1.008"))
         XCTAssertEqual(
             snapshot.codex.favorite,
             ProviderUsageSnapshot.Favorite(
@@ -43,7 +43,7 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
             )
         )
         XCTAssertEqual(
-            snapshot.codex.dailyMonth.days,
+            snapshot.codex.last30DaysByDay.days,
             [
                 UsageDaySnapshot(
                     date: calendar.startOfDay(for: usageTestTimestamp),
@@ -57,7 +57,7 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
     func testSnapshotFavoritesUseFullParsedRangeAndFavoriteModelEfforts() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let previousMonth = try XCTUnwrap(parseUsageTimestamp("2026-07-10T12:00:00Z"))
+        let earlierHistory = try XCTUnwrap(parseUsageTimestamp("2026-07-10T12:00:00Z"))
 
         let snapshot = UsageSnapshotBuilder.build(
             events: [
@@ -66,21 +66,21 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
                     model: "gpt-5.6-luna",
                     effort: "high",
                     uncachedInput: 1,
-                    at: previousMonth
+                    at: earlierHistory
                 ),
                 codexUsageEvent(
                     id: 2,
                     model: "gpt-5.6-luna",
                     effort: "high",
                     uncachedInput: 1,
-                    at: previousMonth
+                    at: earlierHistory
                 ),
                 codexUsageEvent(
                     id: 3,
                     model: "gpt-5.6-luna",
                     effort: "low",
                     uncachedInput: 1,
-                    at: previousMonth
+                    at: earlierHistory
                 ),
                 codexUsageEvent(
                     id: 4,
@@ -95,7 +95,7 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
                     uncachedInput: 1
                 ),
             ],
-            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
+            intervals: UsagePeriodIntervals(endingAt: usageTestTimestamp),
             calendar: calendar
         )
 

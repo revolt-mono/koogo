@@ -6,8 +6,8 @@ struct UsagePanelView: View {
     var body: some View {
         VStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 12) {
-                UsageSummaryPeriod(title: "Today", usage: snapshot.summary.today)
-                UsageSummaryPeriod(title: "Monthly", usage: snapshot.summary.month)
+                UsageSummaryPeriod(title: "Last 24h", usage: snapshot.summary.last24Hours)
+                UsageSummaryPeriod(title: "Last 30d", usage: snapshot.summary.last30Days)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -203,15 +203,15 @@ private struct ProviderUsageSection: View {
                     CodexQuotaView()
                 }
 
-                MonthlyUsageChart(
-                    month: usage.dailyMonth,
+                Last30DaysUsageChart(
+                    usage: usage.last30DaysByDay,
                     barColor: provider.barColor
                 )
 
                 VStack(spacing: 6) {
-                    ProviderUsageRow(title: "Today", usage: usage.today)
-                    ProviderUsageRow(title: "Weekly", usage: usage.week)
-                    ProviderUsageRow(title: "Monthly", usage: usage.month)
+                    ProviderUsageRow(title: "Last 24h", usage: usage.last24Hours)
+                    ProviderUsageRow(title: "Last 7d", usage: usage.last7Days)
+                    ProviderUsageRow(title: "Last 30d", usage: usage.last30Days)
                 }
             }
             .padding(12)

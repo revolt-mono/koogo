@@ -1,6 +1,23 @@
 import Foundation
 
 enum UsageSnapshotBuilder {
+    private struct Totals {
+        var processedTokens: Decimal = 0
+        var costUSD: Decimal = 0
+
+        mutating func add(_ usage: UsageRecord) {
+            processedTokens += Decimal(usage.processedTokens)
+            costUSD += usage.costUSD
+        }
+
+        var snapshot: UsagePeriodSnapshot {
+            UsagePeriodSnapshot(
+                processedTokens: processedTokens,
+                costUSD: costUSD
+            )
+        }
+    }
+
     private struct ModelUsage {
         var occurrences = 0
         var reasoningEfforts: [String: Int] = [:]
@@ -11,37 +28,20 @@ enum UsageSnapshotBuilder {
                 reasoningEfforts[reasoningEffort, default: 0] += 1
             }
         }
-
-        mutating func merge(_ other: ModelUsage) {
-            occurrences += other.occurrences
-            reasoningEfforts.merge(other.reasoningEfforts, uniquingKeysWith: +)
-        }
     }
 
-    private struct Accumulator {
-        var processedTokens: Decimal = 0
-        var costUSD: Decimal = 0
+    private struct FavoriteAccumulator {
         var models: [UsageModelReference: ModelUsage] = [:]
 
-        mutating func add(_ usage: UsageRecord) {
-            processedTokens += Decimal(usage.processedTokens)
-            costUSD += usage.costUSD
-            if let turn = usage.modelTurn {
+        mutating func add(_ turn: UsageRecord.ModelTurn?) {
+            if let turn {
                 models[turn.model, default: ModelUsage()].add(
                     reasoningEffort: turn.reasoningEffort
                 )
             }
         }
 
-        mutating func merge(_ other: Accumulator) {
-            processedTokens += other.processedTokens
-            costUSD += other.costUSD
-            for (model, usage) in other.models {
-                models[model, default: ModelUsage()].merge(usage)
-            }
-        }
-
-        func favorite(piModels: PiModelCatalog) -> ProviderUsageSnapshot.Favorite? {
+        func snapshot(piModels: PiModelCatalog) -> ProviderUsageSnapshot.Favorite? {
             guard
                 let (model, usage) = models.max(by: { lhs, rhs in
                     lhs.value.occurrences == rhs.value.occurrences
@@ -60,91 +60,93 @@ enum UsageSnapshotBuilder {
         }
     }
 
+    private struct ProviderAccumulator {
+        var favorite = FavoriteAccumulator()
+        var last24Hours = Totals()
+        var last7Days = Totals()
+        var last30Days = Totals()
+        var last30DaysByDay: [Date: Totals] = [:]
+
+        mutating func add(
+            _ usage: UsageRecord,
+            intervals: UsagePeriodIntervals,
+            calendar: Calendar
+        ) {
+            favorite.add(usage.modelTurn)
+            if intervals.last24Hours.current.contains(usage.timestamp) {
+                last24Hours.add(usage)
+            }
+            if intervals.last7Days.contains(usage.timestamp) {
+                last7Days.add(usage)
+            }
+            if intervals.last30Days.current.contains(usage.timestamp) {
+                last30Days.add(usage)
+                last30DaysByDay[
+                    calendar.startOfDay(for: usage.timestamp),
+                    default: Totals()
+                ].add(usage)
+            }
+        }
+
+        func snapshot(
+            intervals: UsagePeriodIntervals,
+            piModels: PiModelCatalog
+        ) -> ProviderUsageSnapshot {
+            ProviderUsageSnapshot(
+                favorite: favorite.snapshot(piModels: piModels),
+                last24Hours: last24Hours.snapshot,
+                last7Days: last7Days.snapshot,
+                last30Days: last30Days.snapshot,
+                last30DaysByDay: UsageDailySnapshot(
+                    interval: intervals.last30Days.current,
+                    days: last30DaysByDay.sorted { $0.key < $1.key }.map {
+                        UsageDaySnapshot(
+                            date: $0.key,
+                            processedTokens: $0.value.processedTokens,
+                            costUSD: $0.value.costUSD
+                        )
+                    }
+                )
+            )
+        }
+    }
+
     static func build(
         events: some Sequence<UsageEvent>,
         intervals: UsagePeriodIntervals,
         calendar: Calendar,
         piModels: PiModelCatalog = .empty
     ) -> UsageSnapshot {
-        var daysByProvider: [UsageProvider: [Date: Accumulator]] = [:]
+        var codex = ProviderAccumulator()
+        var claude = ProviderAccumulator()
+        var piAgent = ProviderAccumulator()
+        var previous24Hours = Totals()
+        var previous30Days = Totals()
 
         for event in events {
             let usage = event.usage
-            daysByProvider[event.provider, default: [:]][
-                calendar.startOfDay(for: usage.timestamp),
-                default: Accumulator()
-            ].add(usage)
+            switch event.provider {
+            case .codex:
+                codex.add(usage, intervals: intervals, calendar: calendar)
+            case .claude:
+                claude.add(usage, intervals: intervals, calendar: calendar)
+            case .piAgent:
+                piAgent.add(usage, intervals: intervals, calendar: calendar)
+            }
+            if intervals.last24Hours.previous.contains(usage.timestamp) {
+                previous24Hours.add(usage)
+            }
+            if intervals.last30Days.previous.contains(usage.timestamp) {
+                previous30Days.add(usage)
+            }
         }
 
         return UsageSnapshot(
-            codex: providerSnapshot(
-                from: daysByProvider[.codex] ?? [:],
-                intervals: intervals,
-                piModels: piModels
-            ),
-            claude: providerSnapshot(
-                from: daysByProvider[.claude] ?? [:],
-                intervals: intervals,
-                piModels: piModels
-            ),
-            piAgent: providerSnapshot(
-                from: daysByProvider[.piAgent] ?? [:],
-                intervals: intervals,
-                piModels: piModels
-            ),
-            previousDay: daysByProvider.values.reduce(UsagePeriodSnapshot.zero) {
-                $0 + periodSnapshot(from: $1, in: intervals.day.previous)
-            },
-            previousMonth: daysByProvider.values.reduce(UsagePeriodSnapshot.zero) {
-                $0 + periodSnapshot(from: $1, in: intervals.month.previous)
-            }
-        )
-    }
-
-    private static func providerSnapshot(
-        from days: [Date: Accumulator],
-        intervals: UsagePeriodIntervals,
-        piModels: PiModelCatalog
-    ) -> ProviderUsageSnapshot {
-        var total = Accumulator()
-        for day in days.values {
-            total.merge(day)
-        }
-        return ProviderUsageSnapshot(
-            favorite: total.favorite(piModels: piModels),
-            today: periodSnapshot(from: days, in: intervals.day.current),
-            week: periodSnapshot(from: days, in: intervals.week),
-            month: periodSnapshot(from: days, in: intervals.month.current),
-            dailyMonth: UsageMonthSnapshot(
-                range: intervals.month.current,
-                days:
-                    days
-                    .filter { intervals.month.current.contains($0.key) }
-                    .sorted { $0.key < $1.key }
-                    .map { date, accumulator in
-                        UsageDaySnapshot(
-                            date: date,
-                            processedTokens: accumulator.processedTokens,
-                            costUSD: accumulator.costUSD
-                        )
-                    }
-            )
-        )
-    }
-
-    private static func periodSnapshot(
-        from days: [Date: Accumulator],
-        in interval: Range<Date>
-    ) -> UsagePeriodSnapshot {
-        var processedTokens: Decimal = 0
-        var costUSD: Decimal = 0
-        for (date, day) in days where interval.contains(date) {
-            processedTokens += day.processedTokens
-            costUSD += day.costUSD
-        }
-        return UsagePeriodSnapshot(
-            processedTokens: processedTokens,
-            costUSD: costUSD
+            codex: codex.snapshot(intervals: intervals, piModels: piModels),
+            claude: claude.snapshot(intervals: intervals, piModels: piModels),
+            piAgent: piAgent.snapshot(intervals: intervals, piModels: piModels),
+            previous24Hours: previous24Hours.snapshot,
+            previous30Days: previous30Days.snapshot
         )
     }
 }
