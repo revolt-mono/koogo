@@ -113,8 +113,8 @@ final class UsageServiceTests: XCTestCase {
         let report = await service.refresh(at: now)
 
         XCTAssertEqual(report.snapshot.codex.month, UsagePeriodSnapshot())
-        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1])
-        XCTAssertEqual(report.ingestion.events, [:])
+        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0])
+        XCTAssertEqual(report.ingestion.events, [.codex: 0, .claude: 0, .piAgent: 0])
         XCTAssertEqual(report.ingestion.unpricedModels, ["unknown-model"])
     }
 
@@ -133,7 +133,7 @@ final class UsageServiceTests: XCTestCase {
 
         let report = await service.refresh(at: now)
 
-        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1])
+        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0])
         XCTAssertEqual(report.ingestion.unpricedModels, [])
     }
 

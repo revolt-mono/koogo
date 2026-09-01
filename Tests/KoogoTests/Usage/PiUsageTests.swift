@@ -19,7 +19,7 @@ final class PiUsageTests: XCTestCase {
     }
 
     func testParserUsesBranchLocalThinkingAndLoggedUsage() throws {
-        var parser = UsageFileParserState.piAgent()
+        var parser = PiLogParser()
         for record in [piSessionHeader, piThinking(id: "high", parentID: nil, level: "high"), piUser] {
             XCTAssertNil(parse(record, with: &parser))
         }
@@ -58,7 +58,7 @@ final class PiUsageTests: XCTestCase {
     }
 
     func testParserIncludesAuxiliaryUsageWithoutFavoriteMetadata() throws {
-        var parser = UsageFileParserState.piAgent()
+        var parser = PiLogParser()
         _ = parse(piSessionHeader, with: &parser)
         let records = [
             """
@@ -79,7 +79,7 @@ final class PiUsageTests: XCTestCase {
     }
 
     func testParserUsesProviderTotalTokens() throws {
-        var parser = UsageFileParserState.piAgent()
+        var parser = PiLogParser()
         let log = """
             {"type":"compaction","id":"compaction","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","usage":{"input":10,"output":20,"cacheRead":30,"cacheWrite":40,"totalTokens":125,"cost":{"total":1}}}
             """
@@ -88,7 +88,7 @@ final class PiUsageTests: XCTestCase {
     }
 
     func testParserKeepsZeroUsageAssistantTurnsForFavorites() throws {
-        var parser = UsageFileParserState.piAgent()
+        var parser = PiLogParser()
 
         let event = try XCTUnwrap(
             parse(
@@ -203,7 +203,7 @@ final class PiUsageTests: XCTestCase {
         }
     }
 
-    private func parse(_ line: String, with parser: inout UsageFileParserState) -> UsageEvent? {
+    private func parse(_ line: String, with parser: inout some UsageLogParser) -> UsageEvent? {
         Data(line.utf8).withUnsafeBytes {
             guard case .event(let event)? = parser.parse($0, decoder: decoder) else {
                 return nil

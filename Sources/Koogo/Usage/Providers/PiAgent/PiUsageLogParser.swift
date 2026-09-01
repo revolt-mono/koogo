@@ -14,7 +14,7 @@ private enum PiMessageRole: String, LogRecordKind {
     case other
 }
 
-struct PiLogParser: Sendable {
+struct PiLogParser: UsageLogParser {
     private var thinkingByEntry: [String: String] = [:]
 
     mutating func parse(

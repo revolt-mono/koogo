@@ -7,7 +7,7 @@ final class UsageLogParserTests: XCTestCase {
     private let decoder = JSONDecoder()
 
     func testCodexUsesRequestUsageAndSkipsRepeatedSnapshots() throws {
-        var parser = UsageFileParserState.codex()
+        var parser = CodexLogParser()
         XCTAssertNil(parse(codexMeta(), with: &parser))
         XCTAssertNil(parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser))
 
@@ -25,7 +25,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testCodexValidRequestSurvivesAnIncompletePreviousTokenCount() throws {
-        var parser = UsageFileParserState.codex()
+        var parser = CodexLogParser()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
         let first = try XCTUnwrap(
@@ -47,7 +47,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testCodexTracksCumulativeBaselineBeforeTheFirstTurnContext() throws {
-        var parser = UsageFileParserState.codex()
+        var parser = CodexLogParser()
         XCTAssertNil(parse(codexMeta(), with: &parser))
         XCTAssertNil(parse(codexToken(last: usage(100, 20), total: usage(100, 20)), with: &parser))
         XCTAssertNil(parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser))
@@ -60,7 +60,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testCodexAcceptsInheritedFirstBaselineAndProviderTotal() throws {
-        var parser = UsageFileParserState.codex()
+        var parser = CodexLogParser()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
 
@@ -88,7 +88,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testCodexZeroUsageSnapshotOnlyUpdatesTheCumulativeBaseline() throws {
-        var parser = UsageFileParserState.codex()
+        var parser = CodexLogParser()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
 
@@ -101,7 +101,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testCodexSyntheticFillIsIgnored() throws {
-        var parser = UsageFileParserState.codex()
+        var parser = CodexLogParser()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "medium"), with: &parser)
         _ = parse(codexToken(last: usage(100, 10), total: usage(100, 10)), with: &parser)
@@ -115,7 +115,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testCodexThreadSettingsDoNotOverrideTurnUsageMetadata() throws {
-        var parser = UsageFileParserState.codex()
+        var parser = CodexLogParser()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
         XCTAssertNil(
@@ -138,7 +138,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testCodexPricesLoggedCacheWrites() throws {
-        var parser = UsageFileParserState.codex()
+        var parser = CodexLogParser()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
         let event = try XCTUnwrap(
@@ -156,7 +156,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testClaudeParsesCacheDurationsSpeedGeoSearchAndMissingEffort() throws {
-        var parser = UsageFileParserState.claude
+        var parser = ClaudeLogParser()
         let line = """
             {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":70,"output_tokens":40,"cache_creation":{"ephemeral_5m_input_tokens":30,"ephemeral_1h_input_tokens":40},"speed":"fast","inference_geo":"us","server_tool_use":{"web_search_requests":2}}}}
             """
@@ -170,7 +170,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testClaudePreservesAggregateCacheCreationWithoutInventingDuration() throws {
-        var parser = UsageFileParserState.claude
+        var parser = ClaudeLogParser()
         let event = try XCTUnwrap(
             parse(
                 """
@@ -184,7 +184,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testClaudeRejectsInconsistentCacheSplit() {
-        var parser = UsageFileParserState.claude
+        var parser = ClaudeLogParser()
         let line = """
             {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40,"cache_creation":{"ephemeral_5m_input_tokens":20,"ephemeral_1h_input_tokens":40}}}}
             """
@@ -193,7 +193,7 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testClaudeRejectsRecordsWithoutBothStableIDs() {
-        var parser = UsageFileParserState.claude
+        var parser = ClaudeLogParser()
         let line = """
             {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"output_tokens":40}}}
             """
@@ -202,21 +202,21 @@ final class UsageLogParserTests: XCTestCase {
     }
 
     func testOverflowingTokenFieldsAreRejected() {
-        var codexParser = UsageFileParserState.codex()
+        var codexParser = CodexLogParser()
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &codexParser)
         let codex = """
             {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":18446744073709551615,"cached_input_tokens":18446744073709551615,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":18446744073709551615},"total_token_usage":{"input_tokens":18446744073709551615,"cached_input_tokens":18446744073709551615,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":18446744073709551615},"model_context_window":1000}}}
             """
         XCTAssertNil(parse(codex, with: &codexParser))
 
-        var claudeParser = UsageFileParserState.claude
+        var claudeParser = ClaudeLogParser()
         let claude = """
             {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":0,"cache_creation_input_tokens":18446744073709551615,"output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":18446744073709551615,"ephemeral_1h_input_tokens":1}}}}
             """
         XCTAssertNil(parse(claude, with: &claudeParser))
     }
 
-    private func parse(_ line: String, with parser: inout UsageFileParserState) -> UsageEvent? {
+    private func parse(_ line: String, with parser: inout some UsageLogParser) -> UsageEvent? {
         Data(line.utf8).withUnsafeBytes {
             guard case .event(let event)? = parser.parse($0, decoder: decoder) else {
                 return nil

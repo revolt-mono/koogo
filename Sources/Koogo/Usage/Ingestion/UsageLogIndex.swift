@@ -2,21 +2,6 @@ import Darwin
 import Foundation
 import Synchronization
 
-private struct UsageLogSource: Sendable {
-    let url: URL
-    let parser: UsageFileParserState
-}
-
-/// How the last refresh went; the pipeline drops unparseable input silently,
-/// so this is the only place ingestion health becomes observable.
-struct UsageIngestionStats: Equatable, Sendable, Encodable {
-    let trackedFiles: [UsageProvider: Int]
-    let events: [UsageProvider: Int]
-    /// Models with events inside the history window that were dropped
-    /// because no pricing entry matched.
-    let unpricedModels: [String]
-}
-
 private struct UsageFileIdentity: Equatable, Sendable {
     let device: UInt64
     let inode: UInt64
@@ -59,19 +44,20 @@ private struct UsageFileMetadata: Equatable, Sendable {
     }
 }
 
+/// One log file read incrementally: bytes appended since the last pass are
+/// parsed in place, while a rotated or truncated file is re-read from scratch.
 private struct TrackedUsageFile: Sendable {
     private static let parsedTailSize = 64
 
+    let location: UsageLogLocation
     private var metadata: UsageFileMetadata
     private var parsedOffset: UInt64
     private var parsedTail: Data
-    private var parser: UsageFileParserState
+    private var parser: any UsageLogParser
     var eventIndex: UsageEventIndex
 
-    var provider: UsageProvider { parser.provider }
-
-    init?(source: UsageLogSource, since historyStart: Date) {
-        guard let handle = try? FileHandle(forReadingFrom: source.url) else {
+    init?(_ location: UsageLogLocation, since historyStart: Date) {
+        guard let handle = try? FileHandle(forReadingFrom: location.url) else {
             return nil
         }
         defer { try? handle.close() }
@@ -79,40 +65,38 @@ private struct TrackedUsageFile: Sendable {
             return nil
         }
 
+        self.location = location
         self.metadata = metadata
         parsedOffset = 0
         parsedTail = Data()
-        parser = source.parser
-        eventIndex = UsageEventIndex()
-        guard readBytes(handle, in: 0..<metadata.size, since: historyStart) else {
+        parser = location.provider.makeLogParser()
+        eventIndex = UsageEventIndex(since: historyStart)
+        guard readBytes(handle, in: 0..<metadata.size) else {
             return nil
         }
     }
 
-    mutating func refresh(
-        from source: UsageLogSource,
-        observed metadata: UsageFileMetadata,
-        since historyStart: Date
-    ) {
+    mutating func refresh(observed metadata: UsageFileMetadata) {
         let wasReplaced =
             self.metadata.identity != metadata.identity
             || metadata.size < self.metadata.size
             || (metadata.size == self.metadata.size
                 && metadata.modificationDate != self.metadata.modificationDate)
         if wasReplaced {
-            if let replacement = Self(source: source, since: historyStart) {
-                self = replacement
-            }
+            reread()
         } else if metadata.size > self.metadata.size {
-            readAppendedBytes(from: source, since: historyStart)
+            readAppendedBytes()
         }
     }
 
-    private mutating func readAppendedBytes(
-        from source: UsageLogSource,
-        since historyStart: Date
-    ) {
-        guard let handle = try? FileHandle(forReadingFrom: source.url) else {
+    private mutating func reread() {
+        if let replacement = Self(location, since: eventIndex.historyStart) {
+            self = replacement
+        }
+    }
+
+    private mutating func readAppendedBytes() {
+        guard let handle = try? FileHandle(forReadingFrom: location.url) else {
             return
         }
         defer { try? handle.close() }
@@ -124,31 +108,19 @@ private struct TrackedUsageFile: Sendable {
             metadata.size >= self.metadata.size,
             parsedTailMatches(handle)
         else {
-            if let replacement = Self(source: source, since: historyStart) {
-                self = replacement
-            }
+            reread()
             return
         }
 
         var candidate = self
-        guard
-            candidate.readBytes(
-                handle,
-                in: parsedOffset..<metadata.size,
-                since: historyStart
-            )
-        else {
+        guard candidate.readBytes(handle, in: parsedOffset..<metadata.size) else {
             return
         }
         candidate.metadata = metadata
         self = candidate
     }
 
-    private mutating func readBytes(
-        _ handle: FileHandle,
-        in offsets: Range<UInt64>,
-        since historyStart: Date
-    ) -> Bool {
+    private mutating func readBytes(_ handle: FileHandle, in offsets: Range<UInt64>) -> Bool {
         do {
             try handle.seek(toOffset: offsets.lowerBound)
             var readOffset = offsets.lowerBound
@@ -172,19 +144,9 @@ private struct TrackedUsageFile: Sendable {
                             from: chunk.startIndex,
                             to: chunk.index(after: lastNewline)
                         )
-                        let completeData: Data
-                        if pending.isEmpty {
-                            completeData = Data(chunk.prefix(completeChunkCount))
-                        } else {
-                            pending.append(chunk.prefix(completeChunkCount))
-                            completeData = pending
-                        }
-                        parseCompleteLines(
-                            completeData,
-                            since: historyStart,
-                            decoder: decoder
-                        )
-                        parsedOffset += UInt64(completeData.count)
+                        pending.append(chunk.prefix(completeChunkCount))
+                        parseCompleteLines(pending, decoder: decoder)
+                        parsedOffset += UInt64(pending.count)
                         pending = Data(chunk.dropFirst(completeChunkCount))
                         return true
                     })
@@ -198,11 +160,7 @@ private struct TrackedUsageFile: Sendable {
         }
     }
 
-    private mutating func parseCompleteLines(
-        _ data: Data,
-        since historyStart: Date,
-        decoder: JSONDecoder
-    ) {
+    private mutating func parseCompleteLines(_ data: Data, decoder: JSONDecoder) {
         data.withUnsafeBytes { bytes in
             guard let baseAddress = bytes.baseAddress else {
                 return
@@ -216,13 +174,8 @@ private struct TrackedUsageFile: Sendable {
                 }
                 let lineCount = start.distance(to: newline)
                 let line = UnsafeRawBufferPointer(start: start, count: lineCount)
-                switch parser.parse(line, decoder: decoder) {
-                case .event(let event)? where event.usage.timestamp >= historyStart:
-                    eventIndex.insert(event)
-                case .unpricedModel(let id, let timestamp)? where timestamp >= historyStart:
-                    eventIndex.recordUnpricedModel(id, at: timestamp)
-                default:
-                    break
+                if let outcome = parser.parse(line, decoder: decoder) {
+                    eventIndex.insert(outcome)
                 }
                 lineStart += lineCount + 1
             }
@@ -259,16 +212,34 @@ private struct TrackedUsageFile: Sendable {
     }
 }
 
+/// Every `.jsonl` file under the provider log roots, tracked across refreshes.
 struct UsageLogIndex {
-    private let locations: UsageLocations.Logs
+    private let roots: [UsageLogLocation]
     private var trackedFiles: [String: TrackedUsageFile] = [:]
     private var indexedFrom: Date?
 
     init(locations: UsageLocations.Logs) {
-        self.locations = locations
+        roots = locations.roots
     }
 
-    mutating func refresh(since historyStart: Date) {
+    var logRoots: [UsageIngestionStats.LogRoot] {
+        roots.map {
+            UsageIngestionStats.LogRoot(
+                provider: $0.provider,
+                path: $0.url.path,
+                exists: FileManager.default.fileExists(atPath: $0.url.path)
+            )
+        }
+    }
+
+    var trackedFileCounts: [UsageProvider: Int] {
+        trackedFiles.values.reduce(into: [.codex: 0, .claude: 0, .piAgent: 0]) { counts, tracked in
+            counts[tracked.location.provider, default: 0] += 1
+        }
+    }
+
+    /// Brings every tracked file up to date and returns the events merged across them.
+    mutating func refresh(since historyStart: Date) -> UsageEventIndex {
         if let indexedFrom, historyStart < indexedFrom {
             trackedFiles.removeAll(keepingCapacity: true)
         } else if let indexedFrom, historyStart > indexedFrom {
@@ -280,63 +251,36 @@ struct UsageLogIndex {
         }
         scanLogs(since: historyStart)
         indexedFrom = historyStart
-    }
 
-    func mergedEvents() -> UsageEventIndex {
-        var merged = UsageEventIndex()
+        var merged = UsageEventIndex(since: historyStart)
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
             merged.merge(tracked.eventIndex)
         }
         return merged
     }
 
-    func stats(of merged: UsageEventIndex) -> UsageIngestionStats {
-        var trackedFileCounts: [UsageProvider: Int] = [:]
-        for tracked in trackedFiles.values {
-            trackedFileCounts[tracked.provider, default: 0] += 1
-        }
-        var eventCounts: [UsageProvider: Int] = [:]
-        for event in merged.values {
-            eventCounts[event.provider, default: 0] += 1
-        }
-        return UsageIngestionStats(
-            trackedFiles: trackedFileCounts,
-            events: eventCounts,
-            unpricedModels: merged.unpricedModelIDs.sorted()
-        )
-    }
-
     private mutating func scanLogs(since historyStart: Date) {
-        let sources =
-            (Self.jsonlFiles(in: locations.codex.sessions)
-            + Self.jsonlFiles(in: locations.codex.archivedSessions)).map {
-                UsageLogSource(url: $0, parser: .codex())
-            }
-            + Self.jsonlFiles(in: locations.claudeProjects).map {
-                UsageLogSource(url: $0, parser: .claude)
-            }
-            + Self.jsonlFiles(in: locations.piAgent).map {
-                UsageLogSource(url: $0, parser: .piAgent())
-            }
+        let files = roots.flatMap { root in
+            Self.jsonlFiles(in: root.url).map { UsageLogLocation(provider: root.provider, url: $0) }
+        }
         var seenPaths = Set<String>()
-        var newSources: [UsageLogSource] = []
+        var newFiles: [UsageLogLocation] = []
 
-        for source in sources {
-            let path = source.url.path
+        for file in files {
+            let path = file.url.path
             seenPaths.insert(path)
-            guard let metadata = UsageFileMetadata(source.url) else {
+            guard let metadata = UsageFileMetadata(file.url) else {
                 continue
             }
             if var tracked = trackedFiles[path] {
-                tracked.refresh(from: source, observed: metadata, since: historyStart)
+                tracked.refresh(observed: metadata)
                 trackedFiles[path] = tracked
             } else {
-                newSources.append(source)
+                newFiles.append(file)
             }
         }
 
-        let loaded = Self.load(newSources, since: historyStart)
-        for (path, tracked) in loaded {
+        for (path, tracked) in Self.load(newFiles, since: historyStart) {
             trackedFiles[path] = tracked
         }
         for path in Set(trackedFiles.keys).subtracting(seenPaths) {
@@ -345,17 +289,17 @@ struct UsageLogIndex {
     }
 
     private static func load(
-        _ sources: [UsageLogSource],
+        _ files: [UsageLogLocation],
         since historyStart: Date
     ) -> [String: TrackedUsageFile] {
         let trackedFiles = Mutex<[String: TrackedUsageFile]>([:])
         // Keep refresh synchronous so actor state cannot interleave while workers build files.
-        DispatchQueue.concurrentPerform(iterations: sources.count) { index in
-            let source = sources[index]
-            guard let tracked = TrackedUsageFile(source: source, since: historyStart) else {
+        DispatchQueue.concurrentPerform(iterations: files.count) { index in
+            let file = files[index]
+            guard let tracked = TrackedUsageFile(file, since: historyStart) else {
                 return
             }
-            trackedFiles.withLock { $0[source.url.path] = tracked }
+            trackedFiles.withLock { $0[file.url.path] = tracked }
         }
         return trackedFiles.withLock { $0 }
     }

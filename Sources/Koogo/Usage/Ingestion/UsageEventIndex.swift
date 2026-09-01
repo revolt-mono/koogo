@@ -1,12 +1,25 @@
 import Foundation
 
+/// Deduplicated events inside one history window. Each provider has its own
+/// identity and precedence rule; every insert and merge applies them here.
 struct UsageEventIndex: Sendable {
+    private(set) var historyStart: Date
     private var codex: [UsageEvent.CodexID: UsageRecord] = [:]
     private var claude: [UsageEvent.ClaudeID: (usage: UsageRecord, revision: UsageEvent.ClaudeRevision)] = [:]
     private var piAgent: [String: UsageRecord] = [:]
     private var unpricedModels: [String: Date] = [:]
 
-    var unpricedModelIDs: [String] { Array(unpricedModels.keys) }
+    init(since historyStart: Date) {
+        self.historyStart = historyStart
+    }
+
+    var counts: [UsageProvider: Int] {
+        [.codex: codex.count, .claude: claude.count, .piAgent: piAgent.count]
+    }
+
+    var unpricedModelIDs: [String] {
+        unpricedModels.keys.sorted()
+    }
 
     var values: [UsageEvent] {
         var events: [UsageEvent] = []
@@ -21,28 +34,29 @@ struct UsageEventIndex: Sendable {
         return events
     }
 
-    mutating func insert(_ event: UsageEvent) {
-        switch event {
-        case .codex(let id, let usage):
+    mutating func insert(_ outcome: UsageLineOutcome) {
+        guard outcome.timestamp >= historyStart else {
+            return
+        }
+        switch outcome {
+        case .event(.codex(let id, let usage)):
             guard codex[id] == nil else {
                 return
             }
             codex[id] = usage
-        case .claude(let id, let usage, let revision):
+        case .event(.claude(let id, let usage, let revision)):
             if let existing = claude[id], !revision.isPreferred(over: existing.revision) {
                 return
             }
             claude[id] = (usage, revision)
-        case .piAgent(let entryID, let usage):
+        case .event(.piAgent(let entryID, let usage)):
             guard piAgent[entryID] == nil else {
                 return
             }
             piAgent[entryID] = usage
+        case .unpricedModel(let id, let timestamp):
+            unpricedModels[id] = max(unpricedModels[id] ?? .distantPast, timestamp)
         }
-    }
-
-    mutating func recordUnpricedModel(_ id: String, at timestamp: Date) {
-        unpricedModels[id] = max(unpricedModels[id] ?? .distantPast, timestamp)
     }
 
     mutating func merge(_ other: Self) {
@@ -55,6 +69,7 @@ struct UsageEventIndex: Sendable {
     }
 
     mutating func discard(before historyStart: Date) {
+        self.historyStart = historyStart
         codex = codex.filter { $0.value.timestamp >= historyStart }
         claude = claude.filter { $0.value.usage.timestamp >= historyStart }
         piAgent = piAgent.filter { $0.value.timestamp >= historyStart }

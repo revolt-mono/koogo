@@ -5,8 +5,8 @@ private enum ClaudeRecordKind: String, LogRecordKind {
     case other
 }
 
-enum ClaudeLogParser {
-    static func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
+struct ClaudeLogParser: UsageLogParser {
+    func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
         guard line.containsTypeValue(in: [ClaudeRecordKind.assistant.jsonStringMarker]),
             let baseAddress = line.baseAddress
         else {
@@ -17,7 +17,7 @@ enum ClaudeLogParser {
         }
     }
 
-    static func parse(_ line: Data, decoder: JSONDecoder) -> UsageLineOutcome? {
+    func parse(_ line: Data, decoder: JSONDecoder) -> UsageLineOutcome? {
         guard
             let record = try? decoder.decode(ClaudeLogRecord.self, from: line),
             record.type == .assistant,

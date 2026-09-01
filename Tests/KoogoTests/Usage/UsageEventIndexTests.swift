@@ -12,12 +12,12 @@ final class UsageEventIndexTests: XCTestCase {
             timestamp: usageTestTimestamp,
             cumulativeTotal: 10
         )
-        var index = UsageEventIndex()
+        var index = UsageEventIndex(since: .distantPast)
 
-        index.insert(.codex(id: codexID, usage: record(tokens: 10)))
-        index.insert(.codex(id: codexID, usage: record(tokens: 20)))
-        index.insert(.piAgent(entryID: "entry", usage: record(tokens: 30)))
-        index.insert(.piAgent(entryID: "entry", usage: record(tokens: 40)))
+        index.insert(.event(.codex(id: codexID, usage: record(tokens: 10))))
+        index.insert(.event(.codex(id: codexID, usage: record(tokens: 20))))
+        index.insert(.event(.piAgent(entryID: "entry", usage: record(tokens: 30))))
+        index.insert(.event(.piAgent(entryID: "entry", usage: record(tokens: 40))))
 
         XCTAssertEqual(index.values.first { $0.provider == .codex }?.usage.processedTokens, 10)
         XCTAssertEqual(index.values.first { $0.provider == .piAgent }?.usage.processedTokens, 30)
@@ -35,11 +35,11 @@ final class UsageEventIndexTests: XCTestCase {
             usage: record(tokens: 20),
             revision: revision(output: 5, metadata: 1, tokens: 20)
         )
-        var inserted = UsageEventIndex()
-        inserted.insert(complete)
-        inserted.insert(partial)
-        var merged = UsageEventIndex()
-        merged.insert(partial)
+        var inserted = UsageEventIndex(since: .distantPast)
+        inserted.insert(.event(complete))
+        inserted.insert(.event(partial))
+        var merged = UsageEventIndex(since: .distantPast)
+        merged.insert(.event(partial))
         merged.merge(inserted)
 
         XCTAssertEqual(inserted.values.first?.usage.processedTokens, 20)
@@ -49,11 +49,11 @@ final class UsageEventIndexTests: XCTestCase {
     func testDiscardRemovesEveryProviderBeforeHistoryStart() {
         let historyStart = usageTestTimestamp
         let old = historyStart.addingTimeInterval(-1)
-        var index = UsageEventIndex()
-        index.insert(usageEvent(.codex, id: 1, processedTokens: 1, costUSD: 0, at: old))
-        index.insert(usageEvent(.claude, id: 2, processedTokens: 2, costUSD: 0, at: old))
-        index.insert(usageEvent(.piAgent, id: 3, processedTokens: 3, costUSD: 0, at: old))
-        index.insert(usageEvent(.codex, id: 4, processedTokens: 4, costUSD: 0))
+        var index = UsageEventIndex(since: .distantPast)
+        index.insert(.event(usageEvent(.codex, id: 1, processedTokens: 1, costUSD: 0, at: old)))
+        index.insert(.event(usageEvent(.claude, id: 2, processedTokens: 2, costUSD: 0, at: old)))
+        index.insert(.event(usageEvent(.piAgent, id: 3, processedTokens: 3, costUSD: 0, at: old)))
+        index.insert(.event(usageEvent(.codex, id: 4, processedTokens: 4, costUSD: 0)))
 
         index.discard(before: historyStart)
 

@@ -31,10 +31,10 @@ final class SystemReportTests: XCTestCase {
 
         let usage = try XCTUnwrap(report["usage"] as? [String: Any])
         let ingestion = try XCTUnwrap(usage["ingestion"] as? [String: Any])
-        XCTAssertEqual(ingestion["trackedFiles"] as? [String: Int], ["codex": 1])
-        XCTAssertEqual(ingestion["events"] as? [String: Int], ["codex": 1])
+        XCTAssertEqual(ingestion["trackedFiles"] as? [String: Int], ["codex": 1, "claude": 0, "piAgent": 0])
+        XCTAssertEqual(ingestion["events"] as? [String: Int], ["codex": 1, "claude": 0, "piAgent": 0])
         XCTAssertEqual(ingestion["unpricedModels"] as? [String], [])
-        let logRoots = try XCTUnwrap(usage["logRoots"] as? [[String: Any]])
+        let logRoots = try XCTUnwrap(ingestion["logRoots"] as? [[String: Any]])
         XCTAssertEqual(logRoots.count, 4)
         XCTAssertTrue(logRoots.allSatisfy { $0["exists"] as? Bool == true })
         XCTAssertNotNil(usage["snapshot"])

@@ -5,6 +5,13 @@ import Foundation
 enum UsageLineOutcome: Sendable {
     case event(UsageEvent)
     case unpricedModel(id: String, timestamp: Date)
+
+    var timestamp: Date {
+        switch self {
+        case .event(let event): event.usage.timestamp
+        case .unpricedModel(_, let timestamp): timestamp
+        }
+    }
 }
 
 enum UsageEvent: Sendable {

@@ -1,5 +1,10 @@
 import Foundation
 
+struct UsageLogLocation: Sendable {
+    let provider: UsageProvider
+    let url: URL
+}
+
 struct UsageLocations: Sendable {
     struct Logs: Sendable {
         struct Codex: Sendable {
@@ -10,6 +15,15 @@ struct UsageLocations: Sendable {
         let codex: Codex
         let claudeProjects: URL
         let piAgent: URL
+
+        var roots: [UsageLogLocation] {
+            [
+                UsageLogLocation(provider: .codex, url: codex.sessions),
+                UsageLogLocation(provider: .codex, url: codex.archivedSessions),
+                UsageLogLocation(provider: .claude, url: claudeProjects),
+                UsageLogLocation(provider: .piAgent, url: piAgent),
+            ]
+        }
     }
 
     struct PiModels: Sendable {

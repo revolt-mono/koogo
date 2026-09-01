@@ -12,13 +12,19 @@ private enum CodexPayloadKind: String, LogRecordKind {
     case other
 }
 
-struct CodexLogParser: Sendable {
+struct CodexLogParser: UsageLogParser {
+    private static let eventMarkers = [
+        CodexRecordKind.sessionMeta.jsonStringMarker,
+        CodexRecordKind.turnContext.jsonStringMarker,
+        CodexPayloadKind.tokenCount.jsonStringMarker,
+    ]
+
     private var threadID: String?
     private var turn: CodexTurn?
     private var previousTotalUsage: CodexTokenUsage?
 
-    static func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
-        line.containsTypeValue(in: eventMarkers)
+    func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
+        line.containsTypeValue(in: Self.eventMarkers)
     }
 
     mutating func parse(
@@ -87,12 +93,6 @@ struct CodexLogParser: Sendable {
             )
         )
     }
-
-    private static let eventMarkers = [
-        CodexRecordKind.sessionMeta.jsonStringMarker,
-        CodexRecordKind.turnContext.jsonStringMarker,
-        CodexPayloadKind.tokenCount.jsonStringMarker,
-    ]
 }
 
 private enum CodexLogRecord: Decodable {
