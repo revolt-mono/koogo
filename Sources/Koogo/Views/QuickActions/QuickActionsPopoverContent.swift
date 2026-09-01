@@ -122,16 +122,18 @@ struct MountedDiskImagesQuickAction: View {
                     interaction: .unavailable(systemImage: "eject")
                 )
             case .available(let diskImages):
+                let count = diskImages.values.count
                 QuickActionRow(
-                    title: "Eject \(diskImages.count) Mounted DMG\(diskImages.count == 1 ? "" : "s")",
+                    title: "Eject \(count) Mounted DMG\(count == 1 ? "" : "s")",
                     detail: diskImages.values.map(\.name).joined(separator: ", "),
                     interaction: .action(systemImage: "eject") {
                         eject(diskImages)
                     }
                 )
             case .ejecting(let diskImages):
+                let count = diskImages.values.count
                 QuickActionRow(
-                    title: "Ejecting \(diskImages.count) DMG\(diskImages.count == 1 ? "" : "s")",
+                    title: "Ejecting \(count) DMG\(count == 1 ? "" : "s")",
                     detail: "Waiting for macOS",
                     interaction: .working
                 )

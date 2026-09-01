@@ -41,21 +41,16 @@ struct CodexQuotaSession: Sendable {
 
             var reader = LineReader(fileHandle: output.fileHandleForReading)
             try send(
-                RPCRequest(
+                RPCMessage(
                     method: "initialize",
                     id: 1,
-                    params: InitializeParams(
-                        clientInfo: ClientInfo(name: "koogo", title: "Koogo", version: "1.0")
-                    )
+                    params: ["clientInfo": ["name": "koogo", "title": "Koogo", "version": "1.0"]]
                 ),
                 to: input.fileHandleForWriting
             )
             let _: InitializeResponse = try response(id: 1, from: &reader)
-            try send(RPCNotification(method: "initialized"), to: input.fileHandleForWriting)
-            try send(
-                RPCRequestWithoutParams(method: "account/rateLimits/read", id: 2),
-                to: input.fileHandleForWriting
-            )
+            try send(RPCMessage(method: "initialized"), to: input.fileHandleForWriting)
+            try send(RPCMessage(method: "account/rateLimits/read", id: 2), to: input.fileHandleForWriting)
             let payload: CodexQuotaResponse = try response(id: 2, from: &reader)
             // The one-shot session is complete; do not wait for app-server to notice stdin EOF.
             processGroup.terminate()
@@ -65,8 +60,8 @@ struct CodexQuotaSession: Sendable {
         }
     }
 
-    private func send<Value: Encodable>(_ value: Value, to handle: FileHandle) throws {
-        var data = try JSONEncoder().encode(value)
+    private func send(_ message: RPCMessage, to handle: FileHandle) throws {
+        var data = try JSONEncoder().encode(message)
         data.append(0x0A)
         try handle.write(contentsOf: data)
     }
@@ -205,19 +200,11 @@ private struct LineReader {
     }
 }
 
-private struct RPCRequest<Params: Encodable>: Encodable {
+/// Nil `id` marks a notification; nil `params` is omitted from the wire.
+private struct RPCMessage: Encodable {
     let method: String
-    let id: Int
-    let params: Params
-}
-
-private struct RPCRequestWithoutParams: Encodable {
-    let method: String
-    let id: Int
-}
-
-private struct RPCNotification: Encodable {
-    let method: String
+    var id: Int?
+    var params: [String: [String: String]]?
 }
 
 private struct RPCEnvelope: Decodable {
@@ -239,16 +226,6 @@ private struct RPCSuccess<Result: Decodable>: Decodable {
         }
         result = try container.decode(Result.self, forKey: .result)
     }
-}
-
-private struct InitializeParams: Encodable {
-    let clientInfo: ClientInfo
-}
-
-private struct ClientInfo: Encodable {
-    let name: String
-    let title: String
-    let version: String
 }
 
 private struct InitializeResponse: Decodable {}

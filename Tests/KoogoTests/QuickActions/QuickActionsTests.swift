@@ -64,7 +64,7 @@ final class QuickActionsTests: XCTestCase {
         )
 
         XCTAssertNil(MountedDiskImages([]))
-        XCTAssertEqual(MountedDiskImages([diskImage])?.count, 1)
+        XCTAssertEqual(MountedDiskImages([diskImage])?.values.count, 1)
     }
 
     @MainActor

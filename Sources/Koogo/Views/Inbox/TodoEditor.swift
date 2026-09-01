@@ -3,11 +3,12 @@ import SwiftUI
 struct TodoEditor: View {
     let onSubmit: (Todo) -> Void
 
-    @State private var draft = TodoDraft()
+    @State private var text = ""
+    @State private var priority = TodoPriority.normal
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TodoTextInput(text: $draft.text, mode: .composing, onSubmit: submit)
+            TodoTextInput(text: $text, mode: .composing, onSubmit: submit)
                 .frame(maxWidth: .infinity)
                 .frame(height: 56)
                 .overlay(alignment: .topLeading) {
@@ -16,12 +17,12 @@ struct TodoEditor: View {
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 6)
-                        .opacity(draft.text.isEmpty ? 1 : 0)
+                        .opacity(text.isEmpty ? 1 : 0)
                         .allowsHitTesting(false)
                 }
 
             HStack(spacing: 8) {
-                TodoPrioritySelector(selection: $draft.priority)
+                TodoPrioritySelector(selection: $priority)
 
                 Spacer(minLength: 8)
 
@@ -32,7 +33,7 @@ struct TodoEditor: View {
                 }
                 .buttonStyle(.glassProminent)
                 .buttonBorderShape(.circle)
-                .disabled(draft.todoText == nil)
+                .disabled(TodoText(text) == nil)
                 .accessibilityLabel("Add todo")
             }
         }
@@ -44,11 +45,12 @@ struct TodoEditor: View {
     }
 
     private func submit() {
-        guard let text = draft.todoText else {
+        guard let todoText = TodoText(text) else {
             return
         }
-        onSubmit(Todo(text: text, priority: draft.priority))
-        draft = TodoDraft()
+        onSubmit(Todo(text: todoText, priority: priority))
+        text = ""
+        priority = .normal
     }
 }
 
@@ -98,14 +100,5 @@ struct TodoInlineEditor: View {
             return
         }
         onFinish(.saved(todoText))
-    }
-}
-
-private struct TodoDraft {
-    var text = ""
-    var priority = TodoPriority.normal
-
-    var todoText: TodoText? {
-        TodoText(text)
     }
 }

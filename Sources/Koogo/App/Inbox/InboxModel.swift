@@ -10,7 +10,10 @@ final class InboxModel {
 
     var todos: [Todo] {
         didSet {
-            persist()
+            guard let data = try? PropertyListEncoder().encode(todos) else {
+                return
+            }
+            defaults.set(data, forKey: Self.defaultsKey)
         }
     }
 
@@ -20,12 +23,5 @@ final class InboxModel {
             defaults.data(forKey: Self.defaultsKey)
             .flatMap { try? PropertyListDecoder().decode([Todo].self, from: $0) }
             ?? []
-    }
-
-    private func persist() {
-        guard let data = try? PropertyListEncoder().encode(todos) else {
-            return
-        }
-        defaults.set(data, forKey: Self.defaultsKey)
     }
 }

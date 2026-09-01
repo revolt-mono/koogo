@@ -34,23 +34,13 @@ struct MountedDiskImage: Sendable {
 }
 
 struct MountedDiskImages: Sendable {
-    private let first: MountedDiskImage
-    private let rest: [MountedDiskImage]
+    let values: [MountedDiskImage]
 
     init?(_ diskImages: [MountedDiskImage]) {
-        guard let first = diskImages.first else {
+        guard !diskImages.isEmpty else {
             return nil
         }
-        self.first = first
-        rest = Array(diskImages.dropFirst())
-    }
-
-    var count: Int {
-        rest.count + 1
-    }
-
-    var values: [MountedDiskImage] {
-        [first] + rest
+        values = diskImages
     }
 }
 

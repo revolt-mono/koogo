@@ -53,17 +53,16 @@ struct CodexQuotaService: Sendable {
 
     private static func findExecutable() -> URL? {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        var candidates = [
-            home.appending(path: ".codex/packages/standalone/current/bin/codex"),
-            home.appending(path: ".local/bin/codex"),
-            URL(filePath: "/opt/homebrew/bin/codex"),
-            URL(filePath: "/usr/local/bin/codex"),
-        ]
-        candidates.append(
-            contentsOf: (ProcessInfo.processInfo.environment["PATH"] ?? "")
-                .split(separator: ":")
-                .map { URL(filePath: String($0)).appending(path: "codex") }
-        )
+        let candidates =
+            [
+                home.appending(path: ".codex/packages/standalone/current/bin/codex"),
+                home.appending(path: ".local/bin/codex"),
+                URL(filePath: "/opt/homebrew/bin/codex"),
+                URL(filePath: "/usr/local/bin/codex"),
+            ]
+            + (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map { URL(filePath: String($0)).appending(path: "codex") }
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 }

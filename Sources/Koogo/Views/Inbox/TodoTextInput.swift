@@ -14,15 +14,6 @@ struct TodoTextInput: NSViewRepresentable {
                 onBlur
             }
         }
-
-        var startsFocused: Bool {
-            switch self {
-            case .composing:
-                false
-            case .editing:
-                true
-            }
-        }
     }
 
     @Binding var text: String
@@ -73,7 +64,7 @@ struct TodoTextInput: NSViewRepresentable {
             textView.string = text
             textView.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
         }
-        if mode.startsFocused, !context.coordinator.didRequestFocus {
+        if case .editing = mode, !context.coordinator.didRequestFocus {
             context.coordinator.didRequestFocus = true
             // Wait for the context menu to close before taking focus.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
