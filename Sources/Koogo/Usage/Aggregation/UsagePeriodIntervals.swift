@@ -27,6 +27,10 @@ struct UsagePeriodIntervals: Equatable, Sendable {
     let week: Range<Date>
     let month: Comparison
 
+    var historyStart: Date {
+        month.previous.lowerBound
+    }
+
     init(containing date: Date, calendar: Calendar) {
         guard let week = calendar.dateInterval(of: .weekOfYear, for: date) else {
             preconditionFailure("calendar must provide a week interval")

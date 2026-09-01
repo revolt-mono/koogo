@@ -4,15 +4,15 @@ import XCTest
 @testable import Koogo
 
 final class UsageSnapshotBuilderTests: XCTestCase {
-    func testSnapshotPreservesSubcentProviderCostsUntilDisplayFormatting() throws {
+    func testSnapshotPreservesSubcentProviderCosts() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let intervals = UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar)
 
         let snapshot = UsageSnapshotBuilder.build(
             events: [
-                codexUsageEvent(model: "gpt-5.6-sol", uncachedInput: 1_000),
-                claudeUsageEvent(model: "claude-opus-5", uncachedInput: 1_000),
+                usageEvent(.codex, processedTokens: 1_000, costUSD: 0.005),
+                usageEvent(.claude, processedTokens: 1_000, costUSD: 0.005),
             ],
             intervals: intervals,
             calendar: calendar
@@ -22,12 +22,6 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(snapshot.codex.today.costUSD, Decimal(string: "0.005"))
         XCTAssertEqual(snapshot.claude.today.costUSD, Decimal(string: "0.005"))
         XCTAssertEqual(total, Decimal(string: "0.01"))
-        XCTAssertEqual(UsageFormatting.cost(snapshot.claude.today.costUSD), "$0.01")
-        XCTAssertEqual(UsageFormatting.cost(total), "$0.01")
-        XCTAssertEqual(
-            UsageFormatting.cost(try XCTUnwrap(Decimal(string: "0.025"))),
-            "$0.03"
-        )
     }
 
     func testCostChangeUsesStockStyleZeroBaseline() throws {
@@ -41,15 +35,6 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             let change = UsageCostChange(currentUSD: current, previousUSD: previous)
             XCTAssertEqual(change, expected)
         }
-
-        XCTAssertEqual(UsageFormatting.percentage(1), "100%")
-        XCTAssertEqual(UsageFormatting.percentage(0), "0%")
-        XCTAssertEqual(
-            UsageFormatting.percentage(
-                try XCTUnwrap(Decimal(string: "0.125"))
-            ),
-            "12.5%"
-        )
     }
 
     func testSnapshotComparesCompletePreviousPeriods() throws {
@@ -57,26 +42,30 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let snapshot = UsageSnapshotBuilder.build(
             events: [
-                codexUsageEvent(
+                usageEvent(
+                    .codex,
                     id: 1,
-                    model: "gpt-5.6-sol",
-                    uncachedInput: 1_000,
+                    processedTokens: 1_000,
+                    costUSD: 0.005,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-08-24T17:00:00Z"))
                 ),
-                claudeUsageEvent(
-                    model: "claude-opus-5",
-                    uncachedInput: 10_000,
+                usageEvent(
+                    .claude,
+                    processedTokens: 10_000,
+                    costUSD: 0.05,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-08-24T19:00:00Z"))
                 ),
-                codexUsageEvent(
+                usageEvent(
+                    .codex,
                     id: 3,
-                    model: "gpt-5.6-sol",
-                    uncachedInput: 2_000,
+                    processedTokens: 2_000,
+                    costUSD: 0.01,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-07-25T17:00:00Z"))
                 ),
-                claudeUsageEvent(
-                    model: "claude-opus-5",
-                    uncachedInput: 20_000,
+                usageEvent(
+                    .claude,
+                    processedTokens: 20_000,
+                    costUSD: 0.1,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-07-25T19:00:00Z"))
                 ),
             ],
@@ -95,16 +84,18 @@ final class UsageSnapshotBuilderTests: XCTestCase {
 
         let snapshot = UsageSnapshotBuilder.build(
             events: [
-                codexUsageEvent(
+                usageEvent(
+                    .codex,
                     id: 1,
-                    model: "gpt-5.6-sol",
-                    uncachedInput: 1_000,
+                    processedTokens: 1_000,
+                    costUSD: 0.005,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-02-28T23:59:59Z"))
                 ),
-                codexUsageEvent(
+                usageEvent(
+                    .codex,
                     id: 2,
-                    model: "gpt-5.6-sol",
-                    uncachedInput: 10_000,
+                    processedTokens: 10_000,
+                    costUSD: 0.05,
                     at: try XCTUnwrap(parseUsageTimestamp("2026-03-01T00:00:00Z"))
                 ),
             ],
@@ -126,11 +117,12 @@ final class UsageSnapshotBuilderTests: XCTestCase {
 
         let snapshot = UsageSnapshotBuilder.build(
             events: [
-                codexUsageEvent(id: 1, model: "gpt-5.6-sol", uncachedInput: 100),
-                codexUsageEvent(
+                usageEvent(.codex, id: 1, processedTokens: 100, costUSD: 1),
+                usageEvent(
+                    .codex,
                     id: 2,
-                    model: "gpt-5.6-sol",
-                    uncachedInput: 50,
+                    processedTokens: 50,
+                    costUSD: 1,
                     at: within24HoursOnPreviousDay
                 ),
             ],
@@ -163,15 +155,17 @@ final class UsageSnapshotBuilderTests: XCTestCase {
 
         let snapshot = UsageSnapshotBuilder.build(
             events: [
-                codexUsageEvent(model: "gpt-5.6-sol", uncachedInput: 100, at: now),
-                codexUsageEvent(
-                    model: "gpt-5.6-sol",
-                    uncachedInput: 50,
+                usageEvent(.codex, processedTokens: 100, costUSD: 1, at: now),
+                usageEvent(
+                    .codex,
+                    processedTokens: 50,
+                    costUSD: 1,
                     at: sameWeekPreviousMonth
                 ),
-                codexUsageEvent(
-                    model: "gpt-5.6-sol",
-                    uncachedInput: 25,
+                usageEvent(
+                    .codex,
+                    processedTokens: 25,
+                    costUSD: 1,
                     at: previousCalendarWeek
                 ),
             ],

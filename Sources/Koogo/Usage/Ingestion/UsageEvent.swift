@@ -6,8 +6,6 @@ enum UsageEvent: Sendable {
         let turnID: String?
         let ordinal: UInt64?
         let timestamp: Date
-        let model: String
-        let tokens: CodexTokenUsage
         let cumulativeTotal: UInt64
     }
 

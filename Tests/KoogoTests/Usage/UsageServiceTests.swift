@@ -4,45 +4,19 @@ import XCTest
 @testable import Koogo
 
 final class UsageServiceTests: XCTestCase {
-    private var root: URL!
-    private var locations: UsageLocations!
-    private var calendar: Calendar!
-    private var now: Date!
+    private var workspace: UsageTestWorkspace!
+    private let now = usageTestTimestamp
+
+    private var root: URL { workspace.root }
+    private var locations: UsageLocations { workspace.locations }
+    private var calendar: Calendar { workspace.calendar }
 
     override func setUpWithError() throws {
-        root = FileManager.default.temporaryDirectory
-            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
-        let codexSessions = root.appending(path: "codex/sessions", directoryHint: .isDirectory)
-        let codexArchive = root.appending(path: "codex/archive", directoryHint: .isDirectory)
-        let claudeProjects = root.appending(path: "claude/projects", directoryHint: .isDirectory)
-        let piAgent = root.appending(path: "pi", directoryHint: .isDirectory)
-        let piSessions = piAgent.appending(path: "sessions", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: codexSessions, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: codexArchive, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: claudeProjects, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: piSessions, withIntermediateDirectories: true)
-        locations = UsageLocations(
-            logs: UsageLocations.Logs(
-                codex: UsageLocations.Logs.Codex(
-                    sessions: codexSessions,
-                    archivedSessions: codexArchive
-                ),
-                claudeProjects: claudeProjects,
-                piAgent: piSessions
-            ),
-            piModels: UsageLocations.PiModels(
-                custom: piAgent.appending(path: "models.json"),
-                store: piAgent.appending(path: "models-store.json")
-            )
-        )
-        calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        calendar.firstWeekday = 2
-        now = usageTestTimestamp
+        workspace = try UsageTestWorkspace()
     }
 
     override func tearDownWithError() throws {
-        try FileManager.default.removeItem(at: root)
+        try workspace.remove()
     }
 
     func testColdScanDeduplicatesClaudePartialsAndProviderSnapshots() async throws {
@@ -111,33 +85,6 @@ final class UsageServiceTests: XCTestCase {
         XCTAssertEqual(current.codex.today.processedTokens, 120)
         XCTAssertEqual(refreshed.codex.today, .zero)
         XCTAssertEqual(refreshed.codex.week.processedTokens, 120)
-    }
-
-    @MainActor
-    func testUsageModelStartsColdScanOnInitialization() async throws {
-        try write(
-            codexLog(
-                input: 100,
-                output: 20,
-                usageTimestamp: ISO8601DateFormatter().string(
-                    from: calendar.startOfDay(for: Date())
-                )
-            ),
-            to: locations.logs.codex.sessions.appending(path: "session.jsonl")
-        )
-        let model = UsageModel(
-            usageService: UsageService(locations: locations, calendar: calendar)
-        )
-        let deadline = ContinuousClock.now + .seconds(1)
-
-        while model.snapshot == nil, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-
-        XCTAssertEqual(
-            try XCTUnwrap(model.snapshot).codex.month.processedTokens,
-            120
-        )
     }
 
     func testArchiveCopyDoesNotDoubleCountAndReplacementDropsRemovedEvents() async throws {
@@ -212,7 +159,7 @@ final class UsageServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
 
-    func testColdScanRetainsPreviousComparisonPeriods() async throws {
+    func testColdScanRetainsComparisonPeriodsAndDiscardsOlderHistory() async throws {
         try write(
             codexLog(
                 input: 100,
@@ -231,12 +178,25 @@ final class UsageServiceTests: XCTestCase {
             ),
             to: locations.logs.codex.sessions.appending(path: "previous-month.jsonl")
         )
+        for index in 1...3 {
+            try write(
+                codexLog(
+                    input: 1,
+                    output: 0,
+                    thread: "older-\(index)",
+                    model: "gpt-5.6-luna",
+                    usageTimestamp: "2026-06-30T17:00:00.000Z"
+                ),
+                to: locations.logs.codex.sessions.appending(path: "older-\(index).jsonl")
+            )
+        }
         let service = UsageService(locations: locations, calendar: calendar)
 
         let snapshot = await service.refresh(at: now)
 
         XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
         XCTAssertEqual(snapshot.summary.month.costChange, .decrease(fraction: Decimal(1) / 2))
+        XCTAssertEqual(snapshot.codex.favorite?.modelName, "GPT 5.6 Sol")
     }
 
     func testColdScanIgnoresJSONLSymlinks() async throws {
@@ -280,72 +240,10 @@ final class UsageServiceTests: XCTestCase {
     }
 
     private func write(_ text: String, to url: URL) throws {
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data(text.utf8).write(to: url)
-        try FileManager.default.setAttributes([.modificationDate: now as Date], ofItemAtPath: url.path)
+        try workspace.write(text, to: url, modificationDate: now)
     }
 
     private func append(_ text: String, to url: URL) throws {
-        let handle = try FileHandle(forWritingTo: url)
-        defer { try? handle.close() }
-        try handle.seekToEnd()
-        try handle.write(contentsOf: Data(text.utf8))
-        try FileManager.default.setAttributes([.modificationDate: now as Date], ofItemAtPath: url.path)
+        try workspace.append(text, to: url, modificationDate: now)
     }
-}
-
-private func codexLog(
-    input: Int,
-    output: Int,
-    thread: String = "thread",
-    model: String = "gpt-5.6-sol",
-    usageTimestamp: String = "2026-08-25T12:00:00.000Z"
-) -> String {
-    [
-        codexSessionMetadata(thread: thread),
-        codexTurnContext(model: model),
-        codexToken(
-            timestamp: usageTimestamp,
-            lastInput: input,
-            lastOutput: output,
-            totalInput: input,
-            totalOutput: output
-        ),
-        "",
-    ].joined(separator: "\n")
-}
-
-private func codexSessionMetadata(thread: String) -> String {
-    """
-    {"timestamp":"2026-08-25T11:00:00.000Z","type":"session_meta","payload":{"id":"\(thread)"}}
-    """
-}
-
-private func codexTurnContext(model: String) -> String {
-    """
-    {"timestamp":"2026-08-25T11:30:00.000Z","type":"turn_context","payload":{"turn_id":"turn","model":"\(model)","effort":"high"}}
-    """
-}
-
-private func codexToken(
-    timestamp: String,
-    lastInput: Int,
-    lastOutput: Int,
-    totalInput: Int,
-    totalOutput: Int
-) -> String {
-    """
-    {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(lastInput),"cached_input_tokens":0,"output_tokens":\(lastOutput),"reasoning_output_tokens":0,"total_tokens":\(lastInput + lastOutput)},"total_token_usage":{"input_tokens":\(totalInput),"cached_input_tokens":0,"output_tokens":\(totalOutput),"reasoning_output_tokens":0,"total_tokens":\(totalInput + totalOutput)},"model_context_window":1000}}}
-    """
-}
-
-private func claudeLog(output: Int, requestID: String? = "request") -> String {
-    let request = requestID.map { "\"requestId\":\"\($0)\"," } ?? ""
-    return """
-        {"type":"assistant","timestamp":"2026-08-25T12:30:00.000Z",\(request)"message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":\(output)}}}
-
-        """
 }

@@ -9,26 +9,7 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
 
         let snapshot = UsageSnapshotBuilder.build(
-            events: [
-                codexUsageEvent(
-                    id: 1,
-                    model: "gpt-5.6-luna",
-                    effort: "low",
-                    uncachedInput: 20_000
-                ),
-                codexUsageEvent(
-                    id: 2,
-                    model: "gpt-5.6-luna",
-                    effort: "high",
-                    uncachedInput: 20_000
-                ),
-                codexUsageEvent(
-                    id: 3,
-                    model: "gpt-5.6-sol",
-                    effort: "low",
-                    uncachedInput: 200_000
-                ),
-            ],
+            events: exactCostEvents(),
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
             calendar: calendar
         )
@@ -58,43 +39,8 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let earlierHistory = try XCTUnwrap(parseUsageTimestamp("2026-07-10T12:00:00Z"))
-
         let snapshot = UsageSnapshotBuilder.build(
-            events: [
-                codexUsageEvent(
-                    id: 1,
-                    model: "gpt-5.6-luna",
-                    effort: "high",
-                    uncachedInput: 1,
-                    at: earlierHistory
-                ),
-                codexUsageEvent(
-                    id: 2,
-                    model: "gpt-5.6-luna",
-                    effort: "high",
-                    uncachedInput: 1,
-                    at: earlierHistory
-                ),
-                codexUsageEvent(
-                    id: 3,
-                    model: "gpt-5.6-luna",
-                    effort: "low",
-                    uncachedInput: 1,
-                    at: earlierHistory
-                ),
-                codexUsageEvent(
-                    id: 4,
-                    model: "gpt-5.6-sol",
-                    effort: "low",
-                    uncachedInput: 1
-                ),
-                codexUsageEvent(
-                    id: 5,
-                    model: "gpt-5.6-sol",
-                    effort: "low",
-                    uncachedInput: 1
-                ),
-            ],
+            events: historyEvents(at: earlierHistory),
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
             calendar: calendar
         )
@@ -105,6 +51,47 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
                 modelName: "GPT 5.6 Luna",
                 reasoningEffort: "high"
             )
+        )
+    }
+
+    private func exactCostEvents() -> [UsageEvent] {
+        let luna = UsageModelReference.codex(id: "gpt-5.6-luna", name: "GPT 5.6 Luna")
+        let sol = UsageModelReference.codex(id: "gpt-5.6-sol", name: "GPT 5.6 Sol")
+        return [
+            favoriteEvent(1, model: luna, effort: "low", tokens: 20_000, costUSD: 0.004),
+            favoriteEvent(2, model: luna, effort: "high", tokens: 20_000, costUSD: 0.004),
+            favoriteEvent(3, model: sol, effort: "low", tokens: 200_000, costUSD: 1),
+        ]
+    }
+
+    private func historyEvents(at earlierHistory: Date) -> [UsageEvent] {
+        let luna = UsageModelReference.codex(id: "gpt-5.6-luna", name: "GPT 5.6 Luna")
+        let sol = UsageModelReference.codex(id: "gpt-5.6-sol", name: "GPT 5.6 Sol")
+        return [
+            favoriteEvent(1, model: luna, effort: "high", at: earlierHistory),
+            favoriteEvent(2, model: luna, effort: "high", at: earlierHistory),
+            favoriteEvent(3, model: luna, effort: "low", at: earlierHistory),
+            favoriteEvent(4, model: sol, effort: "low"),
+            favoriteEvent(5, model: sol, effort: "low"),
+        ]
+    }
+
+    private func favoriteEvent(
+        _ id: Int,
+        model: UsageModelReference,
+        effort: String,
+        tokens: UInt64 = 1,
+        costUSD: Decimal = 0,
+        at date: Date = usageTestTimestamp
+    ) -> UsageEvent {
+        usageEvent(
+            .codex,
+            id: id,
+            model: model,
+            effort: effort,
+            processedTokens: tokens,
+            costUSD: costUSD,
+            at: date
         )
     }
 }

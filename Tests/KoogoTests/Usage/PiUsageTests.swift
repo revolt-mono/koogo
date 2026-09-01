@@ -5,37 +5,17 @@ import XCTest
 
 final class PiUsageTests: XCTestCase {
     private let decoder = JSONDecoder()
-    private var root: URL!
-    private var locations: UsageLocations!
-    private var calendar: Calendar!
+    private var workspace: UsageTestWorkspace!
+
+    private var locations: UsageLocations { workspace.locations }
+    private var calendar: Calendar { workspace.calendar }
 
     override func setUpWithError() throws {
-        root = FileManager.default.temporaryDirectory
-            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
-        let piAgent = root.appending(path: "pi", directoryHint: .isDirectory)
-        let piSessions = piAgent.appending(path: "sessions", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: piSessions, withIntermediateDirectories: true)
-        locations = UsageLocations(
-            logs: UsageLocations.Logs(
-                codex: UsageLocations.Logs.Codex(
-                    sessions: root.appending(path: "codex/sessions"),
-                    archivedSessions: root.appending(path: "codex/archive")
-                ),
-                claudeProjects: root.appending(path: "claude/projects"),
-                piAgent: piSessions
-            ),
-            piModels: UsageLocations.PiModels(
-                custom: piAgent.appending(path: "models.json"),
-                store: piAgent.appending(path: "models-store.json")
-            )
-        )
-        calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        calendar.firstWeekday = 2
+        workspace = try UsageTestWorkspace()
     }
 
     override func tearDownWithError() throws {
-        try FileManager.default.removeItem(at: root)
+        try workspace.remove()
     }
 
     func testParserUsesBranchLocalThinkingAndLoggedUsage() throws {
@@ -137,8 +117,8 @@ final class PiUsageTests: XCTestCase {
     }
 
     func testServiceUsesLoggedCostsModelNamesAndTurnFavorites() async throws {
-        try write(piModelStore, to: locations.piModels.store)
-        try write(piCustomModels, to: locations.piModels.custom)
+        try workspace.write(piModelStore, to: locations.piModels.store)
+        try workspace.write(piCustomModels, to: locations.piModels.custom)
         let catalog = PiModelCatalog(locations: locations.piModels)
         XCTAssertEqual(catalog.displayName(provider: "provider", model: "model-a"), "Readable Model A")
         XCTAssertEqual(catalog.displayName(provider: "provider", model: "model-b"), "Preferred Model B")
@@ -146,8 +126,8 @@ final class PiUsageTests: XCTestCase {
         XCTAssertEqual(catalog.displayName(provider: "provider", model: "unknown"), "unknown")
 
         let contents = piSessionLog
-        try write(contents, to: locations.logs.piAgent.appending(path: "project/session.jsonl"))
-        try write(contents, to: locations.logs.piAgent.appending(path: "copy/session.jsonl"))
+        try workspace.write(contents, to: locations.logs.piAgent.appending(path: "project/session.jsonl"))
+        try workspace.write(contents, to: locations.logs.piAgent.appending(path: "copy/session.jsonl"))
         let snapshot = await UsageService(locations: locations, calendar: calendar).refresh(
             at: usageTestTimestamp
         )
@@ -166,11 +146,11 @@ final class PiUsageTests: XCTestCase {
     }
 
     func testServiceRefreshesFavoriteWhenModelCatalogChanges() async throws {
-        try write(
+        try workspace.write(
             piSessionLog,
             to: locations.logs.piAgent.appending(path: "session.jsonl")
         )
-        try write(
+        try workspace.write(
             """
             {"provider":{"models":[{"id":"model-a","name":"Initial Name"}]}}
             """,
@@ -180,7 +160,7 @@ final class PiUsageTests: XCTestCase {
         let initial = await service.refresh(at: usageTestTimestamp)
         XCTAssertEqual(initial.piAgent.favorite?.modelName, "Initial Name")
 
-        try write(
+        try workspace.write(
             """
             {"provider":{"models":[{"id":"model-a","name":"Updated Name"}]}}
             """,
@@ -192,7 +172,7 @@ final class PiUsageTests: XCTestCase {
     }
 
     func testServiceDeduplicatesForkHistoryDuringColdAndIncrementalScans() async throws {
-        try write(piSessionLog, to: locations.logs.piAgent.appending(path: "original.jsonl"))
+        try workspace.write(piSessionLog, to: locations.logs.piAgent.appending(path: "original.jsonl"))
         let service = UsageService(locations: locations, calendar: calendar)
 
         let original = await service.refresh(at: usageTestTimestamp)
@@ -211,7 +191,7 @@ final class PiUsageTests: XCTestCase {
                 tokens: 70,
                 cost: "0.07"
             ) + "\n"
-        try write(fork, to: locations.logs.piAgent.appending(path: "fork.jsonl"))
+        try workspace.write(fork, to: locations.logs.piAgent.appending(path: "fork.jsonl"))
 
         let incremental = await service.refresh(at: usageTestTimestamp)
         let cold = await UsageService(locations: locations, calendar: calendar).refresh(
@@ -227,18 +207,6 @@ final class PiUsageTests: XCTestCase {
         Data(line.utf8).withUnsafeBytes {
             parser.parse($0, decoder: decoder)
         }
-    }
-
-    private func write(_ text: String, to url: URL) throws {
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data(text.utf8).write(to: url)
-        try FileManager.default.setAttributes(
-            [.modificationDate: usageTestTimestamp],
-            ofItemAtPath: url.path
-        )
     }
 }
 

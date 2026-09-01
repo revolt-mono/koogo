@@ -137,7 +137,7 @@ final class UsageLogParserTests: XCTestCase {
         XCTAssertEqual(event.usage.modelTurn?.reasoningEffort, "high")
     }
 
-    func testCodexPreservesCacheWritesWithoutInventingDuration() throws {
+    func testCodexPricesLoggedCacheWrites() throws {
         var parser = UsageFileParserState.codex()
         _ = parse(codexMeta(), with: &parser)
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
@@ -150,24 +150,9 @@ final class UsageLogParserTests: XCTestCase {
                 with: &parser
             )
         )
-        guard case .codex(let id, _) = event else {
-            return XCTFail("unexpected event provider")
-        }
 
-        XCTAssertEqual(
-            id.tokens,
-            try XCTUnwrap(
-                CodexTokenUsage(
-                    input: 100,
-                    cachedInput: 10,
-                    cacheWrite: 30,
-                    output: 20,
-                    reasoningOutput: 0,
-                    processed: 120
-                )
-            )
-        )
-        XCTAssertEqual(id.tokens.uncachedInput, 60)
+        XCTAssertEqual(event.usage.processedTokens, 120)
+        XCTAssertEqual(event.usage.costUSD, Decimal(string: "0.0010925"))
     }
 
     func testClaudeParsesCacheDurationsSpeedGeoSearchAndMissingEffort() throws {

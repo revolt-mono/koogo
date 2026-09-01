@@ -70,8 +70,6 @@ struct CodexLogParser: Sendable {
                 turnID: turn.id,
                 ordinal: record.ordinal,
                 timestamp: timestamp,
-                model: turn.model,
-                tokens: lastUsage,
                 cumulativeTotal: totalUsage.processed
             ),
             usage: UsageRecord(
