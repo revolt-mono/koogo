@@ -7,7 +7,7 @@ struct CodexQuotaView: View {
     var body: some View {
         Group {
             switch codexQuotaModel.state {
-            case .hidden:
+            case .unavailable:
                 EmptyView()
             case .loading:
                 VStack(spacing: 16) {

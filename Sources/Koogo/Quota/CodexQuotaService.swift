@@ -1,7 +1,15 @@
 import Foundation
 
+/// Why no quota is shown; surfaced in telemetry and the `--report` output.
+enum CodexQuotaUnavailability: String, Error, Encodable, Sendable {
+    case binaryNotFound
+    case timedOut
+    case sessionFailed
+    case emptyLimits
+}
+
 struct CodexQuotaService: Sendable {
-    private struct Failure: Error {}
+    private struct Timeout: Error {}
 
     private let executableURL: URL?
 
@@ -10,27 +18,37 @@ struct CodexQuotaService: Sendable {
     }
 
     @concurrent
-    func fetch() async -> CodexQuotaSnapshot? {
-        guard let executableURL = executableURL ?? Self.findExecutable() else {
-            return nil
+    func fetch() async -> Result<CodexQuotaSnapshot, CodexQuotaUnavailability> {
+        let result: Result<CodexQuotaSnapshot, CodexQuotaUnavailability>
+        if let executableURL = executableURL ?? Self.findExecutable() {
+            do {
+                let snapshot = try await withThrowingTaskGroup(of: CodexQuotaSnapshot?.self) { group in
+                    group.addTask { try await CodexQuotaSession(executableURL: executableURL).run() }
+                    group.addTask {
+                        try await Task.sleep(for: .seconds(15))
+                        throw Timeout()
+                    }
+                    defer { group.cancelAll() }
+                    // Two racing children are in flight, so next() cannot return nil.
+                    return try await group.next()!
+                }
+                result = snapshot.map(Result.success) ?? .failure(.emptyLimits)
+            } catch is Timeout {
+                result = .failure(.timedOut)
+            } catch {
+                result = .failure(.sessionFailed)
+            }
+        } else {
+            result = .failure(.binaryNotFound)
         }
 
-        do {
-            return try await withThrowingTaskGroup(of: CodexQuotaSnapshot?.self) { group in
-                group.addTask { try await CodexQuotaSession(executableURL: executableURL).run() }
-                group.addTask {
-                    try await Task.sleep(for: .seconds(15))
-                    throw Failure()
-                }
-                guard let result = try await group.next() else {
-                    throw Failure()
-                }
-                group.cancelAll()
-                return result
-            }
-        } catch {
-            return nil
+        switch result {
+        case .success:
+            Telemetry.quota.info("fetch available")
+        case .failure(let reason):
+            Telemetry.quota.info("fetch unavailable reason=\(reason.rawValue, privacy: .public)")
         }
+        return result
     }
 
     private static func findExecutable() -> URL? {

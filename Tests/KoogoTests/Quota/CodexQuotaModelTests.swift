@@ -60,7 +60,7 @@ final class CodexQuotaModelTests: XCTestCase {
         )
         let model = CodexQuotaModel(
             quotaService: CodexQuotaService(executableURL: executable),
-            refreshInterval: .zero
+            cooldown: .zero
         )
         model.refresh()
         var deadline = ContinuousClock.now + .seconds(2)
@@ -75,9 +75,9 @@ final class CodexQuotaModelTests: XCTestCase {
         model.refresh()
         XCTAssertEqual(model.state, .available(snapshot))
         deadline = ContinuousClock.now + .seconds(2)
-        while model.state != .hidden, ContinuousClock.now < deadline {
+        while model.state == .available(snapshot), ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
-        XCTAssertEqual(model.state, .hidden)
+        XCTAssertEqual(model.state, .unavailable(.sessionFailed))
     }
 }

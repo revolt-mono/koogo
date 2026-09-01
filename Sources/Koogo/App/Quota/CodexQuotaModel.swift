@@ -5,12 +5,12 @@ import Observation
 final class CodexQuotaModel {
     enum State: Equatable {
         case loading
-        case hidden
+        case unavailable(CodexQuotaUnavailability)
         case available(CodexQuotaSnapshot)
     }
 
     private let quotaService: CodexQuotaService
-    private let refreshInterval: Duration
+    private let cooldown: Duration
     private var refreshTask: Task<Void, Never>?
     private var refreshAfter: ContinuousClock.Instant
 
@@ -18,10 +18,10 @@ final class CodexQuotaModel {
 
     init(
         quotaService: CodexQuotaService,
-        refreshInterval: Duration = .seconds(60)
+        cooldown: Duration = .seconds(60)
     ) {
         self.quotaService = quotaService
-        self.refreshInterval = refreshInterval
+        self.cooldown = cooldown
         refreshAfter = .now
     }
 
@@ -29,7 +29,7 @@ final class CodexQuotaModel {
         guard refreshTask == nil, ContinuousClock.now >= refreshAfter else {
             return
         }
-        if case .hidden = state {
+        if case .unavailable = state {
             state = .loading
         }
 
@@ -37,8 +37,13 @@ final class CodexQuotaModel {
             defer {
                 refreshTask = nil
             }
-            state = (await quotaService.fetch()).map(State.available) ?? .hidden
-            refreshAfter = .now + refreshInterval
+            switch await quotaService.fetch() {
+            case .success(let snapshot):
+                state = .available(snapshot)
+            case .failure(let reason):
+                state = .unavailable(reason)
+            }
+            refreshAfter = .now + cooldown
         }
     }
 }

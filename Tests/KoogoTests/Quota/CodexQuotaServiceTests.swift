@@ -22,7 +22,8 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        guard let snapshot = await CodexQuotaService(executableURL: executable).fetch() else {
+        guard case .success(let snapshot) = await CodexQuotaService(executableURL: executable).fetch()
+        else {
             return XCTFail("expected available quota")
         }
         XCTAssertEqual(snapshot.models.map(\.id), ["codex_bengalfox"])
@@ -54,7 +55,8 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        guard let snapshot = await CodexQuotaService(executableURL: executable).fetch() else {
+        guard case .success(let snapshot) = await CodexQuotaService(executableURL: executable).fetch()
+        else {
             return XCTFail("expected available quota")
         }
         XCTAssertNil(snapshot.account?.limits)
@@ -70,10 +72,22 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        let snapshot = await CodexQuotaService(executableURL: executable).fetch()
+        let snapshot = try? await CodexQuotaService(executableURL: executable).fetch().get()
 
         XCTAssertEqual(snapshot?.account?.limits?.fiveHour?.remainingPercent, 75)
         XCTAssertNil(snapshot?.account?.resetCredits)
+    }
+
+    func testFetchReportsEmptyLimitsWhenNoWindowOrCreditSurvives() async throws {
+        let executable = try workspace.makeExecutable(
+            rateLimitsResponse: """
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":20,"windowDurationMins":1440},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}
+                """
+        )
+
+        let result = await CodexQuotaService(executableURL: executable).fetch()
+
+        XCTAssertEqual(result, .failure(.emptyLimits))
     }
 
     func testFetchRejectsResponseContainingResultAndError() async throws {
@@ -83,9 +97,9 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        let snapshot = await CodexQuotaService(executableURL: executable).fetch()
+        let result = await CodexQuotaService(executableURL: executable).fetch()
 
-        XCTAssertNil(snapshot)
+        XCTAssertEqual(result, .failure(.sessionFailed))
     }
 
     func testFetchAddsLauncherDirectoryToChildPath() async throws {
@@ -106,7 +120,7 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        let snapshot = await CodexQuotaService(executableURL: executable).fetch()
+        let snapshot = try? await CodexQuotaService(executableURL: executable).fetch().get()
 
         XCTAssertEqual(snapshot?.account?.limits?.fiveHour?.remainingPercent, 75)
     }
@@ -124,9 +138,9 @@ final class CodexQuotaServiceTests: XCTestCase {
             ofItemAtPath: executable.path
         )
 
-        let snapshot = await CodexQuotaService(executableURL: executable).fetch()
+        let result = await CodexQuotaService(executableURL: executable).fetch()
 
-        XCTAssertNil(snapshot)
+        XCTAssertEqual(result, .failure(.sessionFailed))
     }
 
     func testFetchReturnsSnapshotWhenServerDoesNotExitAfterResponse() async throws {
@@ -147,7 +161,7 @@ final class CodexQuotaServiceTests: XCTestCase {
         )
 
         let started = ContinuousClock.now
-        let snapshot = await CodexQuotaService(executableURL: executable).fetch()
+        let snapshot = try? await CodexQuotaService(executableURL: executable).fetch().get()
 
         XCTAssertEqual(snapshot?.account?.limits?.fiveHour?.remainingPercent, 75)
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
@@ -190,9 +204,11 @@ final class CodexQuotaServiceTests: XCTestCase {
 
         let cancellationStarted = ContinuousClock.now
         fetch.cancel()
-        let snapshot = await fetch.value
+        let result = await fetch.value
 
-        XCTAssertNil(snapshot)
+        guard case .failure = result else {
+            return XCTFail("expected unavailable quota")
+        }
         XCTAssertTrue(FileManager.default.fileExists(atPath: childMarker.path))
         XCTAssertLessThan(ContinuousClock.now - cancellationStarted, .seconds(3))
     }
