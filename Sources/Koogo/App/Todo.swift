@@ -37,7 +37,7 @@ struct TodoText: Codable, Equatable {
 struct Todo: Codable, Equatable, Identifiable {
     let id: UUID
     let text: TodoText
-    let priority: TodoPriority
+    var priority: TodoPriority
     var isCompleted: Bool
 
     init(text: TodoText, priority: TodoPriority) {

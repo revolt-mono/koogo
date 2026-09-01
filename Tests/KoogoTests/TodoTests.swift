@@ -13,7 +13,8 @@ final class TodoTests: XCTestCase {
 
     func testTodoPropertyListRoundTripKeepsTheFlatSchema() throws {
         let text = try XCTUnwrap(TodoText("ship it"))
-        let todo = Todo(text: text, priority: .urgent)
+        var todo = Todo(text: text, priority: .normal)
+        todo.priority = .urgent
         let data = try PropertyListEncoder().encode([todo])
         let propertyList = try XCTUnwrap(
             PropertyListSerialization.propertyList(

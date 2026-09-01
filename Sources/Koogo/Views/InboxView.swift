@@ -22,13 +22,10 @@ struct InboxView: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach($todos) { $todo in
-                        TodoRow(todo: $todo)
-                            .contextMenu {
-                                Button("Delete", role: .destructive) {
-                                    todos.removeAll { $0.id == todo.id }
-                                    dismissInput()
-                                }
-                            }
+                        TodoRow(todo: $todo) {
+                            todos.removeAll { $0.id == todo.id }
+                            dismissInput()
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
@@ -66,6 +63,7 @@ struct InboxView: View {
 
 private struct TodoRow: View {
     @Binding var todo: Todo
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -99,5 +97,16 @@ private struct TodoRow: View {
             Color.white.opacity(0.05),
             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
         )
+        .contextMenu {
+            Picker("Priority", selection: $todo.priority) {
+                ForEach(TodoPriority.allCases, id: \.self) { priority in
+                    Text(priority.rawValue.capitalized)
+                        .tag(priority)
+                }
+            }
+            .pickerStyle(.menu)
+
+            Button("Delete", role: .destructive, action: onDelete)
+        }
     }
 }
