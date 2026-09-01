@@ -6,8 +6,6 @@ struct PanelPagesView: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    let dismissInput: () -> Void
-
     @State private var selectedPage = PanelPage.usage
     @State private var scrollTarget: PanelPage? = .usage
 
@@ -38,7 +36,7 @@ struct PanelPagesView: View {
                                 value: usageModel.snapshot != nil
                             )
                         case .inbox:
-                            InboxView(dismissInput: dismissInput)
+                            InboxView()
                         }
                     }
                     .containerRelativeFrame(.horizontal)
@@ -64,7 +62,7 @@ struct PanelPagesView: View {
         }
         .onChange(of: selectedPage) {
             if selectedPage != .inbox {
-                dismissInput()
+                NSApp.keyWindow?.makeFirstResponder(nil)
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)

@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -11,14 +10,8 @@ struct ContentView: View {
             PanelToolbar()
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
-                .contentShape(.rect)
-                .simultaneousGesture(
-                    TapGesture().onEnded {
-                        dismissPanelInput()
-                    }
-                )
 
-            PanelPagesView(dismissInput: dismissPanelInput)
+            PanelPagesView()
         }
         .frame(width: 320, height: 863, alignment: .top)
         .background {
@@ -44,13 +37,6 @@ struct ContentView: View {
             usageModel.refresh()
         }
         .breakReminderIssueAlert(breakReminderModel)
-    }
-
-    private func dismissPanelInput() {
-        let window = NSApp.keyWindow
-        DispatchQueue.main.async {
-            window?.makeFirstResponder(nil)
-        }
     }
 }
 

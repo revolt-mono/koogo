@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct TodoEditor: View {
@@ -8,7 +7,7 @@ struct TodoEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TodoTextInput(text: $draft.text, onSubmit: submit)
+            TodoTextInput(text: $draft.text, mode: .composing, onSubmit: submit)
                 .frame(maxWidth: .infinity)
                 .frame(height: 56)
                 .overlay(alignment: .topLeading) {
@@ -53,121 +52,60 @@ struct TodoEditor: View {
     }
 }
 
+struct TodoInlineEditor: View {
+    enum Result {
+        case discarded
+        case saved(TodoText)
+    }
+
+    let onFinish: (Result) -> Void
+
+    @State private var draft: String
+
+    init(text: TodoText, onFinish: @escaping (Result) -> Void) {
+        self.onFinish = onFinish
+        _draft = State(initialValue: text.value)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TodoTextInput(
+                text: $draft,
+                mode: .editing(onBlur: { onFinish(.discarded) }),
+                onSubmit: submit
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+
+            Button(action: submit) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .frame(width: 16, height: 16)
+            }
+            .buttonStyle(.glassProminent)
+            .buttonBorderShape(.circle)
+            .disabled(todoText == nil)
+            .accessibilityLabel("Save todo")
+        }
+    }
+
+    private var todoText: TodoText? {
+        TodoText(draft)
+    }
+
+    private func submit() {
+        guard let todoText else {
+            return
+        }
+        onFinish(.saved(todoText))
+    }
+}
+
 private struct TodoDraft {
     var text = ""
     var priority = TodoPriority.normal
 
     var todoText: TodoText? {
         TodoText(text)
-    }
-}
-
-private struct TodoTextInput: NSViewRepresentable {
-    @Binding var text: String
-    let onSubmit: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onSubmit: onSubmit)
-    }
-
-    func makeNSView(context: Context) -> NSScrollView {
-        let textView = context.coordinator.textView
-        let font = NSFont.systemFont(ofSize: 11, weight: .medium)
-        textView.font =
-            font.fontDescriptor.withDesign(.rounded)
-            .flatMap { NSFont(descriptor: $0, size: 11) } ?? font
-        textView.delegate = context.coordinator
-        textView.drawsBackground = false
-        textView.isRichText = false
-        textView.allowsUndo = true
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
-        textView.minSize = .zero
-        textView.maxSize = NSSize(
-            width: CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
-        )
-        textView.textContainerInset = NSSize(width: 5, height: 6)
-        textView.textContainer?.lineFragmentPadding = 0
-        textView.textContainer?.widthTracksTextView = true
-
-        let scrollView = NSScrollView()
-        scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
-        scrollView.documentView = textView
-        return scrollView
-    }
-
-    func updateNSView(_: NSScrollView, context: Context) {
-        let textView = context.coordinator.textView
-        textView.onSubmit = onSubmit
-        if textView.string != text {
-            textView.string = text
-            textView.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
-        }
-    }
-
-    @MainActor
-    final class Coordinator: NSObject, NSTextViewDelegate {
-        let text: Binding<String>
-        let textView: TodoTextView
-
-        init(text: Binding<String>, onSubmit: @escaping () -> Void) {
-            self.text = text
-            textView = TodoTextView(onSubmit: onSubmit)
-        }
-
-        func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else {
-                return
-            }
-            text.wrappedValue = textView.string
-        }
-    }
-}
-
-private final class TodoTextView: NSTextView {
-    var onSubmit: () -> Void
-
-    init(onSubmit: @escaping () -> Void) {
-        let textStorage = NSTextStorage()
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer()
-        textStorage.addLayoutManager(layoutManager)
-        layoutManager.addTextContainer(textContainer)
-        self.onSubmit = onSubmit
-        super.init(frame: .zero, textContainer: textContainer)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is unavailable")
-    }
-
-    override func keyDown(with event: NSEvent) {
-        let modifiers = event.modifierFlags.intersection([
-            .shift, .control, .option, .command,
-        ])
-        guard !hasMarkedText(), event.keyCode == 36 || event.keyCode == 76 else {
-            super.keyDown(with: event)
-            return
-        }
-
-        if modifiers == .shift {
-            insertNewlineIgnoringFieldEditor(nil)
-            return
-        }
-        guard modifiers.isEmpty else {
-            super.keyDown(with: event)
-            return
-        }
-
-        // TextKit finishes dispatching this key event after keyDown returns.
-        DispatchQueue.main.async { [onSubmit] in
-            onSubmit()
-        }
     }
 }
