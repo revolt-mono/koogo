@@ -6,24 +6,10 @@ struct PanelPagesView: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let dismissInput: () -> Void
+    let dismissInput: () -> Void
 
-    @State private var visiblePage = PanelPage.usage
-
-    private var pagePosition: Binding<PanelPage?> {
-        Binding(
-            get: { visiblePage },
-            set: { page in
-                if let page {
-                    visiblePage = page
-                }
-            }
-        )
-    }
-
-    init(dismissInput: @escaping () -> Void) {
-        self.dismissInput = dismissInput
-    }
+    @State private var selectedPage = PanelPage.usage
+    @State private var scrollTarget: PanelPage? = .usage
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -60,28 +46,21 @@ struct PanelPagesView: View {
         }
         .scrollIndicators(.hidden)
         .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
-        .scrollPosition(id: pagePosition)
-        .onScrollGeometryChange(for: PanelPage?.self) { geometry in
-            guard geometry.containerSize.width > 0 else {
-                return nil
-            }
-            return PanelPage(
-                rawValue: Int((geometry.contentOffset.x / geometry.containerSize.width).rounded())
-            )
-        } action: { _, page in
-            if let page {
-                visiblePage = page
+        .scrollPosition(id: $scrollTarget)
+        .onScrollTargetVisibilityChange(idType: PanelPage.self) { visiblePages in
+            if let page = visiblePages.first {
+                selectedPage = page
             }
         }
         .overlay(alignment: .bottom) {
-            PanelPageIndicator(selectedPage: visiblePage, onSelect: navigate)
+            PanelPageIndicator(selectedPage: selectedPage, onSelect: navigate)
                 .padding(.bottom, 6)
         }
         .background {
             ShiftScrollWheelMonitor(onStep: move)
         }
-        .onChange(of: visiblePage) {
-            if visiblePage != .inbox {
+        .onChange(of: selectedPage) {
+            if selectedPage != .inbox {
                 dismissInput()
             }
         }
@@ -89,20 +68,20 @@ struct PanelPagesView: View {
     }
 
     private func move(_ direction: PanelPageDirection) {
-        guard let destination = PanelPage(rawValue: visiblePage.rawValue + direction.rawValue) else {
+        guard let destination = PanelPage(rawValue: selectedPage.rawValue + direction.rawValue)
+        else {
             return
         }
         navigate(to: destination)
     }
 
     private func navigate(to page: PanelPage) {
-        dismissInput()
-        if reduceMotion {
-            visiblePage = page
-        } else {
-            withAnimation(.smooth(duration: 0.3)) {
-                visiblePage = page
-            }
+        guard page != selectedPage else {
+            return
+        }
+        selectedPage = page
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+            scrollTarget = page
         }
     }
 }
@@ -125,24 +104,42 @@ private enum PanelPage: Int, CaseIterable, Hashable {
 }
 
 private struct PanelPageIndicator: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let selectedPage: PanelPage
     let onSelect: (PanelPage) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(PanelPage.allCases, id: \.self) { page in
+                let isSelected = selectedPage == page
+
                 Button {
                     onSelect(page)
                 } label: {
-                    Circle()
-                        .fill(selectedPage == page ? Color.white : Color.secondary)
-                        .frame(width: 5, height: 5)
-                        .frame(width: 14, height: 14)
-                        .contentShape(.rect)
+                    ZStack {
+                        Circle()
+                            .fill(Color.secondary)
+
+                        if isSelected {
+                            Circle()
+                                .fill(Color.white)
+                                .transition(
+                                    .asymmetric(insertion: .identity, removal: .opacity)
+                                )
+                        }
+                    }
+                    .frame(width: 5, height: 5)
+                    .frame(width: 14, height: 14)
+                    .contentShape(.rect)
+                    .animation(
+                        reduceMotion ? nil : .easeOut(duration: 0.2),
+                        value: isSelected
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(page.accessibilityLabel)
-                .accessibilityValue(selectedPage == page ? "Current page" : "")
+                .accessibilityValue(isSelected ? "Current page" : "")
             }
         }
         .padding(.horizontal, 4)
@@ -184,11 +181,11 @@ private struct ShiftScrollWheelMonitor: NSViewRepresentable {
             eventMonitor = NSEvent.addLocalMonitorForEvents(
                 matching: .scrollWheel,
                 handler: { [self, weak view] event in
-                    let modifiers = event.modifierFlags.intersection([
-                        .shift, .control, .option, .command,
-                    ])
                     guard let window = view?.window, event.window === window,
-                        modifiers == .shift, event.phase.isEmpty, event.momentumPhase.isEmpty
+                        event.modifierFlags.intersection([
+                            .shift, .control, .option, .command,
+                        ]) == .shift,
+                        event.phase.isEmpty, event.momentumPhase.isEmpty
                     else {
                         return event
                     }
