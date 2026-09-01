@@ -14,8 +14,8 @@ struct InboxView: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach($inboxModel.todos) { $todo in
-                        TodoRow(todo: $todo) {
-                            inboxModel.todos.removeAll { $0.id == todo.id }
+                        TodoRow(todo: $todo) { [id = todo.id] in
+                            inboxModel.todos.removeAll { $0.id == id }
                         }
                     }
                 }
