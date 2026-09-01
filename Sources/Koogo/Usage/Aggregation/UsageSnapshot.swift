@@ -1,6 +1,6 @@
 import Foundation
 
-struct UsagePeriodSnapshot: Equatable, Sendable {
+struct UsagePeriodSnapshot: Equatable, Sendable, Encodable {
     let processedTokens: Decimal
     let costUSD: Decimal
 
@@ -17,7 +17,7 @@ struct UsagePeriodSnapshot: Equatable, Sendable {
     }
 }
 
-struct UsageDaySnapshot: Equatable, Identifiable, Sendable {
+struct UsageDaySnapshot: Equatable, Identifiable, Sendable, Encodable {
     let date: Date
     let processedTokens: Decimal
     let costUSD: Decimal
@@ -25,13 +25,13 @@ struct UsageDaySnapshot: Equatable, Identifiable, Sendable {
     var id: Date { date }
 }
 
-struct UsageMonthSnapshot: Equatable, Sendable {
+struct UsageMonthSnapshot: Equatable, Sendable, Encodable {
     let range: Range<Date>
     let days: [UsageDaySnapshot]
 }
 
-struct ProviderUsageSnapshot: Sendable {
-    struct Favorite: Equatable, Sendable {
+struct ProviderUsageSnapshot: Sendable, Encodable {
+    struct Favorite: Equatable, Sendable, Encodable {
         let modelName: String
         let reasoningEffort: String?
     }
@@ -43,7 +43,7 @@ struct ProviderUsageSnapshot: Sendable {
     let dailyMonth: UsageMonthSnapshot
 }
 
-enum UsageCostChange: Equatable, Sendable {
+enum UsageCostChange: Equatable, Sendable, Encodable {
     case increase(fraction: Decimal)
     case decrease(fraction: Decimal)
     case unchanged
@@ -64,7 +64,7 @@ enum UsageCostChange: Equatable, Sendable {
     }
 }
 
-struct UsageSummaryPeriodSnapshot: Sendable {
+struct UsageSummaryPeriodSnapshot: Sendable, Encodable {
     let current: UsagePeriodSnapshot
     let costChange: UsageCostChange
 
@@ -77,12 +77,12 @@ struct UsageSummaryPeriodSnapshot: Sendable {
     }
 }
 
-struct UsageSummarySnapshot: Sendable {
+struct UsageSummarySnapshot: Sendable, Encodable {
     let today: UsageSummaryPeriodSnapshot
     let month: UsageSummaryPeriodSnapshot
 }
 
-struct UsageSnapshot: Sendable {
+struct UsageSnapshot: Sendable, Encodable {
     let summary: UsageSummarySnapshot
     let codex: ProviderUsageSnapshot
     let claude: ProviderUsageSnapshot

@@ -27,7 +27,7 @@ final class UsageModel {
             defer {
                 refreshTask = nil
             }
-            snapshot = await usageService.refresh(at: date)
+            snapshot = await usageService.refresh(at: date).snapshot
         }
     }
 }

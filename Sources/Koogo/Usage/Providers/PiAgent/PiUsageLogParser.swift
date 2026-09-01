@@ -21,7 +21,7 @@ struct PiLogParser: Sendable {
     mutating func parse(
         _ line: Data,
         decoder: JSONDecoder
-    ) -> UsageEvent? {
+    ) -> UsageLineOutcome? {
         guard let record = try? decoder.decode(PiLogRecord.self, from: line) else {
             return nil
         }
@@ -53,18 +53,20 @@ struct PiLogParser: Sendable {
             return nil
         }
 
-        return .piAgent(
-            entryID: entryID,
-            usage: UsageRecord(
-                timestamp: timestamp,
-                processedTokens: billedUsage.processedTokens,
-                costUSD: billedUsage.costUSD,
-                modelTurn: model.map {
-                    UsageRecord.ModelTurn(
-                        model: .piAgent(provider: $0.provider, id: $0.id),
-                        reasoningEffort: thinking
-                    )
-                }
+        return .event(
+            .piAgent(
+                entryID: entryID,
+                usage: UsageRecord(
+                    timestamp: timestamp,
+                    processedTokens: billedUsage.processedTokens,
+                    costUSD: billedUsage.costUSD,
+                    modelTurn: model.map {
+                        UsageRecord.ModelTurn(
+                            model: .piAgent(provider: $0.provider, id: $0.id),
+                            reasoningEffort: thinking
+                        )
+                    }
+                )
             )
         )
     }

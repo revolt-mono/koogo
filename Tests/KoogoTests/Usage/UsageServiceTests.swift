@@ -29,7 +29,7 @@ final class UsageServiceTests: XCTestCase {
         try write(claudeLog(output: 40), to: claudeCopy)
 
         let service = UsageService(locations: locations, calendar: calendar)
-        let snapshot = await service.refresh(at: now)
+        let snapshot = await service.refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
         XCTAssertEqual(
@@ -53,7 +53,7 @@ final class UsageServiceTests: XCTestCase {
         let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
         try write(codexLog(input: 100, output: 20), to: log)
         let service = UsageService(locations: locations, calendar: calendar)
-        _ = await service.refresh(at: now)
+        _ = await service.refresh(at: now).snapshot
 
         let appended = codexToken(
             timestamp: "2026-08-25T13:00:00.000Z",
@@ -63,11 +63,11 @@ final class UsageServiceTests: XCTestCase {
             totalOutput: 30
         )
         try append(appended, to: log)
-        let beforeNewline = await service.refresh(at: now)
+        let beforeNewline = await service.refresh(at: now).snapshot
         XCTAssertEqual(beforeNewline.codex.today.processedTokens, 120)
 
         try append("\n", to: log)
-        let afterNewline = await service.refresh(at: now)
+        let afterNewline = await service.refresh(at: now).snapshot
         XCTAssertEqual(afterNewline.codex.today.processedTokens, 180)
     }
 
@@ -77,10 +77,10 @@ final class UsageServiceTests: XCTestCase {
             to: locations.logs.codex.sessions.appending(path: "session.jsonl")
         )
         let service = UsageService(locations: locations, calendar: calendar)
-        let current = await service.refresh(at: now)
+        let current = await service.refresh(at: now).snapshot
 
         let nextDay = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
-        let refreshed = await service.refresh(at: nextDay)
+        let refreshed = await service.refresh(at: nextDay).snapshot
 
         XCTAssertEqual(current.codex.today.processedTokens, 120)
         XCTAssertEqual(refreshed.codex.today, .zero)
@@ -92,16 +92,16 @@ final class UsageServiceTests: XCTestCase {
         let contents = codexLog(input: 100, output: 20)
         try write(contents, to: active)
         let service = UsageService(locations: locations, calendar: calendar)
-        _ = await service.refresh(at: now)
+        _ = await service.refresh(at: now).snapshot
 
         let archived = locations.logs.codex.archivedSessions.appending(path: "session.jsonl")
         try write(contents, to: archived)
-        let copied = await service.refresh(at: now)
+        let copied = await service.refresh(at: now).snapshot
         XCTAssertEqual(copied.codex.today.processedTokens, 120)
 
         try write(codexLog(input: 40, output: 10, thread: "replacement"), to: active)
         try FileManager.default.removeItem(at: archived)
-        let replaced = await service.refresh(at: now)
+        let replaced = await service.refresh(at: now).snapshot
         XCTAssertEqual(replaced.codex.today.processedTokens, 50)
     }
 
@@ -110,9 +110,31 @@ final class UsageServiceTests: XCTestCase {
         try write(codexLog(input: 100, output: 20, model: "unknown-model"), to: log)
         let service = UsageService(locations: locations, calendar: calendar)
 
-        let snapshot = await service.refresh(at: now)
+        let report = await service.refresh(at: now)
 
-        XCTAssertEqual(snapshot.codex.month, .zero)
+        XCTAssertEqual(report.snapshot.codex.month, .zero)
+        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1])
+        XCTAssertEqual(report.ingestion.events, [:])
+        XCTAssertEqual(report.ingestion.unpricedModels, ["unknown-model"])
+    }
+
+    func testUnpricedModelsOutsideTheHistoryWindowAreNotReported() async throws {
+        let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
+        try write(
+            codexLog(
+                input: 100,
+                output: 20,
+                model: "unknown-model",
+                usageTimestamp: "2026-05-01T12:00:00.000Z"
+            ),
+            to: log
+        )
+        let service = UsageService(locations: locations, calendar: calendar)
+
+        let report = await service.refresh(at: now)
+
+        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1])
+        XCTAssertEqual(report.ingestion.unpricedModels, [])
     }
 
     func testCodexIdenticalRequestUsageAtTheSameTimestampCountsTwice() async throws {
@@ -140,7 +162,7 @@ final class UsageServiceTests: XCTestCase {
         try write(contents, to: log)
         let service = UsageService(locations: locations, calendar: calendar)
 
-        let snapshot = await service.refresh(at: now)
+        let snapshot = await service.refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
@@ -154,7 +176,7 @@ final class UsageServiceTests: XCTestCase {
         )
         let service = UsageService(locations: locations, calendar: calendar)
 
-        let snapshot = await service.refresh(at: now)
+        let snapshot = await service.refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
@@ -192,7 +214,7 @@ final class UsageServiceTests: XCTestCase {
         }
         let service = UsageService(locations: locations, calendar: calendar)
 
-        let snapshot = await service.refresh(at: now)
+        let snapshot = await service.refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
         XCTAssertEqual(snapshot.summary.month.costChange, .decrease(fraction: Decimal(1) / 2))
@@ -208,7 +230,7 @@ final class UsageServiceTests: XCTestCase {
         )
         let service = UsageService(locations: locations, calendar: calendar)
 
-        let snapshot = await service.refresh(at: now)
+        let snapshot = await service.refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.codex.month, .zero)
     }
@@ -222,7 +244,7 @@ final class UsageServiceTests: XCTestCase {
         try write(ignored + codexLog(input: 100, output: 20), to: log)
         let service = UsageService(locations: locations, calendar: calendar)
 
-        let snapshot = await service.refresh(at: now)
+        let snapshot = await service.refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
@@ -234,7 +256,7 @@ final class UsageServiceTests: XCTestCase {
         try write(claudeLog(output: 40, requestID: nil), to: copy)
         let service = UsageService(locations: locations, calendar: calendar)
 
-        let snapshot = await service.refresh(at: now)
+        let snapshot = await service.refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.claude.month, .zero)
     }

@@ -24,7 +24,7 @@ struct CodexLogParser: Sendable {
     mutating func parse(
         _ line: Data,
         decoder: JSONDecoder
-    ) -> UsageEvent? {
+    ) -> UsageLineOutcome? {
         guard let record = try? decoder.decode(CodexLogRecord.self, from: line) else {
             return nil
         }
@@ -42,7 +42,7 @@ struct CodexLogParser: Sendable {
         return nil
     }
 
-    private mutating func parseTokenCount(_ record: CodexTokenCount) -> UsageEvent? {
+    private mutating func parseTokenCount(_ record: CodexTokenCount) -> UsageLineOutcome? {
         let lastUsage = record.info.lastTokenUsage
         let totalUsage = record.info.totalTokenUsage
 
@@ -58,27 +58,31 @@ struct CodexLogParser: Sendable {
         guard
             let timestamp = parseUsageTimestamp(record.timestamp),
             let threadID,
-            let turn,
-            let quote = CodexUsagePricing.quote(model: turn.model, tokens: lastUsage)
+            let turn
         else {
             return nil
         }
+        guard let quote = CodexUsagePricing.quote(model: turn.model, tokens: lastUsage) else {
+            return .unpricedModel(id: turn.model, timestamp: timestamp)
+        }
 
-        return .codex(
-            id: UsageEvent.CodexID(
-                threadID: threadID,
-                turnID: turn.id,
-                ordinal: record.ordinal,
-                timestamp: timestamp,
-                cumulativeTotal: totalUsage.processed
-            ),
-            usage: UsageRecord(
-                timestamp: timestamp,
-                processedTokens: lastUsage.processed,
-                costUSD: quote.costUSD,
-                modelTurn: UsageRecord.ModelTurn(
-                    model: quote.model,
-                    reasoningEffort: turn.reasoningEffort
+        return .event(
+            .codex(
+                id: UsageEvent.CodexID(
+                    threadID: threadID,
+                    turnID: turn.id,
+                    ordinal: record.ordinal,
+                    timestamp: timestamp,
+                    cumulativeTotal: totalUsage.processed
+                ),
+                usage: UsageRecord(
+                    timestamp: timestamp,
+                    processedTokens: lastUsage.processed,
+                    costUSD: quote.costUSD,
+                    modelTurn: UsageRecord.ModelTurn(
+                        model: quote.model,
+                        reasoningEffort: turn.reasoningEffort
+                    )
                 )
             )
         )

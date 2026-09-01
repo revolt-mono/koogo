@@ -1,5 +1,12 @@
 import Foundation
 
+/// What parsing one log line produced; drops are first-class so they share
+/// the event index's history-window retention instead of accumulating forever.
+enum UsageLineOutcome: Sendable {
+    case event(UsageEvent)
+    case unpricedModel(id: String, timestamp: Date)
+}
+
 enum UsageEvent: Sendable {
     struct CodexID: Hashable, Sendable {
         let threadID: String

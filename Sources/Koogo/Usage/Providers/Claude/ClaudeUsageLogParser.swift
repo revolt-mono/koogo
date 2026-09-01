@@ -5,57 +5,63 @@ private enum ClaudeRecordKind: String, LogRecordKind {
     case other
 }
 
-func claudeLogMayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
-    guard line.containsTypeValue(in: [ClaudeRecordKind.assistant.jsonStringMarker]),
-        let baseAddress = line.baseAddress
-    else {
-        return false
-    }
-    return ClaudeMessage.usageMarker.withUnsafeBytes { marker in
-        memmem(baseAddress, line.count, marker.baseAddress, marker.count) != nil
-    }
-}
-
-func parseClaudeLog(_ line: Data, decoder: JSONDecoder) -> UsageEvent? {
-    guard
-        let record = try? decoder.decode(ClaudeLogRecord.self, from: line),
-        record.type == .assistant,
-        let timestampValue = record.timestamp,
-        let timestamp = parseUsageTimestamp(timestampValue),
-        let message = record.message,
-        let messageID = nonEmpty(message.id),
-        let requestID = nonEmpty(record.requestID),
-        let model = nonEmpty(message.model),
-        let usage = message.usage,
-        let quote = ClaudeUsagePricing.quote(model: model, usage: usage)
-    else {
-        return nil
+enum ClaudeLogParser {
+    static func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
+        guard line.containsTypeValue(in: [ClaudeRecordKind.assistant.jsonStringMarker]),
+            let baseAddress = line.baseAddress
+        else {
+            return false
+        }
+        return ClaudeMessage.usageMarker.withUnsafeBytes { marker in
+            memmem(baseAddress, line.count, marker.baseAddress, marker.count) != nil
+        }
     }
 
-    let reasoningEffort = nonEmpty(record.effort)
-    return .claude(
-        id: UsageEvent.ClaudeID(
-            messageID: messageID,
-            requestID: requestID
-        ),
-        usage: UsageRecord(
-            timestamp: timestamp,
-            processedTokens: usage.tokens.processed,
-            costUSD: quote.costUSD,
-            modelTurn: UsageRecord.ModelTurn(
-                model: quote.model,
-                reasoningEffort: reasoningEffort
+    static func parse(_ line: Data, decoder: JSONDecoder) -> UsageLineOutcome? {
+        guard
+            let record = try? decoder.decode(ClaudeLogRecord.self, from: line),
+            record.type == .assistant,
+            let timestampValue = record.timestamp,
+            let timestamp = parseUsageTimestamp(timestampValue),
+            let message = record.message,
+            let messageID = nonEmpty(message.id),
+            let requestID = nonEmpty(record.requestID),
+            let model = nonEmpty(message.model),
+            let usage = message.usage
+        else {
+            return nil
+        }
+        guard let quote = ClaudeUsagePricing.quote(model: model, usage: usage) else {
+            return .unpricedModel(id: model, timestamp: timestamp)
+        }
+
+        let reasoningEffort = nonEmpty(record.effort)
+        return .event(
+            .claude(
+                id: UsageEvent.ClaudeID(
+                    messageID: messageID,
+                    requestID: requestID
+                ),
+                usage: UsageRecord(
+                    timestamp: timestamp,
+                    processedTokens: usage.tokens.processed,
+                    costUSD: quote.costUSD,
+                    modelTurn: UsageRecord.ModelTurn(
+                        model: quote.model,
+                        reasoningEffort: reasoningEffort
+                    )
+                ),
+                revision: UsageEvent.ClaudeRevision(
+                    outputTokens: usage.tokens.output,
+                    metadataCompleteness: usage.metadataCompleteness(
+                        reasoningEffort: reasoningEffort
+                    ),
+                    processedTokens: usage.tokens.processed,
+                    timestamp: timestamp
+                )
             )
-        ),
-        revision: UsageEvent.ClaudeRevision(
-            outputTokens: usage.tokens.output,
-            metadataCompleteness: usage.metadataCompleteness(
-                reasoningEffort: reasoningEffort
-            ),
-            processedTokens: usage.tokens.processed,
-            timestamp: timestamp
         )
-    )
+    }
 }
 
 private struct ClaudeLogRecord: Decodable {

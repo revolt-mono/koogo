@@ -218,7 +218,10 @@ final class UsageLogParserTests: XCTestCase {
 
     private func parse(_ line: String, with parser: inout UsageFileParserState) -> UsageEvent? {
         Data(line.utf8).withUnsafeBytes {
-            parser.parse($0, decoder: decoder)
+            guard case .event(let event)? = parser.parse($0, decoder: decoder) else {
+                return nil
+            }
+            return event
         }
     }
 

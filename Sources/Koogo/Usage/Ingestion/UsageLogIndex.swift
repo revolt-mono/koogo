@@ -7,6 +7,16 @@ private struct UsageLogSource: Sendable {
     let parser: UsageFileParserState
 }
 
+/// How the last refresh went; the pipeline drops unparseable input silently,
+/// so this is the only place ingestion health becomes observable.
+struct UsageIngestionStats: Equatable, Sendable, Encodable {
+    let trackedFiles: [UsageProvider: Int]
+    let events: [UsageProvider: Int]
+    /// Models with events inside the history window that were dropped
+    /// because no pricing entry matched.
+    let unpricedModels: [String]
+}
+
 private struct UsageFileIdentity: Equatable, Sendable {
     let device: UInt64
     let inode: UInt64
@@ -57,6 +67,8 @@ private struct TrackedUsageFile: Sendable {
     private var parsedTail: Data
     private var parser: UsageFileParserState
     var eventIndex: UsageEventIndex
+
+    var provider: UsageProvider { parser.provider }
 
     init?(source: UsageLogSource, since historyStart: Date) {
         guard let handle = try? FileHandle(forReadingFrom: source.url) else {
@@ -204,10 +216,13 @@ private struct TrackedUsageFile: Sendable {
                 }
                 let lineCount = start.distance(to: newline)
                 let line = UnsafeRawBufferPointer(start: start, count: lineCount)
-                if let event = parser.parse(line, decoder: decoder),
-                    event.usage.timestamp >= historyStart
-                {
+                switch parser.parse(line, decoder: decoder) {
+                case .event(let event)? where event.usage.timestamp >= historyStart:
                     eventIndex.insert(event)
+                case .unpricedModel(let id, let timestamp)? where timestamp >= historyStart:
+                    eventIndex.recordUnpricedModel(id, at: timestamp)
+                default:
+                    break
                 }
                 lineStart += lineCount + 1
             }
@@ -267,12 +282,28 @@ struct UsageLogIndex {
         indexedFrom = historyStart
     }
 
-    func events() -> [UsageEvent] {
+    func mergedEvents() -> UsageEventIndex {
         var merged = UsageEventIndex()
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
             merged.merge(tracked.eventIndex)
         }
-        return merged.values
+        return merged
+    }
+
+    func stats(of merged: UsageEventIndex) -> UsageIngestionStats {
+        var trackedFileCounts: [UsageProvider: Int] = [:]
+        for tracked in trackedFiles.values {
+            trackedFileCounts[tracked.provider, default: 0] += 1
+        }
+        var eventCounts: [UsageProvider: Int] = [:]
+        for event in merged.values {
+            eventCounts[event.provider, default: 0] += 1
+        }
+        return UsageIngestionStats(
+            trackedFiles: trackedFileCounts,
+            events: eventCounts,
+            unpricedModels: merged.unpricedModelIDs.sorted()
+        )
     }
 
     private mutating func scanLogs(since historyStart: Date) {

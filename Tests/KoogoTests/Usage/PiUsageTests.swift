@@ -130,7 +130,7 @@ final class PiUsageTests: XCTestCase {
         try workspace.write(contents, to: locations.logs.piAgent.appending(path: "copy/session.jsonl"))
         let snapshot = await UsageService(locations: locations, calendar: calendar).refresh(
             at: usageTestTimestamp
-        )
+        ).snapshot
 
         XCTAssertEqual(snapshot.piAgent.today.processedTokens, 210)
         XCTAssertEqual(snapshot.piAgent.today.costUSD, Decimal(string: "0.21"))
@@ -157,7 +157,7 @@ final class PiUsageTests: XCTestCase {
             to: locations.piModels.store
         )
         let service = UsageService(locations: locations, calendar: calendar)
-        let initial = await service.refresh(at: usageTestTimestamp)
+        let initial = await service.refresh(at: usageTestTimestamp).snapshot
         XCTAssertEqual(initial.piAgent.favorite?.modelName, "Initial Name")
 
         try workspace.write(
@@ -166,7 +166,7 @@ final class PiUsageTests: XCTestCase {
             """,
             to: locations.piModels.store
         )
-        let updated = await service.refresh(at: usageTestTimestamp)
+        let updated = await service.refresh(at: usageTestTimestamp).snapshot
 
         XCTAssertEqual(updated.piAgent.favorite?.modelName, "Updated Name")
     }
@@ -175,7 +175,7 @@ final class PiUsageTests: XCTestCase {
         try workspace.write(piSessionLog, to: locations.logs.piAgent.appending(path: "original.jsonl"))
         let service = UsageService(locations: locations, calendar: calendar)
 
-        let original = await service.refresh(at: usageTestTimestamp)
+        let original = await service.refresh(at: usageTestTimestamp).snapshot
         XCTAssertEqual(original.piAgent.today.processedTokens, 210)
 
         let forkHeader = piSessionHeader.replacingOccurrences(
@@ -193,10 +193,10 @@ final class PiUsageTests: XCTestCase {
             ) + "\n"
         try workspace.write(fork, to: locations.logs.piAgent.appending(path: "fork.jsonl"))
 
-        let incremental = await service.refresh(at: usageTestTimestamp)
+        let incremental = await service.refresh(at: usageTestTimestamp).snapshot
         let cold = await UsageService(locations: locations, calendar: calendar).refresh(
             at: usageTestTimestamp
-        )
+        ).snapshot
         for snapshot in [incremental, cold] {
             XCTAssertEqual(snapshot.piAgent.today.processedTokens, 280)
             XCTAssertEqual(snapshot.piAgent.today.costUSD, Decimal(string: "0.28"))
@@ -205,7 +205,10 @@ final class PiUsageTests: XCTestCase {
 
     private func parse(_ line: String, with parser: inout UsageFileParserState) -> UsageEvent? {
         Data(line.utf8).withUnsafeBytes {
-            parser.parse($0, decoder: decoder)
+            guard case .event(let event)? = parser.parse($0, decoder: decoder) else {
+                return nil
+            }
+            return event
         }
     }
 }

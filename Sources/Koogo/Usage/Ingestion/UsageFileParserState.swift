@@ -28,14 +28,22 @@ enum UsageFileParserState: Sendable {
     case claude
     case piAgent(PiLogParser = PiLogParser())
 
+    var provider: UsageProvider {
+        switch self {
+        case .codex: .codex
+        case .claude: .claude
+        case .piAgent: .piAgent
+        }
+    }
+
     mutating func parse(
         _ line: UnsafeRawBufferPointer,
         decoder: JSONDecoder
-    ) -> UsageEvent? {
+    ) -> UsageLineOutcome? {
         let containsMarker =
             switch self {
             case .codex: CodexLogParser.mayContainEvent(line)
-            case .claude: claudeLogMayContainEvent(line)
+            case .claude: ClaudeLogParser.mayContainEvent(line)
             case .piAgent: true
             }
         guard containsMarker, let baseAddress = line.baseAddress else {
@@ -48,15 +56,15 @@ enum UsageFileParserState: Sendable {
         )
         switch self {
         case .codex(var parser):
-            let event = parser.parse(data, decoder: decoder)
+            let outcome = parser.parse(data, decoder: decoder)
             self = .codex(parser)
-            return event
+            return outcome
         case .claude:
-            return parseClaudeLog(data, decoder: decoder)
+            return ClaudeLogParser.parse(data, decoder: decoder)
         case .piAgent(var parser):
-            let event = parser.parse(data, decoder: decoder)
+            let outcome = parser.parse(data, decoder: decoder)
             self = .piAgent(parser)
-            return event
+            return outcome
         }
     }
 }
