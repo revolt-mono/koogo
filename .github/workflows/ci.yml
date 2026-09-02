@@ -17,7 +17,6 @@ jobs:
     runs-on: blacksmith-6vcpu-macos-latest
     env:
       CONFIGURATION: release
-      GH_TOKEN: ${{ github.token }}
       SIGNING_IDENTITY: Local Development Code Signing
     steps:
       - uses: actions/checkout@v6
@@ -80,6 +79,8 @@ jobs:
               dist
           grep -Fq 'sparkle:edSignature=' dist/appcast.xml
       - name: publish rolling latest
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
           gh release create latest \
