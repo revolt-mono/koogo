@@ -3,21 +3,7 @@ import XCTest
 
 @testable import Koogo
 
-final class PiUsageTests: XCTestCase {
-    private let decoder = JSONDecoder()
-    private var workspace: UsageTestWorkspace!
-
-    private var locations: UsageLocations { workspace.locations }
-    private var calendar: Calendar { workspace.calendar }
-
-    override func setUpWithError() throws {
-        workspace = try UsageTestWorkspace()
-    }
-
-    override func tearDownWithError() throws {
-        try workspace.remove()
-    }
-
+final class PiUsageTests: UsageWorkspaceTestCase {
     func testParserUsesBranchLocalThinkingAndLoggedUsage() throws {
         var parser = PiLogParser()
         for record in [piSessionHeader, piThinking(id: "high", parentID: nil, level: "high"), piUser] {
@@ -200,15 +186,6 @@ final class PiUsageTests: XCTestCase {
         for snapshot in [incremental, cold] {
             XCTAssertEqual(snapshot.piAgent.today.processedTokens, 280)
             XCTAssertEqual(snapshot.piAgent.today.costUSD, Decimal(string: "0.28"))
-        }
-    }
-
-    private func parse(_ line: String, with parser: inout some UsageLogParser) -> UsageEvent? {
-        Data(line.utf8).withUnsafeBytes {
-            guard case .event(let event)? = parser.parse($0, decoder: decoder) else {
-                return nil
-            }
-            return event
         }
     }
 }

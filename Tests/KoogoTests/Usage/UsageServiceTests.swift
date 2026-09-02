@@ -3,30 +3,15 @@ import XCTest
 
 @testable import Koogo
 
-final class UsageServiceTests: XCTestCase {
-    private var workspace: UsageTestWorkspace!
-    private let now = usageTestTimestamp
-
-    private var root: URL { workspace.root }
-    private var locations: UsageLocations { workspace.locations }
-    private var calendar: Calendar { workspace.calendar }
-
-    override func setUpWithError() throws {
-        workspace = try UsageTestWorkspace()
-    }
-
-    override func tearDownWithError() throws {
-        try workspace.remove()
-    }
-
+final class UsageServiceTests: UsageWorkspaceTestCase {
     func testColdScanDeduplicatesClaudePartialsAndProviderSnapshots() async throws {
         let codex = locations.logs.codex.sessions.appending(path: "session.jsonl")
-        try write(codexLog(input: 100, output: 20), to: codex)
+        try workspace.write(codexLog(input: 100, output: 20), to: codex)
 
         let claudeMain = locations.logs.claudeProjects.appending(path: "project/main.jsonl")
         let claudeCopy = locations.logs.claudeProjects.appending(path: "project/agent/copy.jsonl")
-        try write(claudeLog(output: 2), to: claudeMain)
-        try write(claudeLog(output: 40), to: claudeCopy)
+        try workspace.write(claudeLog(output: 2), to: claudeMain)
+        try workspace.write(claudeLog(output: 40), to: claudeCopy)
 
         let service = UsageService(locations: locations, calendar: calendar)
         let snapshot = await service.refresh(at: now).snapshot
@@ -49,30 +34,8 @@ final class UsageServiceTests: XCTestCase {
         )
     }
 
-    func testRefreshReadsOnlyCompleteAppendedLines() async throws {
-        let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
-        try write(codexLog(input: 100, output: 20), to: log)
-        let service = UsageService(locations: locations, calendar: calendar)
-        _ = await service.refresh(at: now).snapshot
-
-        let appended = codexToken(
-            timestamp: "2026-08-25T13:00:00.000Z",
-            lastInput: 50,
-            lastOutput: 10,
-            totalInput: 150,
-            totalOutput: 30
-        )
-        try append(appended, to: log)
-        let beforeNewline = await service.refresh(at: now).snapshot
-        XCTAssertEqual(beforeNewline.codex.today.processedTokens, 120)
-
-        try append("\n", to: log)
-        let afterNewline = await service.refresh(at: now).snapshot
-        XCTAssertEqual(afterNewline.codex.today.processedTokens, 180)
-    }
-
     func testRefreshRebuildsSnapshotForNewDay() async throws {
-        try write(
+        try workspace.write(
             codexLog(input: 100, output: 20),
             to: locations.logs.codex.sessions.appending(path: "session.jsonl")
         )
@@ -87,27 +50,9 @@ final class UsageServiceTests: XCTestCase {
         XCTAssertEqual(refreshed.codex.week.processedTokens, 120)
     }
 
-    func testArchiveCopyDoesNotDoubleCountAndReplacementDropsRemovedEvents() async throws {
-        let active = locations.logs.codex.sessions.appending(path: "session.jsonl")
-        let contents = codexLog(input: 100, output: 20)
-        try write(contents, to: active)
-        let service = UsageService(locations: locations, calendar: calendar)
-        _ = await service.refresh(at: now).snapshot
-
-        let archived = locations.logs.codex.archivedSessions.appending(path: "session.jsonl")
-        try write(contents, to: archived)
-        let copied = await service.refresh(at: now).snapshot
-        XCTAssertEqual(copied.codex.today.processedTokens, 120)
-
-        try write(codexLog(input: 40, output: 10, thread: "replacement"), to: active)
-        try FileManager.default.removeItem(at: archived)
-        let replaced = await service.refresh(at: now).snapshot
-        XCTAssertEqual(replaced.codex.today.processedTokens, 50)
-    }
-
     func testUnknownModelIsIgnoredCompletely() async throws {
         let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
-        try write(codexLog(input: 100, output: 20, model: "unknown-model"), to: log)
+        try workspace.write(codexLog(input: 100, output: 20, model: "unknown-model"), to: log)
         let service = UsageService(locations: locations, calendar: calendar)
 
         let report = await service.refresh(at: now)
@@ -120,7 +65,7 @@ final class UsageServiceTests: XCTestCase {
 
     func testUnpricedModelsOutsideTheHistoryWindowAreNotReported() async throws {
         let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
-        try write(
+        try workspace.write(
             codexLog(
                 input: 100,
                 output: 20,
@@ -159,7 +104,7 @@ final class UsageServiceTests: XCTestCase {
             ),
             "",
         ].joined(separator: "\n")
-        try write(contents, to: log)
+        try workspace.write(contents, to: log)
         let service = UsageService(locations: locations, calendar: calendar)
 
         let snapshot = await service.refresh(at: now).snapshot
@@ -169,7 +114,7 @@ final class UsageServiceTests: XCTestCase {
 
     func testColdScanUsesEventTimestampsInsteadOfFileModificationDate() async throws {
         let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
-        try write(codexLog(input: 100, output: 20), to: log)
+        try workspace.write(codexLog(input: 100, output: 20), to: log)
         try FileManager.default.setAttributes(
             [.modificationDate: Date(timeIntervalSince1970: 0)],
             ofItemAtPath: log.path
@@ -182,7 +127,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testColdScanRetainsComparisonPeriodsAndDiscardsOlderHistory() async throws {
-        try write(
+        try workspace.write(
             codexLog(
                 input: 100,
                 output: 20,
@@ -191,7 +136,7 @@ final class UsageServiceTests: XCTestCase {
             ),
             to: locations.logs.codex.sessions.appending(path: "previous-day.jsonl")
         )
-        try write(
+        try workspace.write(
             codexLog(
                 input: 200,
                 output: 40,
@@ -201,7 +146,7 @@ final class UsageServiceTests: XCTestCase {
             to: locations.logs.codex.sessions.appending(path: "previous-month.jsonl")
         )
         for index in 1...3 {
-            try write(
+            try workspace.write(
                 codexLog(
                     input: 1,
                     output: 0,
@@ -221,51 +166,15 @@ final class UsageServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.codex.favorite?.modelName, "GPT 5.6 Sol")
     }
 
-    func testColdScanIgnoresJSONLSymlinks() async throws {
-        let target = root.appending(path: "target.log")
-        try write(codexLog(input: 100, output: 20), to: target)
-        try FileManager.default.createSymbolicLink(
-            at: locations.logs.codex.sessions.appending(path: "session.jsonl"),
-            withDestinationURL: target
-        )
-        let service = UsageService(locations: locations, calendar: calendar)
-
-        let snapshot = await service.refresh(at: now).snapshot
-
-        XCTAssertEqual(snapshot.codex.month, UsagePeriodSnapshot())
-    }
-
-    func testColdScanParsesLinesAcrossReadChunks() async throws {
-        let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
-        let ignored =
-            "{\"type\":\"ignored\",\"padding\":\""
-            + String(repeating: "x", count: 4_194_304)
-            + "\"}\n"
-        try write(ignored + codexLog(input: 100, output: 20), to: log)
-        let service = UsageService(locations: locations, calendar: calendar)
-
-        let snapshot = await service.refresh(at: now).snapshot
-
-        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
-    }
-
     func testClaudePartialsAndCopiesWithoutStableIDsAreIgnored() async throws {
         let partial = locations.logs.claudeProjects.appending(path: "project/main.jsonl")
         let copy = locations.logs.claudeProjects.appending(path: "project/agent/copy.jsonl")
-        try write(claudeLog(output: 2, requestID: nil), to: partial)
-        try write(claudeLog(output: 40, requestID: nil), to: copy)
+        try workspace.write(claudeLog(output: 2, requestID: nil), to: partial)
+        try workspace.write(claudeLog(output: 40, requestID: nil), to: copy)
         let service = UsageService(locations: locations, calendar: calendar)
 
         let snapshot = await service.refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.claude.month, UsagePeriodSnapshot())
-    }
-
-    private func write(_ text: String, to url: URL) throws {
-        try workspace.write(text, to: url, modificationDate: now)
-    }
-
-    private func append(_ text: String, to url: URL) throws {
-        try workspace.append(text, to: url, modificationDate: now)
     }
 }

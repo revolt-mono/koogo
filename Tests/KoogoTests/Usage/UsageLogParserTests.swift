@@ -4,8 +4,6 @@ import XCTest
 @testable import Koogo
 
 final class UsageLogParserTests: XCTestCase {
-    private let decoder = JSONDecoder()
-
     func testCodexUsesRequestUsageAndSkipsRepeatedSnapshots() throws {
         var parser = CodexLogParser()
         XCTAssertNil(parse(codexMeta(), with: &parser))
@@ -214,15 +212,6 @@ final class UsageLogParserTests: XCTestCase {
             {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":0,"cache_creation_input_tokens":18446744073709551615,"output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":18446744073709551615,"ephemeral_1h_input_tokens":1}}}}
             """
         XCTAssertNil(parse(claude, with: &claudeParser))
-    }
-
-    private func parse(_ line: String, with parser: inout some UsageLogParser) -> UsageEvent? {
-        Data(line.utf8).withUnsafeBytes {
-            guard case .event(let event)? = parser.parse($0, decoder: decoder) else {
-                return nil
-            }
-            return event
-        }
     }
 
     private func codexMeta() -> String {

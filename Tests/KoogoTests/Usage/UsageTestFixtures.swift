@@ -1,4 +1,5 @@
 import Foundation
+import XCTest
 
 @testable import Koogo
 
@@ -66,7 +67,7 @@ struct UsageTestWorkspace {
     func append(
         _ text: String,
         to url: URL,
-        modificationDate: Date
+        modificationDate: Date = usageTestTimestamp
     ) throws {
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
@@ -76,6 +77,23 @@ struct UsageTestWorkspace {
             [.modificationDate: modificationDate],
             ofItemAtPath: url.path
         )
+    }
+}
+
+/// Owns a fresh `UsageTestWorkspace` per test and evaluates it at `usageTestTimestamp`.
+class UsageWorkspaceTestCase: XCTestCase {
+    private(set) var workspace: UsageTestWorkspace!
+    let now = usageTestTimestamp
+
+    var locations: UsageLocations { workspace.locations }
+    var calendar: Calendar { workspace.calendar }
+
+    override func setUpWithError() throws {
+        workspace = try UsageTestWorkspace()
+    }
+
+    override func tearDownWithError() throws {
+        try workspace.remove()
     }
 }
 
@@ -230,4 +248,13 @@ func claudeLog(output: Int, requestID: String? = "request") -> String {
         {"type":"assistant","timestamp":"2026-08-25T12:30:00.000Z",\(request)"message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":\(output)}}}
 
         """
+}
+
+func parse(_ line: String, with parser: inout some UsageLogParser) -> UsageEvent? {
+    Data(line.utf8).withUnsafeBytes {
+        guard case .event(let event)? = parser.parse($0, decoder: JSONDecoder()) else {
+            return nil
+        }
+        return event
+    }
 }
