@@ -1,17 +1,26 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
     @Environment(BreakReminderModel.self) private var breakReminderModel
+    @State private var toolbarHeight: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 8) {
             PanelToolbar()
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    toolbarHeight = height
+                }
 
-            PanelPagesView()
+            PanelPagesView(
+                maxHeight: (NSScreen.main?.visibleFrame.height ?? .infinity) - toolbarHeight - 8
+            )
         }
         .frame(width: 320)
         .background {

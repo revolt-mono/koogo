@@ -6,8 +6,12 @@ struct PanelPagesView: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Screen space left for the pages; the usage page fills up to this and scrolls beyond it.
+    let maxHeight: CGFloat
+
     @State private var selectedPage = PanelPage.usage
     @State private var scrollTarget: PanelPage? = .usage
+    @State private var usageContentHeight: CGFloat = 0
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -16,28 +20,35 @@ struct PanelPagesView: View {
                     Group {
                         switch page {
                         case .usage:
-                            ZStack(alignment: .top) {
-                                if let snapshot = usageModel.snapshot {
-                                    UsagePanelView(snapshot: snapshot)
-                                        .transition(.blurReplace)
-                                } else {
-                                    Text("Parsing logs…")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundStyle(.secondary)
-                                        .shimmering(active: !reduceMotion)
-                                        .frame(maxWidth: .infinity, minHeight: 96)
-                                        .padding(.horizontal, 20)
-                                        .padding(.vertical, 24)
-                                        .transition(.blurReplace)
+                            ScrollView(.vertical) {
+                                ZStack(alignment: .top) {
+                                    if let snapshot = usageModel.snapshot {
+                                        UsagePanelView(snapshot: snapshot)
+                                            .transition(.blurReplace)
+                                    } else {
+                                        Text("Parsing logs…")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundStyle(.secondary)
+                                            .shimmering(active: !reduceMotion)
+                                            .frame(maxWidth: .infinity, minHeight: 96)
+                                            .padding(.horizontal, 20)
+                                            .padding(.vertical, 24)
+                                            .transition(.blurReplace)
+                                    }
+                                }
+                                .animation(
+                                    reduceMotion ? nil : .smooth(duration: 0.35),
+                                    value: usageModel.snapshot != nil
+                                )
+                                .onGeometryChange(for: CGFloat.self) { proxy in
+                                    proxy.size.height.rounded()
+                                } action: { height in
+                                    usageContentHeight = height
                                 }
                             }
-                            .animation(
-                                reduceMotion ? nil : .smooth(duration: 0.35),
-                                value: usageModel.snapshot != nil
-                            )
+                            .scrollIndicators(.hidden)
                         case .inbox:
-                            // the usage page sets the panel height; the inbox fills it and scrolls inside
-                            Color.clear.overlay { InboxView() }
+                            InboxView()
                         }
                     }
                     .containerRelativeFrame(.horizontal)
@@ -48,6 +59,7 @@ struct PanelPagesView: View {
             .scrollTargetLayout()
         }
         .scrollIndicators(.hidden)
+        .frame(height: min(usageContentHeight, maxHeight))
         .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
         .scrollPosition(id: $scrollTarget)
         .onScrollTargetVisibilityChange(idType: PanelPage.self) { visiblePages in
