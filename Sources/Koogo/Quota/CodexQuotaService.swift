@@ -12,9 +12,11 @@ struct CodexQuotaService: Sendable {
     private struct Timeout: Error {}
 
     private let executableURL: URL?
+    private let timeout: Duration
 
-    init(executableURL: URL? = nil) {
+    init(executableURL: URL? = nil, timeout: Duration = .seconds(15)) {
         self.executableURL = executableURL
+        self.timeout = timeout
     }
 
     @concurrent
@@ -25,7 +27,7 @@ struct CodexQuotaService: Sendable {
                 let snapshot = try await withThrowingTaskGroup(of: CodexQuotaSnapshot?.self) { group in
                     group.addTask { try await CodexQuotaSession(executableURL: executableURL).run() }
                     group.addTask {
-                        try await Task.sleep(for: .seconds(15))
+                        try await Task.sleep(for: timeout)
                         throw Timeout()
                     }
                     defer { group.cancelAll() }

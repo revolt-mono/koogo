@@ -126,16 +126,9 @@ final class CodexQuotaServiceTests: XCTestCase {
     }
 
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
-        let executable = root.appending(path: UUID().uuidString)
-        try "#!/bin/sh\nIFS= read -r initialize\nexec 0<&-\nprintf '%s\\n' '{\"id\":1,\"result\":{}}'\nsleep 1\n"
-            .write(
-                to: executable,
-                atomically: true,
-                encoding: .utf8
-            )
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o755],
-            ofItemAtPath: executable.path
+        let executable = try workspace.makeExecutable(
+            script:
+                "#!/bin/sh\nIFS= read -r initialize\nexec 0<&-\nprintf '%s\\n' '{\"id\":1,\"result\":{}}'\nsleep 1\n"
         )
 
         let result = await CodexQuotaService(executableURL: executable).fetch()
@@ -144,20 +137,17 @@ final class CodexQuotaServiceTests: XCTestCase {
     }
 
     func testFetchReturnsSnapshotWhenServerDoesNotExitAfterResponse() async throws {
-        let executable = root.appending(path: UUID().uuidString)
-        try """
-        #!/bin/sh
-        trap '' TERM
-        IFS= read -r initialize
-        printf '%s\\n' '{"id":1,"result":{}}'
-        IFS= read -r initialized
-        IFS= read -r rate_limits
-        printf '%s\\n' '{"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}'
-        while :; do :; done
-        """.write(to: executable, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o755],
-            ofItemAtPath: executable.path
+        let executable = try workspace.makeExecutable(
+            script: """
+                #!/bin/sh
+                trap '' TERM
+                IFS= read -r initialize
+                printf '%s\\n' '{"id":1,"result":{}}'
+                IFS= read -r initialized
+                IFS= read -r rate_limits
+                printf '%s\\n' '{"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}'
+                while :; do :; done
+                """
         )
 
         let started = ContinuousClock.now
@@ -170,25 +160,22 @@ final class CodexQuotaServiceTests: XCTestCase {
     func testCancellationKillsDescendantsSpawnedDuringTerminationGrace() async throws {
         let readyMarker = root.appending(path: "ready")
         let childMarker = root.appending(path: "child")
-        let executable = root.appending(path: UUID().uuidString)
-        try """
-        #!/bin/sh
-        IFS= read -r initialize
-        printf '%s\\n' '{"id":1,"result":{}}'
-        IFS= read -r initialized
-        IFS= read -r rate_limits
-        terminate() {
-          (trap '' TERM; sleep 5) &
-          printf '%s\\n' "$!" > '\(childMarker.path)'
-          exit 0
-        }
-        trap terminate TERM
-        printf 'ready\\n' > '\(readyMarker.path)'
-        while :; do :; done
-        """.write(to: executable, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o755],
-            ofItemAtPath: executable.path
+        let executable = try workspace.makeExecutable(
+            script: """
+                #!/bin/sh
+                IFS= read -r initialize
+                printf '%s\\n' '{"id":1,"result":{}}'
+                IFS= read -r initialized
+                IFS= read -r rate_limits
+                terminate() {
+                  (trap '' TERM; sleep 5) &
+                  printf '%s\\n' "$!" > '\(childMarker.path)'
+                  exit 0
+                }
+                trap terminate TERM
+                printf 'ready\\n' > '\(readyMarker.path)'
+                while :; do :; done
+                """
         )
 
         let fetch = Task {
@@ -209,7 +196,29 @@ final class CodexQuotaServiceTests: XCTestCase {
         guard case .failure = result else {
             return XCTFail("expected unavailable quota")
         }
-        XCTAssertTrue(FileManager.default.fileExists(atPath: childMarker.path))
         XCTAssertLessThan(ContinuousClock.now - cancellationStarted, .seconds(3))
+        let childExited = try await workspace.processExited(pidWrittenTo: childMarker)
+        XCTAssertTrue(childExited)
+    }
+
+    func testFetchTimesOutAndKillsStalledServer() async throws {
+        let pidMarker = root.appending(path: "pid")
+        let executable = try workspace.makeExecutable(
+            script: """
+                #!/bin/sh
+                printf '%s\\n' "$$" > '\(pidMarker.path)'
+                IFS= read -r initialize
+                while :; do :; done
+                """
+        )
+
+        let started = ContinuousClock.now
+        let result = await CodexQuotaService(executableURL: executable, timeout: .milliseconds(500))
+            .fetch()
+
+        XCTAssertEqual(result, .failure(.timedOut))
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
+        let serverExited = try await workspace.processExited(pidWrittenTo: pidMarker)
+        XCTAssertTrue(serverExited)
     }
 }
