@@ -22,16 +22,9 @@ struct UsageEventIndex: Sendable {
     }
 
     var values: [UsageEvent] {
-        var events: [UsageEvent] = []
-        events.reserveCapacity(codex.count + claude.count + piAgent.count)
-        events.append(contentsOf: codex.lazy.map { .codex(id: $0.key, usage: $0.value) })
-        events.append(
-            contentsOf: claude.lazy.map {
-                .claude(id: $0.key, usage: $0.value.usage, revision: $0.value.revision)
-            }
-        )
-        events.append(contentsOf: piAgent.lazy.map { .piAgent(entryID: $0.key, usage: $0.value) })
-        return events
+        codex.map { .codex(id: $0.key, usage: $0.value) }
+            + claude.map { .claude(id: $0.key, usage: $0.value.usage, revision: $0.value.revision) }
+            + piAgent.map { .piAgent(entryID: $0.key, usage: $0.value) }
     }
 
     mutating func insert(_ outcome: UsageLineOutcome) {

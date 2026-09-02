@@ -6,15 +6,13 @@ private enum ClaudeRecordKind: String, LogRecordKind {
 }
 
 struct ClaudeLogParser: UsageLogParser {
+    private static let eventMarkers = [
+        ClaudeRecordKind.assistant.jsonStringMarker,
+        ClaudeMessage.usageMarker,
+    ]
+
     func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
-        guard line.containsTypeValue(in: [ClaudeRecordKind.assistant.jsonStringMarker]),
-            let baseAddress = line.baseAddress
-        else {
-            return false
-        }
-        return ClaudeMessage.usageMarker.withUnsafeBytes { marker in
-            memmem(baseAddress, line.count, marker.baseAddress, marker.count) != nil
-        }
+        Self.eventMarkers.allSatisfy { line.contains($0) }
     }
 
     func parse(_ line: Data, decoder: JSONDecoder) -> UsageLineOutcome? {
@@ -85,7 +83,7 @@ private struct ClaudeMessage: Decodable {
     let model: String?
     let usage: ClaudeBillableUsage?
 
-    static let usageMarker = Data(("\"" + CodingKeys.usage.rawValue + "\"").utf8)
+    static let usageMarker = Data("\"\(CodingKeys.usage.rawValue)\"".utf8)
 
     private enum CodingKeys: String, CodingKey {
         case id

@@ -112,45 +112,35 @@ private struct TrackedUsageFile: Sendable {
             return
         }
 
-        var candidate = self
-        guard candidate.readBytes(handle, in: parsedOffset..<metadata.size) else {
-            return
+        // A failed read leaves the old size in place so the next pass retries from parsedOffset.
+        if readBytes(handle, in: parsedOffset..<metadata.size) {
+            self.metadata = metadata
         }
-        candidate.metadata = metadata
-        self = candidate
     }
 
     private mutating func readBytes(_ handle: FileHandle, in offsets: Range<UInt64>) -> Bool {
+        let decoder = JSONDecoder()
+        var readOffset = offsets.lowerBound
+        var pending = Data()
         do {
             try handle.seek(toOffset: offsets.lowerBound)
-            var readOffset = offsets.lowerBound
-            var pending = Data()
-            let decoder = JSONDecoder()
-
             while readOffset < offsets.upperBound {
-                guard
-                    try autoreleasepool(invoking: { () -> Bool in
-                        let count = Int(min(offsets.upperBound - readOffset, 1_048_576))
-                        guard let chunk = try handle.read(upToCount: count), !chunk.isEmpty else {
-                            return false
-                        }
-                        readOffset += UInt64(chunk.count)
-
-                        guard let lastNewline = chunk.lastIndex(of: 0x0A) else {
-                            pending.append(chunk)
-                            return true
-                        }
-                        let completeChunkCount = chunk.distance(
-                            from: chunk.startIndex,
-                            to: chunk.index(after: lastNewline)
-                        )
-                        pending.append(chunk.prefix(completeChunkCount))
-                        parseCompleteLines(pending, decoder: decoder)
-                        parsedOffset += UInt64(pending.count)
-                        pending = Data(chunk.dropFirst(completeChunkCount))
-                        return true
-                    })
-                else {
+                let count = Int(min(offsets.upperBound - readOffset, 1_048_576))
+                let didRead = try autoreleasepool {
+                    guard let chunk = try handle.read(upToCount: count), !chunk.isEmpty else {
+                        return false
+                    }
+                    readOffset += UInt64(chunk.count)
+                    pending.append(chunk)
+                    if let lastNewline = pending.lastIndex(of: 0x0A) {
+                        let lines = pending.prefix(through: lastNewline)
+                        parseCompleteLines(lines, decoder: decoder)
+                        parsedOffset += UInt64(lines.count)
+                        pending = Data(pending.dropFirst(lines.count))
+                    }
+                    return true
+                }
+                guard didRead else {
                     return false
                 }
             }
@@ -181,31 +171,17 @@ private struct TrackedUsageFile: Sendable {
             }
         }
 
-        if data.count >= Self.parsedTailSize {
-            parsedTail = Data(data.suffix(Self.parsedTailSize))
-        } else {
-            parsedTail.append(contentsOf: data)
-            parsedTail = Data(parsedTail.suffix(Self.parsedTailSize))
-        }
+        parsedTail.append(data.suffix(Self.parsedTailSize))
+        parsedTail = Data(parsedTail.suffix(Self.parsedTailSize))
     }
 
     private func parsedTailMatches(_ handle: FileHandle) -> Bool {
         guard !parsedTail.isEmpty else {
             return true
         }
-
         do {
             try handle.seek(toOffset: parsedOffset - UInt64(parsedTail.count))
-            var data = Data()
-            while data.count < parsedTail.count {
-                guard let chunk = try handle.read(upToCount: parsedTail.count - data.count),
-                    !chunk.isEmpty
-                else {
-                    return false
-                }
-                data.append(chunk)
-            }
-            return data == parsedTail
+            return try handle.read(upToCount: parsedTail.count) == parsedTail
         } catch {
             return false
         }

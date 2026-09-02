@@ -24,7 +24,7 @@ struct CodexLogParser: UsageLogParser {
     private var previousTotalUsage: CodexTokenUsage?
 
     func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
-        line.containsTypeValue(in: Self.eventMarkers)
+        Self.eventMarkers.contains { line.contains($0) }
     }
 
     mutating func parse(
