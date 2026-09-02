@@ -68,7 +68,8 @@ private struct TrackedUsageFile: Sendable {
         }
     }
 
-    mutating func refresh(observed metadata: UsageFileMetadata) {
+    /// Returns whether the file changed on disk since the last pass.
+    mutating func refresh(observed metadata: UsageFileMetadata) -> Bool {
         let wasReplaced =
             self.metadata.identity != metadata.identity
             || metadata.size < self.metadata.size
@@ -78,7 +79,10 @@ private struct TrackedUsageFile: Sendable {
             reread()
         } else if metadata.size > self.metadata.size {
             readAppendedBytes()
+        } else {
+            return false
         }
+        return true
     }
 
     private mutating func reread() {
@@ -210,30 +214,39 @@ struct UsageLogIndex {
         }
     }
 
-    /// Brings every tracked file up to date and returns the events merged across them.
-    mutating func refresh(since historyStart: Date) -> UsageEventIndex {
-        if let indexedFrom, historyStart < indexedFrom {
-            trackedFiles.removeAll(keepingCapacity: true)
-        } else if let indexedFrom, historyStart > indexedFrom {
-            trackedFiles = trackedFiles.mapValues { tracked in
-                var tracked = tracked
-                tracked.eventIndex.discard(before: historyStart)
-                return tracked
-            }
-        }
-        scanLogs(since: historyStart)
-        indexedFrom = historyStart
-
-        var merged = UsageEventIndex(since: historyStart)
+    /// Events merged across every tracked file, as of the last `refresh`.
+    var events: UsageEventIndex {
+        var merged = UsageEventIndex(since: indexedFrom ?? .distantPast)
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
             merged.merge(tracked.eventIndex)
         }
         return merged
     }
 
-    private mutating func scanLogs(since historyStart: Date) {
+    /// Brings every tracked file up to date and reports whether `events` differ
+    /// from the previous pass.
+    mutating func refresh(since historyStart: Date) -> Bool {
+        var changed = false
+        if let indexedFrom, historyStart < indexedFrom {
+            trackedFiles.removeAll(keepingCapacity: true)
+            changed = true
+        } else if let indexedFrom, historyStart > indexedFrom {
+            trackedFiles = trackedFiles.mapValues { tracked in
+                var tracked = tracked
+                tracked.eventIndex.discard(before: historyStart)
+                return tracked
+            }
+            changed = true
+        }
+        changed = scanLogs(since: historyStart) || changed
+        indexedFrom = historyStart
+        return changed
+    }
+
+    private mutating func scanLogs(since historyStart: Date) -> Bool {
         var seenPaths = Set<String>()
         var newFiles: [UsageLogLocation] = []
+        var changed = false
 
         for root in roots {
             Self.walkJSONL(in: root.url.path) { path, metadata in
@@ -244,7 +257,7 @@ struct UsageLogIndex {
                 }
                 seenPaths.insert(path)
                 if var tracked = trackedFiles[path] {
-                    tracked.refresh(observed: metadata)
+                    changed = tracked.refresh(observed: metadata) || changed
                     trackedFiles[path] = tracked
                 } else {
                     newFiles.append(UsageLogLocation(provider: root.provider, url: URL(fileURLWithPath: path)))
@@ -254,10 +267,13 @@ struct UsageLogIndex {
 
         for (path, tracked) in Self.load(newFiles, since: historyStart) {
             trackedFiles[path] = tracked
+            changed = true
         }
         for path in trackedFiles.keys.filter({ !seenPaths.contains($0) }) {
             trackedFiles[path] = nil
+            changed = true
         }
+        return changed
     }
 
     private static func load(

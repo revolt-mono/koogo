@@ -28,6 +28,7 @@ actor UsageService {
     private let calendar: Calendar
     private let piModelLocations: UsageLocations.PiModels
     private var logIndex: UsageLogIndex
+    private var lastReport: (intervals: UsagePeriodIntervals, piModels: PiModelCatalog, report: UsageReport)?
 
     init(
         locations: UsageLocations = .standard,
@@ -41,9 +42,17 @@ actor UsageService {
     func refresh(at date: Date) -> UsageReport {
         let started = ContinuousClock.now
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
-        let events = logIndex.refresh(since: intervals.historyStart)
+        let changed = logIndex.refresh(since: intervals.historyStart)
+        let piModels = PiModelCatalog(locations: piModelLocations)
+        let logRoots = logIndex.logRoots
+        if !changed, let lastReport, lastReport.intervals == intervals, lastReport.piModels == piModels,
+            lastReport.report.ingestion.logRoots == logRoots
+        {
+            return lastReport.report
+        }
+        let events = logIndex.events
         let ingestion = UsageIngestionStats(
-            logRoots: logIndex.logRoots,
+            logRoots: logRoots,
             trackedFiles: logIndex.trackedFileCounts,
             events: events.counts,
             unpricedModels: events.unpricedModelIDs
@@ -62,14 +71,16 @@ actor UsageService {
             Telemetry.usage.warning("dropped events for unpriced models: \(models, privacy: .public)")
         }
 
-        return UsageReport(
+        let report = UsageReport(
             ingestion: ingestion,
             snapshot: UsageSnapshotBuilder.build(
                 events: events.values,
                 intervals: intervals,
                 calendar: calendar,
-                piModels: PiModelCatalog(locations: piModelLocations)
+                piModels: piModels
             )
         )
+        lastReport = (intervals, piModels, report)
+        return report
     }
 }
