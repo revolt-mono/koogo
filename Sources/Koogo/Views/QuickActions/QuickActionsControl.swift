@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct QuickActionsControl: View {
+    @Environment(\.isSelectedPanelPage) private var isSelectedPanelPage
     @State private var isPresented = false
 
     var body: some View {
@@ -31,6 +32,11 @@ struct QuickActionsControl: View {
         .background {
             QuickActionsPopover(isPresented: $isPresented)
                 .allowsHitTesting(false)
+        }
+        .onChange(of: isSelectedPanelPage) {
+            if !isSelectedPanelPage {
+                isPresented = false
+            }
         }
         .onDisappear {
             isPresented = false

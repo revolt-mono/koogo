@@ -59,28 +59,27 @@ enum SystemQuickActions {
         }
     }
 
+    // NSAppleScript is main-thread-only; osascript keeps the blocking Apple event off the main actor.
     @concurrent
     static func toggleSystemAppearance() async throws {
-        guard
-            let script = NSAppleScript(
-                source: """
-                    tell application "System Events"
-                        tell appearance preferences
-                            set dark mode to not dark mode
-                        end tell
-                    end tell
-                    """
-            )
-        else {
-            throw Failure.systemAppearance("Could not prepare the system appearance action.")
-        }
-
-        var details: NSDictionary?
-        _ = script.executeAndReturnError(&details)
-        if let details {
+        let process = Process()
+        let errorOutput = Pipe()
+        process.executableURL = URL(filePath: "/usr/bin/osascript")
+        process.arguments = [
+            "-e",
+            "tell application \"System Events\" to tell appearance preferences to set dark mode to not dark mode",
+        ]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = errorOutput
+        try process.run()
+        let details = errorOutput.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let message =
+                String(bytes: details, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             throw Failure.systemAppearance(
-                details[NSAppleScript.errorMessage] as? String
-                    ?? "Could not change the system appearance."
+                message.isEmpty ? "Could not change the system appearance." : message
             )
         }
     }

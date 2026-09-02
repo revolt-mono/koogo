@@ -41,6 +41,7 @@ struct PanelPagesView: View {
                         }
                     }
                     .containerRelativeFrame(.horizontal)
+                    .environment(\.isSelectedPanelPage, page == selectedPage)
                     .id(page)
                 }
             }
@@ -85,6 +86,12 @@ struct PanelPagesView: View {
             scrollTarget = page
         }
     }
+}
+
+/// Whether the enclosing pager page is the selected one; mounted but unselected pages drop
+/// presentation state such as popovers here.
+extension EnvironmentValues {
+    @Entry var isSelectedPanelPage = true
 }
 
 private enum PanelPageDirection: Int {
