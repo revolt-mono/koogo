@@ -4,13 +4,11 @@ enum UsageFormatting {
     private static let locale = Locale(identifier: "en_US")
 
     static func cost(_ cost: Decimal) -> String {
-        var cost = cost
-        var roundedCost = Decimal()
-        NSDecimalRound(&roundedCost, &cost, 2, .plain)
-        return roundedCost.formatted(
+        cost.formatted(
             .currency(code: "USD")
                 .locale(locale)
                 .precision(.fractionLength(2))
+                .rounded(rule: .toNearestOrAwayFromZero)
         )
     }
 
@@ -24,13 +22,11 @@ enum UsageFormatting {
     }
 
     static func percentage(_ fraction: Decimal) -> String {
-        var percentage = fraction * 100
-        var roundedPercentage = Decimal()
-        NSDecimalRound(&roundedPercentage, &percentage, 1, .plain)
-        return roundedPercentage.formatted(
+        (fraction * 100).formatted(
             .number
                 .locale(locale)
                 .precision(.fractionLength(0...1))
+                .rounded(rule: .toNearestOrAwayFromZero)
         ) + "%"
     }
 }

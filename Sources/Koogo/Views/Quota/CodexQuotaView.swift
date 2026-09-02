@@ -5,20 +5,18 @@ struct CodexQuotaView: View {
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
 
     var body: some View {
-        Group {
-            switch codexQuotaModel.state {
-            case .unavailable:
-                EmptyView()
-            case .loading:
-                VStack(spacing: 16) {
-                    CodexQuotaLoadingView()
-                    Divider()
-                }
-            case .available(let snapshot):
-                VStack(spacing: 16) {
-                    CodexQuotaContent(snapshot: snapshot)
-                    Divider()
-                }
+        switch codexQuotaModel.state {
+        case .unavailable:
+            EmptyView()
+        case .loading:
+            VStack(spacing: 16) {
+                CodexQuotaLoadingView()
+                Divider()
+            }
+        case .available(let snapshot):
+            VStack(spacing: 16) {
+                CodexQuotaContent(snapshot: snapshot)
+                Divider()
             }
         }
     }
