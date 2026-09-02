@@ -112,7 +112,7 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
         XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
     }
 
-    func testColdScanUsesEventTimestampsInsteadOfFileModificationDate() async throws {
+    func testFileLastWrittenBeforeHistoryWindowIsSkippedUntilAppended() async throws {
         let log = locations.logs.codex.sessions.appending(path: "session.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: log)
         try FileManager.default.setAttributes(
@@ -121,9 +121,23 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
         )
         let service = UsageService(locations: locations, calendar: calendar)
 
-        let snapshot = await service.refresh(at: now).snapshot
+        let skipped = await service.refresh(at: now)
+        XCTAssertEqual(skipped.ingestion.trackedFiles[.codex], 0)
+        XCTAssertEqual(skipped.snapshot.codex.today, UsagePeriodSnapshot())
 
-        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
+        try workspace.append(
+            codexToken(
+                timestamp: "2026-08-25T13:00:00.000Z",
+                lastInput: 50,
+                lastOutput: 10,
+                totalInput: 150,
+                totalOutput: 30
+            ) + "\n",
+            to: log
+        )
+        let appended = await service.refresh(at: now)
+        XCTAssertEqual(appended.ingestion.trackedFiles[.codex], 1)
+        XCTAssertEqual(appended.snapshot.codex.today.processedTokens, 180)
     }
 
     func testColdScanRetainsComparisonPeriodsAndDiscardsOlderHistory() async throws {

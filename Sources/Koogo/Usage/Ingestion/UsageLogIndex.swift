@@ -12,14 +12,6 @@ private struct UsageFileMetadata: Equatable, Sendable {
     let size: UInt64
     let modificationDate: Date
 
-    init?(_ url: URL) {
-        var status = Darwin.stat()
-        guard url.path.withCString({ Darwin.lstat($0, &status) }) == 0 else {
-            return nil
-        }
-        self.init(status: status)
-    }
-
     init?(fileDescriptor: Int32) {
         var status = Darwin.stat()
         guard Darwin.fstat(fileDescriptor, &status) == 0 else {
@@ -28,7 +20,7 @@ private struct UsageFileMetadata: Equatable, Sendable {
         self.init(status: status)
     }
 
-    private init?(status: Darwin.stat) {
+    init?(status: Darwin.stat) {
         guard status.st_size >= 0, status.st_mode & S_IFMT == S_IFREG else {
             return nil
         }
@@ -236,30 +228,30 @@ struct UsageLogIndex {
     }
 
     private mutating func scanLogs(since historyStart: Date) {
-        let files = roots.flatMap { root in
-            Self.jsonlFiles(in: root.url).map { UsageLogLocation(provider: root.provider, url: $0) }
-        }
         var seenPaths = Set<String>()
         var newFiles: [UsageLogLocation] = []
 
-        for file in files {
-            let path = file.url.path
-            seenPaths.insert(path)
-            guard let metadata = UsageFileMetadata(file.url) else {
-                continue
-            }
-            if var tracked = trackedFiles[path] {
-                tracked.refresh(observed: metadata)
-                trackedFiles[path] = tracked
-            } else {
-                newFiles.append(file)
+        for root in roots {
+            Self.walkJSONL(in: root.url.path) { path, metadata in
+                // A file's events all predate its last write, so a file last written
+                // before the window cannot contribute and is not worth opening.
+                guard metadata.modificationDate >= historyStart else {
+                    return
+                }
+                seenPaths.insert(path)
+                if var tracked = trackedFiles[path] {
+                    tracked.refresh(observed: metadata)
+                    trackedFiles[path] = tracked
+                } else {
+                    newFiles.append(UsageLogLocation(provider: root.provider, url: URL(fileURLWithPath: path)))
+                }
             }
         }
 
         for (path, tracked) in Self.load(newFiles, since: historyStart) {
             trackedFiles[path] = tracked
         }
-        for path in Set(trackedFiles.keys).subtracting(seenPaths) {
+        for path in trackedFiles.keys.filter({ !seenPaths.contains($0) }) {
             trackedFiles[path] = nil
         }
     }
@@ -280,21 +272,33 @@ struct UsageLogIndex {
         return trackedFiles.withLock { $0 }
     }
 
-    private static func jsonlFiles(in root: URL) -> [URL] {
-        guard
-            let enumerator = FileManager.default.enumerator(
-                at: root,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            )
-        else {
-            return []
+    /// Walks `root` with `fts`, which hands back each entry's `stat` from the same
+    /// directory read, so change detection costs no per-file syscalls or URL objects.
+    private static func walkJSONL(in root: String, _ body: (String, UsageFileMetadata) -> Void) {
+        var paths: [UnsafeMutablePointer<CChar>?] = [strdup(root), nil]
+        defer { free(paths[0]) }
+        guard let stream = fts_open(&paths, FTS_PHYSICAL | FTS_NOCHDIR, nil) else {
+            return
         }
-        return enumerator.compactMap { item in
-            guard let url = item as? URL, url.pathExtension == "jsonl" else {
-                return nil
+        defer { fts_close(stream) }
+        while let entry = fts_read(stream) {
+            let info = Int32(entry.pointee.fts_info)
+            let status = entry.pointee.fts_statp.pointee
+            let isHidden =
+                entry.pointee.fts_name == CChar(UInt8(ascii: ".")) || status.st_flags & UInt32(UF_HIDDEN) != 0
+            if entry.pointee.fts_level > 0, isHidden {
+                if info == FTS_D {
+                    fts_set(stream, entry, FTS_SKIP)
+                }
+                continue
             }
-            return url
+            guard info == FTS_F, let metadata = UsageFileMetadata(status: status) else {
+                continue
+            }
+            let path = String(cString: entry.pointee.fts_path)
+            if path.hasSuffix(".jsonl") {
+                body(path, metadata)
+            }
         }
     }
 }
