@@ -14,8 +14,6 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
     }
 
     func schedule(after duration: TimeInterval) async throws(BreakReminderIssue) -> Date {
-        center.removePendingNotificationRequests(withIdentifiers: [Self.requestIdentifier])
-
         do {
             guard try await center.requestAuthorization(options: [.alert, .sound]) else {
                 throw BreakReminderIssue.notificationsDisabled

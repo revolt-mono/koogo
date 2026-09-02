@@ -66,7 +66,7 @@ final class BreakReminderModel {
             case .scheduled(_, let deadline):
                 deadline.timeIntervalSinceReferenceDate.isFinite
             case .paused(let interval, let remaining):
-                remaining.isFinite && remaining > 0 && remaining <= interval.duration
+                remaining > 0 && remaining <= interval.duration
             }
         }
 
