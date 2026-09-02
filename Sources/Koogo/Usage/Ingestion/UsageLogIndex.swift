@@ -123,9 +123,13 @@ private struct TrackedUsageFile: Sendable {
                         return false
                     }
                     readOffset += UInt64(chunk.count)
-                    pending.append(chunk)
-                    if let lastNewline = pending.lastIndex(of: 0x0A) {
-                        let lines = pending.prefix(through: lastNewline)
+                    if pending.isEmpty {
+                        pending = chunk
+                    } else {
+                        pending.append(chunk)
+                    }
+                    if let lastNewline = pending.withUnsafeBytes({ $0.lastIndex(of: 0x0A) }) {
+                        let lines = pending.prefix(through: pending.startIndex + lastNewline)
                         parseCompleteLines(lines, decoder: decoder)
                         parsedOffset += UInt64(lines.count)
                         pending = Data(pending.dropFirst(lines.count))
