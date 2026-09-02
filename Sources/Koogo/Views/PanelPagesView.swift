@@ -36,7 +36,8 @@ struct PanelPagesView: View {
                                 value: usageModel.snapshot != nil
                             )
                         case .inbox:
-                            InboxView()
+                            // the usage page sets the panel height; the inbox fills it and scrolls inside
+                            Color.clear.overlay { InboxView() }
                         }
                     }
                     .containerRelativeFrame(.horizontal)
@@ -65,7 +66,6 @@ struct PanelPagesView: View {
                 NSApp.keyWindow?.makeFirstResponder(nil)
             }
         }
-        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func move(_ direction: PanelPageDirection) {

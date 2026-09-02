@@ -13,7 +13,7 @@ struct ContentView: View {
 
             PanelPagesView()
         }
-        .frame(width: 320, height: 863, alignment: .top)
+        .frame(width: 320)
         .background {
             LinearGradient(
                 stops: [
