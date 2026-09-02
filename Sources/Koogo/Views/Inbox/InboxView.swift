@@ -53,11 +53,11 @@ private struct TodoRow: View {
                     .foregroundStyle(todo.isCompleted ? Color.accentColor : Color.secondary)
                     .accessibilityLabel(todo.isCompleted ? "Mark incomplete" : "Mark complete")
 
-                    Image(systemName: "circle.dashed")
+                    Image(systemName: todo.priority.symbolName)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(todo.priority.color)
                         .frame(width: 14, height: 18)
-                        .accessibilityLabel("\(todo.priority.rawValue) priority")
+                        .accessibilityLabel("\(todo.priority.title) priority")
 
                     Text(todo.text.value)
                         .font(.system(size: 10, weight: .medium))
@@ -80,7 +80,7 @@ private struct TodoRow: View {
 
             Picker("Priority", selection: $todo.priority) {
                 ForEach(TodoPriority.allCases, id: \.self) { priority in
-                    Text(priority.rawValue.capitalized)
+                    Text(priority.title)
                         .tag(priority)
                 }
             }
