@@ -65,10 +65,10 @@ private struct TodoRow: View {
                         .strikethrough(todo.isCompleted)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .contentShape(.rect)
-                .onTapGesture(count: 2) {
-                    isEditing = true
+                        .contentShape(.rect)
+                        .onTapGesture(count: 2) {
+                            isEditing = true
+                        }
                 }
             }
         }
