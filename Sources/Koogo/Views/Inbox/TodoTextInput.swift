@@ -21,7 +21,7 @@ struct TodoTextInput: NSViewRepresentable {
     let onSubmit: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onBlur: mode.onBlur, onSubmit: onSubmit)
+        Coordinator(text: $text)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -81,19 +81,13 @@ struct TodoTextInput: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         let text: Binding<String>
-        fileprivate let textView: TodoTextView
+        fileprivate let textView = TodoTextView()
         var onBlur: (() -> Void)?
         var didRequestFocus = false
         private var clickMonitor: Any?
 
-        init(
-            text: Binding<String>,
-            onBlur: (() -> Void)?,
-            onSubmit: @escaping () -> Void
-        ) {
+        init(text: Binding<String>) {
             self.text = text
-            self.onBlur = onBlur
-            textView = TodoTextView(onSubmit: onSubmit)
         }
 
         func startMonitoringClicks(for scrollView: NSScrollView) {
@@ -146,15 +140,14 @@ struct TodoTextInput: NSViewRepresentable {
 }
 
 private final class TodoTextView: NSTextView {
-    var onSubmit: () -> Void
+    var onSubmit: () -> Void = {}
 
-    init(onSubmit: @escaping () -> Void) {
+    init() {
         let textStorage = NSTextStorage()
         let layoutManager = NSLayoutManager()
         let textContainer = NSTextContainer()
         textStorage.addLayoutManager(layoutManager)
         layoutManager.addTextContainer(textContainer)
-        self.onSubmit = onSubmit
         super.init(frame: .zero, textContainer: textContainer)
     }
 
