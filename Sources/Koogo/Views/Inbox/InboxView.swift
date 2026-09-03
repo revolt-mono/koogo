@@ -66,6 +66,10 @@ private struct TodoRow: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .contentShape(.rect)
+                .onTapGesture(count: 2) {
+                    isEditing = true
+                }
             }
         }
         .padding(10)
