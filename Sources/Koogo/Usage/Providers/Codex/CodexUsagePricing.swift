@@ -85,6 +85,23 @@ enum CodexUsagePricing {
     // https://developers.openai.com/api/docs/pricing
     // https://openai.com/index/gpt-5-6
     private static let prices: [String: ModelPrice] = [
+        "gpt-6-astra": ModelPrice(
+            displayName: "GPT 6 Astra",
+            rates: .tiered(
+                short: Rates(
+                    input: 10_000,
+                    cachedInput: 1_000,
+                    cacheWrite: .priced(12_500),
+                    output: 50_000
+                ),
+                long: Rates(
+                    input: 20_000,
+                    cachedInput: 2_000,
+                    cacheWrite: .priced(25_000),
+                    output: 75_000
+                )
+            )
+        ),
         "gpt-daybreak-blue-latest": ModelPrice(
             displayName: "Daybreak Blue",
             rates: .tiered(
