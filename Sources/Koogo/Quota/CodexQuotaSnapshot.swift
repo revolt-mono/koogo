@@ -47,11 +47,8 @@ struct CodexQuotaSnapshot: Equatable, Sendable, Encodable {
                 return nil
             }
             self.id = id
-            if let title, !title.isEmpty {
-                self.title = title
-            } else {
-                self.title = id
-            }
+            let title = title.flatMap { $0.isEmpty ? nil : $0 } ?? id
+            self.title = title.caseInsensitiveCompare("gpt-reserve") == .orderedSame ? "Reserve quota" : title
             self.limits = limits
         }
     }

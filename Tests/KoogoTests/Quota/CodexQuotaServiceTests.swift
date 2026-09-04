@@ -48,6 +48,24 @@ final class CodexQuotaServiceTests: XCTestCase {
         )
     }
 
+    func testFetchNamesReserveQuotaWithoutChangingItsIdentityOrWindows() async throws {
+        let executable = try workspace.makeExecutable(
+            rateLimitsResponse: """
+                {"id":2,"result":{"rateLimits":{"limitId":"codex"},"rateLimitsByLimitId":{"base_model_inference":{"limitName":"gpt-reserve","primary":{"usedPercent":48,"windowDurationMins":10080,"resetsAt":1800000000}}}}}
+                """
+        )
+
+        let snapshot = try await CodexQuotaService(executableURL: executable).fetch().get()
+        let model = try XCTUnwrap(snapshot.models.first)
+
+        XCTAssertEqual(snapshot.models.count, 1)
+        XCTAssertEqual(model.id, "base_model_inference")
+        XCTAssertEqual(model.title, "Reserve quota")
+        XCTAssertNil(model.limits.fiveHour)
+        XCTAssertEqual(model.limits.weekly?.remainingPercent, 52)
+        XCTAssertEqual(model.limits.weekly?.resetsAt, Date(timeIntervalSince1970: 1_800_000_000))
+    }
+
     func testFetchOmitsUnknownWindowsAndPreservesKnownZeroResets() async throws {
         let executable = try workspace.makeExecutable(
             rateLimitsResponse: """
