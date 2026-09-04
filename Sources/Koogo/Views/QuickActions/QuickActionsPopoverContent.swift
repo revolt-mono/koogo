@@ -179,13 +179,6 @@ private struct QuickActionRow: View {
                 false
             }
         }
-
-        @MainActor
-        func perform() {
-            if case .action(_, let perform) = self {
-                perform()
-            }
-        }
     }
 
     let title: String
@@ -194,7 +187,11 @@ private struct QuickActionRow: View {
     @State private var isHovered = false
 
     var body: some View {
-        Button(action: interaction.perform) {
+        Button {
+            if case .action(_, let perform) = interaction {
+                perform()
+            }
+        } label: {
             HStack(spacing: 8) {
                 Group {
                     switch interaction {

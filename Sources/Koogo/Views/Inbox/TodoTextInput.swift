@@ -80,7 +80,7 @@ struct TodoTextInput: NSViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
-        let text: Binding<String>
+        private let text: Binding<String>
         fileprivate let textView = TodoTextView()
         var onBlur: (() -> Void)?
         var didRequestFocus = false

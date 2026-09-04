@@ -143,9 +143,9 @@ private struct TodoPriorityOption: View, Animatable {
                     .opacity(iconOpacity)
                     .blur(radius: (1 - iconOpacity) * 1.5)
             }
-            .frame(width: TodoPriorityMorphLayout.icon, height: TodoPriorityMorphLayout.icon)
+            .frame(width: TodoPriorityMorphLayout.iconSize, height: TodoPriorityMorphLayout.iconSize)
             .scaleEffect(
-                lerp(TodoPriorityMorphLayout.dot / TodoPriorityMorphLayout.icon, 1, progress)
+                lerp(TodoPriorityMorphLayout.dotDiameter / TodoPriorityMorphLayout.iconSize, 1, progress)
             )
 
             Text(priority.title)
@@ -159,7 +159,7 @@ private struct TodoPriorityOption: View, Animatable {
         .background {
             Circle()
                 .fill(.white.opacity(0.06))
-                .frame(width: TodoPriorityMorphLayout.hit, height: TodoPriorityMorphLayout.hit)
+                .frame(width: TodoPriorityMorphLayout.hitSize, height: TodoPriorityMorphLayout.hitSize)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
                     $0.opacity(showsHover ? 1 : 0).scaleEffect(showsHover ? 1 : 0.9)
                 }
@@ -173,41 +173,41 @@ private struct TodoPriorityOption: View, Animatable {
 /// dot → pill morph. Reading the label's ideal width here avoids a
 /// measurement round trip.
 private struct TodoPriorityMorphLayout: Layout {
-    static let hit: CGFloat = 22
-    static let dot: CGFloat = 6
+    static let hitSize: CGFloat = 22
+    static let dotDiameter: CGFloat = 6
     static let pillHeight: CGFloat = 22
-    static let icon: CGFloat = 14
+    static let iconSize: CGFloat = 14
     static let leadingPadding: CGFloat = 6
     static let iconGap: CGFloat = 4
     static let trailingPadding: CGFloat = 8
-    static let labelLeading = leadingPadding + icon + iconGap
+    static let labelLeading = leadingPadding + iconSize + iconGap
 
-    var progress: CGFloat
+    let progress: CGFloat
 
     func sizeThatFits(
-        proposal: ProposedViewSize,
+        proposal _: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache _: inout ()
     ) -> CGSize {
         CGSize(
-            width: lerp(Self.hit, pillWidth(for: subviews), progress),
+            width: lerp(Self.hitSize, pillWidth(for: subviews), progress),
             height: Self.pillHeight
         )
     }
 
     func placeSubviews(
         in bounds: CGRect,
-        proposal: ProposedViewSize,
+        proposal _: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache _: inout ()
     ) {
         let surfaceSize = CGSize(
-            width: lerp(Self.dot, pillWidth(for: subviews), progress),
-            height: lerp(Self.dot, Self.pillHeight, progress)
+            width: lerp(Self.dotDiameter, pillWidth(for: subviews), progress),
+            height: lerp(Self.dotDiameter, Self.pillHeight, progress)
         )
         let surface = CGRect(
             origin: CGPoint(
-                x: bounds.minX + (Self.hit - Self.dot) * (1 - progress) / 2,
+                x: bounds.minX + (Self.hitSize - Self.dotDiameter) * (1 - progress) / 2,
                 y: bounds.midY - surfaceSize.height / 2
             ),
             size: surfaceSize
@@ -216,14 +216,14 @@ private struct TodoPriorityMorphLayout: Layout {
 
         subviews[1].place(
             at: CGPoint(
-                x: surface.minX + lerp(Self.dot / 2, Self.leadingPadding + Self.icon / 2, progress),
+                x: surface.minX + lerp(Self.dotDiameter / 2, Self.leadingPadding + Self.iconSize / 2, progress),
                 y: surface.midY
             ),
             anchor: .center,
-            proposal: ProposedViewSize(width: Self.icon, height: Self.icon)
+            proposal: ProposedViewSize(width: Self.iconSize, height: Self.iconSize)
         )
 
-        let labelX = surface.minX + lerp(Self.dot / 2, Self.labelLeading, progress)
+        let labelX = surface.minX + lerp(Self.dotDiameter / 2, Self.labelLeading, progress)
         subviews[2].place(
             at: CGPoint(x: labelX, y: surface.minY),
             proposal: ProposedViewSize(width: surface.maxX - labelX, height: surface.height)

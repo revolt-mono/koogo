@@ -180,7 +180,7 @@ private extension UsageProvider {
         }
     }
 
-    var symbolName: String {
+    var imageAssetName: String {
         switch self {
         case .codex: "OpenAISymbol"
         case .claude: "ClaudeSymbol"
@@ -236,7 +236,7 @@ private struct ProviderUsageHeader: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(provider.symbolName, bundle: .module)
+            Image(provider.imageAssetName, bundle: .module)
                 .resizable()
                 .renderingMode(.template)
                 .scaledToFit()
