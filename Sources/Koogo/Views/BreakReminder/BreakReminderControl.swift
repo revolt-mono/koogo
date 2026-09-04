@@ -77,7 +77,7 @@ private struct BreakReminderButton: View {
 
         Button {
             Task {
-                await reminderModel.toggle()
+                await reminderModel.perform(.toggle)
             }
         } label: {
             HStack(spacing: 4) {
@@ -111,7 +111,7 @@ private struct BreakReminderButton: View {
 
     private func restart() {
         Task {
-            await reminderModel.restart()
+            await reminderModel.perform(.restart)
         }
     }
 }

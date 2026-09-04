@@ -44,7 +44,7 @@ struct ContentView: View {
         .task {
             codexQuotaModel.refresh()
             usageModel.refresh()
-            await breakReminderModel.reconcile()
+            await breakReminderModel.perform(.reconcile)
         }
         .breakReminderIssueAlert(breakReminderModel)
     }

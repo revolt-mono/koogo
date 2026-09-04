@@ -24,7 +24,7 @@ struct SettingsView: View {
             get: { breakReminderModel.interval },
             set: { interval in
                 Task {
-                    await breakReminderModel.setInterval(interval)
+                    await breakReminderModel.perform(.setInterval(interval))
                 }
             }
         )

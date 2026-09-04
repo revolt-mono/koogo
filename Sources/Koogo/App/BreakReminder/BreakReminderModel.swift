@@ -50,16 +50,16 @@ protocol BreakReminderNotifications: AnyObject {
 @MainActor
 @Observable
 final class BreakReminderModel {
+    enum Action {
+        case toggle
+        case restart
+        case setInterval(BreakReminderInterval)
+        case reconcile
+    }
+
     private enum Countdown: Codable {
         case scheduled(interval: BreakReminderInterval, deadline: Date)
         case paused(interval: BreakReminderInterval, remaining: TimeInterval)
-
-        var interval: BreakReminderInterval {
-            switch self {
-            case .scheduled(let interval, _), .paused(let interval, _):
-                interval
-            }
-        }
 
         var isValid: Bool {
             switch self {
@@ -67,17 +67,6 @@ final class BreakReminderModel {
                 deadline.timeIntervalSinceReferenceDate.isFinite
             case .paused(let interval, let remaining):
                 remaining > 0 && remaining <= interval.duration
-            }
-        }
-
-        func status(at date: Date) -> BreakReminderStatus {
-            switch self {
-            case .scheduled(_, let deadline):
-                deadline > date
-                    ? .running(remaining: deadline.timeIntervalSince(date))
-                    : .expired
-            case .paused(_, let remaining):
-                .paused(remaining: remaining)
             }
         }
     }
@@ -90,7 +79,10 @@ final class BreakReminderModel {
     private var countdown: Countdown
 
     var interval: BreakReminderInterval {
-        countdown.interval
+        switch countdown {
+        case .scheduled(let interval, _), .paused(let interval, _):
+            interval
+        }
     }
 
     private(set) var issue: BreakReminderIssue?
@@ -116,59 +108,50 @@ final class BreakReminderModel {
     }
 
     func status(at date: Date) -> BreakReminderStatus {
-        countdown.status(at: date)
+        switch countdown {
+        case .scheduled(_, let deadline):
+            deadline > date
+                ? .running(remaining: deadline.timeIntervalSince(date))
+                : .expired
+        case .paused(_, let remaining):
+            .paused(remaining: remaining)
+        }
     }
 
-    func toggle() async {
+    func perform(_ action: Action) async {
         guard !isScheduling else {
             return
         }
-
-        switch status(at: now()) {
-        case .running(let remaining):
-            pause(interval: interval, remaining: remaining)
-        case .paused(let remaining):
-            await start(interval: interval, after: remaining)
-        case .expired:
-            await start(interval: interval, after: interval.duration)
-        }
-    }
-
-    func reconcile() async {
-        guard !isScheduling, case .running = status(at: now()) else {
-            return
-        }
-
         isScheduling = true
         defer {
             isScheduling = false
         }
 
-        guard !(await notifications.hasDeliverableReminder()),
-            case .running(let remaining) = status(at: now())
-        else {
-            return
-        }
-        await start(interval: interval, after: remaining)
-    }
-
-    func restart() async {
-        guard !isScheduling else {
-            return
-        }
-        await start(interval: interval, after: interval.duration)
-    }
-
-    func setInterval(_ newInterval: BreakReminderInterval) async {
-        guard !isScheduling, newInterval != interval else {
-            return
-        }
-
-        switch status(at: now()) {
-        case .running:
-            await start(interval: newInterval, after: newInterval.duration)
-        case .paused, .expired:
-            pause(interval: newInterval, remaining: newInterval.duration)
+        switch (action, status(at: now())) {
+        case (.toggle, .running(let remaining)):
+            pause(interval: interval, remaining: remaining)
+        case (.toggle, .paused(let remaining)):
+            await start(interval: interval, after: remaining)
+        case (.toggle, .expired), (.restart, _):
+            await start(interval: interval, after: interval.duration)
+        case (.setInterval(let newInterval), let status):
+            guard newInterval != interval else {
+                return
+            }
+            if case .running = status {
+                await start(interval: newInterval, after: newInterval.duration)
+            } else {
+                pause(interval: newInterval, remaining: newInterval.duration)
+            }
+        case (.reconcile, .running):
+            guard !(await notifications.hasDeliverableReminder()),
+                case .running(let remaining) = status(at: now())
+            else {
+                return
+            }
+            await start(interval: interval, after: remaining)
+        case (.reconcile, .paused), (.reconcile, .expired):
+            break
         }
     }
 
@@ -178,11 +161,6 @@ final class BreakReminderModel {
 
     private func start(interval: BreakReminderInterval, after duration: TimeInterval) async {
         issue = nil
-        isScheduling = true
-        defer {
-            isScheduling = false
-        }
-
         do {
             let deadline = try await notifications.schedule(after: duration)
             countdown = .scheduled(interval: interval, deadline: deadline)
