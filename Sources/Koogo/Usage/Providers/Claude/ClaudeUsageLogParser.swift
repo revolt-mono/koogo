@@ -40,22 +40,20 @@ struct ClaudeLogParser: UsageLogParser {
                     messageID: messageID,
                     requestID: requestID
                 ),
-                usage: UsageRecord(
-                    timestamp: timestamp,
-                    processedTokens: usage.tokens.processed,
-                    costUSD: quote.costUSD,
-                    modelTurn: UsageRecord.ModelTurn(
-                        model: quote.model,
-                        reasoningEffort: reasoningEffort
-                    )
-                ),
                 revision: UsageEvent.ClaudeRevision(
+                    usage: UsageRecord(
+                        timestamp: timestamp,
+                        processedTokens: usage.tokens.processed,
+                        costUSD: quote.costUSD,
+                        modelTurn: UsageRecord.ModelTurn(
+                            model: quote.model,
+                            reasoningEffort: reasoningEffort
+                        )
+                    ),
                     outputTokens: usage.tokens.output,
                     metadataCompleteness: usage.metadataCompleteness(
                         reasoningEffort: reasoningEffort
-                    ),
-                    processedTokens: usage.tokens.processed,
-                    timestamp: timestamp
+                    )
                 )
             )
         )

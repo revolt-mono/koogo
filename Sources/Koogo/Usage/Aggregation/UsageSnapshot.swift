@@ -1,8 +1,8 @@
 import Foundation
 
 struct UsagePeriodSnapshot: Equatable, Sendable, Encodable {
-    var processedTokens: Decimal = 0
-    var costUSD: Decimal = 0
+    private(set) var processedTokens: Decimal = 0
+    private(set) var costUSD: Decimal = 0
 
     mutating func add(_ usage: UsageRecord) {
         processedTokens += Decimal(usage.processedTokens)

@@ -1,6 +1,6 @@
 import Foundation
 
-enum UsageProvider: String, Sendable, Codable, CodingKeyRepresentable {
+enum UsageProvider: String, Sendable, Encodable, CodingKeyRepresentable {
     case codex
     case claude
     case piAgent

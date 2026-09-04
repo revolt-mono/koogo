@@ -2,7 +2,7 @@ import Foundation
 
 /// How the last refresh went; the pipeline drops unparseable input silently,
 /// so this is the only place ingestion health becomes observable.
-struct UsageIngestionStats: Equatable, Sendable, Encodable {
+struct UsageIngestionStats: Sendable, Encodable {
     struct LogRoot: Equatable, Sendable, Encodable {
         let provider: UsageProvider
         let path: String

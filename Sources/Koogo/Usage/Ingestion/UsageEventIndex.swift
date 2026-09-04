@@ -5,7 +5,7 @@ import Foundation
 struct UsageEventIndex: Sendable {
     private(set) var historyStart: Date
     private var codex: [UsageEvent.CodexID: UsageRecord] = [:]
-    private var claude: [UsageEvent.ClaudeID: (usage: UsageRecord, revision: UsageEvent.ClaudeRevision)] = [:]
+    private var claude: [UsageEvent.ClaudeID: UsageEvent.ClaudeRevision] = [:]
     private var piAgent: [String: UsageRecord] = [:]
     private var unpricedModels: [String: Date] = [:]
 
@@ -23,7 +23,7 @@ struct UsageEventIndex: Sendable {
 
     var values: [UsageEvent] {
         codex.map { .codex(id: $0.key, usage: $0.value) }
-            + claude.map { .claude(id: $0.key, usage: $0.value.usage, revision: $0.value.revision) }
+            + claude.map { .claude(id: $0.key, revision: $0.value) }
             + piAgent.map { .piAgent(entryID: $0.key, usage: $0.value) }
     }
 
@@ -37,11 +37,11 @@ struct UsageEventIndex: Sendable {
                 return
             }
             codex[id] = usage
-        case .event(.claude(let id, let usage, let revision)):
-            if let existing = claude[id], !revision.isPreferred(over: existing.revision) {
+        case .event(.claude(let id, let revision)):
+            if let existing = claude[id], !revision.isPreferred(over: existing) {
                 return
             }
-            claude[id] = (usage, revision)
+            claude[id] = revision
         case .event(.piAgent(let entryID, let usage)):
             guard piAgent[entryID] == nil else {
                 return
@@ -55,7 +55,7 @@ struct UsageEventIndex: Sendable {
     mutating func merge(_ other: Self) {
         codex.merge(other.codex) { current, _ in current }
         claude.merge(other.claude) { current, candidate in
-            candidate.revision.isPreferred(over: current.revision) ? candidate : current
+            candidate.isPreferred(over: current) ? candidate : current
         }
         piAgent.merge(other.piAgent) { current, _ in current }
         unpricedModels.merge(other.unpricedModels) { current, candidate in max(current, candidate) }

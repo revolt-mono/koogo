@@ -132,12 +132,10 @@ func usageEvent(
                 messageID: "message-\(id)",
                 requestID: "request-\(id)"
             ),
-            usage: usage,
             revision: UsageEvent.ClaudeRevision(
+                usage: usage,
                 outputTokens: processedTokens,
-                metadataCompleteness: 0,
-                processedTokens: processedTokens,
-                timestamp: eventDate
+                metadataCompleteness: 0
             )
         )
     case .piAgent:

@@ -29,24 +29,23 @@ enum UsageEvent: Sendable {
     }
 
     struct ClaudeRevision: Sendable {
+        let usage: UsageRecord
         let outputTokens: UInt64
         let metadataCompleteness: Int
-        let processedTokens: UInt64
-        let timestamp: Date
 
         func isPreferred(over existing: Self) -> Bool {
-            (outputTokens, metadataCompleteness, processedTokens, timestamp)
+            (outputTokens, metadataCompleteness, usage.processedTokens, usage.timestamp)
                 > (
                     existing.outputTokens,
                     existing.metadataCompleteness,
-                    existing.processedTokens,
-                    existing.timestamp
+                    existing.usage.processedTokens,
+                    existing.usage.timestamp
                 )
         }
     }
 
     case codex(id: CodexID, usage: UsageRecord)
-    case claude(id: ClaudeID, usage: UsageRecord, revision: ClaudeRevision)
+    case claude(id: ClaudeID, revision: ClaudeRevision)
     case piAgent(entryID: String, usage: UsageRecord)
 
     var provider: UsageProvider {
@@ -59,7 +58,8 @@ enum UsageEvent: Sendable {
 
     var usage: UsageRecord {
         switch self {
-        case .codex(_, let usage), .claude(_, let usage, _), .piAgent(_, let usage): usage
+        case .codex(_, let usage), .piAgent(_, let usage): usage
+        case .claude(_, let revision): revision.usage
         }
     }
 }

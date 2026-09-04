@@ -104,12 +104,36 @@ final class UsageLogParserTests: XCTestCase {
         _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "medium"), with: &parser)
         _ = parse(codexToken(last: usage(100, 10), total: usage(100, 10)), with: &parser)
         XCTAssertNil(parse(codexSyntheticFill(contextWindow: 1_000, previousTotal: 110), with: &parser))
+        XCTAssertNil(
+            parse(codexToken(last: usage(50, 5), total: usage(0, 0, total: 1_000)), with: &parser)
+        )
         let event = try XCTUnwrap(
             parse(codexToken(last: usage(50, 5), total: usage(50, 5, total: 1_055)), with: &parser)
         )
 
         XCTAssertEqual(event.usage.processedTokens, 55)
         XCTAssertEqual(event.usage.modelTurn?.reasoningEffort, "medium")
+    }
+
+    func testCodexRejectsMalformedContextWindowsWithoutUpdatingBaseline() throws {
+        for contextWindow in ["\"1000\"", "true", "9223372036854775808"] {
+            var parser = CodexLogParser()
+            _ = parse(codexMeta(), with: &parser)
+            _ = parse(codexTurn(model: "gpt-5.6-sol", effort: "high"), with: &parser)
+            let line = codexToken(last: usage(100, 20), total: usage(100, 20))
+
+            XCTAssertNil(
+                parse(
+                    line.replacingOccurrences(
+                        of: "\"model_context_window\":1000",
+                        with: "\"model_context_window\":\(contextWindow)"
+                    ),
+                    with: &parser
+                )
+            )
+            let event = try XCTUnwrap(parse(line, with: &parser))
+            XCTAssertEqual(event.usage.processedTokens, 120)
+        }
     }
 
     func testCodexThreadSettingsDoNotOverrideTurnUsageMetadata() throws {

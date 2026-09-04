@@ -6,7 +6,7 @@ import Observation
 final class UsageModel {
     private let usageService: UsageService
     private let now: @MainActor () -> Date
-    private var refreshTask: Task<Void, Never>?
+    private var isRefreshing = false
 
     private(set) var snapshot: UsageSnapshot?
 
@@ -19,13 +19,14 @@ final class UsageModel {
     }
 
     func refresh() {
-        guard refreshTask == nil else {
+        guard !isRefreshing else {
             return
         }
         let date = now()
-        refreshTask = Task(priority: .utility) { [usageService] in
+        isRefreshing = true
+        Task(priority: .utility) {
             defer {
-                refreshTask = nil
+                isRefreshing = false
             }
             snapshot = await usageService.refresh(at: date).snapshot
         }

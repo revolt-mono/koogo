@@ -52,10 +52,6 @@ struct CodexLogParser: UsageLogParser {
         let lastUsage = record.info.lastTokenUsage
         let totalUsage = record.info.totalTokenUsage
 
-        if record.info.isSyntheticContextFill(previous: previousTotalUsage) {
-            previousTotalUsage = totalUsage
-            return nil
-        }
         defer { previousTotalUsage = totalUsage }
 
         guard !lastUsage.billableTokensAreZero, previousTotalUsage != totalUsage else {
@@ -166,28 +162,13 @@ private struct CodexTokenCount {
 private struct CodexTokenInfo: Decodable {
     let lastTokenUsage: CodexTokenUsage
     let totalTokenUsage: CodexTokenUsage
+    // decoding this field still rejects malformed context-window values.
     let modelContextWindow: Int64?
 
     private enum CodingKeys: String, CodingKey {
         case lastTokenUsage = "last_token_usage"
         case totalTokenUsage = "total_token_usage"
         case modelContextWindow = "model_context_window"
-    }
-
-    func isSyntheticContextFill(previous: CodexTokenUsage?) -> Bool {
-        guard
-            let modelContextWindow,
-            let contextWindow = UInt64(exactly: modelContextWindow),
-            lastTokenUsage.billableTokensAreZero,
-            totalTokenUsage.billableTokensAreZero,
-            totalTokenUsage.processed == contextWindow
-        else {
-            return false
-        }
-
-        let previousTotal = previous?.processed ?? 0
-        return lastTokenUsage.processed
-            == (contextWindow > previousTotal ? contextWindow - previousTotal : 0)
     }
 }
 

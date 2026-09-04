@@ -7,7 +7,7 @@ private struct UsageFileIdentity: Equatable, Sendable {
     let inode: UInt64
 }
 
-private struct UsageFileMetadata: Equatable, Sendable {
+private struct UsageFileMetadata: Sendable {
     let identity: UsageFileIdentity
     let size: UInt64
     let modificationDate: Date
@@ -223,8 +223,7 @@ struct UsageLogIndex {
         return merged
     }
 
-    /// Brings every tracked file up to date and reports whether `events` differ
-    /// from the previous pass.
+    /// updates tracked files and reports whether the usage report may need rebuilding.
     mutating func refresh(since historyStart: Date) -> Bool {
         var changed = false
         if let indexedFrom, historyStart < indexedFrom {
