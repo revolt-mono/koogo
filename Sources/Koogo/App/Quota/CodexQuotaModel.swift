@@ -11,7 +11,7 @@ final class CodexQuotaModel {
 
     private let quotaService: CodexQuotaService
     private let cooldown: Duration
-    private var refreshTask: Task<Void, Never>?
+    private var isRefreshing = false
     private var refreshAfter: ContinuousClock.Instant
 
     private(set) var state = State.loading
@@ -26,16 +26,17 @@ final class CodexQuotaModel {
     }
 
     func refresh() {
-        guard refreshTask == nil, ContinuousClock.now >= refreshAfter else {
+        guard !isRefreshing, ContinuousClock.now >= refreshAfter else {
             return
         }
         if case .unavailable = state {
             state = .loading
         }
 
-        refreshTask = Task { [quotaService] in
+        isRefreshing = true
+        Task {
             defer {
-                refreshTask = nil
+                isRefreshing = false
             }
             switch await quotaService.fetch() {
             case .success(let snapshot):

@@ -42,6 +42,7 @@ final class SystemReportTests: XCTestCase {
         let quota = try XCTUnwrap(report["quota"] as? [String: Any])
         XCTAssertEqual(quota["state"] as? String, "available")
         XCTAssertNotNil(quota["snapshot"])
+        XCTAssertNil(quota["reason"])
     }
 
     func testReportCarriesQuotaUnavailabilityReason() async throws {
@@ -61,5 +62,6 @@ final class SystemReportTests: XCTestCase {
         let quota = try XCTUnwrap(report["quota"] as? [String: Any])
         XCTAssertEqual(quota["state"] as? String, "unavailable")
         XCTAssertEqual(quota["reason"] as? String, "sessionFailed")
+        XCTAssertNil(quota["snapshot"])
     }
 }

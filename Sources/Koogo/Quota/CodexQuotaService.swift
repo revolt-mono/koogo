@@ -9,8 +9,6 @@ enum CodexQuotaUnavailability: String, Error, Encodable, Sendable {
 }
 
 struct CodexQuotaService: Sendable {
-    private struct Timeout: Error {}
-
     private let executableURL: URL?
     private let timeout: Duration
 
@@ -28,14 +26,14 @@ struct CodexQuotaService: Sendable {
                     group.addTask { try await CodexQuotaSession(executableURL: executableURL).run() }
                     group.addTask {
                         try await Task.sleep(for: timeout)
-                        throw Timeout()
+                        throw CodexQuotaUnavailability.timedOut
                     }
                     defer { group.cancelAll() }
                     // Two racing children are in flight, so next() cannot return nil.
                     return try await group.next()!
                 }
                 result = snapshot.map(Result.success) ?? .failure(.emptyLimits)
-            } catch is Timeout {
+            } catch CodexQuotaUnavailability.timedOut {
                 result = .failure(.timedOut)
             } catch {
                 result = .failure(.sessionFailed)

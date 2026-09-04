@@ -3,7 +3,11 @@ import Foundation
 /// Headless snapshot of the whole system for `Koogo --report`: runs the full
 /// usage pipeline and a quota fetch, then encodes the outcome as JSON. This is
 /// the canonical way to verify behavior end to end without the menu bar UI.
-enum SystemReport {
+struct SystemReport: Encodable {
+    private let generatedAt: Date
+    private let usage: UsageReport
+    private let quota: Result<CodexQuotaSnapshot, CodexQuotaUnavailability>
+
     static func generate(
         locations: UsageLocations = .standard,
         quotaService: CodexQuotaService = CodexQuotaService(),
@@ -11,35 +15,37 @@ enum SystemReport {
     ) async throws -> Data {
         async let quota = quotaService.fetch()
         let usage = await UsageService(locations: locations).refresh(at: date)
-        let report = Report(generatedAt: date, usage: usage, quota: Report.Quota(await quota))
+        let report = SystemReport(generatedAt: date, usage: usage, quota: await quota)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(report)
     }
-}
 
-private struct Report: Encodable {
-    struct Quota: Encodable {
-        let state: String
-        let reason: CodexQuotaUnavailability?
-        let snapshot: CodexQuotaSnapshot?
-
-        init(_ result: Result<CodexQuotaSnapshot, CodexQuotaUnavailability>) {
-            switch result {
-            case .success(let snapshot):
-                state = "available"
-                reason = nil
-                self.snapshot = snapshot
-            case .failure(let unavailability):
-                state = "unavailable"
-                reason = unavailability
-                snapshot = nil
-            }
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(generatedAt, forKey: .generatedAt)
+        try container.encode(usage, forKey: .usage)
+        var quotaContainer = container.nestedContainer(keyedBy: QuotaKeys.self, forKey: .quota)
+        switch quota {
+        case .success(let snapshot):
+            try quotaContainer.encode("available", forKey: .state)
+            try quotaContainer.encode(snapshot, forKey: .snapshot)
+        case .failure(let reason):
+            try quotaContainer.encode("unavailable", forKey: .state)
+            try quotaContainer.encode(reason, forKey: .reason)
         }
     }
 
-    let generatedAt: Date
-    let usage: UsageReport
-    let quota: Quota
+    private enum CodingKeys: CodingKey {
+        case generatedAt
+        case usage
+        case quota
+    }
+
+    private enum QuotaKeys: CodingKey {
+        case state
+        case reason
+        case snapshot
+    }
 }

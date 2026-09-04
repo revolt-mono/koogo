@@ -54,7 +54,7 @@ private struct CodexRateLimitSnapshot: Decodable {
     private func window(around expectedMinutes: Int64) -> CodexQuotaSnapshot.Window? {
         guard
             let window = [primary, secondary].compactMap({ $0 }).first(where: {
-                guard let duration = $0.windowDurationMinutes, duration > 0 else {
+                guard let duration = $0.windowDurationMinutes else {
                     return false
                 }
                 return (expectedMinutes * 95 / 100)...(expectedMinutes * 105 / 100) ~= duration
