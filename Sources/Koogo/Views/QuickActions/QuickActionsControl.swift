@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct QuickActionsControl: View {
@@ -29,9 +28,12 @@ struct QuickActionsControl: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
         .background {
-            QuickActionsPopover(isPresented: $isPresented)
-                .allowsHitTesting(false)
+            PopoverClickBoundary().allowsHitTesting(false)
+        }
+        .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+            QuickActionsPopoverContent()
         }
         .onChange(of: isSelectedPanelPage) {
             if !isSelectedPanelPage {
@@ -40,65 +42,6 @@ struct QuickActionsControl: View {
         }
         .onDisappear {
             isPresented = false
-        }
-    }
-}
-
-private struct QuickActionsPopover: NSViewRepresentable {
-    @Binding var isPresented: Bool
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(isPresented: $isPresented)
-    }
-
-    func makeNSView(context _: Context) -> NSView {
-        NSView()
-    }
-
-    func updateNSView(_ anchor: NSView, context: Context) {
-        context.coordinator.update(isPresented: $isPresented, relativeTo: anchor)
-    }
-
-    static func dismantleNSView(_: NSView, coordinator: Coordinator) {
-        coordinator.popover.close()
-    }
-
-    @MainActor
-    final class Coordinator: NSObject, NSPopoverDelegate {
-        let popover = NSPopover()
-        private var isPresented: Binding<Bool>
-
-        init(isPresented: Binding<Bool>) {
-            self.isPresented = isPresented
-            super.init()
-
-            let hostingController = NSHostingController(rootView: QuickActionsPopoverContent())
-            hostingController.sizingOptions = .preferredContentSize
-            popover.contentViewController = hostingController
-            popover.behavior = .semitransient
-            // NSPopover's native transition cannot reverse, so animation would queue rapid toggles.
-            popover.animates = false
-            popover.delegate = self
-        }
-
-        func update(isPresented: Binding<Bool>, relativeTo anchor: NSView) {
-            self.isPresented = isPresented
-            let shouldShow = isPresented.wrappedValue
-            guard shouldShow != popover.isShown else {
-                return
-            }
-
-            if shouldShow {
-                popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxX)
-            } else {
-                popover.close()
-            }
-        }
-
-        func popoverDidClose(_: Notification) {
-            if isPresented.wrappedValue {
-                isPresented.wrappedValue = false
-            }
         }
     }
 }
