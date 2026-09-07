@@ -29,11 +29,17 @@ struct CodexQuotaSnapshot: Equatable, Sendable, Encodable {
 
     struct ResetCredits: Equatable, Sendable, Encodable {
         let availableCount: UInt64
-        let nextExpiration: Date?
+        /// Usable credits soonest-expiring first. Nil means the backend returned no details.
+        let credits: [ResetCredit]?
+    }
 
-        init(availableCount: UInt64, availableExpirations: [Date]) {
-            self.availableCount = availableCount
-            nextExpiration = availableCount > 0 ? availableExpirations.min() : nil
+    struct ResetCredit: Equatable, Identifiable, Sendable, Encodable {
+        let id: String
+        let title: String?
+        let expiresAt: Date?
+
+        func canUse(at date: Date) -> Bool {
+            expiresAt.map { $0 > date } ?? true
         }
     }
 

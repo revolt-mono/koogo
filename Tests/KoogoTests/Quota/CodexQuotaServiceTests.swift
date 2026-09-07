@@ -18,7 +18,7 @@ final class CodexQuotaServiceTests: XCTestCase {
     func testFetchUsesAccountAndModelLimitsAndClassifiesSwappedWindows() async throws {
         let executable = try workspace.makeExecutable(
             rateLimitsResponse: """
-                {"id":2,"result":{"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":15,"windowDurationMins":10584,"resetsAt":1800000000},"secondary":{"usedPercent":45,"windowDurationMins":285,"resetsAt":1700000000}},"rateLimitsByLimitId":{"codex_bengalfox":{"limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1900000000},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":2000000000}},"codex":{"limitName":null,"primary":{"usedPercent":99,"windowDurationMins":300,"resetsAt":1600000000},"secondary":null}},"rateLimitResetCredits":{"availableCount":2,"credits":[{"status":"available","expiresAt":2100000000},{"status":"future_status","expiresAt":1900000000},{"status":"available","expiresAt":2000000000}]}}}
+                {"id":2,"result":{"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":15,"windowDurationMins":10584,"resetsAt":1800000000},"secondary":{"usedPercent":45,"windowDurationMins":285,"resetsAt":1700000000}},"rateLimitsByLimitId":{"codex_bengalfox":{"limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1900000000},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":2000000000}},"codex":{"limitName":null,"primary":{"usedPercent":99,"windowDurationMins":300,"resetsAt":1600000000},"secondary":null}},"rateLimitResetCredits":{"availableCount":2,"credits":[{"id":"credit-a","resetType":"codexRateLimits","status":"available","grantedAt":1700000000,"expiresAt":2100000000},{"id":"credit-b","resetType":"codexRateLimits","status":"future_status","grantedAt":1700000000,"expiresAt":1900000000},{"id":"credit-c","resetType":"codexRateLimits","status":"available","grantedAt":1700000000,"expiresAt":2000000000}]}}}
                 """
         )
 
@@ -42,10 +42,7 @@ final class CodexQuotaServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.models[0].limits.fiveHour?.remainingPercent, 90)
         XCTAssertEqual(snapshot.models[0].limits.weekly?.remainingPercent, 80)
         XCTAssertEqual(snapshot.account?.resetCredits?.availableCount, 2)
-        XCTAssertEqual(
-            snapshot.account?.resetCredits?.nextExpiration,
-            Date(timeIntervalSince1970: 2_000_000_000)
-        )
+        XCTAssertEqual(snapshot.account?.resetCredits?.credits?.map(\.id), ["credit-c", "credit-a"])
     }
 
     func testFetchNamesReserveQuotaWithoutChangingItsIdentityOrWindows() async throws {
@@ -79,7 +76,7 @@ final class CodexQuotaServiceTests: XCTestCase {
         }
         XCTAssertNil(snapshot.account?.limits)
         XCTAssertEqual(snapshot.account?.resetCredits?.availableCount, 0)
-        XCTAssertNil(snapshot.account?.resetCredits?.nextExpiration)
+        XCTAssertEqual(snapshot.account?.resetCredits?.credits, [])
         XCTAssertTrue(snapshot.models.isEmpty)
     }
 

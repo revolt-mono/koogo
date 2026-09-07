@@ -76,15 +76,19 @@ private struct CodexRateLimitResetCredits: Decodable {
         }
         return CodexQuotaSnapshot.ResetCredits(
             availableCount: availableCount,
-            availableExpirations: credits?
-                .filter { $0.status == "available" }
-                .compactMap(\.expiresAt) ?? []
+            credits: credits?
+                .filter { $0.status == "available" && $0.resetType == "codexRateLimits" }
+                .sorted { ($0.expiresAt ?? .distantFuture, $0.id) < ($1.expiresAt ?? .distantFuture, $1.id) }
+                .map { CodexQuotaSnapshot.ResetCredit(id: $0.id, title: $0.title, expiresAt: $0.expiresAt) }
         )
     }
 
     struct Credit: Decodable {
+        let id: String
+        let resetType: String
         let status: String
         let expiresAt: Date?
+        let title: String?
     }
 }
 

@@ -52,7 +52,7 @@ final class CodexQuotaModelTests: XCTestCase {
     }
 
     @MainActor
-    func testExistingSnapshotRemainsUntilFailedRefreshCompletes() async throws {
+    func testFailedRefreshKeepsSnapshotAndMarksItStale() async throws {
         let executable = try workspace.makeExecutable(
             rateLimitsResponse: """
                 {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300,"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null}}
@@ -75,9 +75,11 @@ final class CodexQuotaModelTests: XCTestCase {
         model.refresh()
         XCTAssertEqual(model.state, .available(snapshot))
         deadline = ContinuousClock.now + .seconds(2)
-        while model.state == .available(snapshot), ContinuousClock.now < deadline {
+        while model.isRefreshing, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
-        XCTAssertEqual(model.state, .unavailable(.sessionFailed))
+        XCTAssertFalse(model.isRefreshing)
+        XCTAssertEqual(model.state, .available(snapshot))
+        XCTAssertEqual(model.refreshFailure, .sessionFailed)
     }
 }

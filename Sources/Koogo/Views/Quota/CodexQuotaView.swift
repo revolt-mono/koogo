@@ -16,9 +16,37 @@ struct CodexQuotaView: View {
         case .available(let snapshot):
             VStack(spacing: 16) {
                 CodexQuotaContent(snapshot: snapshot)
+                if codexQuotaModel.refreshFailure != nil {
+                    HStack {
+                        Text("Quota data may be out of date")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        CodexQuotaRefreshButton()
+                    }
+                    .font(.system(size: 9))
+                }
                 Divider()
             }
         }
+    }
+}
+
+struct CodexQuotaRefreshButton: View {
+    @Environment(CodexQuotaModel.self) private var model
+
+    var body: some View {
+        Button {
+            model.refresh(force: true)
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 11, weight: .medium))
+                .frame(width: 16, height: 16)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .accessibilityLabel("Refresh")
+        .disabled(model.isRefreshing || model.isResetting)
     }
 }
 
@@ -27,15 +55,11 @@ private struct CodexQuotaContent: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            if let account = snapshot.account {
-                VStack(spacing: 8) {
-                    if let limits = account.limits {
-                        CodexQuotaLimitsView(title: nil, limits: limits)
-                    }
-                    if let resetCredits = account.resetCredits {
-                        CodexQuotaResetRow(resetCredits: resetCredits)
-                    }
+            VStack(spacing: 8) {
+                if let limits = snapshot.account?.limits {
+                    CodexQuotaLimitsView(title: nil, limits: limits)
                 }
+                CodexQuotaResetView()
             }
 
             ForEach(snapshot.models) { model in
@@ -82,39 +106,6 @@ private struct CodexQuotaLimitsView: View {
     }
 }
 
-private struct CodexQuotaResetRow: View {
-    let resetCredits: CodexQuotaSnapshot.ResetCredits
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text("Quota reset")
-                .fontWeight(.semibold)
-
-            Spacer(minLength: 12)
-
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    Text("\(resetCredits.availableCount)")
-                        .foregroundStyle(.primary)
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
-                    Text(" available")
-                        .foregroundStyle(.secondary)
-                }
-
-                if let nextExpiration = resetCredits.nextExpiration {
-                    QuotaDeadlineLabel(
-                        action: resetCredits.availableCount == 1 ? "expires" : "next expires",
-                        deadline: nextExpiration
-                    )
-                }
-            }
-        }
-        .font(.system(size: 9, weight: .medium))
-        .lineLimit(1)
-    }
-}
-
 private struct CodexQuotaWindowRow: View {
     let scopeTitle: String
     let title: String
@@ -134,7 +125,7 @@ private struct CodexQuotaWindowRow: View {
                     .contentTransition(.numericText())
 
                 if let resetsAt = window.resetsAt {
-                    QuotaDeadlineLabel(action: "resets", deadline: resetsAt)
+                    QuotaDeadlineLabel(deadline: resetsAt)
                 }
             }
             .font(.system(size: 9, weight: .medium))
@@ -149,14 +140,14 @@ private struct CodexQuotaWindowRow: View {
 }
 
 private struct QuotaDeadlineLabel: View {
-    let action: String
     let deadline: Date
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
-            Text("· \(action) \(quotaTimeRemainingText(until: deadline, now: timeline.date))")
+            Text("· resets \(quotaTimeRemainingText(until: deadline, now: timeline.date))")
         }
         .foregroundStyle(.secondary)
+        .help(deadline.formatted(date: .complete, time: .shortened))
     }
 }
 
@@ -164,10 +155,13 @@ func quotaTimeRemainingText(until date: Date, now: Date) -> String {
     let seconds = max(Int(date.timeIntervalSince(now)), 0)
     if seconds >= 86_400 {
         let days = seconds / 86_400
-        return "in \(days) \(days == 1 ? "day" : "days")"
+        let hours = seconds % 86_400 / 3_600
+        return hours > 0 ? "in \(days)d \(hours)h" : "in \(days)d"
     }
     if seconds >= 3_600 {
-        return "in \(seconds / 3_600)h"
+        let hours = seconds / 3_600
+        let minutes = seconds % 3_600 / 60
+        return minutes > 0 ? "in \(hours)h \(minutes)m" : "in \(hours)h"
     }
     if seconds >= 60 {
         return "in \(seconds / 60)m"

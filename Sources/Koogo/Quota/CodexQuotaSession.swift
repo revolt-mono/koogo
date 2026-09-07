@@ -4,14 +4,42 @@ import Synchronization
 
 struct CodexQuotaSession: Sendable {
     private let executableURL: URL
-    private let processGroup = ProcessGroupLifetime()
 
     init(executableURL: URL) {
         self.executableURL = executableURL
     }
 
-    func run() async throws -> CodexQuotaSnapshot? {
-        try await withTaskCancellationHandler {
+    func fetch() async throws -> CodexQuotaSnapshot? {
+        try await run { connection in
+            let response: CodexQuotaResponse = try connection.request(
+                RPCMessage<Never>(method: "account/rateLimits/read", id: 2)
+            )
+            return response.snapshot
+        }
+    }
+
+    func consume(_ attempt: CodexQuotaResetAttempt) async throws -> CodexQuotaResetOutcome {
+        try await run { connection in
+            attempt.writeStarted.withLock { $0 = true }
+            let response: ConsumeResponse = try connection.request(
+                RPCMessage(
+                    method: "account/rateLimitResetCredit/consume",
+                    id: 2,
+                    params: ConsumeParams(
+                        creditId: attempt.credit.id,
+                        idempotencyKey: attempt.idempotencyKey.uuidString
+                    )
+                )
+            )
+            return response.outcome
+        }
+    }
+
+    private func run<Value: Sendable>(
+        _ operation: @Sendable (inout RPCConnection) throws -> Value
+    ) async throws -> Value {
+        let processGroup = ProcessGroupLifetime()
+        return try await withTaskCancellationHandler {
             let process = Process()
             let input = Pipe()
             let output = Pipe()
@@ -39,42 +67,44 @@ struct CodexQuotaSession: Sendable {
             }
             try processGroup.start(process)
 
-            var reader = LineReader(fileHandle: output.fileHandleForReading)
-            try send(
+            // Also terminate on protocol errors; closing stdin alone need not stop app-server.
+            defer { processGroup.terminate() }
+            var connection = RPCConnection(
+                input: input.fileHandleForWriting,
+                reader: LineReader(fileHandle: output.fileHandleForReading)
+            )
+            let _: InitializeResponse = try connection.request(
                 RPCMessage(
                     method: "initialize",
                     id: 1,
                     params: ["clientInfo": ["name": "koogo", "title": "Koogo", "version": "1.0"]]
-                ),
-                to: input.fileHandleForWriting
+                )
             )
-            let _: InitializeResponse = try response(id: 1, from: &reader)
-            try send(RPCMessage(method: "initialized"), to: input.fileHandleForWriting)
-            try send(RPCMessage(method: "account/rateLimits/read", id: 2), to: input.fileHandleForWriting)
-            let payload: CodexQuotaResponse = try response(id: 2, from: &reader)
-            // The one-shot session is complete; do not wait for app-server to notice stdin EOF.
-            processGroup.terminate()
-            return payload.snapshot
+            try connection.send(RPCMessage<Never>(method: "initialized"))
+            return try operation(&connection)
         } onCancel: {
             processGroup.terminate()
         }
     }
+}
 
-    private func send(_ message: RPCMessage, to handle: FileHandle) throws {
+private struct RPCConnection {
+    let input: FileHandle
+    var reader: LineReader
+
+    func send<Params: Encodable>(_ message: RPCMessage<Params>) throws {
         var data = try JSONEncoder().encode(message)
         data.append(0x0A)
-        try handle.write(contentsOf: data)
+        try input.write(contentsOf: data)
     }
 
-    private func response<Value: Decodable>(
-        id: Int,
-        from reader: inout LineReader
-    ) throws -> Value {
+    mutating func request<Value: Decodable, Params: Encodable>(_ message: RPCMessage<Params>) throws -> Value {
+        try send(message)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
 
         while let data = try reader.nextLine() {
-            guard let envelope = try? decoder.decode(RPCEnvelope.self, from: data), envelope.id == id
+            guard let envelope = try? decoder.decode(RPCEnvelope.self, from: data), envelope.id == message.id
             else {
                 continue
             }
@@ -201,10 +231,19 @@ private struct LineReader {
 }
 
 /// Nil `id` marks a notification; nil `params` is omitted from the wire.
-private struct RPCMessage: Encodable {
+private struct RPCMessage<Params: Encodable>: Encodable {
     let method: String
     var id: Int?
-    var params: [String: [String: String]]?
+    var params: Params?
+}
+
+private struct ConsumeParams: Encodable {
+    let creditId: String
+    let idempotencyKey: String
+}
+
+private struct ConsumeResponse: Decodable {
+    let outcome: CodexQuotaResetOutcome
 }
 
 private struct RPCEnvelope: Decodable {
@@ -221,8 +260,8 @@ private struct RPCSuccess<Result: Decodable>: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        guard !container.contains(.error) else {
-            throw Failure()
+        if container.contains(.error) {
+            throw try container.decode(CodexQuotaRPCError.self, forKey: .error)
         }
         result = try container.decode(Result.self, forKey: .result)
     }
