@@ -12,8 +12,11 @@ struct InboxView: View {
             }
 
             ScrollView {
-                LazyVStack(spacing: 8) {
+                LazyVStack(spacing: 0) {
                     ForEach($inboxModel.todos) { $todo in
+                        if todo.id != inboxModel.todos.first?.id {
+                            DashedDivider()
+                        }
                         TodoRow(todo: $todo) { [id = todo.id] in
                             inboxModel.todos.removeAll { $0.id == id }
                         }
@@ -26,6 +29,23 @@ struct InboxView: View {
         .padding(.horizontal, 20)
         .padding(.bottom, 32)
         .frame(maxHeight: .infinity, alignment: .top)
+    }
+}
+
+private struct DashedDivider: View {
+    var body: some View {
+        HorizontalLine()
+            .stroke(.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            .frame(height: 1)
+    }
+}
+
+private struct HorizontalLine: Shape {
+    nonisolated func path(in rect: CGRect) -> Path {
+        Path { path in
+            path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        }
     }
 }
 
@@ -72,11 +92,7 @@ private struct TodoRow: View {
                 }
             }
         }
-        .padding(10)
-        .background(
-            Color.white.opacity(0.05),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-        )
+        .padding(.vertical, 10)
         .contextMenu {
             Button("Edit") {
                 isEditing = true
