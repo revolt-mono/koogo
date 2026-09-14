@@ -46,7 +46,7 @@ struct PanelPagesView: View {
                                     usageContentHeight = height
                                 }
                             }
-                            .scrollIndicators(.hidden)
+                            .scrollIndicators(.never)
                         case .inbox:
                             InboxView()
                         }
@@ -58,7 +58,7 @@ struct PanelPagesView: View {
             }
             .scrollTargetLayout()
         }
-        .scrollIndicators(.hidden)
+        .scrollIndicators(.never)
         .frame(height: min(usageContentHeight, maxHeight))
         .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
         .scrollPosition(id: $scrollTarget)
