@@ -11,6 +11,21 @@ struct InboxView: View {
                 inboxModel.todos.insert($0, at: 0)
             }
 
+            HStack(spacing: 8) {
+                Text(openSummary)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button("Clear done", systemImage: "trash") {
+                    inboxModel.todos.removeAll(where: \.isCompleted)
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .tint(.red)
+                .disabled(!inboxModel.todos.contains(where: \.isCompleted))
+            }
+            .font(.system(size: 10, weight: .medium))
+
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach($inboxModel.todos) { $todo in
@@ -29,6 +44,15 @@ struct InboxView: View {
         .padding(.horizontal, 20)
         .padding(.bottom, 32)
         .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private var openSummary: String {
+        let open = inboxModel.todos.filter { !$0.isCompleted }
+        let counts = TodoPriority.allCases.reversed().compactMap { priority in
+            let count = open.count { $0.priority == priority }
+            return count > 0 ? "\(count) \(priority.title)" : nil
+        }
+        return counts.isEmpty ? "no open todos" : counts.joined(separator: ", ")
     }
 }
 

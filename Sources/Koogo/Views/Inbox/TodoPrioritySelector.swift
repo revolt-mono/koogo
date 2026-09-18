@@ -2,7 +2,7 @@ import SwiftUI
 
 extension TodoPriority {
     var title: String {
-        rawValue.capitalized
+        rawValue
     }
 
     var symbolName: String {
