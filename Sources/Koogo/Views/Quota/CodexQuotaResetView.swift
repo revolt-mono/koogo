@@ -46,10 +46,18 @@ struct CodexQuotaResetView: View {
 private struct CodexQuotaResetDetail: View {
     @Environment(CodexQuotaModel.self) private var model
 
+    private var resetCredits: CodexQuotaSnapshot.ResetCredits? {
+        model.snapshot?.account?.resetCredits
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("Quota resets").font(.headline)
+                if let resetCredits {
+                    Text("\(resetCredits.availableCount) available")
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 CodexQuotaRefreshButton()
             }
@@ -58,17 +66,18 @@ private struct CodexQuotaResetDetail: View {
                 Text("Quota data may be out of date. Refresh to check the latest limits and resets.")
                     .foregroundStyle(.orange)
             }
-            if let summary = model.snapshot?.account?.resetCredits {
-                Text("\(summary.availableCount) available")
-                    .foregroundStyle(.secondary)
-                if let credits = summary.credits, !credits.isEmpty {
+            if let credits = resetCredits?.credits, !credits.isEmpty {
+                VStack(spacing: 8) {
                     ForEach(credits) { credit in
-                        CodexQuotaResetCreditView(credit: credit)
+                        if credit.id != credits.first?.id {
+                            Divider()
+                        }
+                        CodexQuotaResetCreditRow(credit: credit)
                     }
-                } else if summary.availableCount > 0 {
-                    Text("Reset details are unavailable. Refresh to load them.")
-                        .foregroundStyle(.secondary)
                 }
+            } else if let resetCredits, resetCredits.availableCount > 0 {
+                Text("Reset details are unavailable. Refresh to load them.")
+                    .foregroundStyle(.secondary)
             }
         }
         .font(.system(size: 11))
@@ -79,37 +88,30 @@ private struct CodexQuotaResetDetail: View {
     }
 }
 
-private struct CodexQuotaResetCreditView: View {
+private struct CodexQuotaResetCreditRow: View {
     @Environment(CodexQuotaModel.self) private var model
     let credit: CodexQuotaSnapshot.ResetCredit
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(credit.title ?? "Quota reset")
                         .fontWeight(.semibold)
-                    Spacer(minLength: 4)
-                    Button("Use") { model.beginReset(creditID: credit.id) }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!model.canChooseReset || !credit.canUse(at: timeline.date))
+                    if let expiration = credit.expiresAt {
+                        let seconds = expiration.timeIntervalSince(timeline.date)
+                        let date = expiration.formatted(date: .abbreviated, time: .shortened)
+                        Text(seconds <= 0 ? "Expired \(date)" : "Expires \(date)")
+                            .foregroundStyle(seconds <= 172_800 ? Color.orange : .secondary)
+                    } else {
+                        Text("Does not expire").foregroundStyle(.secondary)
+                    }
                 }
-                if let expiration = credit.expiresAt {
-                    let seconds = expiration.timeIntervalSince(timeline.date)
-                    Text(expiration.formatted(date: .abbreviated, time: .shortened))
-                    Text(
-                        seconds <= 0
-                            ? "Expired" : "Expires \(quotaTimeRemainingText(until: expiration, now: timeline.date))"
-                    )
-                    .foregroundStyle(seconds <= 172_800 ? Color.orange : .secondary)
-                    .monospacedDigit()
-                } else {
-                    Text("Does not expire").foregroundStyle(.secondary)
-                }
+                Spacer()
+                Button("Use") { model.beginReset(creditID: credit.id) }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!model.canChooseReset || !credit.canUse(at: timeline.date))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 }
