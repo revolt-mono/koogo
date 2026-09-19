@@ -2,7 +2,6 @@ import SwiftUI
 
 struct CodexQuotaResetView: View {
     @Environment(CodexQuotaModel.self) private var model
-    @Environment(\.isSelectedPanelPage) private var isSelectedPanelPage
     @State private var isPresented = false
 
     var body: some View {
@@ -28,17 +27,9 @@ struct CodexQuotaResetView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Quota reset details")
-            .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
-            .background {
-                PopoverClickBoundary().allowsHitTesting(false)
-            }
-            .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+            .panelPopover(isPresented: $isPresented) {
                 CodexQuotaResetDetail()
             }
-            .onChange(of: isSelectedPanelPage) {
-                if !isSelectedPanelPage { isPresented = false }
-            }
-            .onDisappear { isPresented = false }
         }
     }
 }

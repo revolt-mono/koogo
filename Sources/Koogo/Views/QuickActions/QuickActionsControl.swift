@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct QuickActionsControl: View {
-    @Environment(\.isSelectedPanelPage) private var isSelectedPanelPage
     @State private var isPresented = false
 
     var body: some View {
@@ -28,20 +27,8 @@ struct QuickActionsControl: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
-        .background {
-            PopoverClickBoundary().allowsHitTesting(false)
-        }
-        .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+        .panelPopover(isPresented: $isPresented) {
             QuickActionsPopoverContent()
-        }
-        .onChange(of: isSelectedPanelPage) {
-            if !isSelectedPanelPage {
-                isPresented = false
-            }
-        }
-        .onDisappear {
-            isPresented = false
         }
     }
 }

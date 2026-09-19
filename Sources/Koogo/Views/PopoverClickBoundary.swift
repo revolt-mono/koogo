@@ -58,3 +58,37 @@ struct PopoverClickBoundary: NSViewRepresentable {
         }
     }
 }
+
+/// A popover anchored in a pager page: independent clicks, Expanded/Collapsed accessibility value,
+/// and dismissal when the page is deselected or the anchor leaves the hierarchy.
+private struct PanelPopover<PopoverContent: View>: ViewModifier {
+    @Environment(\.isSelectedPanelPage) private var isSelectedPanelPage
+    @Binding var isPresented: Bool
+    let popoverContent: () -> PopoverContent
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
+            .background {
+                PopoverClickBoundary().allowsHitTesting(false)
+            }
+            .popover(isPresented: $isPresented, arrowEdge: .trailing, content: popoverContent)
+            .onChange(of: isSelectedPanelPage) {
+                if !isSelectedPanelPage {
+                    isPresented = false
+                }
+            }
+            .onDisappear {
+                isPresented = false
+            }
+    }
+}
+
+extension View {
+    func panelPopover<PopoverContent: View>(
+        isPresented: Binding<Bool>,
+        @ViewBuilder content: @escaping () -> PopoverContent
+    ) -> some View {
+        modifier(PanelPopover(isPresented: isPresented, popoverContent: content))
+    }
+}
