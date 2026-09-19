@@ -7,20 +7,13 @@ struct MountedDiskImage: Sendable {
     fileprivate let mountURL: URL
 
     init?(
-        wholeDiskID: String?,
+        wholeDiskID: String,
         volumeName: String?,
         mountURL: URL,
         isEjectable: Bool,
         deviceModel: String?
     ) {
-        guard
-            let wholeDiskID,
-            !wholeDiskID.isEmpty,
-            isEjectable,
-            deviceModel == "Disk Image"
-        else {
-            return nil
-        }
+        guard !wholeDiskID.isEmpty, isEjectable, deviceModel == "Disk Image" else { return nil }
 
         self.wholeDiskID = wholeDiskID
         name =

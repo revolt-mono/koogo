@@ -8,34 +8,19 @@ struct SettingsView: View {
     @State private var isLaunchAtLoginEnabled = SMAppService.mainApp.status == .enabled
     @State private var launchAtLoginError: (any Error)?
 
-    private var isPresentingLaunchAtLoginError: Binding<Bool> {
-        Binding(
-            get: { launchAtLoginError != nil },
-            set: { isPresented in
-                if !isPresented {
-                    launchAtLoginError = nil
-                }
-            }
-        )
-    }
-
-    private var selectedBreakReminderInterval: Binding<BreakReminderInterval> {
-        Binding(
-            get: { breakReminderModel.interval },
-            set: { interval in
-                Task {
-                    await breakReminderModel.perform(.setInterval(interval))
-                }
-            }
-        )
-    }
-
     var body: some View {
         Form {
             Section("Break Reminder") {
                 Picker(
                     "Remind Me Every",
-                    selection: selectedBreakReminderInterval
+                    selection: Binding(
+                        get: { breakReminderModel.interval },
+                        set: { interval in
+                            Task {
+                                await breakReminderModel.perform(.setInterval(interval))
+                            }
+                        }
+                    )
                 ) {
                     ForEach(BreakReminderInterval.allCases, id: \.self) { interval in
                         Text("\(interval.rawValue) Minutes")
@@ -72,7 +57,14 @@ struct SettingsView: View {
         }
         .alert(
             "Couldn't Change Login Setting",
-            isPresented: isPresentingLaunchAtLoginError,
+            isPresented: Binding(
+                get: { launchAtLoginError != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        launchAtLoginError = nil
+                    }
+                }
+            ),
             presenting: launchAtLoginError
         ) { _ in
             Button("OK", role: .cancel) {}

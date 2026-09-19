@@ -70,10 +70,10 @@ extension BreakReminderNotificationCenter: @MainActor UNUserNotificationCenterDe
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        let options: UNNotificationPresentationOptions =
+        completionHandler(
             notification.request.identifier == Self.requestIdentifier
-            ? [.banner, .list, .sound]
-            : []
-        completionHandler(options)
+                ? [.banner, .list, .sound]
+                : []
+        )
     }
 }

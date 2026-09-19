@@ -151,9 +151,7 @@ extension View {
             isPresented: isPresented,
             presenting: reminderModel.issue
         ) { _ in
-            Button("OK", role: .cancel) {
-                reminderModel.dismissIssue()
-            }
+            Button("OK", role: .cancel) {}
         } message: { issue in
             Text(issue.message)
         }

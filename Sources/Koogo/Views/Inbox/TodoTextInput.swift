@@ -5,15 +5,6 @@ struct TodoTextInput: NSViewRepresentable {
     enum Mode {
         case composing
         case editing(onBlur: () -> Void)
-
-        var onBlur: (() -> Void)? {
-            switch self {
-            case .composing:
-                nil
-            case .editing(let onBlur):
-                onBlur
-            }
-        }
     }
 
     @Binding var text: String
@@ -58,7 +49,7 @@ struct TodoTextInput: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let textView = context.coordinator.textView
-        context.coordinator.onBlur = mode.onBlur
+        context.coordinator.onBlur = if case .editing(let onBlur) = mode { onBlur } else { nil }
         textView.onSubmit = onSubmit
         if textView.string != text {
             textView.string = text
