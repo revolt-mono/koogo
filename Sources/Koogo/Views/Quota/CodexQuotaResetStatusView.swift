@@ -9,7 +9,7 @@ struct CodexQuotaResetStatusView: View {
             EmptyView()
         case .confirming(let attempt, let failure):
             VStack(alignment: .leading, spacing: 8) {
-                Text("Use \"\(attempt.credit.title ?? "Quota reset")\"?")
+                Text("Use \"\(attempt.credit.title)\"?")
                     .fontWeight(.semibold)
                 if let expiration = attempt.credit.expiresAt {
                     Text("Expires \(expiration.formatted(date: .abbreviated, time: .shortened))")

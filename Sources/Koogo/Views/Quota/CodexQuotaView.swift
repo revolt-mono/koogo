@@ -172,7 +172,7 @@ func quotaTimeRemainingText(until date: Date, now: Date) -> String {
 private struct CodexQuotaProgressViewStyle: ProgressViewStyle {
     func makeBody(configuration: Configuration) -> some View {
         GeometryReader { geometry in
-            let fraction = min(max(configuration.fractionCompleted ?? 0, 0), 1)
+            let fraction = configuration.fractionCompleted ?? 0
 
             ZStack(alignment: .leading) {
                 Capsule()

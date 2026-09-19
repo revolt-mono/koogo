@@ -79,7 +79,9 @@ private struct CodexRateLimitResetCredits: Decodable {
             credits: credits?
                 .filter { $0.status == "available" && $0.resetType == "codexRateLimits" }
                 .sorted { ($0.expiresAt ?? .distantFuture, $0.id) < ($1.expiresAt ?? .distantFuture, $1.id) }
-                .map { CodexQuotaSnapshot.ResetCredit(id: $0.id, title: $0.title, expiresAt: $0.expiresAt) }
+                .map {
+                    CodexQuotaSnapshot.ResetCredit(id: $0.id, title: $0.title ?? "Quota reset", expiresAt: $0.expiresAt)
+                }
         )
     }
 

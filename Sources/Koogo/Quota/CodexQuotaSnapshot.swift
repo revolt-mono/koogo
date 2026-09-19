@@ -35,7 +35,7 @@ struct CodexQuotaSnapshot: Equatable, Sendable, Encodable {
 
     struct ResetCredit: Equatable, Identifiable, Sendable, Encodable {
         let id: String
-        let title: String?
+        let title: String
         let expiresAt: Date?
 
         func canUse(at date: Date) -> Bool {

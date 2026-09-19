@@ -6,7 +6,7 @@ import Observation
 final class CodexQuotaModel {
     enum State: Equatable {
         case loading
-        case unavailable(CodexQuotaUnavailability)
+        case unavailable
         case available(CodexQuotaSnapshot)
     }
 
@@ -46,6 +46,10 @@ final class CodexQuotaModel {
         }
     }
 
+    private func usableCredit(id: String) -> CodexQuotaSnapshot.ResetCredit? {
+        snapshot?.account?.resetCredits?.credits?.first { $0.id == id && $0.canUse(at: .now) }
+    }
+
     init(
         quotaService: CodexQuotaService,
         cooldown: Duration = .seconds(60)
@@ -63,10 +67,7 @@ final class CodexQuotaModel {
     }
 
     func beginReset(creditID: String) {
-        guard canChooseReset,
-            let credit = snapshot?.account?.resetCredits?.credits?.first(where: { $0.id == creditID }),
-            credit.canUse(at: .now)
-        else { return }
+        guard canChooseReset, let credit = usableCredit(id: creditID) else { return }
         resetState = .confirming(CodexQuotaResetAttempt(credit: credit))
     }
 
@@ -107,16 +108,12 @@ final class CodexQuotaModel {
         case .success(let snapshot):
             state = .available(snapshot)
             refreshFailure = nil
-            if case .confirming(let attempt, _) = resetState,
-                snapshot.account?.resetCredits?.credits?.contains(where: {
-                    $0.id == attempt.credit.id && $0.canUse(at: .now)
-                }) != true
-            {
+            if case .confirming(let attempt, _) = resetState, usableCredit(id: attempt.credit.id) == nil {
                 resetState = .idle
             }
         case .failure(let reason):
             refreshFailure = reason
-            if snapshot == nil { state = .unavailable(reason) }
+            if snapshot == nil { state = .unavailable }
         }
         refreshAfter = .now + cooldown
         isRefreshing = false

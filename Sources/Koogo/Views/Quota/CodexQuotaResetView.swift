@@ -96,7 +96,7 @@ private struct CodexQuotaResetCreditRow: View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(credit.title ?? "Quota reset")
+                    Text(credit.title)
                         .fontWeight(.semibold)
                     if let expiration = credit.expiresAt {
                         let seconds = expiration.timeIntervalSince(timeline.date)

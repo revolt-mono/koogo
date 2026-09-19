@@ -21,7 +21,7 @@ struct CodexQuotaService: Sendable {
     func fetch() async -> Result<CodexQuotaSnapshot, CodexQuotaUnavailability> {
         let result: Result<CodexQuotaSnapshot, CodexQuotaUnavailability>
         do {
-            let snapshot = try await run(timeout: timeout) { try await $0.fetch() }
+            let snapshot = try await run { try await $0.fetch() }
             result = snapshot.map(Result.success) ?? .failure(.emptyLimits)
         } catch let reason as CodexQuotaUnavailability {
             result = .failure(reason)
@@ -44,7 +44,7 @@ struct CodexQuotaService: Sendable {
     ) async -> Result<CodexQuotaResetOutcome, CodexQuotaResetFailure> {
         let result: Result<CodexQuotaResetOutcome, CodexQuotaResetFailure>
         do {
-            result = .success(try await run(timeout: timeout) { try await $0.consume(attempt) })
+            result = .success(try await run { try await $0.consume(attempt) })
         } catch let error as CodexQuotaRPCError {
             result = .failure(.rpc(code: error.code))
         } catch let reason as CodexQuotaUnavailability {
@@ -63,7 +63,6 @@ struct CodexQuotaService: Sendable {
     }
 
     private func run<Value: Sendable>(
-        timeout: Duration,
         operation: @escaping @Sendable (CodexQuotaSession) async throws -> Value
     ) async throws -> Value {
         guard let executableURL = executableURL ?? Self.findExecutable() else {

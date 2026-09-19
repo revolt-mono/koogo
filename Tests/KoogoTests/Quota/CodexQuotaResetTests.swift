@@ -35,6 +35,7 @@ final class CodexQuotaResetTests: XCTestCase {
         XCTAssertEqual(summary.availableCount, 5)
         XCTAssertEqual(details.map(\.id), ["credit-a", "credit-b", "credit-c"])
         XCTAssertEqual(details[0].title, "Usage reset")
+        XCTAssertEqual(details[1].title, "Quota reset")
         XCTAssertEqual(details[0].expiresAt, Date(timeIntervalSince1970: 4_102_444_800))
         XCTAssertFalse(details[0].canUse(at: Date(timeIntervalSince1970: 4_102_444_800)))
         XCTAssertNil(details[2].expiresAt)
