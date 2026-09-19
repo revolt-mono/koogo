@@ -22,7 +22,7 @@ struct MonthlyUsageChart: View {
             ForEach(month.days) { day in
                 BarMark(
                     x: .value("Day", day.date, unit: .day),
-                    y: .value("Cost", NSDecimalNumber(decimal: day.costUSD).doubleValue)
+                    y: .value("Cost", NSDecimalNumber(decimal: day.usage.costUSD).doubleValue)
                 )
                 .foregroundStyle(barColor)
                 .cornerRadius(1)
@@ -97,8 +97,8 @@ private struct UsageChartAnnotation: View {
                 .foregroundStyle(Color(nsColor: .labelColor))
 
             Text(
-                "\(UsageFormatting.cost(day.costUSD)) · "
-                    + "\(UsageFormatting.tokens(day.processedTokens)) tokens"
+                "\(UsageFormatting.cost(day.usage.costUSD)) · "
+                    + "\(UsageFormatting.tokens(day.usage.processedTokens)) tokens"
             )
             .foregroundStyle(Color(nsColor: .secondaryLabelColor))
             .monospacedDigit()

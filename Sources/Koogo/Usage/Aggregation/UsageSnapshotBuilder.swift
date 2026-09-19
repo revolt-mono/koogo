@@ -47,7 +47,6 @@ enum UsageSnapshotBuilder {
         var favorite = FavoriteAccumulator()
         var today = UsagePeriodSnapshot()
         var week = UsagePeriodSnapshot()
-        var month = UsagePeriodSnapshot()
         var monthByDay: [Date: UsagePeriodSnapshot] = [:]
 
         mutating func add(
@@ -63,7 +62,6 @@ enum UsageSnapshotBuilder {
                 week.add(usage)
             }
             if intervals.month.current.contains(usage.timestamp) {
-                month.add(usage)
                 monthByDay[calendar.startOfDay(for: usage.timestamp), default: .init()].add(usage)
             }
         }
@@ -76,15 +74,11 @@ enum UsageSnapshotBuilder {
                 favorite: favorite.snapshot(piModels: piModels),
                 today: today,
                 week: week,
-                month: month,
+                month: monthByDay.values.reduce(UsagePeriodSnapshot(), +),
                 dailyMonth: UsageMonthSnapshot(
                     range: intervals.month.current,
                     days: monthByDay.sorted { $0.key < $1.key }.map {
-                        UsageDaySnapshot(
-                            date: $0.key,
-                            processedTokens: $0.value.processedTokens,
-                            costUSD: $0.value.costUSD
-                        )
+                        UsageDaySnapshot(date: $0.key, usage: $0.value)
                     }
                 )
             )

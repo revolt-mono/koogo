@@ -19,8 +19,7 @@ struct UsagePeriodSnapshot: Equatable, Sendable, Encodable {
 
 struct UsageDaySnapshot: Equatable, Identifiable, Sendable, Encodable {
     let date: Date
-    let processedTokens: Decimal
-    let costUSD: Decimal
+    let usage: UsagePeriodSnapshot
 
     var id: Date { date }
 }

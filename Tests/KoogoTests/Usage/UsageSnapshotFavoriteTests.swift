@@ -28,8 +28,7 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
             [
                 UsageDaySnapshot(
                     date: calendar.startOfDay(for: usageTestTimestamp),
-                    processedTokens: 240_000,
-                    costUSD: try XCTUnwrap(Decimal(string: "1.008"))
+                    usage: snapshot.codex.today
                 )
             ]
         )

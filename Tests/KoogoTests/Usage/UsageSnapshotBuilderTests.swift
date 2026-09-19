@@ -135,7 +135,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(snapshot.codex.month.processedTokens, 150)
         XCTAssertEqual(snapshot.codex.dailyMonth.range, intervals.month.current)
         XCTAssertEqual(
-            snapshot.codex.dailyMonth.days.map(\.processedTokens),
+            snapshot.codex.dailyMonth.days.map(\.usage.processedTokens),
             [50, 100]
         )
     }
@@ -176,6 +176,6 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(snapshot.codex.today.processedTokens, 100)
         XCTAssertEqual(snapshot.codex.week.processedTokens, 150)
         XCTAssertEqual(snapshot.codex.month.processedTokens, 100)
-        XCTAssertEqual(snapshot.codex.dailyMonth.days.map(\.processedTokens), [100])
+        XCTAssertEqual(snapshot.codex.dailyMonth.days.map(\.usage.processedTokens), [100])
     }
 }
