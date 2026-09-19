@@ -26,16 +26,6 @@ extension UsageLogParser {
     }
 }
 
-extension UsageProvider {
-    func makeLogParser() -> any UsageLogParser {
-        switch self {
-        case .codex: CodexLogParser()
-        case .claude: ClaudeLogParser()
-        case .piAgent: PiLogParser()
-        }
-    }
-}
-
 func parseUsageTimestamp(_ value: String) -> Date? {
     if let date = try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(value) {
         return date

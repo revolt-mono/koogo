@@ -19,16 +19,14 @@ struct ClaudeLogParser: UsageLogParser {
         guard
             let record = try? decoder.decode(ClaudeLogRecord.self, from: line),
             record.type == .assistant,
-            let timestampValue = record.timestamp,
-            let timestamp = parseUsageTimestamp(timestampValue),
-            let message = record.message,
-            let messageID = nonEmpty(message.id),
+            let timestamp = parseUsageTimestamp(record.timestamp),
+            let messageID = nonEmpty(record.message.id),
             let requestID = nonEmpty(record.requestID),
-            let model = nonEmpty(message.model),
-            let usage = message.usage
+            let model = nonEmpty(record.message.model)
         else {
             return nil
         }
+        let usage = record.message.usage
         guard let quote = ClaudeUsagePricing.quote(model: model, usage: usage) else {
             return .unpricedModel(id: model, timestamp: timestamp)
         }
@@ -62,10 +60,10 @@ struct ClaudeLogParser: UsageLogParser {
 
 private struct ClaudeLogRecord: Decodable {
     let type: ClaudeRecordKind
-    let timestamp: String?
-    let requestID: String?
+    let timestamp: String
+    let requestID: String
     let effort: String?
-    let message: ClaudeMessage?
+    let message: ClaudeMessage
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -77,9 +75,9 @@ private struct ClaudeLogRecord: Decodable {
 }
 
 private struct ClaudeMessage: Decodable {
-    let id: String?
-    let model: String?
-    let usage: ClaudeBillableUsage?
+    let id: String
+    let model: String
+    let usage: ClaudeBillableUsage
 
     static let usageMarker = Data("\"\(CodingKeys.usage.rawValue)\"".utf8)
 

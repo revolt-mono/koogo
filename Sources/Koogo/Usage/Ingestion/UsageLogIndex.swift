@@ -61,7 +61,12 @@ private struct TrackedUsageFile: Sendable {
         self.metadata = metadata
         parsedOffset = 0
         parsedTail = Data()
-        parser = location.provider.makeLogParser()
+        parser =
+            switch location.provider {
+            case .codex: CodexLogParser()
+            case .claude: ClaudeLogParser()
+            case .piAgent: PiLogParser()
+            }
         eventIndex = UsageEventIndex(since: historyStart)
         guard readBytes(handle, in: 0..<metadata.size) else {
             return nil
@@ -192,7 +197,7 @@ private struct TrackedUsageFile: Sendable {
 struct UsageLogIndex {
     private let roots: [UsageLogLocation]
     private var trackedFiles: [String: TrackedUsageFile] = [:]
-    private var indexedFrom: Date?
+    private var indexedFrom = Date.distantPast
 
     init(locations: UsageLocations.Logs) {
         roots = locations.roots
@@ -216,7 +221,7 @@ struct UsageLogIndex {
 
     /// Events merged across every tracked file, as of the last `refresh`.
     var events: UsageEventIndex {
-        var merged = UsageEventIndex(since: indexedFrom ?? .distantPast)
+        var merged = UsageEventIndex(since: indexedFrom)
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
             merged.merge(tracked.eventIndex)
         }
@@ -226,10 +231,10 @@ struct UsageLogIndex {
     /// updates tracked files and reports whether the usage report may need rebuilding.
     mutating func refresh(since historyStart: Date) -> Bool {
         var changed = false
-        if let indexedFrom, historyStart < indexedFrom {
+        if historyStart < indexedFrom {
             trackedFiles.removeAll(keepingCapacity: true)
             changed = true
-        } else if let indexedFrom, historyStart > indexedFrom {
+        } else if historyStart > indexedFrom {
             trackedFiles = trackedFiles.mapValues { tracked in
                 var tracked = tracked
                 tracked.eventIndex.discard(before: historyStart)
