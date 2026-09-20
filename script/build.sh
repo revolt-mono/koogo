@@ -8,7 +8,7 @@ MIN_SYSTEM_VERSION="26.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
 BUILD_NUMBER="$(git -C "$ROOT_DIR" rev-list --count HEAD)"
 DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode-beta.app/Contents/Developer}"
-SDK_NAME="macosx27.0"
+SDK_NAME="macosx"
 
 export DEVELOPER_DIR
 export MACOSX_DEPLOYMENT_TARGET="$MIN_SYSTEM_VERSION"
