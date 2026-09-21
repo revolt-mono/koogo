@@ -25,10 +25,17 @@ struct UsageReport: Sendable, Encodable {
 }
 
 actor UsageService {
+    /// The inputs that shaped the last report; an unchanged set means the report can be reused.
+    private struct LastRefresh {
+        let intervals: UsagePeriodIntervals
+        let piModels: PiModelCatalog
+        let report: UsageReport
+    }
+
     private let calendar: Calendar
     private let piModelLocations: UsageLocations.PiModels
     private var logIndex: UsageLogIndex
-    private var lastReport: (intervals: UsagePeriodIntervals, piModels: PiModelCatalog, report: UsageReport)?
+    private var lastRefresh: LastRefresh?
 
     init(
         locations: UsageLocations = .standard,
@@ -45,10 +52,10 @@ actor UsageService {
         let changed = logIndex.refresh(since: intervals.historyStart)
         let piModels = PiModelCatalog(locations: piModelLocations)
         let logRoots = logIndex.logRoots
-        if !changed, let lastReport, lastReport.intervals == intervals, lastReport.piModels == piModels,
-            lastReport.report.ingestion.logRoots == logRoots
+        if !changed, let lastRefresh, lastRefresh.intervals == intervals, lastRefresh.piModels == piModels,
+            lastRefresh.report.ingestion.logRoots == logRoots
         {
-            return lastReport.report
+            return lastRefresh.report
         }
         let events = logIndex.events
         let ingestion = UsageIngestionStats(
@@ -80,7 +87,7 @@ actor UsageService {
                 piModels: piModels
             )
         )
-        lastReport = (intervals, piModels, report)
+        lastRefresh = LastRefresh(intervals: intervals, piModels: piModels, report: report)
         return report
     }
 }
