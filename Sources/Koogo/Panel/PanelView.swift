@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-struct ContentView: View {
+/// Root of the menu bar panel: toolbar, pager, and the refresh kick-off for every feature.
+struct PanelView: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
     @Environment(BreakReminderModel.self) private var breakReminderModel
@@ -53,32 +54,14 @@ struct ContentView: View {
 private struct PanelToolbar: View {
     @Environment(UpdateModel.self) private var updateModel
 
-    private var showsUpdateIndicator: Bool {
-        #if DEBUG
-        true
-        #else
-        updateModel.isUpdateAvailable
-        #endif
-    }
-
     var body: some View {
         HStack(spacing: 8) {
             BreakReminderControl()
 
             Spacer()
 
-            if showsUpdateIndicator {
-                Button(action: updateModel.checkForUpdates) {
-                    Text("Update")
-                        .font(.system(size: 9, weight: .medium))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .foregroundStyle(.white)
-                        .background(.tint, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Update available")
-                .transition(.move(edge: .top).combined(with: .opacity))
+            if updateModel.showsUpdateIndicator {
+                UpdateAvailableButton()
             }
 
             SettingsLink {
@@ -91,6 +74,6 @@ private struct PanelToolbar: View {
             .foregroundStyle(.secondary)
             .accessibilityLabel("Settings")
         }
-        .animation(.smooth(duration: 0.25), value: showsUpdateIndicator)
+        .animation(.smooth(duration: 0.25), value: updateModel.showsUpdateIndicator)
     }
 }

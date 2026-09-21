@@ -16,7 +16,7 @@ struct KoogoApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            ContentView()
+            PanelView()
                 .environment(usageModel)
                 .environment(codexQuotaModel)
                 .environment(updateModel)

@@ -36,21 +36,23 @@
 
 ## Repo structure
 
+Each feature is a vertical slice that owns its state, services, and views; only `App`, `Panel`, and `Settings` compose across features.
+
 ```
 ├── Sources/Koogo       menu bar application
-│   ├── App             lifecycle and feature-owned observable state
-│   │   ├── BreakReminder
-│   │   ├── Inbox
-│   │   ├── Quota
-│   │   ├── Update
-│   │   └── Usage
-│   ├── QuickActions    system quick-action adapters
-│   ├── Quota           Codex quota transport, session, and service
-│   ├── Usage           usage records and service orchestration
+│   ├── App             entry point, scenes, headless report, telemetry
+│   ├── Panel           menu bar panel shell: toolbar, pager, usage page composition
+│   ├── Settings        settings window shell
+│   ├── Usage           log ingestion, pricing, aggregation, and usage views
 │   │   ├── Aggregation calendar-based snapshots and summaries
 │   │   ├── Ingestion   incremental log reading, parsing, and event indexing
-│   │   └── Providers   Claude, Codex, and Pi Agent adapters and pricing
-│   ├── Views           feature-owned SwiftUI panels and controls
+│   │   ├── Providers   Claude, Codex, and Pi Agent adapters and pricing
+│   │   └── Views       summary, provider cards, and chart
+│   ├── Quota           Codex quota transport, session, reset flow, and views
+│   ├── QuickActions    system quick-action adapters and views
+│   ├── BreakReminder   countdown state, notifications, and controls
+│   ├── Inbox           todo state and editors
+│   ├── Update          Sparkle bridge and update indicator
 │   └── Resources       bundled image assets
 ├── Tests/KoogoTests    feature-aligned behavior tests and shared fixtures
 └── script              signing, app bundle assembly, launch, and verification

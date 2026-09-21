@@ -1,9 +1,7 @@
 import AppKit
-import Shimmer
 import SwiftUI
 
 struct PanelPagesView: View {
-    @Environment(UsageModel.self) private var usageModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Screen space left for the pages; the usage page fills up to this and scrolls beyond it.
@@ -21,30 +19,12 @@ struct PanelPagesView: View {
                         switch page {
                         case .usage:
                             ScrollView(.vertical) {
-                                ZStack(alignment: .top) {
-                                    if let snapshot = usageModel.snapshot {
-                                        UsagePanelView(snapshot: snapshot)
-                                            .transition(.blurReplace)
-                                    } else {
-                                        Text("Parsing logs…")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundStyle(.secondary)
-                                            .shimmering(active: !reduceMotion)
-                                            .frame(maxWidth: .infinity, minHeight: 96)
-                                            .padding(.horizontal, 20)
-                                            .padding(.vertical, 24)
-                                            .transition(.blurReplace)
+                                UsagePage()
+                                    .onGeometryChange(for: CGFloat.self) { proxy in
+                                        proxy.size.height.rounded()
+                                    } action: { height in
+                                        usageContentHeight = height
                                     }
-                                }
-                                .animation(
-                                    reduceMotion ? nil : .smooth(duration: 0.35),
-                                    value: usageModel.snapshot != nil
-                                )
-                                .onGeometryChange(for: CGFloat.self) { proxy in
-                                    proxy.size.height.rounded()
-                                } action: { height in
-                                    usageContentHeight = height
-                                }
                             }
                             .scrollIndicators(.never)
                         case .inbox:
@@ -74,10 +54,9 @@ struct PanelPagesView: View {
         .background {
             ShiftScrollWheelMonitor(onStep: move)
         }
+        // Leaving a page drops keyboard focus so an off-screen text field cannot keep receiving keys.
         .onChange(of: selectedPage) {
-            if selectedPage != .inbox {
-                NSApp.keyWindow?.makeFirstResponder(nil)
-            }
+            NSApp.keyWindow?.makeFirstResponder(nil)
         }
     }
 

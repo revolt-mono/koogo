@@ -13,6 +13,15 @@ final class UpdateModel: NSObject {
 
     private(set) var isUpdateAvailable = false
 
+    /// Debug builds always show the indicator so the toolbar can be checked without a pending update.
+    var showsUpdateIndicator: Bool {
+        #if DEBUG
+        true
+        #else
+        isUpdateAvailable
+        #endif
+    }
+
     override init() {
         super.init()
         _ = updaterController
