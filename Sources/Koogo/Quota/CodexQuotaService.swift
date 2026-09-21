@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Why no quota is shown; surfaced in telemetry and the `--report` output.
 enum CodexQuotaUnavailability: String, Error, Encodable, Sendable {
@@ -39,25 +40,30 @@ struct CodexQuotaService: Sendable {
     }
 
     @concurrent
-    func consume(
-        _ attempt: CodexQuotaResetAttempt
-    ) async -> Result<CodexQuotaResetOutcome, CodexQuotaResetFailure> {
-        let result: Result<CodexQuotaResetOutcome, CodexQuotaResetFailure>
+    func consume(_ attempt: CodexQuotaResetAttempt) async -> CodexQuotaResetResult {
+        // Flipped right before the request is written, so a later failure may still have reached the server.
+        let writeStarted = Mutex(false)
+        let result: CodexQuotaResetResult
         do {
-            result = .success(try await run { try await $0.consume(attempt) })
-        } catch let error as CodexQuotaRPCError {
-            result = .failure(.rpc(code: error.code))
-        } catch let reason as CodexQuotaUnavailability {
-            result = .failure(.unavailable(reason))
+            let outcome = try await run { session in
+                try await session.consume(attempt) { writeStarted.withLock { $0 = true } }
+            }
+            result = .completed(outcome)
         } catch {
-            result = .failure(.unavailable(.sessionFailed))
+            let failure: CodexQuotaResetFailure =
+                switch error {
+                case let error as CodexQuotaRPCError: .rpc(code: error.code)
+                case let reason as CodexQuotaUnavailability: .unavailable(reason)
+                default: .unavailable(.sessionFailed)
+                }
+            result = writeStarted.withLock { $0 } ? .unconfirmed(failure) : .rejected(failure)
         }
 
         switch result {
-        case .success(let outcome):
+        case .completed(let outcome):
             Telemetry.quota.info("reset outcome=\(outcome.rawValue, privacy: .public)")
-        case .failure(let failure):
-            Telemetry.quota.error("reset failed \(String(describing: failure), privacy: .public)")
+        case .rejected, .unconfirmed:
+            Telemetry.quota.error("reset failed \(String(describing: result), privacy: .public)")
         }
         return result
     }

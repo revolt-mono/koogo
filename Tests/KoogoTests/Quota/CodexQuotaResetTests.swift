@@ -67,7 +67,7 @@ final class CodexQuotaResetTests: XCTestCase {
                 consumeResponse: "{\"id\":2,\"result\":{\"outcome\":\"\(value)\"}}"
             )
             let result = await CodexQuotaService(executableURL: executable).consume(attempt)
-            XCTAssertEqual(result, .success(expected))
+            XCTAssertEqual(result, .completed(expected))
         }
         let requests = try String(contentsOf: workspace.consumeRequestsFile, encoding: .utf8).split(separator: "\n")
         XCTAssertEqual(requests.count, 4)
@@ -90,7 +90,15 @@ final class CodexQuotaResetTests: XCTestCase {
         for (response, expected) in cases {
             let executable = try workspace.makeResetExecutable(consumeResponse: response)
             let result = await CodexQuotaService(executableURL: executable).consume(attempt)
-            XCTAssertEqual(result, .failure(expected))
+            XCTAssertEqual(result, .unconfirmed(expected))
         }
+    }
+
+    func testFailureBeforeTheWriteIsRejected() async throws {
+        let attempt = CodexQuotaTestWorkspace.resetAttempt()
+        let missing = workspace.root.appending(path: "missing-codex")
+        let result = await CodexQuotaService(executableURL: missing).consume(attempt)
+        XCTAssertEqual(result, .rejected(.unavailable(.sessionFailed)))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.consumeRequestsFile.path))
     }
 }

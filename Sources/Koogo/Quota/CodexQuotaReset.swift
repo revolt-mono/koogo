@@ -1,20 +1,9 @@
 import Foundation
-import Synchronization
 
 /// One user-confirmed reset. A retry reuses the same credit and key so the server can dedupe it.
-final class CodexQuotaResetAttempt: Equatable, Sendable {
+struct CodexQuotaResetAttempt: Equatable, Sendable {
     let credit: CodexQuotaSnapshot.ResetCredit
     let idempotencyKey = UUID()
-    /// Set before the request is written: a failed write can still have reached the server.
-    let writeStarted = Mutex(false)
-
-    init(credit: CodexQuotaSnapshot.ResetCredit) {
-        self.credit = credit
-    }
-
-    static func == (lhs: CodexQuotaResetAttempt, rhs: CodexQuotaResetAttempt) -> Bool {
-        lhs === rhs
-    }
 }
 
 enum CodexQuotaResetOutcome: String, Decodable, Equatable, Sendable {
@@ -24,9 +13,18 @@ enum CodexQuotaResetOutcome: String, Decodable, Equatable, Sendable {
     case noCredit
 }
 
-enum CodexQuotaResetFailure: Error, Equatable, Sendable {
+enum CodexQuotaResetFailure: Equatable, Sendable {
     case unavailable(CodexQuotaUnavailability)
     case rpc(code: Int)
+}
+
+/// How a consume request ended; the phase decides whether the attempt can be dropped or must be retried.
+enum CodexQuotaResetResult: Equatable, Sendable {
+    case completed(CodexQuotaResetOutcome)
+    /// Nothing reached the server; the attempt can be confirmed again or cancelled.
+    case rejected(CodexQuotaResetFailure)
+    /// The request may have reached the server; only a retry with the same attempt can settle it.
+    case unconfirmed(CodexQuotaResetFailure)
 }
 
 struct CodexQuotaRPCError: Decodable, Error, Sendable {

@@ -46,10 +46,6 @@ final class CodexQuotaModel {
         }
     }
 
-    private func usableCredit(id: String) -> CodexQuotaSnapshot.ResetCredit? {
-        snapshot?.account?.resetCredits?.credits?.first { $0.id == id && $0.canUse(at: .now) }
-    }
-
     init(
         quotaService: CodexQuotaService,
         cooldown: Duration = .seconds(60)
@@ -85,6 +81,7 @@ final class CodexQuotaModel {
         case .idle, .submitting, .completed:
             return
         }
+        let wasUnconfirmed = if case .unconfirmed = resetState { true } else { false }
         resetState = .submitting
         // The model owns this task, not the popover. Closing a view cannot cancel an irreversible write.
         Task {
@@ -92,12 +89,13 @@ final class CodexQuotaModel {
             isRefreshing = true
             await fetchQuota()
             switch result {
-            case .success(let outcome):
+            case .completed(let outcome):
                 resetState = .completed(outcome)
-            case .failure(let failure) where attempt.writeStarted.withLock({ $0 }):
+            case .unconfirmed(let failure):
                 resetState = .unconfirmed(attempt, failure)
-            case .failure(let failure):
-                resetState = .confirming(attempt, failure: failure)
+            case .rejected(let failure):
+                // An earlier attempt may already have reached the server; a rejected retry cannot clear that.
+                resetState = wasUnconfirmed ? .unconfirmed(attempt, failure) : .confirming(attempt, failure: failure)
             }
         }
     }
@@ -117,5 +115,9 @@ final class CodexQuotaModel {
         }
         refreshAfter = .now + cooldown
         isRefreshing = false
+    }
+
+    private func usableCredit(id: String) -> CodexQuotaSnapshot.ResetCredit? {
+        snapshot?.account?.resetCredits?.credits?.first { $0.id == id && $0.canUse(at: .now) }
     }
 }

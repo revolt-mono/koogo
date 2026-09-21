@@ -18,9 +18,13 @@ struct CodexQuotaSession: Sendable {
         }
     }
 
-    func consume(_ attempt: CodexQuotaResetAttempt) async throws -> CodexQuotaResetOutcome {
+    /// `onWriteStart` runs right before the consume request is written.
+    func consume(
+        _ attempt: CodexQuotaResetAttempt,
+        onWriteStart: @Sendable () -> Void
+    ) async throws -> CodexQuotaResetOutcome {
         try await run { connection in
-            attempt.writeStarted.withLock { $0 = true }
+            onWriteStart()
             let response: ConsumeResponse = try connection.request(
                 RPCMessage(
                     method: "account/rateLimitResetCredit/consume",
