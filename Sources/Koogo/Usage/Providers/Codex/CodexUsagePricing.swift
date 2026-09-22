@@ -102,6 +102,24 @@ enum CodexUsagePricing {
                 )
             )
         ),
+        // https://developers.openai.com/api/docs/models/gpt-6-sol
+        "gpt-6-sol": ModelPrice(
+            displayName: "GPT 6 Sol",
+            rates: .tiered(
+                short: Rates(
+                    input: 2_000,
+                    cachedInput: 200,
+                    cacheWrite: .priced(2_500),
+                    output: 10_000
+                ),
+                long: Rates(
+                    input: 4_000,
+                    cachedInput: 400,
+                    cacheWrite: .priced(5_000),
+                    output: 15_000
+                )
+            )
+        ),
         "gpt-daybreak-blue-latest": ModelPrice(
             displayName: "Daybreak Blue",
             rates: .tiered(

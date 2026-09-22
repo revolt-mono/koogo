@@ -3,6 +3,35 @@ import XCTest
 @testable import Koogo
 
 final class UsagePricingTests: XCTestCase {
+    func testGPT6SolPricesAllTokenKindsAndLongContext() throws {
+        let short = try XCTUnwrap(
+            CodexUsagePricing.quote(
+                model: "gpt-6-sol",
+                tokens: codexTokenUsage(
+                    uncachedInput: 100_000,
+                    cachedInput: 100_000,
+                    cacheWriteInput: 50_000,
+                    output: 10_000
+                )
+            )
+        )
+        let long = try XCTUnwrap(
+            CodexUsagePricing.quote(
+                model: "gpt-6-sol",
+                tokens: codexTokenUsage(
+                    uncachedInput: 122_001,
+                    cachedInput: 100_000,
+                    cacheWriteInput: 50_000,
+                    output: 10_000
+                )
+            )
+        )
+
+        XCTAssertEqual(short.model, .codex(id: "gpt-6-sol", name: "GPT 6 Sol"))
+        XCTAssertEqual(short.costUSD, Decimal(string: "0.445"))
+        XCTAssertEqual(long.costUSD, Decimal(string: "0.928004"))
+    }
+
     func testCodexPricesOrdinaryCachedWritesAndOutputSeparately() throws {
         let quote = try XCTUnwrap(
             CodexUsagePricing.quote(
