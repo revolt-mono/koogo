@@ -57,6 +57,28 @@ final class UsagePricingTests: XCTestCase {
         XCTAssertEqual(quote.costUSD, Decimal(string: "5.355"))
     }
 
+    func testClaudeOpus55PricesCacheReadsAtFivePercentOfInput() throws {
+        let usage = { (speed: ClaudeUsageSpeed) in
+            claudeBillableUsage(
+                uncachedInput: 100_000,
+                cachedInput: 100_000,
+                cacheWrite5MinuteInput: 100_000,
+                cacheWrite1HourInput: 100_000,
+                output: 10_000,
+                speed: speed
+            )
+        }
+        let standard = try XCTUnwrap(
+            ClaudeUsagePricing.quote(model: "claude-opus-5-5", usage: usage(.standard))
+        )
+        let fast = try XCTUnwrap(
+            ClaudeUsagePricing.quote(model: "claude-opus-5-5", usage: usage(.fast))
+        )
+
+        XCTAssertEqual(standard.costUSD, Decimal(string: "1.92"))
+        XCTAssertEqual(fast.costUSD, Decimal(string: "3.84"))
+    }
+
     func testClaudePricesAggregateCacheCreationAtTheDefaultRate() throws {
         let quote = try XCTUnwrap(
             ClaudeUsagePricing.quote(
