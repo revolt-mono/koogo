@@ -120,6 +120,24 @@ enum CodexUsagePricing {
                 )
             )
         ),
+        // https://developers.openai.com/api/docs/models/gpt-6-luna
+        "gpt-6-luna": ModelPrice(
+            displayName: "GPT 6 Luna",
+            rates: .tiered(
+                short: Rates(
+                    input: 100,
+                    cachedInput: 10,
+                    cacheWrite: .priced(125),
+                    output: 500
+                ),
+                long: Rates(
+                    input: 200,
+                    cachedInput: 20,
+                    cacheWrite: .priced(250),
+                    output: 750
+                )
+            )
+        ),
         "gpt-daybreak-blue-latest": ModelPrice(
             displayName: "Daybreak Blue",
             rates: .tiered(

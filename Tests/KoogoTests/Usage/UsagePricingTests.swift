@@ -32,6 +32,35 @@ final class UsagePricingTests: XCTestCase {
         XCTAssertEqual(long.costUSD, Decimal(string: "0.928004"))
     }
 
+    func testGPT6LunaPricesAllTokenKindsAndLongContext() throws {
+        let short = try XCTUnwrap(
+            CodexUsagePricing.quote(
+                model: "gpt-6-luna",
+                tokens: codexTokenUsage(
+                    uncachedInput: 100_000,
+                    cachedInput: 100_000,
+                    cacheWriteInput: 50_000,
+                    output: 10_000
+                )
+            )
+        )
+        let long = try XCTUnwrap(
+            CodexUsagePricing.quote(
+                model: "gpt-6-luna",
+                tokens: codexTokenUsage(
+                    uncachedInput: 122_001,
+                    cachedInput: 100_000,
+                    cacheWriteInput: 50_000,
+                    output: 10_000
+                )
+            )
+        )
+
+        XCTAssertEqual(short.model, .codex(id: "gpt-6-luna", name: "GPT 6 Luna"))
+        XCTAssertEqual(short.costUSD, Decimal(string: "0.02225"))
+        XCTAssertEqual(long.costUSD, Decimal(string: "0.0464002"))
+    }
+
     func testCodexPricesOrdinaryCachedWritesAndOutputSeparately() throws {
         let quote = try XCTUnwrap(
             CodexUsagePricing.quote(
