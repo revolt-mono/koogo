@@ -136,18 +136,13 @@ private struct UsageCostChangeCapsule: View {
 }
 
 private struct AnimatedNumericText: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let text: String
 
     var body: some View {
-        // Keep final geometry outside the animated subtree so sibling layout cannot drift.
         Text(text)
-            .hidden()
-            .accessibilityHidden(true)
-            .overlay(alignment: .leading) {
-                Text(text)
-                    .contentTransition(.numericText())
-                    .animation(.smooth(duration: 0.35), value: text)
-            }
-            .clipped()
+            .contentTransition(.numericText())
+            .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: text)
     }
 }
