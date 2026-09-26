@@ -87,26 +87,18 @@ enum UsageSnapshotBuilder {
 
     static func build(
         events: some Sequence<UsageEvent>,
+        providers: Set<UsageProvider> = Set(UsageProvider.allCases),
         intervals: UsagePeriodIntervals,
         calendar: Calendar,
         piModels: PiModelCatalog = .empty
     ) -> UsageSnapshot {
-        var codex = ProviderAccumulator()
-        var claude = ProviderAccumulator()
-        var piAgent = ProviderAccumulator()
+        var accumulators = Dictionary(uniqueKeysWithValues: providers.map { ($0, ProviderAccumulator()) })
         var previousDay = UsagePeriodSnapshot()
         var previousMonth = UsagePeriodSnapshot()
 
         for event in events {
             let usage = event.usage
-            switch event.provider {
-            case .codex:
-                codex.add(usage, intervals: intervals, calendar: calendar)
-            case .claude:
-                claude.add(usage, intervals: intervals, calendar: calendar)
-            case .piAgent:
-                piAgent.add(usage, intervals: intervals, calendar: calendar)
-            }
+            accumulators[event.provider]?.add(usage, intervals: intervals, calendar: calendar)
             if intervals.day.previous.contains(usage.timestamp) {
                 previousDay.add(usage)
             }
@@ -116,9 +108,7 @@ enum UsageSnapshotBuilder {
         }
 
         return UsageSnapshot(
-            codex: codex.snapshot(intervals: intervals, piModels: piModels),
-            claude: claude.snapshot(intervals: intervals, piModels: piModels),
-            piAgent: piAgent.snapshot(intervals: intervals, piModels: piModels),
+            providers: accumulators.mapValues { $0.snapshot(intervals: intervals, piModels: piModels) },
             previousDay: previousDay,
             previousMonth: previousMonth
         )
@@ -131,12 +121,13 @@ private extension UsageModelReference {
         case .codex(let id, _): "codex/\(id)"
         case .claude(let id, _): "claude/\(id)"
         case .piAgent(let provider, let id): "pi/\(provider)/\(id)"
+        case .grok(let id, _): "grok/\(id)"
         }
     }
 
     func displayName(piModels: PiModelCatalog) -> String {
         switch self {
-        case .codex(_, let name), .claude(_, let name): name
+        case .codex(_, let name), .claude(_, let name), .grok(_, let name): name
         case .piAgent(let provider, let id):
             piModels.displayName(provider: provider, model: id)
         }

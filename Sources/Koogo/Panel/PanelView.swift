@@ -43,7 +43,9 @@ struct PanelView: View {
             )
         }
         .task {
-            codexQuotaModel.refresh()
+            if usageModel.enabledProviders.contains(.codex) {
+                codexQuotaModel.refresh()
+            }
             usageModel.refresh()
             await breakReminderModel.perform(.reconcile)
         }

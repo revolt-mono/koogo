@@ -28,6 +28,7 @@ actor UsageService {
     /// The inputs that shaped the last report; an unchanged set means the report can be reused.
     private struct LastRefresh {
         let intervals: UsagePeriodIntervals
+        let providers: Set<UsageProvider>
         let piModels: PiModelCatalog
         let report: UsageReport
     }
@@ -46,14 +47,17 @@ actor UsageService {
         logIndex = UsageLogIndex(locations: locations.logs)
     }
 
-    func refresh(at date: Date) -> UsageReport {
+    func refresh(
+        at date: Date,
+        providers: Set<UsageProvider> = Set(UsageProvider.allCases)
+    ) -> UsageReport {
         let started = ContinuousClock.now
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
-        let changed = logIndex.refresh(since: intervals.historyStart)
+        let changed = logIndex.refresh(since: intervals.historyStart, providers: providers)
         let piModels = PiModelCatalog(locations: piModelLocations)
         let logRoots = logIndex.logRoots
-        if !changed, let lastRefresh, lastRefresh.intervals == intervals, lastRefresh.piModels == piModels,
-            lastRefresh.report.ingestion.logRoots == logRoots
+        if !changed, let lastRefresh, lastRefresh.intervals == intervals, lastRefresh.providers == providers,
+            lastRefresh.piModels == piModels, lastRefresh.report.ingestion.logRoots == logRoots
         {
             return lastRefresh.report
         }
@@ -82,12 +86,13 @@ actor UsageService {
             ingestion: ingestion,
             snapshot: UsageSnapshotBuilder.build(
                 events: events.values,
+                providers: providers,
                 intervals: intervals,
                 calendar: calendar,
                 piModels: piModels
             )
         )
-        lastRefresh = LastRefresh(intervals: intervals, piModels: piModels, report: report)
+        lastRefresh = LastRefresh(intervals: intervals, providers: providers, piModels: piModels, report: report)
         return report
     }
 }

@@ -14,21 +14,22 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.codex.today.processedTokens, 240_000)
-        XCTAssertEqual(snapshot.codex.today.costUSD, Decimal(string: "1.008"))
+        let codex = try XCTUnwrap(snapshot.providers[.codex])
+        XCTAssertEqual(codex.today.processedTokens, 240_000)
+        XCTAssertEqual(codex.today.costUSD, Decimal(string: "1.008"))
         XCTAssertEqual(
-            snapshot.codex.favorite,
+            codex.favorite,
             ProviderUsageSnapshot.Favorite(
                 modelName: "GPT 5.6 Luna",
                 reasoningEffort: "high"
             )
         )
         XCTAssertEqual(
-            snapshot.codex.dailyMonth.days,
+            codex.dailyMonth.days,
             [
                 UsageDaySnapshot(
                     date: calendar.startOfDay(for: usageTestTimestamp),
-                    usage: snapshot.codex.today
+                    usage: codex.today
                 )
             ]
         )
@@ -45,7 +46,7 @@ final class UsageSnapshotFavoriteTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            snapshot.codex.favorite,
+            snapshot.providers[.codex]?.favorite,
             ProviderUsageSnapshot.Favorite(
                 modelName: "GPT 5.6 Luna",
                 reasoningEffort: "high"

@@ -15,6 +15,7 @@ struct UsageLocations: Sendable {
         let codex: Codex
         let claudeProjects: URL
         let piAgent: URL
+        let grokSessions: URL
 
         var roots: [UsageLogLocation] {
             [
@@ -22,6 +23,7 @@ struct UsageLocations: Sendable {
                 UsageLogLocation(provider: .codex, url: codex.archivedSessions),
                 UsageLogLocation(provider: .claude, url: claudeProjects),
                 UsageLogLocation(provider: .piAgent, url: piAgent),
+                UsageLogLocation(provider: .grok, url: grokSessions),
             ]
         }
     }
@@ -50,7 +52,8 @@ struct UsageLocations: Sendable {
                     path: ".claude/projects",
                     directoryHint: .isDirectory
                 ),
-                piAgent: piAgent.appending(path: "sessions", directoryHint: .isDirectory)
+                piAgent: piAgent.appending(path: "sessions", directoryHint: .isDirectory),
+                grokSessions: home.appending(path: ".grok/sessions", directoryHint: .isDirectory)
             ),
             piModels: PiModels(
                 custom: piAgent.appending(path: "models.json", directoryHint: .notDirectory),

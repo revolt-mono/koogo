@@ -7,6 +7,7 @@ struct UsageEventIndex: Sendable {
     private var codex: [UsageEvent.CodexID: UsageRecord] = [:]
     private var claude: [UsageEvent.ClaudeID: UsageEvent.ClaudeRevision] = [:]
     private var piAgent: [String: UsageRecord] = [:]
+    private var grok: [UsageEvent.GrokID: UsageRecord] = [:]
     private var unpricedModels: [String: Date] = [:]
 
     init(since historyStart: Date) {
@@ -14,7 +15,7 @@ struct UsageEventIndex: Sendable {
     }
 
     var counts: [UsageProvider: Int] {
-        [.codex: codex.count, .claude: claude.count, .piAgent: piAgent.count]
+        [.codex: codex.count, .claude: claude.count, .piAgent: piAgent.count, .grok: grok.count]
     }
 
     var unpricedModelIDs: [String] {
@@ -25,6 +26,7 @@ struct UsageEventIndex: Sendable {
         codex.map { .codex(id: $0.key, usage: $0.value) }
             + claude.map { .claude(id: $0.key, revision: $0.value) }
             + piAgent.map { .piAgent(entryID: $0.key, usage: $0.value) }
+            + grok.map { .grok(id: $0.key, usage: $0.value) }
     }
 
     mutating func insert(_ outcome: UsageLineOutcome) {
@@ -47,6 +49,11 @@ struct UsageEventIndex: Sendable {
                 return
             }
             piAgent[entryID] = usage
+        case .event(.grok(let id, let usage)):
+            guard grok[id] == nil else {
+                return
+            }
+            grok[id] = usage
         case .unpricedModel(let id, let timestamp):
             unpricedModels[id] = max(unpricedModels[id] ?? .distantPast, timestamp)
         }
@@ -58,6 +65,7 @@ struct UsageEventIndex: Sendable {
             candidate.isPreferred(over: current) ? candidate : current
         }
         piAgent.merge(other.piAgent) { current, _ in current }
+        grok.merge(other.grok) { current, _ in current }
         unpricedModels.merge(other.unpricedModels) { current, candidate in max(current, candidate) }
     }
 
@@ -66,6 +74,7 @@ struct UsageEventIndex: Sendable {
         codex = codex.filter { $0.value.timestamp >= historyStart }
         claude = claude.filter { $0.value.usage.timestamp >= historyStart }
         piAgent = piAgent.filter { $0.value.timestamp >= historyStart }
+        grok = grok.filter { $0.value.timestamp >= historyStart }
         unpricedModels = unpricedModels.filter { $0.value >= historyStart }
     }
 }

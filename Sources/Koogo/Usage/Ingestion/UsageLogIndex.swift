@@ -66,6 +66,7 @@ private struct TrackedUsageFile: Sendable {
             case .codex: CodexLogParser()
             case .claude: ClaudeLogParser()
             case .piAgent: PiLogParser()
+            case .grok: GrokLogParser()
             }
         eventIndex = UsageEventIndex(since: historyStart)
         guard readBytes(handle, in: 0..<metadata.size) else {
@@ -193,7 +194,7 @@ private struct TrackedUsageFile: Sendable {
     }
 }
 
-/// Every `.jsonl` file under the provider log roots, tracked across refreshes.
+/// Every `.jsonl` file under the enabled providers' log roots, tracked across refreshes.
 struct UsageLogIndex {
     private let roots: [UsageLogLocation]
     private var trackedFiles: [String: TrackedUsageFile] = [:]
@@ -214,7 +215,8 @@ struct UsageLogIndex {
     }
 
     var trackedFileCounts: [UsageProvider: Int] {
-        trackedFiles.values.reduce(into: [.codex: 0, .claude: 0, .piAgent: 0]) { counts, tracked in
+        let empty = Dictionary(uniqueKeysWithValues: UsageProvider.allCases.map { ($0, 0) })
+        return trackedFiles.values.reduce(into: empty) { counts, tracked in
             counts[tracked.location.provider, default: 0] += 1
         }
     }
@@ -228,8 +230,9 @@ struct UsageLogIndex {
         return merged
     }
 
-    /// updates tracked files and reports whether the usage report may need rebuilding.
-    mutating func refresh(since historyStart: Date) -> Bool {
+    /// updates the tracked files of `providers`, drops all others, and reports whether the usage
+    /// report may need rebuilding.
+    mutating func refresh(since historyStart: Date, providers: Set<UsageProvider>) -> Bool {
         var changed = false
         if historyStart < indexedFrom {
             trackedFiles.removeAll(keepingCapacity: true)
@@ -242,12 +245,12 @@ struct UsageLogIndex {
             }
             changed = true
         }
-        changed = scanLogs(since: historyStart) || changed
+        changed = scanLogs(roots.filter { providers.contains($0.provider) }, since: historyStart) || changed
         indexedFrom = historyStart
         return changed
     }
 
-    private mutating func scanLogs(since historyStart: Date) -> Bool {
+    private mutating func scanLogs(_ roots: [UsageLogLocation], since historyStart: Date) -> Bool {
         var seenPaths = Set<String>()
         var newFiles: [UsageLogLocation] = []
         var changed = false
@@ -264,7 +267,10 @@ struct UsageLogIndex {
                     changed = tracked.refresh(observed: metadata) || changed
                     trackedFiles[path] = tracked
                 } else {
-                    newFiles.append(UsageLogLocation(provider: root.provider, url: URL(fileURLWithPath: path)))
+                    let url = URL(fileURLWithPath: path)
+                    if root.provider != .grok || GrokLogParser.isUsageLog(url) {
+                        newFiles.append(UsageLogLocation(provider: root.provider, url: url))
+                    }
                 }
             }
         }

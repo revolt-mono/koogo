@@ -16,22 +16,42 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
         let service = UsageService(locations: locations, calendar: calendar)
         let snapshot = await service.refresh(at: now).snapshot
 
-        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
+        XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 120)
         XCTAssertEqual(
-            snapshot.codex.favorite,
+            snapshot.providers[.codex]?.favorite,
             ProviderUsageSnapshot.Favorite(
                 modelName: "GPT 5.6 Sol",
                 reasoningEffort: "high"
             )
         )
-        XCTAssertEqual(snapshot.claude.today.processedTokens, 50)
+        XCTAssertEqual(snapshot.providers[.claude]?.today.processedTokens, 50)
         XCTAssertEqual(
-            snapshot.claude.favorite,
+            snapshot.providers[.claude]?.favorite,
             ProviderUsageSnapshot.Favorite(
                 modelName: "Opus 5",
                 reasoningEffort: nil
             )
         )
+    }
+
+    func testDisabledProvidersAreNeitherScannedNorSummarized() async throws {
+        try workspace.write(
+            codexLog(input: 100, output: 20),
+            to: locations.logs.codex.sessions.appending(path: "session.jsonl")
+        )
+        try workspace.write(claudeLog(output: 40), to: locations.logs.claudeProjects.appending(path: "main.jsonl"))
+        let service = UsageService(locations: locations, calendar: calendar)
+
+        let all = await service.refresh(at: now)
+        let codexOnly = await service.refresh(at: now, providers: [.codex])
+        // Enabling a provider without logs changes no files but still adds its card.
+        let codexAndGrok = await service.refresh(at: now, providers: [.codex, .grok])
+
+        XCTAssertEqual(all.snapshot.summary.today.current.processedTokens, 170)
+        XCTAssertEqual(Set(codexOnly.snapshot.providers.keys), [.codex])
+        XCTAssertEqual(codexOnly.snapshot.summary.today.current.processedTokens, 120)
+        XCTAssertEqual(codexOnly.ingestion.trackedFiles[.claude], 0)
+        XCTAssertEqual(Set(codexAndGrok.snapshot.providers.keys), [.codex, .grok])
     }
 
     func testRefreshRebuildsSnapshotForNewDay() async throws {
@@ -45,9 +65,9 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
         let nextDay = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
         let refreshed = await service.refresh(at: nextDay).snapshot
 
-        XCTAssertEqual(current.codex.today.processedTokens, 120)
-        XCTAssertEqual(refreshed.codex.today, UsagePeriodSnapshot())
-        XCTAssertEqual(refreshed.codex.week.processedTokens, 120)
+        XCTAssertEqual(current.providers[.codex]?.today.processedTokens, 120)
+        XCTAssertEqual(refreshed.providers[.codex]?.today, UsagePeriodSnapshot())
+        XCTAssertEqual(refreshed.providers[.codex]?.week.processedTokens, 120)
     }
 
     func testUnknownModelIsIgnoredCompletely() async throws {
@@ -57,9 +77,9 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
 
         let report = await service.refresh(at: now)
 
-        XCTAssertEqual(report.snapshot.codex.month, UsagePeriodSnapshot())
-        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0])
-        XCTAssertEqual(report.ingestion.events, [.codex: 0, .claude: 0, .piAgent: 0])
+        XCTAssertEqual(report.snapshot.providers[.codex]?.month, UsagePeriodSnapshot())
+        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0, .grok: 0])
+        XCTAssertEqual(report.ingestion.events, [.codex: 0, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.unpricedModels, ["unknown-model"])
     }
 
@@ -78,7 +98,7 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
 
         let report = await service.refresh(at: now)
 
-        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0])
+        XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.unpricedModels, [])
     }
 
@@ -109,7 +129,7 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
 
         let snapshot = await service.refresh(at: now).snapshot
 
-        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
+        XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 120)
     }
 
     func testFileLastWrittenBeforeHistoryWindowIsSkippedUntilAppended() async throws {
@@ -123,7 +143,7 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
 
         let skipped = await service.refresh(at: now)
         XCTAssertEqual(skipped.ingestion.trackedFiles[.codex], 0)
-        XCTAssertEqual(skipped.snapshot.codex.today, UsagePeriodSnapshot())
+        XCTAssertEqual(skipped.snapshot.providers[.codex]?.today, UsagePeriodSnapshot())
 
         try workspace.append(
             codexToken(
@@ -137,7 +157,7 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
         )
         let appended = await service.refresh(at: now)
         XCTAssertEqual(appended.ingestion.trackedFiles[.codex], 1)
-        XCTAssertEqual(appended.snapshot.codex.today.processedTokens, 180)
+        XCTAssertEqual(appended.snapshot.providers[.codex]?.today.processedTokens, 180)
     }
 
     func testColdScanRetainsComparisonPeriodsAndDiscardsOlderHistory() async throws {
@@ -177,7 +197,7 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
         XCTAssertEqual(snapshot.summary.month.costChange, .decrease(fraction: Decimal(1) / 2))
-        XCTAssertEqual(snapshot.codex.favorite?.modelName, "GPT 5.6 Sol")
+        XCTAssertEqual(snapshot.providers[.codex]?.favorite?.modelName, "GPT 5.6 Sol")
     }
 
     func testClaudePartialsAndCopiesWithoutStableIDsAreIgnored() async throws {
@@ -189,6 +209,6 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
 
         let snapshot = await service.refresh(at: now).snapshot
 
-        XCTAssertEqual(snapshot.claude.month, UsagePeriodSnapshot())
+        XCTAssertEqual(snapshot.providers[.claude]?.month, UsagePeriodSnapshot())
     }
 }

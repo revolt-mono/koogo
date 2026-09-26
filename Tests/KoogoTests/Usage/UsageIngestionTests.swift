@@ -19,11 +19,11 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         )
         try workspace.append(appended, to: log)
         let beforeNewline = await service.refresh(at: now).snapshot
-        XCTAssertEqual(beforeNewline.codex.today.processedTokens, 120)
+        XCTAssertEqual(beforeNewline.providers[.codex]?.today.processedTokens, 120)
 
         try workspace.append("\n", to: log)
         let afterNewline = await service.refresh(at: now).snapshot
-        XCTAssertEqual(afterNewline.codex.today.processedTokens, 180)
+        XCTAssertEqual(afterNewline.providers[.codex]?.today.processedTokens, 180)
     }
 
     func testArchiveCopyDoesNotDoubleCountAndReplacementDropsRemovedEvents() async throws {
@@ -36,12 +36,12 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let archived = locations.logs.codex.archivedSessions.appending(path: "session.jsonl")
         try workspace.write(contents, to: archived)
         let copied = await service.refresh(at: now).snapshot
-        XCTAssertEqual(copied.codex.today.processedTokens, 120)
+        XCTAssertEqual(copied.providers[.codex]?.today.processedTokens, 120)
 
         try workspace.write(codexLog(input: 40, output: 10, thread: "replacement"), to: active)
         try FileManager.default.removeItem(at: archived)
         let replaced = await service.refresh(at: now).snapshot
-        XCTAssertEqual(replaced.codex.today.processedTokens, 50)
+        XCTAssertEqual(replaced.providers[.codex]?.today.processedTokens, 50)
     }
 
     func testColdScanIgnoresJSONLSymlinks() async throws {
@@ -55,7 +55,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         let snapshot = await service.refresh(at: now).snapshot
 
-        XCTAssertEqual(snapshot.codex.month, UsagePeriodSnapshot())
+        XCTAssertEqual(snapshot.providers[.codex]?.month, UsagePeriodSnapshot())
     }
 
     func testColdScanParsesLinesAcrossReadChunks() async throws {
@@ -69,7 +69,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         let snapshot = await service.refresh(at: now).snapshot
 
-        XCTAssertEqual(snapshot.codex.today.processedTokens, 120)
+        XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 120)
     }
 
     func testShrunkFileIsRereadAndDeletedFileDropsItsEvents() async throws {
@@ -80,11 +80,11 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         try workspace.write(codexLog(input: 40, output: 10, thread: "t"), to: log)
         let shrunk = await service.refresh(at: now).snapshot
-        XCTAssertEqual(shrunk.codex.today.processedTokens, 50)
+        XCTAssertEqual(shrunk.providers[.codex]?.today.processedTokens, 50)
 
         try FileManager.default.removeItem(at: log)
         let deleted = await service.refresh(at: now).snapshot
-        XCTAssertEqual(deleted.codex.today, UsagePeriodSnapshot())
+        XCTAssertEqual(deleted.providers[.codex]?.today, UsagePeriodSnapshot())
     }
 
     func testSameSizeRewriteWithNewModificationDateIsReread() async throws {
@@ -100,7 +100,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         )
         let rewritten = await service.refresh(at: now).snapshot
 
-        XCTAssertEqual(rewritten.codex.today.processedTokens, 340)
+        XCTAssertEqual(rewritten.providers[.codex]?.today.processedTokens, 340)
     }
 
     func testHistoryWindowMovingForwardDiscardsOlderEvents() async throws {
@@ -113,7 +113,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let september = await service.refresh(at: nextMonth)
 
         XCTAssertEqual(september.ingestion.events[.codex], 1)
-        XCTAssertEqual(september.snapshot.codex.month, UsagePeriodSnapshot())
+        XCTAssertEqual(september.snapshot.providers[.codex]?.month, UsagePeriodSnapshot())
         XCTAssertEqual(september.snapshot.summary.month.costChange, .decrease(fraction: 1))
     }
 
@@ -127,7 +127,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let rescanned = await service.refresh(at: july)
 
         XCTAssertEqual(rescanned.ingestion.events[.codex], 2)
-        XCTAssertEqual(rescanned.snapshot.codex.month, UsagePeriodSnapshot())
+        XCTAssertEqual(rescanned.snapshot.providers[.codex]?.month, UsagePeriodSnapshot())
     }
 
     private func writeAugustLog(andOlderLogAt olderTimestamp: String) throws {

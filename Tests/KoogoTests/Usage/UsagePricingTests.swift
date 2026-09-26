@@ -225,4 +225,25 @@ final class UsagePricingTests: XCTestCase {
         XCTAssertEqual(codex.model, .codex(id: "gpt-5.6-sol", name: "GPT 5.6 Sol"))
         XCTAssertEqual(claude.model, .claude(id: "claude-fable-5", name: "Fable 5"))
     }
+
+    func testGrokBuildModelsUseFlatStandardRatesAndFastDoublesThem() throws {
+        // One call with a 1M-token prompt still bills at standard rates.
+        let tokens = try XCTUnwrap(
+            GrokTokenUsage(input: 1_000_000, cachedInput: 400_000, output: 100_000, modelCalls: 1)
+        )
+        let build = try XCTUnwrap(GrokUsagePricing.quote(model: "grok-4.6-build", tokens: tokens))
+        let fast = try XCTUnwrap(GrokUsagePricing.quote(model: "grok-4.7-build-fast", tokens: tokens))
+
+        XCTAssertEqual(build.model, .grok(id: "grok-4.6-build", name: "Grok 4.6"))
+        XCTAssertEqual(build.costUSD, 2)
+        XCTAssertEqual(GrokUsagePricing.quote(model: "grok-4.6", tokens: tokens)?.costUSD, 2)
+        XCTAssertEqual(fast.model, .grok(id: "grok-4.7-build-fast", name: "Grok 4.7 Fast"))
+        XCTAssertEqual(fast.costUSD, 4)
+        XCTAssertEqual(
+            GrokUsagePricing.quote(model: "grok-4.5-build", tokens: tokens)?.costUSD,
+            Decimal(string: "1.92")
+        )
+        XCTAssertNil(GrokUsagePricing.quote(model: "grok-9-build", tokens: tokens))
+        XCTAssertNil(GrokUsagePricing.quote(model: "grok-4.6-fast", tokens: tokens))
+    }
 }

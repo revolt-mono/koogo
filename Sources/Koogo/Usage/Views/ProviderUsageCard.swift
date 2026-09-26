@@ -40,26 +40,30 @@ extension ProviderUsageCard where Accessory == EmptyView {
     }
 }
 
-private extension UsageProvider {
+extension UsageProvider {
     var title: String {
         switch self {
         case .codex: "Codex"
         case .claude: "Claude"
         case .piAgent: "Pi"
+        case .grok: "Grok"
         }
     }
+}
 
+private extension UsageProvider {
     var imageAssetName: String {
         switch self {
         case .codex: "OpenAISymbol"
         case .claude: "ClaudeSymbol"
         case .piAgent: "PiSymbol"
+        case .grok: "GrokSymbol"
         }
     }
 
     var barColor: Color {
         switch self {
-        case .codex: .primary
+        case .codex, .grok: .primary
         case .claude: Color(red: 217.0 / 255, green: 119.0 / 255, blue: 87.0 / 255)
         case .piAgent: .accentColor
         }

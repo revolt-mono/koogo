@@ -95,9 +95,9 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
             calendar: calendar
         )
-        XCTAssertEqual(snapshot.piAgent.month, UsagePeriodSnapshot())
+        XCTAssertEqual(snapshot.providers[.piAgent]?.month, UsagePeriodSnapshot())
         XCTAssertEqual(
-            snapshot.piAgent.favorite,
+            snapshot.providers[.piAgent]?.favorite,
             ProviderUsageSnapshot.Favorite(modelName: "free-model", reasoningEffort: nil)
         )
     }
@@ -118,12 +118,12 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             at: usageTestTimestamp
         ).snapshot
 
-        XCTAssertEqual(snapshot.piAgent.today.processedTokens, 210)
-        XCTAssertEqual(snapshot.piAgent.today.costUSD, Decimal(string: "0.21"))
+        XCTAssertEqual(snapshot.providers[.piAgent]?.today.processedTokens, 210)
+        XCTAssertEqual(snapshot.providers[.piAgent]?.today.costUSD, Decimal(string: "0.21"))
         XCTAssertEqual(snapshot.summary.today.current.processedTokens, 210)
         XCTAssertEqual(snapshot.summary.today.current.costUSD, Decimal(string: "0.21"))
         XCTAssertEqual(
-            snapshot.piAgent.favorite,
+            snapshot.providers[.piAgent]?.favorite,
             ProviderUsageSnapshot.Favorite(
                 modelName: "Readable Model A",
                 reasoningEffort: "high"
@@ -144,7 +144,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         )
         let service = UsageService(locations: locations, calendar: calendar)
         let initial = await service.refresh(at: usageTestTimestamp).snapshot
-        XCTAssertEqual(initial.piAgent.favorite?.modelName, "Initial Name")
+        XCTAssertEqual(initial.providers[.piAgent]?.favorite?.modelName, "Initial Name")
 
         try workspace.write(
             """
@@ -154,7 +154,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         )
         let updated = await service.refresh(at: usageTestTimestamp).snapshot
 
-        XCTAssertEqual(updated.piAgent.favorite?.modelName, "Updated Name")
+        XCTAssertEqual(updated.providers[.piAgent]?.favorite?.modelName, "Updated Name")
     }
 
     func testServiceDeduplicatesForkHistoryDuringColdAndIncrementalScans() async throws {
@@ -162,7 +162,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let service = UsageService(locations: locations, calendar: calendar)
 
         let original = await service.refresh(at: usageTestTimestamp).snapshot
-        XCTAssertEqual(original.piAgent.today.processedTokens, 210)
+        XCTAssertEqual(original.providers[.piAgent]?.today.processedTokens, 210)
 
         let forkHeader = piSessionHeader.replacingOccurrences(
             of: "\"id\":\"session\"",
@@ -184,8 +184,8 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             at: usageTestTimestamp
         ).snapshot
         for snapshot in [incremental, cold] {
-            XCTAssertEqual(snapshot.piAgent.today.processedTokens, 280)
-            XCTAssertEqual(snapshot.piAgent.today.costUSD, Decimal(string: "0.28"))
+            XCTAssertEqual(snapshot.providers[.piAgent]?.today.processedTokens, 280)
+            XCTAssertEqual(snapshot.providers[.piAgent]?.today.costUSD, Decimal(string: "0.28"))
         }
     }
 }

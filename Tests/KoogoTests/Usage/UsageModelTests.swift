@@ -35,16 +35,52 @@ final class UsageModelTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
 
-        XCTAssertEqual(try XCTUnwrap(model.snapshot).codex.today.processedTokens, 120)
+        XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.today.processedTokens, 120)
 
         date.addTimeInterval(86_400)
         model.refresh()
         XCTAssertEqual(clockReads, 2)
         deadline = ContinuousClock.now + .seconds(1)
-        while model.snapshot?.codex.today.processedTokens == 120, ContinuousClock.now < deadline {
+        while model.snapshot?.providers[.codex]?.today.processedTokens == 120, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
-        XCTAssertEqual(try XCTUnwrap(model.snapshot).codex.today.processedTokens, 0)
-        XCTAssertEqual(try XCTUnwrap(model.snapshot).codex.month.processedTokens, 120)
+        XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.today.processedTokens, 0)
+        XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.month.processedTokens, 120)
+    }
+
+    func testDisabledProviderPersistsAndLeavesSnapshotEvenMidRefresh() async throws {
+        let workspace = try UsageTestWorkspace()
+        defer {
+            try? workspace.remove()
+        }
+        try workspace.write(
+            codexLog(input: 100, output: 20),
+            to: workspace.locations.logs.codex.sessions.appending(path: "session.jsonl")
+        )
+        let suiteName = "UsageModelTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let model = UsageModel(
+            usageService: UsageService(locations: workspace.locations, calendar: workspace.calendar),
+            defaults: defaults,
+            now: { usageTestTimestamp }
+        )
+
+        model.refresh()
+        model.setEnabled(false, for: .codex)
+        let deadline = ContinuousClock.now + .seconds(1)
+        while model.snapshot?.providers[.codex] != nil || model.snapshot == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        let snapshot = try XCTUnwrap(model.snapshot)
+        XCTAssertEqual(Set(snapshot.providers.keys), [.claude, .piAgent, .grok])
+        XCTAssertEqual(snapshot.summary.today.current.processedTokens, 0)
+        XCTAssertEqual(
+            UsageModel(usageService: UsageService(), defaults: defaults).enabledProviders,
+            [.claude, .piAgent, .grok]
+        )
     }
 }

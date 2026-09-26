@@ -5,11 +5,24 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(UpdateModel.self) private var updateModel
     @Environment(BreakReminderModel.self) private var breakReminderModel
+    @Environment(UsageModel.self) private var usageModel
 
     var body: some View {
         Form {
             Section("Break Reminder") {
                 BreakReminderIntervalPicker()
+            }
+
+            Section("Providers") {
+                ForEach(UsageProvider.allCases, id: \.self) { provider in
+                    Toggle(
+                        provider.title,
+                        isOn: Binding(
+                            get: { usageModel.enabledProviders.contains(provider) },
+                            set: { usageModel.setEnabled($0, for: provider) }
+                        )
+                    )
+                }
             }
 
             Section("System") {
@@ -21,7 +34,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 300)
+        .frame(width: 440, height: 440)
         .onAppear {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate()

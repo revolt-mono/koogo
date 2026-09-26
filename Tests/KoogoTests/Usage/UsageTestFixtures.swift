@@ -18,7 +18,8 @@ struct UsageTestWorkspace {
         let claudeProjects = root.appending(path: "claude/projects", directoryHint: .isDirectory)
         let piAgent = root.appending(path: "pi", directoryHint: .isDirectory)
         let piSessions = piAgent.appending(path: "sessions", directoryHint: .isDirectory)
-        for directory in [codexSessions, codexArchive, claudeProjects, piSessions] {
+        let grokSessions = root.appending(path: "grok/sessions", directoryHint: .isDirectory)
+        for directory in [codexSessions, codexArchive, claudeProjects, piSessions, grokSessions] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         locations = UsageLocations(
@@ -28,7 +29,8 @@ struct UsageTestWorkspace {
                     archivedSessions: codexArchive
                 ),
                 claudeProjects: claudeProjects,
-                piAgent: piSessions
+                piAgent: piSessions,
+                grokSessions: grokSessions
             ),
             piModels: UsageLocations.PiModels(
                 custom: piAgent.appending(path: "models.json"),
@@ -140,6 +142,8 @@ func usageEvent(
         )
     case .piAgent:
         return .piAgent(entryID: "entry-\(id)", usage: usage)
+    case .grok:
+        return .grok(id: UsageEvent.GrokID(eventID: "event-\(id)", timestamp: eventDate), usage: usage)
     }
 }
 

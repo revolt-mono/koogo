@@ -46,7 +46,7 @@ Each feature is a vertical slice that owns its state, services, and views; only 
 │   ├── Usage           log ingestion, pricing, aggregation, and usage views
 │   │   ├── Aggregation calendar-based snapshots and summaries
 │   │   ├── Ingestion   incremental log reading, parsing, and event indexing
-│   │   ├── Providers   Claude, Codex, and Pi Agent adapters and pricing
+│   │   ├── Providers   Claude, Codex, Grok, and Pi Agent adapters and pricing
 │   │   └── Views       summary, provider cards, and chart
 │   ├── Quota           Codex quota transport, session, reset flow, and views
 │   ├── QuickActions    system quick-action adapters and views

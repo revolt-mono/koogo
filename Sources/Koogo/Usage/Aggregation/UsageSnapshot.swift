@@ -83,29 +83,24 @@ struct UsageSummarySnapshot: Sendable, Encodable {
 
 struct UsageSnapshot: Sendable, Encodable {
     let summary: UsageSummarySnapshot
-    let codex: ProviderUsageSnapshot
-    let claude: ProviderUsageSnapshot
-    let piAgent: ProviderUsageSnapshot
+    /// Exactly the enabled providers; the summary totals only these.
+    let providers: [UsageProvider: ProviderUsageSnapshot]
 
     init(
-        codex: ProviderUsageSnapshot,
-        claude: ProviderUsageSnapshot,
-        piAgent: ProviderUsageSnapshot,
+        providers: [UsageProvider: ProviderUsageSnapshot],
         previousDay: UsagePeriodSnapshot,
         previousMonth: UsagePeriodSnapshot
     ) {
         summary = UsageSummarySnapshot(
             today: UsageSummaryPeriodSnapshot(
-                current: codex.today + claude.today + piAgent.today,
+                current: providers.values.map(\.today).reduce(UsagePeriodSnapshot(), +),
                 previous: previousDay
             ),
             month: UsageSummaryPeriodSnapshot(
-                current: codex.month + claude.month + piAgent.month,
+                current: providers.values.map(\.month).reduce(UsagePeriodSnapshot(), +),
                 previous: previousMonth
             )
         )
-        self.codex = codex
-        self.claude = claude
-        self.piAgent = piAgent
+        self.providers = providers
     }
 }

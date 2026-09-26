@@ -1,15 +1,17 @@
 import Foundation
 
-enum UsageProvider: String, Sendable, Encodable, CodingKeyRepresentable {
+enum UsageProvider: String, CaseIterable, Sendable, Encodable, CodingKeyRepresentable {
     case codex
     case claude
     case piAgent
+    case grok
 }
 
 enum UsageModelReference: Hashable, Sendable {
     case codex(id: String, name: String)
     case claude(id: String, name: String)
     case piAgent(provider: String, id: String)
+    case grok(id: String, name: String)
 }
 
 struct UsageRecord: Sendable {

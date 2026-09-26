@@ -30,6 +30,7 @@ struct KoogoApp: App {
 
         Settings {
             SettingsView()
+                .environment(usageModel)
                 .environment(updateModel)
                 .environment(breakReminderModel)
                 .fontDesign(.rounded)

@@ -17,11 +17,9 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             intervals: intervals,
             calendar: calendar
         )
-        let total = snapshot.codex.today.costUSD + snapshot.claude.today.costUSD
-
-        XCTAssertEqual(snapshot.codex.today.costUSD, Decimal(string: "0.005"))
-        XCTAssertEqual(snapshot.claude.today.costUSD, Decimal(string: "0.005"))
-        XCTAssertEqual(total, Decimal(string: "0.01"))
+        XCTAssertEqual(snapshot.providers[.codex]?.today.costUSD, Decimal(string: "0.005"))
+        XCTAssertEqual(snapshot.providers[.claude]?.today.costUSD, Decimal(string: "0.005"))
+        XCTAssertEqual(snapshot.summary.today.current.costUSD, Decimal(string: "0.01"))
     }
 
     func testCostChangeUsesStockStyleZeroBaseline() throws {
@@ -130,12 +128,12 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.codex.today.processedTokens, 100)
-        XCTAssertEqual(snapshot.codex.week.processedTokens, 150)
-        XCTAssertEqual(snapshot.codex.month.processedTokens, 150)
-        XCTAssertEqual(snapshot.codex.dailyMonth.range, intervals.month.current)
+        XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 100)
+        XCTAssertEqual(snapshot.providers[.codex]?.week.processedTokens, 150)
+        XCTAssertEqual(snapshot.providers[.codex]?.month.processedTokens, 150)
+        XCTAssertEqual(snapshot.providers[.codex]?.dailyMonth.range, intervals.month.current)
         XCTAssertEqual(
-            snapshot.codex.dailyMonth.days.map(\.usage.processedTokens),
+            snapshot.providers[.codex]?.dailyMonth.days.map(\.usage.processedTokens),
             [50, 100]
         )
     }
@@ -173,9 +171,9 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertEqual(snapshot.codex.today.processedTokens, 100)
-        XCTAssertEqual(snapshot.codex.week.processedTokens, 150)
-        XCTAssertEqual(snapshot.codex.month.processedTokens, 100)
-        XCTAssertEqual(snapshot.codex.dailyMonth.days.map(\.usage.processedTokens), [100])
+        XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 100)
+        XCTAssertEqual(snapshot.providers[.codex]?.week.processedTokens, 150)
+        XCTAssertEqual(snapshot.providers[.codex]?.month.processedTokens, 100)
+        XCTAssertEqual(snapshot.providers[.codex]?.dailyMonth.days.map(\.usage.processedTokens), [100])
     }
 }

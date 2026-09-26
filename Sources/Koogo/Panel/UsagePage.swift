@@ -17,11 +17,18 @@ struct UsagePage: View {
                     QuickActionsControl()
 
                     VStack(spacing: 12) {
-                        ProviderUsageCard(provider: .codex, usage: snapshot.codex) {
-                            CodexQuotaView()
+                        ForEach(UsageProvider.allCases, id: \.self) { provider in
+                            if let usage = snapshot.providers[provider] {
+                                switch provider {
+                                case .codex:
+                                    ProviderUsageCard(provider: provider, usage: usage) {
+                                        CodexQuotaView()
+                                    }
+                                case .claude, .piAgent, .grok:
+                                    ProviderUsageCard(provider: provider, usage: usage)
+                                }
+                            }
                         }
-                        ProviderUsageCard(provider: .claude, usage: snapshot.claude)
-                        ProviderUsageCard(provider: .piAgent, usage: snapshot.piAgent)
                     }
                     // Animated here so sibling cards follow the Codex card as its quota section resizes.
                     .animation(

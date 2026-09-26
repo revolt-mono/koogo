@@ -28,6 +28,12 @@ enum UsageEvent: Sendable {
         let requestID: String
     }
 
+    /// Fork copies keep both fields, while a resumed Grok session can reuse an event id at a new time.
+    struct GrokID: Hashable, Sendable {
+        let eventID: String
+        let timestamp: Date
+    }
+
     struct ClaudeRevision: Sendable {
         let usage: UsageRecord
         let outputTokens: UInt64
@@ -47,18 +53,20 @@ enum UsageEvent: Sendable {
     case codex(id: CodexID, usage: UsageRecord)
     case claude(id: ClaudeID, revision: ClaudeRevision)
     case piAgent(entryID: String, usage: UsageRecord)
+    case grok(id: GrokID, usage: UsageRecord)
 
     var provider: UsageProvider {
         switch self {
         case .codex: .codex
         case .claude: .claude
         case .piAgent: .piAgent
+        case .grok: .grok
         }
     }
 
     var usage: UsageRecord {
         switch self {
-        case .codex(_, let usage), .piAgent(_, let usage): usage
+        case .codex(_, let usage), .piAgent(_, let usage), .grok(_, let usage): usage
         case .claude(_, let revision): revision.usage
         }
     }
