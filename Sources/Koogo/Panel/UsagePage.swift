@@ -52,11 +52,11 @@ struct UsagePage: View {
     }
 }
 
-/// The provider cards scroll on their own, tall enough to show the first two unless the screen is
+/// The provider cards scroll on their own, tall enough to show the first three unless the screen is
 /// shorter, so the totals and quick actions above stay in reach.
 private struct ProviderCards: View {
     /// The gap between cards, reused as the scroll margin and fade band at each edge: at rest both bands
-    /// cover only empty gaps, so the viewport shows exactly the first two cards.
+    /// cover only empty gaps, so the viewport shows exactly the first three cards.
     fileprivate static let spacing: CGFloat = 12
     /// Horizontal card inset; the scroller lives in the trailing one.
     private static let inset: CGFloat = 20
@@ -70,7 +70,7 @@ private struct ProviderCards: View {
 
     var body: some View {
         let shown = UsageProvider.allCases.filter { providers[$0] != nil }
-        let leading = shown.prefix(2)
+        let leading = shown.prefix(3)
         let visibleHeight =
             leading.compactMap { cardHeights[$0] }.reduce(0, +)
             + Self.spacing * CGFloat(max(leading.count - 1, 0) + 2)
