@@ -50,7 +50,9 @@ private struct CodexQuotaResetDetail: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                CodexQuotaRefreshButton()
+                QuotaRefreshButton(isDisabled: model.isRefreshing || model.isResetting) {
+                    model.refresh(force: true)
+                }
             }
             CodexQuotaResetStatusView()
             if model.refreshFailure != nil {

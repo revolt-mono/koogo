@@ -4,6 +4,7 @@ import SwiftUI
 struct KoogoApp: App {
     @State private var usageModel = UsageModel(usageService: UsageService())
     @State private var codexQuotaModel = CodexQuotaModel(quotaService: CodexQuotaService())
+    @State private var grokQuotaModel = GrokQuotaModel(quotaService: GrokQuotaService())
     @State private var updateModel = UpdateModel()
     @State private var breakReminderModel = BreakReminderModel(
         notifications: BreakReminderNotificationCenter()
@@ -19,6 +20,7 @@ struct KoogoApp: App {
             PanelView()
                 .environment(usageModel)
                 .environment(codexQuotaModel)
+                .environment(grokQuotaModel)
                 .environment(updateModel)
                 .environment(breakReminderModel)
                 .environment(inboxModel)

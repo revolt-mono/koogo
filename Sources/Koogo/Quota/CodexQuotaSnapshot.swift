@@ -2,10 +2,10 @@ import Foundation
 
 struct CodexQuotaSnapshot: Equatable, Sendable, Encodable {
     struct Limits: Equatable, Sendable, Encodable {
-        let fiveHour: Window?
-        let weekly: Window?
+        let fiveHour: QuotaWindow?
+        let weekly: QuotaWindow?
 
-        init?(fiveHour: Window?, weekly: Window?) {
+        init?(fiveHour: QuotaWindow?, weekly: QuotaWindow?) {
             guard fiveHour != nil || weekly != nil else {
                 return nil
             }
@@ -56,16 +56,6 @@ struct CodexQuotaSnapshot: Equatable, Sendable, Encodable {
             let title = title.flatMap { $0.isEmpty ? nil : $0 } ?? id
             self.title = title.caseInsensitiveCompare("gpt-reserve") == .orderedSame ? "Reserve quota" : title
             self.limits = limits
-        }
-    }
-
-    struct Window: Equatable, Sendable, Encodable {
-        let remainingPercent: Int
-        let resetsAt: Date?
-
-        init(usedPercent: Int, resetsAt: Date?) {
-            remainingPercent = 100 - min(max(usedPercent, 0), 100)
-            self.resetsAt = resetsAt
         }
     }
 

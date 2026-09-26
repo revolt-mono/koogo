@@ -22,7 +22,8 @@ final class SystemReportTests: XCTestCase {
 
         let data = try await SystemReport.generate(
             locations: usageWorkspace.locations,
-            quotaService: CodexQuotaService(executableURL: executable),
+            codexQuotaService: CodexQuotaService(executableURL: executable),
+            grokQuotaService: GrokQuotaService(authURL: usageWorkspace.root.appending(path: "missing-auth.json")),
             at: usageTestTimestamp
         )
         let report = try XCTUnwrap(
@@ -43,9 +44,13 @@ final class SystemReportTests: XCTestCase {
         XCTAssertNotNil(usage["snapshot"])
 
         let quota = try XCTUnwrap(report["quota"] as? [String: Any])
-        XCTAssertEqual(quota["state"] as? String, "available")
-        XCTAssertNotNil(quota["snapshot"])
-        XCTAssertNil(quota["reason"])
+        let codex = try XCTUnwrap(quota["codex"] as? [String: Any])
+        XCTAssertEqual(codex["state"] as? String, "available")
+        XCTAssertNotNil(codex["snapshot"])
+        XCTAssertNil(codex["reason"])
+        let grok = try XCTUnwrap(quota["grok"] as? [String: Any])
+        XCTAssertEqual(grok["state"] as? String, "unavailable")
+        XCTAssertEqual(grok["reason"] as? String, "signedOut")
     }
 
     func testReportCarriesQuotaUnavailabilityReason() async throws {
@@ -55,7 +60,8 @@ final class SystemReportTests: XCTestCase {
 
         let data = try await SystemReport.generate(
             locations: usageWorkspace.locations,
-            quotaService: CodexQuotaService(executableURL: missing),
+            codexQuotaService: CodexQuotaService(executableURL: missing),
+            grokQuotaService: GrokQuotaService(authURL: missing),
             at: usageTestTimestamp
         )
         let report = try XCTUnwrap(
@@ -63,8 +69,9 @@ final class SystemReportTests: XCTestCase {
         )
 
         let quota = try XCTUnwrap(report["quota"] as? [String: Any])
-        XCTAssertEqual(quota["state"] as? String, "unavailable")
-        XCTAssertEqual(quota["reason"] as? String, "sessionFailed")
-        XCTAssertNil(quota["snapshot"])
+        let codex = try XCTUnwrap(quota["codex"] as? [String: Any])
+        XCTAssertEqual(codex["state"] as? String, "unavailable")
+        XCTAssertEqual(codex["reason"] as? String, "sessionFailed")
+        XCTAssertNil(codex["snapshot"])
     }
 }

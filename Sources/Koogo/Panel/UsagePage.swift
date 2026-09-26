@@ -2,10 +2,11 @@ import Shimmer
 import SwiftUI
 
 /// The usage page composes three features: usage summary and provider cards,
-/// quick actions, and the Codex quota folded into the Codex card.
+/// quick actions, and the Codex and Grok quotas folded into their cards.
 struct UsagePage: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
+    @Environment(GrokQuotaModel.self) private var grokQuotaModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -24,17 +25,19 @@ struct UsagePage: View {
                                     ProviderUsageCard(provider: provider, usage: usage) {
                                         CodexQuotaView()
                                     }
-                                case .claude, .piAgent, .grok:
+                                case .grok:
+                                    ProviderUsageCard(provider: provider, usage: usage) {
+                                        GrokQuotaView()
+                                    }
+                                case .claude, .piAgent:
                                     ProviderUsageCard(provider: provider, usage: usage)
                                 }
                             }
                         }
                     }
-                    // Animated here so sibling cards follow the Codex card as its quota section resizes.
-                    .animation(
-                        reduceMotion ? nil : .smooth(duration: 0.25),
-                        value: codexQuotaModel.state
-                    )
+                    // Animated here so sibling cards follow a card as its quota section resizes.
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: codexQuotaModel.state)
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: grokQuotaModel.state)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 32)

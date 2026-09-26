@@ -51,7 +51,7 @@ private struct CodexRateLimitSnapshot: Decodable {
         case secondary
     }
 
-    private func window(around expectedMinutes: Int64) -> CodexQuotaSnapshot.Window? {
+    private func window(around expectedMinutes: Int64) -> QuotaWindow? {
         guard
             let window = [primary, secondary].compactMap({ $0 }).first(where: {
                 guard let duration = $0.windowDurationMinutes else {
@@ -62,7 +62,7 @@ private struct CodexRateLimitSnapshot: Decodable {
         else {
             return nil
         }
-        return CodexQuotaSnapshot.Window(usedPercent: window.usedPercent, resetsAt: window.resetsAt)
+        return QuotaWindow(usedPercent: window.usedPercent, resetsAt: window.resetsAt)
     }
 }
 

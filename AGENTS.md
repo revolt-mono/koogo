@@ -30,7 +30,7 @@
 
 ## Observability
 
-- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file and event counts, unpriced model ids, the full usage snapshot, and the Codex quota outcome with a typed reason. Prefer it over screenshots when verifying pipeline behavior.
+- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file and event counts, unpriced model ids, the full usage snapshot, and the Codex and Grok quota outcomes with typed reasons. Prefer it over screenshots when verifying pipeline behavior.
 - Parsing failures are silent by design; events dropped for missing pricing surface only as `unpricedModels` in the report and as telemetry warnings.
 - Runtime telemetry logs under subsystem `com.revolt.koogo` (categories `usage`, `quota`); stream it with `script/build_and_run.sh telemetry`.
 
@@ -48,7 +48,7 @@ Each feature is a vertical slice that owns its state, services, and views; only 
 │   │   ├── Ingestion   incremental log reading, parsing, and event indexing
 │   │   ├── Providers   Claude, Codex, Grok, and Pi Agent adapters and pricing
 │   │   └── Views       summary, provider cards, and chart
-│   ├── Quota           Codex quota transport, session, reset flow, and views
+│   ├── Quota           Codex and Grok quota transports, Codex reset flow, and views
 │   ├── QuickActions    system quick-action adapters and views
 │   ├── BreakReminder   countdown state, notifications, and controls
 │   ├── Inbox           todo state and editors

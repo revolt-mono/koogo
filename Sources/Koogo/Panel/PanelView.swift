@@ -5,6 +5,7 @@ import SwiftUI
 struct PanelView: View {
     @Environment(UsageModel.self) private var usageModel
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
+    @Environment(GrokQuotaModel.self) private var grokQuotaModel
     @Environment(BreakReminderModel.self) private var breakReminderModel
     @State private var toolbarHeight: CGFloat = 0
 
@@ -45,6 +46,9 @@ struct PanelView: View {
         .task {
             if usageModel.enabledProviders.contains(.codex) {
                 codexQuotaModel.refresh()
+            }
+            if usageModel.enabledProviders.contains(.grok) {
+                grokQuotaModel.refresh()
             }
             usageModel.refresh()
             await breakReminderModel.perform(.reconcile)
