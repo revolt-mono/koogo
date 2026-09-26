@@ -27,23 +27,19 @@ struct CodexLogParser: UsageLogParser {
     mutating func parse(
         _ line: Data,
         decoder: JSONDecoder
-    ) -> UsageLineOutcome? {
-        guard let record = try? decoder.decode(CodexLogRecord.self, from: line) else {
-            return nil
-        }
-
-        switch record {
+    ) throws -> UsageLineOutcome? {
+        switch try decoder.decode(CodexLogRecord.self, from: line) {
         case .turnContext(let turn):
             self.turn = turn
         case .tokenCount(let tokenCount):
-            return parseTokenCount(tokenCount)
+            return try parseTokenCount(tokenCount)
         case .other:
             break
         }
         return nil
     }
 
-    private mutating func parseTokenCount(_ record: CodexTokenCount) -> UsageLineOutcome? {
+    private mutating func parseTokenCount(_ record: CodexTokenCount) throws -> UsageLineOutcome? {
         let lastUsage = record.info.lastTokenUsage
         let totalUsage = record.info.totalTokenUsage
 
@@ -54,8 +50,11 @@ struct CodexLogParser: UsageLogParser {
         guard lastUsage.input > 0 || lastUsage.output > 0, previousTotalUsage != totalUsage else {
             return nil
         }
-        guard let timestamp = parseUsageTimestamp(record.timestamp), let turn else {
+        guard let turn else {
             return nil
+        }
+        guard let timestamp = parseUsageTimestamp(record.timestamp) else {
+            throw MalformedUsageRecord()
         }
         guard let quote = CodexUsagePricing.quote(model: turn.model, tokens: lastUsage) else {
             return .unpricedModel(id: turn.model, timestamp: timestamp)

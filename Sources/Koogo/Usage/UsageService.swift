@@ -53,6 +53,11 @@ actor UsageService {
             duration=\(ContinuousClock.now - started, privacy: .public)
             """
         )
+        let malformed = ingestion.malformedLines.filter { $0.value > 0 }
+        if !malformed.isEmpty {
+            let counts = malformed.map { "\($0.key.rawValue)=\($0.value)" }.sorted().joined(separator: ",")
+            Telemetry.usage.warning("dropped malformed lines: \(counts, privacy: .public)")
+        }
         if !ingestion.unpricedModels.isEmpty {
             let models = ingestion.unpricedModels.joined(separator: ",")
             Telemetry.usage.warning("dropped events without a price: \(models, privacy: .public)")

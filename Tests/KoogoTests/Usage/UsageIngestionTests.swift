@@ -239,6 +239,33 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         XCTAssertEqual(report.ingestion.unpricedModels, [])
     }
 
+    func testReportCountsMalformedRecordsButNotOtherRecordKinds() async throws {
+        let request = codexUsage(input: 100, output: 20)
+        try workspace.write(
+            [
+                codexMeta(),
+                codexTurn(),
+                codexTokenCount(last: request, total: request)
+                    .replacingOccurrences(of: #""last_token_usage":\#(request),"#, with: ""),
+                codexTokenCount(last: request, total: request),
+                "",
+            ].joined(separator: "\n"),
+            to: workspace.codexSessions.appending(path: "session.jsonl")
+        )
+        // Older Claude Code versions nest assistant replies, usage included, inside progress records.
+        let progress = #"{"type":"progress","data":{"message":{"type":"assistant","message":{"usage":{}}}}}"#
+        try workspace.write(
+            progress + "\n" + claudeLog(output: 40),
+            to: workspace.claudeProjects.appending(path: "project/session.jsonl")
+        )
+
+        let report = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now)
+
+        XCTAssertEqual(report.ingestion.malformedLines, [.codex: 1, .claude: 0, .piAgent: 0, .grok: 0])
+        XCTAssertEqual(report.snapshot.providers[.codex]?.today.processedTokens, 120)
+        XCTAssertEqual(report.snapshot.providers[.claude]?.today.processedTokens, 50)
+    }
+
     func testHistoryWindowMovingForwardDiscardsOlderEvents() async throws {
         try writeAugustLog(andOlderLogAt: "2026-07-25T17:00:00.000Z")
         let service = UsageService(locations: locations, calendar: usageTestCalendar)

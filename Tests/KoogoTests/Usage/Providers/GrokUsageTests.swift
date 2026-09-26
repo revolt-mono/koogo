@@ -8,7 +8,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         var parser = GrokLogParser()
 
         let event = try XCTUnwrap(
-            parse(
+            try parse(
                 grokTurn(
                     eventID: "session-1",
                     models: ["grok-4.6-build": GrokModelRow(calls: 10), "grok-4.7-build-fast": GrokModelRow(calls: 6)]
@@ -36,7 +36,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         ]
 
         for line in lines {
-            XCTAssertNil(parse(line, with: &parser))
+            XCTAssertNil(try parse(line, with: &parser))
         }
     }
 

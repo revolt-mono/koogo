@@ -7,24 +7,24 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     func testParserUsesBranchLocalThinkingAndLoggedUsage() throws {
         var parser = PiLogParser()
         for record in [piSessionHeader, piThinking(id: "high", parentID: nil, level: "high"), piUser] {
-            XCTAssertNil(parse(record, with: &parser))
+            XCTAssertNil(try parse(record, with: &parser))
         }
         let usage = { (cost: String) in piUsage(input: 40, output: 20, cacheRead: 30, cacheWrite: 10, cost: cost) }
         let first = try XCTUnwrap(
-            parse(
+            try parse(
                 piAssistant(id: "first", parentID: "user", model: "model-a", usage: usage("0.125")),
                 with: &parser
             )?.event
         )
-        XCTAssertNil(parse(piThinking(id: "low", parentID: "high", level: "low"), with: &parser))
+        XCTAssertNil(try parse(piThinking(id: "low", parentID: "high", level: "low"), with: &parser))
         let lowBranch = try XCTUnwrap(
-            parse(
+            try parse(
                 piAssistant(id: "second", parentID: "low", model: "model-b", usage: usage("0.25")),
                 with: &parser
             )?.event
         )
         let highBranch = try XCTUnwrap(
-            parse(
+            try parse(
                 piAssistant(id: "third", parentID: "first", model: "model-a", usage: usage("0.5")),
                 with: &parser
             )?.event
@@ -40,7 +40,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
 
     func testParserIncludesAuxiliaryUsageWithoutFavoriteMetadata() throws {
         var parser = PiLogParser()
-        _ = parse(piSessionHeader, with: &parser)
+        _ = try parse(piSessionHeader, with: &parser)
         let records = [
             """
             {"type":"message","id":"tool","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","message":{"role":"toolResult","timestamp":1787680800000,"usage":\(piUsage(input: 10, cost: "0.01"))}}
@@ -52,7 +52,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             {"type":"branch_summary","id":"summary","parentId":"compaction","timestamp":"2026-08-25T12:00:00.000Z","usage":\(piUsage(input: 30, cost: "0.03"))}
             """,
         ]
-        let events = try records.map { try XCTUnwrap(parse($0, with: &parser)?.event) }
+        let events = try records.map { try XCTUnwrap(try parse($0, with: &parser)?.event) }
 
         XCTAssertEqual(events.map(\.usage.processedTokens), [10, 20, 30])
         XCTAssertTrue(events.allSatisfy { $0.usage.modelTurn == nil })
@@ -65,14 +65,14 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             {"type":"compaction","id":"compaction","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","usage":{"input":10,"output":20,"cacheRead":30,"cacheWrite":40,"totalTokens":125,"cost":{"total":1}}}
             """
 
-        XCTAssertEqual(try XCTUnwrap(parse(log, with: &parser)?.event).usage.processedTokens, 125)
+        XCTAssertEqual(try XCTUnwrap(try parse(log, with: &parser)?.event).usage.processedTokens, 125)
     }
 
     func testParserKeepsZeroUsageAssistantTurnsForFavorites() throws {
         var parser = PiLogParser()
 
         let event = try XCTUnwrap(
-            parse(
+            try parse(
                 piAssistant(id: "free", parentID: nil, model: "free-model", usage: piUsage(input: 0, cost: "0")),
                 with: &parser
             )?.event

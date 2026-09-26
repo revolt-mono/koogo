@@ -15,18 +15,23 @@ struct ClaudeLogParser: UsageLogParser {
         Self.eventMarkers.allSatisfy { line.contains($0) }
     }
 
-    func parse(_ line: Data, decoder: JSONDecoder) -> UsageLineOutcome? {
+    func parse(_ line: Data, decoder: JSONDecoder) throws -> UsageLineOutcome? {
+        guard case .assistant(let record) = try decoder.decode(ClaudeLogRecord.self, from: line) else {
+            return nil
+        }
+        let usage = record.message.usage
+        // Claude Code logs its own synthetic replies, such as API errors, with zero usage and often no request id.
+        guard usage.tokens.processed > 0 || usage.webSearchRequests > 0 else {
+            return nil
+        }
         guard
-            let record = try? decoder.decode(ClaudeLogRecord.self, from: line),
-            record.type == .assistant,
             let timestamp = parseUsageTimestamp(record.timestamp),
             let messageID = nonEmpty(record.message.id),
             let requestID = nonEmpty(record.requestID),
             let model = nonEmpty(record.message.model)
         else {
-            return nil
+            throw MalformedUsageRecord()
         }
-        let usage = record.message.usage
         let isFast: Bool
         switch usage.speed {
         case nil, "standard": isFast = false
@@ -78,15 +83,30 @@ struct ClaudeLogParser: UsageLogParser {
     }
 }
 
-private struct ClaudeLogRecord: Decodable {
-    let type: ClaudeRecordKind
+private enum ClaudeLogRecord: Decodable {
+    case assistant(ClaudeAssistantRecord)
+    case other
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(ClaudeRecordKind.self, forKey: .type) {
+        case .assistant: self = .assistant(try ClaudeAssistantRecord(from: decoder))
+        case .other: self = .other
+        }
+    }
+}
+
+private struct ClaudeAssistantRecord: Decodable {
     let timestamp: String
-    let requestID: String
+    let requestID: String?
     let effort: String?
     let message: ClaudeMessage
 
     private enum CodingKeys: String, CodingKey {
-        case type
         case timestamp
         case requestID = "requestId"
         case effort

@@ -6,14 +6,14 @@ import XCTest
 final class CodexUsageTests: UsageWorkspaceTestCase {
     func testCodexUsesRequestUsageAndSkipsRepeatedSnapshots() throws {
         var parser = CodexLogParser()
-        XCTAssertNil(parse(codexMeta(), with: &parser))
-        XCTAssertNil(parse(codexTurn(), with: &parser))
+        XCTAssertNil(try parse(codexMeta(), with: &parser))
+        XCTAssertNil(try parse(codexTurn(), with: &parser))
 
         let request = codexUsage(input: 100, output: 20)
-        let first = try XCTUnwrap(parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
-        XCTAssertNil(parse(codexTokenCount(last: request, total: request), with: &parser))
+        let first = try XCTUnwrap(try parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
+        XCTAssertNil(try parse(codexTokenCount(last: request, total: request), with: &parser))
         let second = try XCTUnwrap(
-            parse(
+            try parse(
                 codexTokenCount(last: codexUsage(input: 150, output: 30), total: codexUsage(input: 250, output: 50)),
                 with: &parser
             )?.event
@@ -27,9 +27,9 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     func testCodexValidRequestSurvivesAnIncompletePreviousTokenCount() throws {
         var parser = codexParserInTurn()
         let request = codexUsage(input: 100, output: 20)
-        let first = try XCTUnwrap(parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
+        let first = try XCTUnwrap(try parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
         XCTAssertNil(
-            parse(
+            try parse(
                 """
                 {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"token_count"}}
                 """,
@@ -37,7 +37,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             )
         )
         let third = try XCTUnwrap(
-            parse(
+            try parse(
                 codexTokenCount(last: codexUsage(input: 50, output: 10), total: codexUsage(input: 200, output: 40)),
                 with: &parser
             )?.event
@@ -49,12 +49,12 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     func testCodexTracksCumulativeBaselineBeforeTheFirstTurnContext() throws {
         var parser = CodexLogParser()
         let baseline = codexUsage(input: 100, output: 20)
-        XCTAssertNil(parse(codexMeta(), with: &parser))
-        XCTAssertNil(parse(codexTokenCount(last: baseline, total: baseline), with: &parser))
-        XCTAssertNil(parse(codexTurn(), with: &parser))
+        XCTAssertNil(try parse(codexMeta(), with: &parser))
+        XCTAssertNil(try parse(codexTokenCount(last: baseline, total: baseline), with: &parser))
+        XCTAssertNil(try parse(codexTurn(), with: &parser))
 
         let event = try XCTUnwrap(
-            parse(
+            try parse(
                 codexTokenCount(last: codexUsage(input: 50, output: 10), total: codexUsage(input: 150, output: 30)),
                 with: &parser
             )?.event
@@ -67,7 +67,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         var parser = codexParserInTurn()
 
         let inherited = try XCTUnwrap(
-            parse(
+            try parse(
                 codexTokenCount(
                     last: codexUsage(input: 100, output: 20, total: 130),
                     total: codexUsage(input: 600, output: 120, total: 750)
@@ -76,7 +76,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             )?.event
         )
         let next = try XCTUnwrap(
-            parse(
+            try parse(
                 codexTokenCount(
                     last: codexUsage(input: 50, output: 10, total: 61),
                     total: codexUsage(input: 650, output: 130, total: 811)
@@ -94,8 +94,8 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         let zero = codexUsage(input: 0, output: 0)
         let request = codexUsage(input: 50, output: 10)
 
-        XCTAssertNil(parse(codexTokenCount(last: zero, total: zero), with: &parser))
-        let event = try XCTUnwrap(parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
+        XCTAssertNil(try parse(codexTokenCount(last: zero, total: zero), with: &parser))
+        let event = try XCTUnwrap(try parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
 
         XCTAssertEqual(event.usage.processedTokens, 60)
     }
@@ -103,11 +103,11 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     func testCodexSyntheticFillIsIgnored() throws {
         var parser = codexParserInTurn(effort: "medium")
         let request = codexUsage(input: 100, output: 10)
-        _ = parse(codexTokenCount(last: request, total: request), with: &parser)
+        _ = try parse(codexTokenCount(last: request, total: request), with: &parser)
         // A synthetic fill tops the total up to the 1,000-token context window without billable tokens.
         let filled = codexUsage(input: 0, output: 0, total: 1_000)
         XCTAssertNil(
-            parse(
+            try parse(
                 codexTokenCount(
                     last: codexUsage(input: 0, output: 0, total: 890),
                     total: filled,
@@ -116,9 +116,9 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
                 with: &parser
             )
         )
-        XCTAssertNil(parse(codexTokenCount(last: codexUsage(input: 50, output: 5), total: filled), with: &parser))
+        XCTAssertNil(try parse(codexTokenCount(last: codexUsage(input: 50, output: 5), total: filled), with: &parser))
         let event = try XCTUnwrap(
-            parse(
+            try parse(
                 codexTokenCount(
                     last: codexUsage(input: 50, output: 5),
                     total: codexUsage(input: 50, output: 5, total: 1_055)
@@ -137,8 +137,8 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             let request = codexUsage(input: 100, output: 20)
             let line = codexTokenCount(last: request, total: request)
 
-            XCTAssertNil(
-                parse(
+            XCTAssertThrowsError(
+                try parse(
                     line.replacingOccurrences(
                         of: "\"model_context_window\":1000",
                         with: "\"model_context_window\":\(contextWindow)"
@@ -146,7 +146,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
                     with: &parser
                 )
             )
-            let event = try XCTUnwrap(parse(line, with: &parser)?.event)
+            let event = try XCTUnwrap(try parse(line, with: &parser)?.event)
             XCTAssertEqual(event.usage.processedTokens, 120)
         }
     }
@@ -154,7 +154,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     func testCodexThreadSettingsDoNotOverrideTurnUsageMetadata() throws {
         var parser = codexParserInTurn()
         XCTAssertNil(
-            parse(
+            try parse(
                 """
                 {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-luna","reasoning_effort":"low","service_tier":"priority"}}}
                 """,
@@ -162,7 +162,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             )
         )
         let request = codexUsage(input: 100, output: 20)
-        let event = try XCTUnwrap(parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
+        let event = try XCTUnwrap(try parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
 
         XCTAssertEqual(event.usage.modelTurn?.model, .named(id: "gpt-5.6-sol", name: "GPT 5.6 Sol"))
         XCTAssertEqual(event.usage.modelTurn?.reasoningEffort, "high")
@@ -171,7 +171,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     func testCodexPricesLoggedCacheWrites() throws {
         var parser = codexParserInTurn()
         let request = codexUsage(input: 100, output: 20, cached: 10, cacheWrite: 30)
-        let event = try XCTUnwrap(parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
+        let event = try XCTUnwrap(try parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
 
         XCTAssertEqual(event.usage.processedTokens, 120)
         XCTAssertEqual(event.usage.costUSD, Decimal(string: "0.0010925"))
@@ -183,19 +183,19 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             {"input_tokens":18446744073709551615,"cached_input_tokens":18446744073709551615,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":18446744073709551615}
             """
 
-        XCTAssertNil(parse(codexTokenCount(last: overflow, total: overflow), with: &parser))
+        XCTAssertThrowsError(try parse(codexTokenCount(last: overflow, total: overflow), with: &parser))
     }
 
-    func testCodexReportsUnpricedModelsAndUnsupportedCacheWrites() {
-        func outcome(model: String, cacheWrite: Int = 0) -> UsageLineOutcome? {
+    func testCodexReportsUnpricedModelsAndUnsupportedCacheWrites() throws {
+        func outcome(model: String, cacheWrite: Int = 0) throws -> UsageLineOutcome? {
             var parser = codexParserInTurn(model: model)
             let request = codexUsage(input: 100, output: 20, cacheWrite: cacheWrite)
-            return parse(codexTokenCount(last: request, total: request), with: &parser)
+            return try parse(codexTokenCount(last: request, total: request), with: &parser)
         }
 
-        XCTAssertEqual(outcome(model: "unknown-model")?.unpricedModelID, "unknown-model")
-        XCTAssertEqual(outcome(model: "gpt-5.5", cacheWrite: 1)?.unpricedModelID, "gpt-5.5")
-        XCTAssertNotNil(outcome(model: "gpt-5.5")?.event)
+        XCTAssertEqual(try outcome(model: "unknown-model")?.unpricedModelID, "unknown-model")
+        XCTAssertEqual(try outcome(model: "gpt-5.5", cacheWrite: 1)?.unpricedModelID, "gpt-5.5")
+        XCTAssertNotNil(try outcome(model: "gpt-5.5")?.event)
     }
 
     func testCodexIdenticalRequestUsageAtTheSameTimestampCountsTwice() async throws {
@@ -291,8 +291,8 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
 /// A parser that has read the session meta and a turn context, so token counts become events.
 private func codexParserInTurn(model: String = "gpt-5.6-sol", effort: String = "high") -> CodexLogParser {
     var parser = CodexLogParser()
-    _ = parse(codexMeta(), with: &parser)
-    _ = parse(codexTurn(model: model, effort: effort), with: &parser)
+    _ = try? parse(codexMeta(), with: &parser)
+    _ = try? parse(codexTurn(model: model, effort: effort), with: &parser)
     return parser
 }
 

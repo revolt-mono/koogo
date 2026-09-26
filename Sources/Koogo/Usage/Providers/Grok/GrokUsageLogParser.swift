@@ -32,12 +32,9 @@ struct GrokLogParser: UsageLogParser {
         Self.eventMarkers.allSatisfy { line.contains($0) }
     }
 
-    func parse(_ line: Data, decoder: JSONDecoder) -> UsageLineOutcome? {
-        guard
-            let record = try? decoder.decode(GrokLogRecord.self, from: line),
-            record.params.update.kind == .turnCompleted,
-            let usage = record.params.update.usage
-        else {
+    func parse(_ line: Data, decoder: JSONDecoder) throws -> UsageLineOutcome? {
+        let record = try decoder.decode(GrokLogRecord.self, from: line)
+        guard record.params.update.kind == .turnCompleted, let usage = record.params.update.usage else {
             return nil
         }
         let meta = record.params.meta

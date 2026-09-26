@@ -30,8 +30,8 @@
 
 ## Observability
 
-- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file and event counts, unpriced model ids, the full usage snapshot, and the Codex and Grok quota outcomes with typed reasons. Prefer it over screenshots when verifying pipeline behavior.
-- Parsing failures are silent by design. Events dropped because a model or one of its billed options has no price surface only as model ids in `unpricedModels` in the report and as telemetry warnings.
+- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file, event, and malformed line counts, unpriced model ids, the full usage snapshot, and the Codex and Grok quota outcomes with typed reasons. Prefer it over screenshots when verifying pipeline behavior.
+- Dropped input never reaches the UI. Lines of a known record kind with unusable fields surface only as per-provider counts in `malformedLines`, and events dropped because a model or one of its billed options has no price surface only as model ids in `unpricedModels`; both also log telemetry warnings.
 - Runtime telemetry logs under subsystem `com.revolt.koogo` (categories `usage`, `quota`); stream it with `script/build_and_run.sh telemetry`.
 
 ## Repo structure

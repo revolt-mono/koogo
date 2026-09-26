@@ -48,6 +48,7 @@ private struct TrackedUsageFile: Sendable {
     private var parsedTail: Data
     private var parser: any UsageLogParser
     var eventIndex: UsageEventIndex
+    private(set) var malformedLines = 0
 
     /// Starts tracking a file seen for the first time. A Grok log counts only once it has a top-level
     /// session summary; a rejected file is offered again on the next scan, and a reread never re-checks.
@@ -180,8 +181,12 @@ private struct TrackedUsageFile: Sendable {
                 }
                 let lineCount = start.distance(to: newline)
                 let line = UnsafeRawBufferPointer(start: start, count: lineCount)
-                if let outcome = parser.parse(line, decoder: decoder) {
-                    eventIndex.insert(outcome)
+                do {
+                    if let outcome = try parser.parse(line, decoder: decoder) {
+                        eventIndex.insert(outcome)
+                    }
+                } catch {
+                    malformedLines += 1
                 }
                 lineStart += lineCount + 1
             }
@@ -224,8 +229,9 @@ struct UsageLogIndex {
         let events = merged.values
         let stats = UsageIngestionStats(
             logRoots: logRoots,
-            trackedFiles: Self.tally(trackedFiles.values.map(\.location.provider)),
-            events: Self.tally(events.map(\.provider)),
+            trackedFiles: Self.tally(trackedFiles.values.map { ($0.location.provider, 1) }),
+            events: Self.tally(events.map { ($0.provider, 1) }),
+            malformedLines: Self.tally(trackedFiles.values.map { ($0.location.provider, $0.malformedLines) }),
             unpricedModels: merged.unpricedModelIDs
         )
         return (events, stats)
@@ -309,10 +315,10 @@ struct UsageLogIndex {
         return trackedFiles.withLock { $0 }
     }
 
-    private static func tally(_ providers: [UsageProvider]) -> [UsageProvider: Int] {
+    private static func tally(_ counts: [(UsageProvider, Int)]) -> [UsageProvider: Int] {
         let zeros = Dictionary(uniqueKeysWithValues: UsageProvider.allCases.map { ($0, 0) })
-        return providers.reduce(into: zeros) { counts, provider in
-            counts[provider, default: 0] += 1
+        return counts.reduce(into: zeros) { totals, count in
+            totals[count.0, default: 0] += count.1
         }
     }
 

@@ -5,15 +5,20 @@ import Foundation
 protocol UsageLogParser: Sendable {
     /// Cheap byte-level prefilter that runs before any JSON decoding.
     func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool
-    mutating func parse(_ line: Data, decoder: JSONDecoder) -> UsageLineOutcome?
+    /// Returns `nil` for a line that bills nothing, and throws for a line of a record kind the
+    /// parser knows whose fields it cannot use.
+    mutating func parse(_ line: Data, decoder: JSONDecoder) throws -> UsageLineOutcome?
 }
+
+/// A known record kind with missing or invalid fields, thrown by parsers after decoding succeeds.
+struct MalformedUsageRecord: Error {}
 
 extension UsageLogParser {
     func mayContainEvent(_: UnsafeRawBufferPointer) -> Bool {
         true
     }
 
-    mutating func parse(_ line: UnsafeRawBufferPointer, decoder: JSONDecoder) -> UsageLineOutcome? {
+    mutating func parse(_ line: UnsafeRawBufferPointer, decoder: JSONDecoder) throws -> UsageLineOutcome? {
         guard mayContainEvent(line), let baseAddress = line.baseAddress else {
             return nil
         }
@@ -22,7 +27,7 @@ extension UsageLogParser {
             count: line.count,
             deallocator: .none
         )
-        return parse(data, decoder: decoder)
+        return try parse(data, decoder: decoder)
     }
 }
 

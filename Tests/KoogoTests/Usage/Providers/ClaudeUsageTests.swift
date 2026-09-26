@@ -13,7 +13,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
                 """
         )
 
-        let event = try XCTUnwrap(parse(line, with: &parser)?.event)
+        let event = try XCTUnwrap(try parse(line, with: &parser)?.event)
 
         XCTAssertEqual(event.provider, .claude)
         XCTAssertEqual(event.usage.processedTokens, 140)
@@ -28,7 +28,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             usage: #""input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40"#
         )
 
-        let event = try XCTUnwrap(parse(line, with: &parser)?.event)
+        let event = try XCTUnwrap(try parse(line, with: &parser)?.event)
 
         XCTAssertEqual(event.usage.processedTokens, 120)
         XCTAssertEqual(event.usage.costUSD, Decimal(string: "0.0014875"))
@@ -43,7 +43,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
                 """
         )
 
-        XCTAssertNil(parse(line, with: &parser))
+        XCTAssertThrowsError(try parse(line, with: &parser))
     }
 
     func testClaudeRejectsRecordsWithoutBothStableIDs() {
@@ -52,7 +52,19 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"output_tokens":40}}}
             """
 
-        XCTAssertNil(parse(line, with: &parser))
+        XCTAssertThrowsError(try parse(line, with: &parser))
+    }
+
+    func testClaudeSkipsZeroUsageSyntheticReplies() throws {
+        var parser = ClaudeLogParser()
+        let reply = claudeAssistant(
+            model: "<synthetic>",
+            usage: #""input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0"#
+        )
+
+        for line in [reply, reply.replacingOccurrences(of: #""requestId":"request","#, with: "")] {
+            XCTAssertNil(try parse(line, with: &parser), line)
+        }
     }
 
     func testClaudeRejectsOverflowingTokenFields() {
@@ -64,10 +76,10 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
                 """
         )
 
-        XCTAssertNil(parse(line, with: &parser))
+        XCTAssertThrowsError(try parse(line, with: &parser))
     }
 
-    func testClaudeReportsUnpricedModelsAndBilledOptions() {
+    func testClaudeReportsUnpricedModelsAndBilledOptions() throws {
         for (model, usage) in [
             ("unknown-model", #""input_tokens":10,"output_tokens":40"#),
             ("claude-sonnet-4-6", #""input_tokens":10,"output_tokens":40,"speed":"fast""#),
@@ -75,7 +87,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             ("claude-opus-5", #""input_tokens":10,"output_tokens":40,"speed":"turbo""#),
         ] {
             var parser = ClaudeLogParser()
-            let outcome = parse(claudeAssistant(model: model, usage: usage), with: &parser)
+            let outcome = try parse(claudeAssistant(model: model, usage: usage), with: &parser)
 
             XCTAssertEqual(outcome?.unpricedModelID, model)
         }
@@ -98,8 +110,8 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             claudeAssistant(model: "claude-opus-5", usage: tokens, effort: "high"),
         ] {
             var parser = ClaudeLogParser()
-            let bareCopy = try XCTUnwrap(parse(bare, with: &parser)?.event)
-            let detailedCopy = try XCTUnwrap(parse(detailed, with: &parser)?.event)
+            let bareCopy = try XCTUnwrap(try parse(bare, with: &parser)?.event)
+            let detailedCopy = try XCTUnwrap(try parse(detailed, with: &parser)?.event)
 
             for copies in [[bareCopy, detailedCopy], [detailedCopy, bareCopy]] {
                 var index = UsageEventIndex(since: .distantPast)

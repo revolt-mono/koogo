@@ -20,10 +20,8 @@ struct PiLogParser: UsageLogParser {
     mutating func parse(
         _ line: Data,
         decoder: JSONDecoder
-    ) -> UsageLineOutcome? {
-        guard let record = try? decoder.decode(PiLogRecord.self, from: line) else {
-            return nil
-        }
+    ) throws -> UsageLineOutcome? {
+        let record = try decoder.decode(PiLogRecord.self, from: line)
 
         let thinking =
             switch record.action {
@@ -46,7 +44,7 @@ struct PiLogParser: UsageLogParser {
                 Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
             }
         guard let timestamp else {
-            return nil
+            throw MalformedUsageRecord()
         }
 
         return .event(
