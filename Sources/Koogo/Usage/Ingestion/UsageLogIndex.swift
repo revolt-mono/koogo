@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Synchronization
+import System
 
 private struct UsageFileIdentity: Equatable, Sendable {
     let device: UInt64
@@ -41,6 +42,7 @@ private struct UsageFileMetadata: Sendable {
 /// The walk is provider-agnostic; per-file provider rules (admission and the parser switch) live only here.
 private struct TrackedUsageFile: Sendable {
     private static let parsedTailSize = 64
+    private static let readSize = 1 << 20
 
     let location: UsageLogLocation
     private var metadata: UsageFileMetadata
@@ -48,6 +50,7 @@ private struct TrackedUsageFile: Sendable {
     private var parsedTail: Data
     private var parser: any UsageLogParser
     var eventIndex: UsageEventIndex
+    private(set) var decodedLines = 0
     private(set) var malformedLines = 0
 
     /// Starts tracking a file seen for the first time. A Grok log counts only once it has a top-level
@@ -60,11 +63,11 @@ private struct TrackedUsageFile: Sendable {
     }
 
     init?(_ location: UsageLogLocation, since historyStart: Date) {
-        guard let handle = try? FileHandle(forReadingFrom: location.url) else {
+        guard let file = try? FileDescriptor.open(FilePath(location.url.path), .readOnly) else {
             return nil
         }
-        defer { try? handle.close() }
-        guard let metadata = UsageFileMetadata(fileDescriptor: handle.fileDescriptor) else {
+        defer { try? file.close() }
+        guard let metadata = UsageFileMetadata(fileDescriptor: file.rawValue) else {
             return nil
         }
 
@@ -80,7 +83,7 @@ private struct TrackedUsageFile: Sendable {
             case .grok: GrokLogParser()
             }
         eventIndex = UsageEventIndex(since: historyStart)
-        guard readBytes(handle, in: 0..<metadata.size) else {
+        guard readLines(file, in: 0..<metadata.size) else {
             return nil
         }
     }
@@ -95,7 +98,7 @@ private struct TrackedUsageFile: Sendable {
         if wasReplaced {
             reread()
         } else if metadata.size > self.metadata.size {
-            readAppendedBytes()
+            readAppendedLines()
         } else {
             return false
         }
@@ -108,104 +111,102 @@ private struct TrackedUsageFile: Sendable {
         }
     }
 
-    private mutating func readAppendedBytes() {
-        guard let handle = try? FileHandle(forReadingFrom: location.url) else {
+    private mutating func readAppendedLines() {
+        guard let file = try? FileDescriptor.open(FilePath(location.url.path), .readOnly) else {
             return
         }
-        defer { try? handle.close() }
-        guard let metadata = UsageFileMetadata(fileDescriptor: handle.fileDescriptor) else {
+        defer { try? file.close() }
+        guard let metadata = UsageFileMetadata(fileDescriptor: file.rawValue) else {
             return
         }
 
         guard self.metadata.identity == metadata.identity,
             metadata.size >= self.metadata.size,
-            parsedTailMatches(handle)
+            parsedTailMatches(file)
         else {
             reread()
             return
         }
 
         // A failed read leaves the old size in place so the next pass retries from parsedOffset.
-        if readBytes(handle, in: parsedOffset..<metadata.size) {
+        if readLines(file, in: parsedOffset..<metadata.size) {
             self.metadata = metadata
         }
     }
 
-    private mutating func readBytes(_ handle: FileHandle, in offsets: Range<UInt64>) -> Bool {
-        let decoder = JSONDecoder()
+    /// Parses every complete line in `offsets`; a trailing partial line waits for the next pass.
+    /// Returns false when the range could not be read to its end.
+    private mutating func readLines(_ file: FileDescriptor, in offsets: Range<UInt64>) -> Bool {
+        var buffer = UnsafeMutableRawBufferPointer.allocate(
+            byteCount: min(offsets.count, Self.readSize),
+            alignment: 1
+        )
+        defer { buffer.deallocate() }
+        // Bytes of an unfinished line kept at the front of `buffer`.
+        var pending = 0
         var readOffset = offsets.lowerBound
-        var pending = Data()
-        do {
-            try handle.seek(toOffset: offsets.lowerBound)
-            while readOffset < offsets.upperBound {
-                let count = Int(min(offsets.upperBound - readOffset, 1_048_576))
-                let didRead = try autoreleasepool {
-                    guard let chunk = try handle.read(upToCount: count), !chunk.isEmpty else {
-                        return false
-                    }
-                    readOffset += UInt64(chunk.count)
-                    if pending.isEmpty {
-                        pending = chunk
-                    } else {
-                        pending.append(chunk)
-                    }
-                    if let lastNewline = pending.withUnsafeBytes({ $0.lastIndex(of: 0x0A) }) {
-                        let lines = pending.prefix(through: pending.startIndex + lastNewline)
-                        parseCompleteLines(lines, decoder: decoder)
-                        parsedOffset += UInt64(lines.count)
-                        pending = Data(pending.dropFirst(lines.count))
-                    }
-                    return true
-                }
-                guard didRead else {
-                    return false
-                }
+        var decoder = UsageLineDecoder()
+        defer { decodedLines += decoder.decodedLines }
+        while readOffset < offsets.upperBound {
+            if pending == buffer.count {
+                let larger = UnsafeMutableRawBufferPointer.allocate(byteCount: buffer.count * 2, alignment: 1)
+                larger.copyMemory(from: UnsafeRawBufferPointer(buffer))
+                buffer.deallocate()
+                buffer = larger
             }
-            return true
-        } catch {
-            return false
+            let space = buffer[pending..<min(buffer.count, pending + Int(clamping: offsets.upperBound - readOffset))]
+            guard
+                let count = try? file.read(
+                    fromAbsoluteOffset: Int64(readOffset),
+                    into: UnsafeMutableRawBufferPointer(rebasing: space)
+                ),
+                count > 0
+            else {
+                return false
+            }
+            readOffset += UInt64(count)
+            pending += count
+            let parsed = parseCompleteLines(UnsafeRawBufferPointer(rebasing: buffer[..<pending]), decoder: &decoder)
+            parsedOffset += UInt64(parsed)
+            pending -= parsed
+            if let base = buffer.baseAddress, parsed > 0 {
+                memmove(base, base + parsed, pending)
+            }
         }
+        return true
     }
 
-    private mutating func parseCompleteLines(_ data: Data, decoder: JSONDecoder) {
-        data.withUnsafeBytes { bytes in
-            guard let baseAddress = bytes.baseAddress else {
-                return
-            }
-            var lineStart = 0
-
-            while lineStart < bytes.count {
-                let start = baseAddress.advanced(by: lineStart)
-                guard let newline = memchr(start, Int32(0x0A), bytes.count - lineStart) else {
-                    break
-                }
-                let lineCount = start.distance(to: newline)
-                let line = UnsafeRawBufferPointer(start: start, count: lineCount)
-                do {
-                    if let outcome = try parser.parse(line, decoder: decoder) {
-                        eventIndex.insert(outcome)
-                    }
-                } catch {
-                    malformedLines += 1
-                }
-                lineStart += lineCount + 1
-            }
+    /// Parses each newline-terminated line in `bytes` and returns how many bytes those lines span.
+    private mutating func parseCompleteLines(_ bytes: UnsafeRawBufferPointer, decoder: inout UsageLineDecoder) -> Int {
+        guard let base = bytes.baseAddress else {
+            return 0
         }
-
-        parsedTail.append(data.suffix(Self.parsedTailSize))
-        parsedTail = Data(parsedTail.suffix(Self.parsedTailSize))
+        var lineStart = 0
+        while let newline = memchr(base + lineStart, 0x0A, bytes.count - lineStart) {
+            let lineEnd = base.distance(to: newline)
+            do {
+                let line = UnsafeRawBufferPointer(rebasing: bytes[lineStart..<lineEnd])
+                if let outcome = try parser.parse(line, decoder: &decoder) {
+                    eventIndex.insert(outcome)
+                }
+            } catch {
+                malformedLines += 1
+            }
+            lineStart = lineEnd + 1
+        }
+        if lineStart > 0 {
+            let tail = bytes[max(lineStart - Self.parsedTailSize, 0)..<lineStart]
+            parsedTail = Data((parsedTail + tail).suffix(Self.parsedTailSize))
+        }
+        return lineStart
     }
 
-    private func parsedTailMatches(_ handle: FileHandle) -> Bool {
-        guard !parsedTail.isEmpty else {
-            return true
+    private func parsedTailMatches(_ file: FileDescriptor) -> Bool {
+        var tail = Data(count: parsedTail.count)
+        let count = try? tail.withUnsafeMutableBytes {
+            try file.read(fromAbsoluteOffset: Int64(parsedOffset) - Int64(parsedTail.count), into: $0)
         }
-        do {
-            try handle.seek(toOffset: parsedOffset - UInt64(parsedTail.count))
-            return try handle.read(upToCount: parsedTail.count) == parsedTail
-        } catch {
-            return false
-        }
+        return count == parsedTail.count && tail == parsedTail
     }
 }
 
@@ -231,6 +232,7 @@ struct UsageLogIndex {
             logRoots: logRoots,
             trackedFiles: Self.tally(trackedFiles.values.map { ($0.location.provider, 1) }),
             events: Self.tally(events.map { ($0.provider, 1) }),
+            decodedLines: Self.tally(trackedFiles.values.map { ($0.location.provider, $0.decodedLines) }),
             malformedLines: Self.tally(trackedFiles.values.map { ($0.location.provider, $0.malformedLines) }),
             unpricedModels: merged.unpricedModelIDs
         )

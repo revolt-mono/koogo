@@ -10,6 +10,9 @@ struct UsageIngestionStats: Sendable, Encodable {
     let logRoots: [LogRoot]
     let trackedFiles: [UsageProvider: Int]
     let events: [UsageProvider: Int]
+    /// Lines in tracked files that parsers had to JSON-decode; the rest were ruled out from their bytes.
+    /// A jump against the same logs usually means a prefilter stopped matching the provider's format.
+    let decodedLines: [UsageProvider: Int]
     /// Lines in tracked files whose record kind the provider's parser knows but whose fields it cannot use;
     /// a nonzero count usually means the provider changed its log format.
     let malformedLines: [UsageProvider: Int]

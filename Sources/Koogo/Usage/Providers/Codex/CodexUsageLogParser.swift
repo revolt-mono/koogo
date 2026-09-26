@@ -20,14 +20,10 @@ struct CodexLogParser: UsageLogParser {
     private var turn: CodexTurn?
     private var previousTotalUsage: CodexTokenUsage?
 
-    func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
-        Self.eventMarkers.contains { line.contains($0) }
-    }
-
-    mutating func parse(
-        _ line: Data,
-        decoder: JSONDecoder
-    ) throws -> UsageLineOutcome? {
+    mutating func parse(_ line: UnsafeRawBufferPointer, decoder: inout UsageLineDecoder) throws -> UsageLineOutcome? {
+        guard Self.mayMatter(line) else {
+            return nil
+        }
         switch try decoder.decode(CodexLogRecord.self, from: line) {
         case .turnContext(let turn):
             self.turn = turn
@@ -37,6 +33,26 @@ struct CodexLogParser: UsageLogParser {
             break
         }
         return nil
+    }
+
+    /// Whether `line` may be a turn context or a token count. Codex leads each record with its kind, so reading
+    /// the leading fields rules out the long response and item records without scanning them; any other layout
+    /// falls back to searching the whole line.
+    private static func mayMatter(_ line: UnsafeRawBufferPointer) -> Bool {
+        var record = JSONLeadingMembers(line)
+        switch record.string("type").map(CodexRecordKind.init(known:)) {
+        case .turnContext:
+            return true
+        case .eventMessage:
+            if var payload = record.object("payload"), let kind = payload.string("type") {
+                return kind == CodexPayloadKind.tokenCount.rawValue
+            }
+        case .other:
+            return false
+        case nil:
+            break
+        }
+        return eventMarkers.contains { line.contains($0) }
     }
 
     private mutating func parseTokenCount(_ record: CodexTokenCount) throws -> UsageLineOutcome? {

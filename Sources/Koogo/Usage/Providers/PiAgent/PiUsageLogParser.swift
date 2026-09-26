@@ -15,12 +15,17 @@ private enum PiMessageRole: String, LogRecordKind {
 }
 
 struct PiLogParser: UsageLogParser {
+    private static let usageMarker = Data("\"usage\"".utf8)
+
     private var thinkingByEntry: [String: String] = [:]
 
-    mutating func parse(
-        _ line: Data,
-        decoder: JSONDecoder
-    ) throws -> UsageLineOutcome? {
+    mutating func parse(_ line: UnsafeRawBufferPointer, decoder: inout UsageLineDecoder) throws -> UsageLineOutcome? {
+        if let link = Self.passThroughLink(line) {
+            if let thinking = thinkingByEntry[link.parentID] {
+                thinkingByEntry[link.id] = thinking
+            }
+            return nil
+        }
         let record = try decoder.decode(PiLogRecord.self, from: line)
 
         let thinking =
@@ -60,6 +65,27 @@ struct PiLogParser: UsageLogParser {
                 )
             )
         )
+    }
+
+    /// The ids of a record that can neither bill nor set a thinking level, read from its leading fields, so the
+    /// long prompts and tool results between turns only pass the thinking level on. `nil` means the record
+    /// needs a full decode.
+    private static func passThroughLink(_ line: UnsafeRawBufferPointer) -> (id: String, parentID: String)? {
+        var record = JSONLeadingMembers(line)
+        switch record.string("type").map(PiRecordKind.init(known:)) {
+        case .message, .compaction, .branchSummary:
+            guard !line.contains(usageMarker) else {
+                return nil
+            }
+        case .other:
+            break
+        case .thinkingLevelChange, nil:
+            return nil
+        }
+        guard let id = record.string("id"), let parentID = record.string("parentId") else {
+            return nil
+        }
+        return (id, parentID)
     }
 }
 

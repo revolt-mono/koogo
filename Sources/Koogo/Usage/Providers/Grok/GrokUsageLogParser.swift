@@ -28,11 +28,10 @@ struct GrokLogParser: UsageLogParser {
         return summary.kind?.hasPrefix("subagent") != true
     }
 
-    func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
-        Self.eventMarkers.allSatisfy { line.contains($0) }
-    }
-
-    func parse(_ line: Data, decoder: JSONDecoder) throws -> UsageLineOutcome? {
+    func parse(_ line: UnsafeRawBufferPointer, decoder: inout UsageLineDecoder) throws -> UsageLineOutcome? {
+        guard Self.eventMarkers.allSatisfy({ line.contains($0) }) else {
+            return nil
+        }
         let record = try decoder.decode(GrokLogRecord.self, from: line)
         guard record.params.update.kind == .turnCompleted, let usage = record.params.update.usage else {
             return nil

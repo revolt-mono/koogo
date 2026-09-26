@@ -11,12 +11,10 @@ struct ClaudeLogParser: UsageLogParser {
         ClaudeMessage.usageMarker,
     ]
 
-    func mayContainEvent(_ line: UnsafeRawBufferPointer) -> Bool {
-        Self.eventMarkers.allSatisfy { line.contains($0) }
-    }
-
-    func parse(_ line: Data, decoder: JSONDecoder) throws -> UsageLineOutcome? {
-        guard case .assistant(let record) = try decoder.decode(ClaudeLogRecord.self, from: line) else {
+    func parse(_ line: UnsafeRawBufferPointer, decoder: inout UsageLineDecoder) throws -> UsageLineOutcome? {
+        guard Self.mayBill(line),
+            case .assistant(let record) = try decoder.decode(ClaudeLogRecord.self, from: line)
+        else {
             return nil
         }
         let usage = record.message.usage
@@ -64,6 +62,16 @@ struct ClaudeLogParser: UsageLogParser {
                 revision: Self.revision(of: usage, reasoningEffort: reasoningEffort)
             )
         )
+    }
+
+    /// Whether `line` may be an assistant reply with usage. Prompts name their kind among their leading fields,
+    /// which rules them out without scanning their long content.
+    private static func mayBill(_ line: UnsafeRawBufferPointer) -> Bool {
+        var record = JSONLeadingMembers(line)
+        if let kind = record.string("type"), kind != ClaudeRecordKind.assistant.rawValue {
+            return false
+        }
+        return eventMarkers.allSatisfy { line.contains($0) }
     }
 
     /// Claude logs partial copies of one request; the copy with more output wins, then the one
