@@ -91,16 +91,7 @@ func usageEvent(
     )
     switch provider {
     case .codex:
-        return UsageEvent(
-            key: .codex(
-                threadID: "thread-\(id)",
-                turnID: nil,
-                ordinal: nil,
-                timestamp: eventDate,
-                cumulativeTotal: processedTokens
-            ),
-            usage: usage
-        )
+        return UsageEvent(key: .codex(turnID: "turn-\(id)", cumulativeTotal: processedTokens), usage: usage)
     case .claude:
         return UsageEvent(
             key: .claude(messageID: "message-\(id)", requestID: "request-\(id)"),
@@ -136,9 +127,9 @@ func codexMeta(thread: String = "thread") -> String {
     """
 }
 
-func codexTurn(model: String = "gpt-5.6-sol", effort: String = "high") -> String {
+func codexTurn(id: String = "turn", model: String = "gpt-5.6-sol", effort: String = "high") -> String {
     """
-    {"timestamp":"2026-08-25T11:30:00.000Z","type":"turn_context","payload":{"turn_id":"turn","model":"\(model)","effort":"\(effort)"}}
+    {"timestamp":"2026-08-25T11:30:00.000Z","type":"turn_context","payload":{"turn_id":"\(id)","model":"\(model)","effort":"\(effort)"}}
     """
 }
 

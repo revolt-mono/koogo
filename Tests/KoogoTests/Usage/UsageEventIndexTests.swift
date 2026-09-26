@@ -4,22 +4,23 @@ import XCTest
 @testable import Koogo
 
 final class UsageEventIndexTests: XCTestCase {
-    func testFirstCopyWinsForKeysWithoutRevisions() {
+    func testEarlierCopyWinsForKeysWithoutRevisions() {
         let keys: [UsageEvent.Key] = [
-            .codex(threadID: "thread", turnID: "turn", ordinal: 1, timestamp: usageTestTimestamp, cumulativeTotal: 10),
+            .codex(turnID: "turn", cumulativeTotal: 10),
             .piAgent(entryID: "entry"),
             .grok(eventID: "event", timestamp: usageTestTimestamp),
         ]
 
         for key in keys {
             var index = UsageEventIndex(since: .distantPast)
-            index.insert(.event(UsageEvent(key: key, usage: record(tokens: 10))))
+            index.insert(.event(UsageEvent(key: key, usage: record(tokens: 10, at: usageTestTimestamp + 1))))
             index.insert(.event(UsageEvent(key: key, usage: record(tokens: 20))))
+            index.insert(.event(UsageEvent(key: key, usage: record(tokens: 30))))
             var later = UsageEventIndex(since: .distantPast)
-            later.insert(.event(UsageEvent(key: key, usage: record(tokens: 30))))
+            later.insert(.event(UsageEvent(key: key, usage: record(tokens: 40))))
             index.merge(later)
 
-            XCTAssertEqual(index.values.map(\.usage.processedTokens), [10], "\(key)")
+            XCTAssertEqual(index.values.map(\.usage.processedTokens), [20], "\(key)")
         }
     }
 

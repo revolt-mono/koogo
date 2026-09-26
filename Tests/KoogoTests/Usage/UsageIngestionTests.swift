@@ -42,6 +42,40 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         XCTAssertEqual(replaced.providers[.codex]?.today.processedTokens, 50)
     }
 
+    func testCodexForkReplayCountsOnceAtTheParentTime() async throws {
+        let parentRequest = codexUsage(input: 100, output: 20)
+        try workspace.write(
+            [
+                codexMeta(thread: "parent"),
+                codexTurn(),
+                codexTokenCount(last: parentRequest, total: parentRequest, at: "2026-08-24T12:00:00.000Z"),
+                "",
+            ].joined(separator: "\n"),
+            to: workspace.codexSessions.appending(path: "parent.jsonl")
+        )
+        // A fork replays its parent's turn under its own thread, stamped when the fork starts, then runs its own turn.
+        try workspace.write(
+            [
+                codexMeta(thread: "fork"),
+                codexTurn(),
+                codexTokenCount(last: parentRequest, total: parentRequest, at: "2026-08-25T12:00:00.000Z"),
+                codexTurn(id: "fork-turn"),
+                codexTokenCount(
+                    last: codexUsage(input: 40, output: 10),
+                    total: codexUsage(input: 140, output: 30),
+                    at: "2026-08-25T12:00:00.000Z"
+                ),
+                "",
+            ].joined(separator: "\n"),
+            to: workspace.codexSessions.appending(path: "fork.jsonl")
+        )
+
+        let snapshot = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now).snapshot
+
+        XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 50)
+        XCTAssertEqual(snapshot.providers[.codex]?.month.processedTokens, 170)
+    }
+
     func testColdScanIgnoresJSONLSymlinks() async throws {
         let target = workspace.root.appending(path: "target.log")
         try workspace.write(codexLog(input: 100, output: 20), to: target)

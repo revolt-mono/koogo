@@ -17,7 +17,9 @@ enum UsageLineOutcome: Sendable {
 /// One billed request. Copies of it in other files or rereads share its key.
 struct UsageEvent: Sendable {
     enum Key: Hashable, Sendable {
-        case codex(threadID: String, turnID: String?, ordinal: UInt64?, timestamp: Date, cumulativeTotal: UInt64)
+        /// A forked thread replays its parent's records under new thread ids, ordinals, and timestamps,
+        /// so only the turn and its running total identify a request.
+        case codex(turnID: String, cumulativeTotal: UInt64)
         case claude(messageID: String, requestID: String)
         case piAgent(entryID: String)
         /// Fork copies keep both fields, while a resumed Grok session can reuse an event id at a new time.
@@ -54,10 +56,10 @@ struct UsageEvent: Sendable {
     }
 
     /// Whether this copy replaces `existing` under the same key. Unless both copies carry a
-    /// revision, the first copy wins.
+    /// revision, the earlier copy wins, since replayed copies are stamped when they are written.
     func supersedes(_ existing: UsageEvent) -> Bool {
         guard let revision, let existingRevision = existing.revision else {
-            return false
+            return usage.timestamp < existing.usage.timestamp
         }
         return (revision, usage.processedTokens, usage.timestamp)
             > (existingRevision, existing.usage.processedTokens, existing.usage.timestamp)

@@ -1,7 +1,6 @@
 import Foundation
 
 private enum CodexRecordKind: String, LogRecordKind {
-    case sessionMeta = "session_meta"
     case turnContext = "turn_context"
     case eventMessage = "event_msg"
     case other
@@ -14,12 +13,10 @@ private enum CodexPayloadKind: String, LogRecordKind {
 
 struct CodexLogParser: UsageLogParser {
     private static let eventMarkers = [
-        CodexRecordKind.sessionMeta.jsonStringMarker,
         CodexRecordKind.turnContext.jsonStringMarker,
         CodexPayloadKind.tokenCount.jsonStringMarker,
     ]
 
-    private var threadID: String?
     private var turn: CodexTurn?
     private var previousTotalUsage: CodexTokenUsage?
 
@@ -36,8 +33,6 @@ struct CodexLogParser: UsageLogParser {
         }
 
         switch record {
-        case .sessionMeta(let threadID):
-            self.threadID = threadID
         case .turnContext(let turn):
             self.turn = turn
         case .tokenCount(let tokenCount):
@@ -59,11 +54,7 @@ struct CodexLogParser: UsageLogParser {
         guard lastUsage.input > 0 || lastUsage.output > 0, previousTotalUsage != totalUsage else {
             return nil
         }
-        guard
-            let timestamp = parseUsageTimestamp(record.timestamp),
-            let threadID,
-            let turn
-        else {
+        guard let timestamp = parseUsageTimestamp(record.timestamp), let turn else {
             return nil
         }
         guard let quote = CodexUsagePricing.quote(model: turn.model, tokens: lastUsage) else {
@@ -72,13 +63,7 @@ struct CodexLogParser: UsageLogParser {
 
         return .event(
             UsageEvent(
-                key: .codex(
-                    threadID: threadID,
-                    turnID: turn.id,
-                    ordinal: record.ordinal,
-                    timestamp: timestamp,
-                    cumulativeTotal: totalUsage.processed
-                ),
+                key: .codex(turnID: turn.id, cumulativeTotal: totalUsage.processed),
                 usage: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: lastUsage.processed,
@@ -94,14 +79,12 @@ struct CodexLogParser: UsageLogParser {
 }
 
 private enum CodexLogRecord: Decodable {
-    case sessionMeta(threadID: String)
     case turnContext(CodexTurn)
     case tokenCount(CodexTokenCount)
     case other
 
     private enum CodingKeys: String, CodingKey {
         case timestamp
-        case ordinal
         case type
         case payload
     }
@@ -109,10 +92,6 @@ private enum CodexLogRecord: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         switch try container.decode(CodexRecordKind.self, forKey: .type) {
-        case .sessionMeta:
-            self = .sessionMeta(
-                threadID: try container.decode(CodexSessionMetadata.self, forKey: .payload).id
-            )
         case .turnContext:
             self = .turnContext(try container.decode(CodexTurn.self, forKey: .payload))
         case .eventMessage:
@@ -124,7 +103,6 @@ private enum CodexLogRecord: Decodable {
             self = .tokenCount(
                 CodexTokenCount(
                     timestamp: try container.decode(String.self, forKey: .timestamp),
-                    ordinal: try container.decodeIfPresent(UInt64.self, forKey: .ordinal),
                     info: info
                 )
             )
@@ -134,17 +112,13 @@ private enum CodexLogRecord: Decodable {
     }
 }
 
-private struct CodexSessionMetadata: Decodable {
-    let id: String
-}
-
 private struct CodexEventMessage: Decodable {
     let type: CodexPayloadKind
     let info: CodexTokenInfo?
 }
 
 private struct CodexTurn: Decodable, Sendable {
-    let id: String?
+    let id: String
     let model: String
     let reasoningEffort: String?
 
@@ -157,7 +131,6 @@ private struct CodexTurn: Decodable, Sendable {
 
 private struct CodexTokenCount {
     let timestamp: String
-    let ordinal: UInt64?
     let info: CodexTokenInfo
 }
 
