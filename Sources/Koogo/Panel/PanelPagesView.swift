@@ -4,7 +4,7 @@ import SwiftUI
 struct PanelPagesView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Screen space left for the pages; the usage page fills up to this and scrolls beyond it.
+    /// Screen space left for the pages; the usage page fits its provider cards into it.
     let maxHeight: CGFloat
 
     @State private var selectedPage = PanelPage.usage
@@ -18,15 +18,13 @@ struct PanelPagesView: View {
                     Group {
                         switch page {
                         case .usage:
-                            ScrollView(.vertical) {
-                                UsagePage()
-                                    .onGeometryChange(for: CGFloat.self) { proxy in
-                                        proxy.size.height.rounded()
-                                    } action: { height in
-                                        usageContentHeight = height
-                                    }
-                            }
-                            .scrollIndicators(.never)
+                            UsagePage(maxHeight: maxHeight)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .onGeometryChange(for: CGFloat.self) { proxy in
+                                    proxy.size.height.rounded()
+                                } action: { height in
+                                    usageContentHeight = height
+                                }
                         case .inbox:
                             InboxView()
                         }
@@ -38,7 +36,8 @@ struct PanelPagesView: View {
             }
             .scrollTargetLayout()
         }
-        .scrollIndicators(.never)
+        // Scoped to the pager's own axis so vertical scrolling inside pages keeps its scroller.
+        .scrollIndicators(.never, axes: .horizontal)
         .frame(height: min(usageContentHeight, maxHeight))
         .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
         .scrollPosition(id: $scrollTarget)
