@@ -83,4 +83,40 @@ final class UsageModelTests: XCTestCase {
             [.claude, .piAgent, .grok]
         )
     }
+
+    func testRefreshSkipsProvidersWithoutHomeUntilTheyAppear() async throws {
+        let workspace = try UsageTestWorkspace()
+        defer {
+            try? workspace.remove()
+        }
+        let grokHome = workspace.root.appending(path: "grok")
+        try FileManager.default.removeItem(at: grokHome)
+        let suiteName = "UsageModelTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let model = UsageModel(
+            usageService: UsageService(locations: workspace.locations, calendar: workspace.calendar),
+            defaults: defaults,
+            now: { usageTestTimestamp }
+        )
+
+        model.refresh()
+        XCTAssertEqual(model.activeProviders, [.codex, .claude, .piAgent])
+        var deadline = ContinuousClock.now + .seconds(1)
+        while model.snapshot == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), [.codex, .claude, .piAgent])
+
+        try FileManager.default.createDirectory(at: grokHome, withIntermediateDirectories: true)
+        model.refresh()
+        XCTAssertEqual(model.activeProviders, Set(UsageProvider.allCases))
+        deadline = ContinuousClock.now + .seconds(1)
+        while model.snapshot?.providers[.grok] == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), Set(UsageProvider.allCases))
+    }
 }

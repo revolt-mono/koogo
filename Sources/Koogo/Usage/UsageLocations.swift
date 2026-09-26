@@ -26,6 +26,15 @@ struct UsageLocations: Sendable {
                 UsageLogLocation(provider: .grok, url: grokSessions),
             ]
         }
+
+        /// Providers whose home, the directory holding their logs such as `~/.codex`, exists;
+        /// a few `stat` calls, cheap enough for every panel open.
+        func installedProviders() -> Set<UsageProvider> {
+            let installed = roots.filter {
+                FileManager.default.fileExists(atPath: $0.url.deletingLastPathComponent().path)
+            }
+            return Set(installed.map(\.provider))
+        }
     }
 
     struct PiModels: Sendable {

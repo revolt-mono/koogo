@@ -33,8 +33,8 @@ actor UsageService {
         let report: UsageReport
     }
 
+    let locations: UsageLocations
     private let calendar: Calendar
-    private let piModelLocations: UsageLocations.PiModels
     private var logIndex: UsageLogIndex
     private var lastRefresh: LastRefresh?
 
@@ -42,8 +42,8 @@ actor UsageService {
         locations: UsageLocations = .standard,
         calendar: Calendar = .autoupdatingCurrent
     ) {
+        self.locations = locations
         self.calendar = calendar
-        piModelLocations = locations.piModels
         logIndex = UsageLogIndex(locations: locations.logs)
     }
 
@@ -54,7 +54,7 @@ actor UsageService {
         let started = ContinuousClock.now
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
         let changed = logIndex.refresh(since: intervals.historyStart, providers: providers)
-        let piModels = PiModelCatalog(locations: piModelLocations)
+        let piModels = PiModelCatalog(locations: locations.piModels)
         let logRoots = logIndex.logRoots
         if !changed, let lastRefresh, lastRefresh.intervals == intervals, lastRefresh.providers == providers,
             lastRefresh.piModels == piModels, lastRefresh.report.ingestion.logRoots == logRoots

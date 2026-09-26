@@ -44,13 +44,14 @@ struct PanelView: View {
             )
         }
         .task {
-            if usageModel.enabledProviders.contains(.codex) {
+            // Refreshing usage first re-detects installed providers, which gate the quota fetches.
+            usageModel.refresh()
+            if usageModel.activeProviders.contains(.codex) {
                 codexQuotaModel.refresh()
             }
-            if usageModel.enabledProviders.contains(.grok) {
+            if usageModel.activeProviders.contains(.grok) {
                 grokQuotaModel.refresh()
             }
-            usageModel.refresh()
             await breakReminderModel.perform(.reconcile)
         }
         .breakReminderIssueAlert(breakReminderModel)
