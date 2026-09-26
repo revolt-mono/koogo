@@ -5,69 +5,42 @@ struct UsageLogLocation: Sendable {
     let url: URL
 }
 
+/// Where each provider keeps its logs under one home directory.
 struct UsageLocations: Sendable {
-    struct Logs: Sendable {
-        struct Codex: Sendable {
-            let sessions: URL
-            let archivedSessions: URL
-        }
+    let home: URL
 
-        let codex: Codex
-        let claudeProjects: URL
-        let piAgent: URL
-        let grokSessions: URL
+    static let standard = Self(home: FileManager.default.homeDirectoryForCurrentUser)
 
-        var roots: [UsageLogLocation] {
-            [
-                UsageLogLocation(provider: .codex, url: codex.sessions),
-                UsageLogLocation(provider: .codex, url: codex.archivedSessions),
-                UsageLogLocation(provider: .claude, url: claudeProjects),
-                UsageLogLocation(provider: .piAgent, url: piAgent),
-                UsageLogLocation(provider: .grok, url: grokSessions),
-            ]
-        }
-
-        /// Providers whose home, the directory holding their logs such as `~/.codex`, exists;
-        /// a few `stat` calls, cheap enough for every panel open.
-        func installedProviders() -> Set<UsageProvider> {
-            let installed = roots.filter {
-                FileManager.default.fileExists(atPath: $0.url.deletingLastPathComponent().path)
+    /// The directory a provider creates when installed, such as `~/.codex`.
+    func home(of provider: UsageProvider) -> URL {
+        let path =
+            switch provider {
+            case .codex: ".codex"
+            case .claude: ".claude"
+            case .piAgent: ".pi/agent"
+            case .grok: ".grok"
             }
-            return Set(installed.map(\.provider))
+        return home.appending(path: path, directoryHint: .isDirectory)
+    }
+
+    /// Every log root, in report order.
+    var logRoots: [UsageLogLocation] {
+        [
+            (UsageProvider.codex, "sessions"),
+            (.codex, "archived_sessions"),
+            (.claude, "projects"),
+            (.piAgent, "sessions"),
+            (.grok, "sessions"),
+        ].map { provider, directory in
+            UsageLogLocation(
+                provider: provider,
+                url: home(of: provider).appending(path: directory, directoryHint: .isDirectory)
+            )
         }
     }
 
-    struct PiModels: Sendable {
-        let custom: URL
-        let store: URL
+    /// Providers whose home exists; a few `stat` calls, cheap enough for every panel open.
+    func installedProviders() -> Set<UsageProvider> {
+        Set(UsageProvider.allCases.filter { FileManager.default.fileExists(atPath: home(of: $0).path) })
     }
-
-    let logs: Logs
-    let piModels: PiModels
-
-    static let standard: Self = {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let piAgent = home.appending(path: ".pi/agent", directoryHint: .isDirectory)
-        return Self(
-            logs: Logs(
-                codex: Logs.Codex(
-                    sessions: home.appending(path: ".codex/sessions", directoryHint: .isDirectory),
-                    archivedSessions: home.appending(
-                        path: ".codex/archived_sessions",
-                        directoryHint: .isDirectory
-                    )
-                ),
-                claudeProjects: home.appending(
-                    path: ".claude/projects",
-                    directoryHint: .isDirectory
-                ),
-                piAgent: piAgent.appending(path: "sessions", directoryHint: .isDirectory),
-                grokSessions: home.appending(path: ".grok/sessions", directoryHint: .isDirectory)
-            ),
-            piModels: PiModels(
-                custom: piAgent.appending(path: "models.json", directoryHint: .notDirectory),
-                store: piAgent.appending(path: "models-store.json", directoryHint: .notDirectory)
-            )
-        )
-    }()
 }

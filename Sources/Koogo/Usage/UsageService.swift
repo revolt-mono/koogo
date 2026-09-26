@@ -1,22 +1,5 @@
 import Foundation
 
-/// How the last refresh went; the pipeline drops unparseable input silently,
-/// so this is the only place ingestion health becomes observable.
-struct UsageIngestionStats: Sendable, Encodable {
-    struct LogRoot: Equatable, Sendable, Encodable {
-        let provider: UsageProvider
-        let path: String
-        let exists: Bool
-    }
-
-    let logRoots: [LogRoot]
-    let trackedFiles: [UsageProvider: Int]
-    let events: [UsageProvider: Int]
-    /// Models with events inside the history window that were dropped
-    /// because no pricing entry matched.
-    let unpricedModels: [String]
-}
-
 /// The single output of a usage pipeline run: what the UI renders plus how
 /// ingestion went, so health is observable wherever the snapshot is.
 struct UsageReport: Sendable, Encodable {
@@ -44,7 +27,7 @@ actor UsageService {
     ) {
         self.locations = locations
         self.calendar = calendar
-        logIndex = UsageLogIndex(locations: locations.logs)
+        logIndex = UsageLogIndex(roots: locations.logRoots)
     }
 
     func refresh(
@@ -54,20 +37,13 @@ actor UsageService {
         let started = ContinuousClock.now
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
         let changed = logIndex.refresh(since: intervals.historyStart, providers: providers)
-        let piModels = PiModelCatalog(locations: locations.piModels)
-        let logRoots = logIndex.logRoots
+        let piModels = providers.contains(.piAgent) ? PiModelCatalog(home: locations.home(of: .piAgent)) : .empty
         if !changed, let lastRefresh, lastRefresh.intervals == intervals, lastRefresh.providers == providers,
-            lastRefresh.piModels == piModels, lastRefresh.report.ingestion.logRoots == logRoots
+            lastRefresh.piModels == piModels
         {
             return lastRefresh.report
         }
-        let events = logIndex.events
-        let ingestion = UsageIngestionStats(
-            logRoots: logRoots,
-            trackedFiles: logIndex.trackedFileCounts,
-            events: events.counts,
-            unpricedModels: events.unpricedModelIDs
-        )
+        let (events, ingestion) = logIndex.collect()
 
         let files = ingestion.trackedFiles.values.reduce(0, +)
         let eventCount = ingestion.events.values.reduce(0, +)
@@ -79,16 +55,15 @@ actor UsageService {
         )
         if !ingestion.unpricedModels.isEmpty {
             let models = ingestion.unpricedModels.joined(separator: ",")
-            Telemetry.usage.warning("dropped events for unpriced models: \(models, privacy: .public)")
+            Telemetry.usage.warning("dropped events without a price: \(models, privacy: .public)")
         }
 
         let report = UsageReport(
             ingestion: ingestion,
             snapshot: UsageSnapshotBuilder.build(
-                events: events.values,
+                events: events,
                 providers: providers,
                 intervals: intervals,
-                calendar: calendar,
                 piModels: piModels
             )
         )

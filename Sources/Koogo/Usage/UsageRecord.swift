@@ -7,11 +7,20 @@ enum UsageProvider: String, CaseIterable, Sendable, Encodable, CodingKeyRepresen
     case grok
 }
 
+extension UsageProvider {
+    var title: String {
+        switch self {
+        case .codex: "Codex"
+        case .claude: "Claude"
+        case .piAgent: "Pi"
+        case .grok: "Grok"
+        }
+    }
+}
+
 enum UsageModelReference: Hashable, Sendable {
-    case codex(id: String, name: String)
-    case claude(id: String, name: String)
+    case named(id: String, name: String)
     case piAgent(provider: String, id: String)
-    case grok(id: String, name: String)
 }
 
 struct UsageRecord: Sendable {

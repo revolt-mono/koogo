@@ -2,6 +2,10 @@ import AppKit
 import SwiftUI
 
 struct TodoTextInput: NSViewRepresentable {
+    /// Shared by the typed text, which draws in its rounded design, and the composer placeholder.
+    static let font = NSFont.systemFont(ofSize: 11, weight: .medium)
+    static let textInset = NSSize(width: 5, height: 6)
+
     enum Mode {
         case composing
         case editing(onBlur: () -> Void)
@@ -17,10 +21,9 @@ struct TodoTextInput: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let textView = context.coordinator.textView
-        let font = NSFont.systemFont(ofSize: 11, weight: .medium)
         textView.font =
-            font.fontDescriptor.withDesign(.rounded)
-            .flatMap { NSFont(descriptor: $0, size: 11) } ?? font
+            Self.font.fontDescriptor.withDesign(.rounded)
+            .flatMap { NSFont(descriptor: $0, size: Self.font.pointSize) } ?? Self.font
         textView.delegate = context.coordinator
         textView.drawsBackground = false
         textView.isRichText = false
@@ -33,7 +36,7 @@ struct TodoTextInput: NSViewRepresentable {
             width: CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
         )
-        textView.textContainerInset = NSSize(width: 5, height: 6)
+        textView.textContainerInset = Self.textInset
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
 

@@ -158,10 +158,12 @@ private struct MountedDiskImagesQuickAction: View {
         Task {
             do {
                 try await SystemQuickActions.eject(diskImages)
-                state = try await SystemQuickActions.mountedDiskImages().map(State.available) ?? .none
             } catch {
                 state = .failed(error.localizedDescription)
+                return
             }
+            state = .loading
+            reloadRequest &+= 1
         }
     }
 }

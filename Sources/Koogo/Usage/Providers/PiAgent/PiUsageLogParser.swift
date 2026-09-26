@@ -50,8 +50,8 @@ struct PiLogParser: UsageLogParser {
         }
 
         return .event(
-            .piAgent(
-                entryID: record.id,
+            UsageEvent(
+                key: .piAgent(entryID: record.id),
                 usage: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: billedUsage.processedTokens,

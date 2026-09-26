@@ -16,27 +16,26 @@ struct KoogoApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra {
-            PanelView()
-                .environment(usageModel)
-                .environment(codexQuotaModel)
-                .environment(grokQuotaModel)
-                .environment(updateModel)
-                .environment(breakReminderModel)
-                .environment(inboxModel)
-                .fontDesign(.rounded)
-        } label: {
-            Image(systemName: "chart.bar.xaxis")
-        }
-        .menuBarExtraStyle(.window)
+        Group {
+            MenuBarExtra {
+                PanelView()
+                    .fontDesign(.rounded)
+            } label: {
+                Image(systemName: "chart.bar.xaxis")
+            }
+            .menuBarExtraStyle(.window)
 
-        Settings {
-            SettingsView()
-                .environment(usageModel)
-                .environment(updateModel)
-                .environment(breakReminderModel)
-                .fontDesign(.rounded)
+            Settings {
+                SettingsView()
+                    .fontDesign(.rounded)
+            }
+            .windowResizability(.contentSize)
         }
-        .windowResizability(.contentSize)
+        .environment(usageModel)
+        .environment(codexQuotaModel)
+        .environment(grokQuotaModel)
+        .environment(updateModel)
+        .environment(breakReminderModel)
+        .environment(inboxModel)
     }
 }

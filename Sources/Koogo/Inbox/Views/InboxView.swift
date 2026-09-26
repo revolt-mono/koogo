@@ -4,20 +4,16 @@ struct InboxView: View {
     @Environment(InboxModel.self) private var inboxModel
 
     var body: some View {
-        @Bindable var inboxModel = inboxModel
-
         VStack(alignment: .leading, spacing: 12) {
-            TodoEditor {
-                inboxModel.todos.insert($0, at: 0)
-            }
+            TodoEditor { inboxModel.add($0, priority: $1) }
 
             HStack(spacing: 8) {
-                Text(openSummary)
+                Text(inboxOpenSummary(inboxModel.todos))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button("Clear done", systemImage: "trash") {
-                    inboxModel.todos.removeAll(where: \.isCompleted)
+                    inboxModel.clearCompleted()
                 }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
@@ -28,13 +24,11 @@ struct InboxView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach($inboxModel.todos) { $todo in
+                    ForEach(inboxModel.todos) { todo in
                         if todo.id != inboxModel.todos.first?.id {
                             DashedDivider()
                         }
-                        TodoRow(todo: $todo) { [id = todo.id] in
-                            inboxModel.todos.removeAll { $0.id == id }
-                        }
+                        TodoRow(todo: todo)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
@@ -45,15 +39,15 @@ struct InboxView: View {
         .padding(.bottom, 32)
         .frame(maxHeight: .infinity, alignment: .top)
     }
+}
 
-    private var openSummary: String {
-        let open = inboxModel.todos.filter { !$0.isCompleted }
-        let counts = TodoPriority.allCases.reversed().compactMap { priority in
-            let count = open.count { $0.priority == priority }
-            return count > 0 ? "\(count) \(priority.title)" : nil
-        }
-        return counts.isEmpty ? "no open todos" : counts.joined(separator: ", ")
+func inboxOpenSummary(_ todos: [Todo]) -> String {
+    let open = todos.filter { !$0.isCompleted }
+    let counts = TodoPriority.allCases.reversed().compactMap { priority in
+        let count = open.count { $0.priority == priority }
+        return count > 0 ? "\(count) \(priority.title)" : nil
     }
+    return counts.isEmpty ? "no open todos" : counts.joined(separator: ", ")
 }
 
 private struct DashedDivider: View {
@@ -74,9 +68,9 @@ private struct HorizontalLine: Shape {
 }
 
 private struct TodoRow: View {
-    @Binding var todo: Todo
-    let onDelete: () -> Void
+    let todo: Todo
 
+    @Environment(InboxModel.self) private var inboxModel
     @State private var isEditing = false
 
     var body: some View {
@@ -86,7 +80,7 @@ private struct TodoRow: View {
             } else {
                 HStack(alignment: .center, spacing: 8) {
                     Button {
-                        todo.isCompleted.toggle()
+                        inboxModel.update(todo.id) { $0.isCompleted.toggle() }
                     } label: {
                         Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 12, weight: .medium))
@@ -122,7 +116,13 @@ private struct TodoRow: View {
                 isEditing = true
             }
 
-            Picker("Priority", selection: $todo.priority) {
+            Picker(
+                "Priority",
+                selection: Binding(
+                    get: { todo.priority },
+                    set: { new in inboxModel.update(todo.id) { $0.priority = new } }
+                )
+            ) {
                 ForEach(TodoPriority.allCases, id: \.self) { priority in
                     Text(priority.title)
                         .tag(priority)
@@ -130,7 +130,9 @@ private struct TodoRow: View {
             }
             .pickerStyle(.menu)
 
-            Button("Delete", role: .destructive, action: onDelete)
+            Button("Delete", role: .destructive) {
+                inboxModel.delete(todo.id)
+            }
         }
     }
 
@@ -139,7 +141,7 @@ private struct TodoRow: View {
         case .discarded:
             break
         case .saved(let text):
-            todo.text = text
+            inboxModel.update(todo.id) { $0.text = text }
         }
         isEditing = false
     }

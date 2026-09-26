@@ -20,29 +20,11 @@ enum BreakReminderStatus: Equatable {
 enum BreakReminderIssue: Error, Equatable {
     case notificationsDisabled
     case schedulingFailed
-
-    var title: String {
-        switch self {
-        case .notificationsDisabled:
-            "Notifications Are Off"
-        case .schedulingFailed:
-            "Couldn't Start Break Reminder"
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .notificationsDisabled:
-            "Allow Koogo notifications in System Settings before starting the break reminder."
-        case .schedulingFailed:
-            "Koogo couldn't schedule the notification. Please try again."
-        }
-    }
 }
 
 @MainActor
 protocol BreakReminderNotifications: AnyObject {
-    func schedule(after duration: TimeInterval) async throws(BreakReminderIssue) -> Date
+    func schedule(after duration: TimeInterval) async throws(BreakReminderIssue)
     func hasDeliverableReminder() async -> Bool
     func cancel()
 }
@@ -162,8 +144,9 @@ final class BreakReminderModel {
     private func start(interval: BreakReminderInterval, after duration: TimeInterval) async {
         issue = nil
         do {
-            let deadline = try await notifications.schedule(after: duration)
-            countdown = .scheduled(interval: interval, deadline: deadline)
+            try await notifications.schedule(after: duration)
+            // Measured once scheduling returns, so an authorization prompt doesn't shorten the countdown.
+            countdown = .scheduled(interval: interval, deadline: now().addingTimeInterval(duration))
             persist()
         } catch {
             pause(interval: interval, remaining: duration, issue: error)

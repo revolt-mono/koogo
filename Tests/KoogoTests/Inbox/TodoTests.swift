@@ -48,4 +48,35 @@ final class TodoTests: XCTestCase {
 
         XCTAssertThrowsError(try PropertyListDecoder().decode([Todo].self, from: invalidData))
     }
+
+    func testOpenSummaryListsUrgentThenNormalThenBacklog() throws {
+        let todos = try [
+            todo("later", .backlog),
+            todo("soon", .normal),
+            todo("now", .urgent),
+            todo("also soon", .normal),
+        ]
+
+        XCTAssertEqual(inboxOpenSummary(todos), "1 urgent, 2 normal, 1 backlog")
+    }
+
+    func testOpenSummarySkipsCompletedTodosAndZeroCounts() throws {
+        let todos = try [
+            todo("shipped", .urgent, isCompleted: true),
+            todo("later", .backlog),
+            todo("someday", .backlog),
+        ]
+
+        XCTAssertEqual(inboxOpenSummary(todos), "2 backlog")
+    }
+
+    func testOpenSummaryOfAnEmptyListSaysNoOpenTodos() {
+        XCTAssertEqual(inboxOpenSummary([]), "no open todos")
+    }
+
+    private func todo(_ text: String, _ priority: TodoPriority, isCompleted: Bool = false) throws -> Todo {
+        var todo = Todo(text: try XCTUnwrap(TodoText(text)), priority: priority)
+        todo.isCompleted = isCompleted
+        return todo
+    }
 }

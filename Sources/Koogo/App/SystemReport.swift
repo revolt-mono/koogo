@@ -36,14 +36,14 @@ struct SystemReport: Encodable {
     private let quota: Quota
 
     static func generate(
-        locations: UsageLocations = .standard,
+        usageService: UsageService = UsageService(),
         codexQuotaService: CodexQuotaService = CodexQuotaService(),
         grokQuotaService: GrokQuotaService = GrokQuotaService(),
         at date: Date = .now
     ) async throws -> Data {
         async let codexQuota = codexQuotaService.fetch()
         async let grokQuota = grokQuotaService.fetch()
-        let usage = await UsageService(locations: locations).refresh(at: date)
+        let usage = await usageService.refresh(at: date)
         let report = SystemReport(
             generatedAt: date,
             usage: usage,

@@ -37,14 +37,18 @@ struct PiModelCatalog: Equatable, Sendable {
 
     private let names: [ID: String]
 
-    init(locations: UsageLocations.PiModels) {
+    /// Reads the names Pi keeps under its `home`: `models-store.json`, then the JSON5 `models.json`
+    /// entries and overrides on top.
+    init(home: URL) {
+        let store = home.appending(path: "models-store.json", directoryHint: .notDirectory)
+        let custom = home.appending(path: "models.json", directoryHint: .notDirectory)
         var names: [ID: String] = [:]
-        for (provider, configuration) in Self.decode([String: StoredProvider].self, from: locations.store) ?? [:] {
+        for (provider, configuration) in Self.decode([String: StoredProvider].self, from: store) ?? [:] {
             for model in configuration.models {
                 names[ID(provider: provider, model: model.id)] = model.name
             }
         }
-        for (provider, configuration) in Self.decode(CustomModels.self, from: locations.custom, allowsJSON5: true)?
+        for (provider, configuration) in Self.decode(CustomModels.self, from: custom, allowsJSON5: true)?
             .providers ?? [:]
         {
             for model in configuration.models ?? [] {

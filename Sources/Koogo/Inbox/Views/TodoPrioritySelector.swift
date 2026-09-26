@@ -44,7 +44,6 @@ private extension TodoPriority {
 struct TodoPrioritySelector: View {
     @Binding var selection: TodoPriority
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focusedPriority: TodoPriority?
 
     var body: some View {
@@ -62,10 +61,7 @@ struct TodoPrioritySelector: View {
                     )
                     // Inside the label so the morph animates even when the
                     // pressed button re-renders in its gesture's transaction.
-                    .animation(
-                        reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86),
-                        value: isSelected
-                    )
+                    .motionAnimation(.spring(response: 0.42, dampingFraction: 0.86), value: isSelected)
                 }
                 .buttonStyle(TodoPriorityButtonStyle())
                 .focused($focusedPriority, equals: priority)

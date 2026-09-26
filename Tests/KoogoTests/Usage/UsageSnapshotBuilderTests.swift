@@ -4,18 +4,13 @@ import XCTest
 @testable import Koogo
 
 final class UsageSnapshotBuilderTests: XCTestCase {
-    func testSnapshotPreservesSubcentProviderCosts() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let intervals = UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar)
-
+    func testSnapshotPreservesSubcentProviderCosts() {
         let snapshot = UsageSnapshotBuilder.build(
             events: [
                 usageEvent(.codex, processedTokens: 1_000, costUSD: 0.005),
                 usageEvent(.claude, processedTokens: 1_000, costUSD: 0.005),
             ],
-            intervals: intervals,
-            calendar: calendar
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
         )
         XCTAssertEqual(snapshot.providers[.codex]?.today.costUSD, Decimal(string: "0.005"))
         XCTAssertEqual(snapshot.providers[.claude]?.today.costUSD, Decimal(string: "0.005"))
@@ -36,8 +31,6 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     }
 
     func testSnapshotComparesCompletePreviousPeriods() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let snapshot = UsageSnapshotBuilder.build(
             events: [
                 usageEvent(
@@ -67,17 +60,30 @@ final class UsageSnapshotBuilderTests: XCTestCase {
                     at: try XCTUnwrap(parseUsageTimestamp("2026-07-25T19:00:00Z"))
                 ),
             ],
-            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar),
-            calendar: calendar
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
         )
 
         XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
         XCTAssertEqual(snapshot.summary.month.costChange, .decrease(fraction: Decimal(1) / 2))
     }
 
+    func testSummaryComparisonIgnoresProvidersOutsideTheSet() throws {
+        let yesterday = try XCTUnwrap(usageTestCalendar.date(byAdding: .day, value: -1, to: usageTestTimestamp))
+
+        let snapshot = UsageSnapshotBuilder.build(
+            events: [
+                usageEvent(.codex, processedTokens: 100, costUSD: 1),
+                usageEvent(.claude, processedTokens: 100, costUSD: 1, at: yesterday),
+            ],
+            providers: [.codex],
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
+        )
+
+        XCTAssertEqual(Set(snapshot.providers.keys), [.codex])
+        XCTAssertEqual(snapshot.summary.today.costChange, .increase(fraction: 1))
+    }
+
     func testPreviousMonthExcludesCurrentMonthBoundary() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let now = try XCTUnwrap(parseUsageTimestamp("2026-03-31T12:00:00Z"))
 
         let snapshot = UsageSnapshotBuilder.build(
@@ -97,8 +103,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
                     at: try XCTUnwrap(parseUsageTimestamp("2026-03-01T00:00:00Z"))
                 ),
             ],
-            intervals: UsagePeriodIntervals(containing: now, calendar: calendar),
-            calendar: calendar
+            intervals: UsagePeriodIntervals(containing: now, calendar: usageTestCalendar)
         )
 
         XCTAssertEqual(snapshot.summary.month.current.costUSD, Decimal(string: "0.05"))
@@ -106,11 +111,9 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     }
 
     func testSnapshotDerivesCalendarPeriodsAndDailySeries() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        let intervals = UsagePeriodIntervals(containing: usageTestTimestamp, calendar: calendar)
+        let intervals = UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
         let within24HoursOnPreviousDay = try XCTUnwrap(
-            calendar.date(byAdding: .hour, value: -23, to: usageTestTimestamp)
+            usageTestCalendar.date(byAdding: .hour, value: -23, to: usageTestTimestamp)
         )
 
         let snapshot = UsageSnapshotBuilder.build(
@@ -124,8 +127,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
                     at: within24HoursOnPreviousDay
                 ),
             ],
-            intervals: intervals,
-            calendar: calendar
+            intervals: intervals
         )
 
         XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 100)
@@ -139,9 +141,6 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     }
 
     func testSnapshotUsesCalendarWeekAndMonthBoundaries() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
-        calendar.firstWeekday = 2
         let now = try XCTUnwrap(parseUsageTimestamp("2026-09-01T12:00:00Z"))
         let sameWeekPreviousMonth = try XCTUnwrap(
             parseUsageTimestamp("2026-08-31T12:00:00Z")
@@ -149,7 +148,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         let previousCalendarWeek = try XCTUnwrap(
             parseUsageTimestamp("2026-08-30T12:00:00Z")
         )
-        let intervals = UsagePeriodIntervals(containing: now, calendar: calendar)
+        let intervals = UsagePeriodIntervals(containing: now, calendar: usageTestCalendar)
 
         let snapshot = UsageSnapshotBuilder.build(
             events: [
@@ -167,8 +166,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
                     at: previousCalendarWeek
                 ),
             ],
-            intervals: intervals,
-            calendar: calendar
+            intervals: intervals
         )
 
         XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 100)
@@ -176,4 +174,79 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(snapshot.providers[.codex]?.month.processedTokens, 100)
         XCTAssertEqual(snapshot.providers[.codex]?.dailyMonth.days.map(\.usage.processedTokens), [100])
     }
+
+    func testSnapshotPreservesExactCostsAndUsesOccurrenceFavorites() throws {
+        let snapshot = UsageSnapshotBuilder.build(
+            events: [
+                favoriteEvent(1, model: luna, effort: "low", tokens: 20_000, costUSD: 0.004),
+                favoriteEvent(2, model: luna, effort: "high", tokens: 20_000, costUSD: 0.004),
+                favoriteEvent(3, model: sol, effort: "low", tokens: 200_000, costUSD: 1),
+            ],
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
+        )
+
+        let codex = try XCTUnwrap(snapshot.providers[.codex])
+        XCTAssertEqual(codex.today.processedTokens, 240_000)
+        XCTAssertEqual(codex.today.costUSD, Decimal(string: "1.008"))
+        XCTAssertEqual(
+            codex.favorite,
+            ProviderUsageSnapshot.Favorite(
+                modelName: "GPT 5.6 Luna",
+                reasoningEffort: "high"
+            )
+        )
+        XCTAssertEqual(
+            codex.dailyMonth.days,
+            [
+                UsageDaySnapshot(
+                    date: usageTestCalendar.startOfDay(for: usageTestTimestamp),
+                    usage: codex.today
+                )
+            ]
+        )
+    }
+
+    func testSnapshotFavoritesUseFullParsedRangeAndFavoriteModelEfforts() throws {
+        let earlierHistory = try XCTUnwrap(parseUsageTimestamp("2026-07-10T12:00:00Z"))
+        let snapshot = UsageSnapshotBuilder.build(
+            events: [
+                favoriteEvent(1, model: luna, effort: "high", at: earlierHistory),
+                favoriteEvent(2, model: luna, effort: "high", at: earlierHistory),
+                favoriteEvent(3, model: luna, effort: "low", at: earlierHistory),
+                favoriteEvent(4, model: sol, effort: "low"),
+                favoriteEvent(5, model: sol, effort: "low"),
+            ],
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
+        )
+
+        XCTAssertEqual(
+            snapshot.providers[.codex]?.favorite,
+            ProviderUsageSnapshot.Favorite(
+                modelName: "GPT 5.6 Luna",
+                reasoningEffort: "high"
+            )
+        )
+    }
+
+    private func favoriteEvent(
+        _ id: Int,
+        model: UsageModelReference,
+        effort: String,
+        tokens: UInt64 = 1,
+        costUSD: Decimal = 0,
+        at date: Date = usageTestTimestamp
+    ) -> UsageEvent {
+        usageEvent(
+            .codex,
+            id: id,
+            model: model,
+            effort: effort,
+            processedTokens: tokens,
+            costUSD: costUSD,
+            at: date
+        )
+    }
 }
+
+private let luna = UsageModelReference.named(id: "gpt-5.6-luna", name: "GPT 5.6 Luna")
+private let sol = UsageModelReference.named(id: "gpt-5.6-sol", name: "GPT 5.6 Sol")

@@ -4,45 +4,45 @@ import XCTest
 @testable import Koogo
 
 final class UsageEventIndexTests: XCTestCase {
-    func testStableCodexAndPiIdentitiesKeepFirstOccurrence() {
-        let codexID = UsageEvent.CodexID(
-            threadID: "thread",
-            turnID: "turn",
-            ordinal: 1,
-            timestamp: usageTestTimestamp,
-            cumulativeTotal: 10
-        )
-        var index = UsageEventIndex(since: .distantPast)
+    func testFirstCopyWinsForKeysWithoutRevisions() {
+        let keys: [UsageEvent.Key] = [
+            .codex(threadID: "thread", turnID: "turn", ordinal: 1, timestamp: usageTestTimestamp, cumulativeTotal: 10),
+            .piAgent(entryID: "entry"),
+            .grok(eventID: "event", timestamp: usageTestTimestamp),
+        ]
 
-        index.insert(.event(.codex(id: codexID, usage: record(tokens: 10))))
-        index.insert(.event(.codex(id: codexID, usage: record(tokens: 20))))
-        index.insert(.event(.piAgent(entryID: "entry", usage: record(tokens: 30))))
-        index.insert(.event(.piAgent(entryID: "entry", usage: record(tokens: 40))))
+        for key in keys {
+            var index = UsageEventIndex(since: .distantPast)
+            index.insert(.event(UsageEvent(key: key, usage: record(tokens: 10))))
+            index.insert(.event(UsageEvent(key: key, usage: record(tokens: 20))))
+            var later = UsageEventIndex(since: .distantPast)
+            later.insert(.event(UsageEvent(key: key, usage: record(tokens: 30))))
+            index.merge(later)
 
-        XCTAssertEqual(index.values.first { $0.provider == .codex }?.usage.processedTokens, 10)
-        XCTAssertEqual(index.values.first { $0.provider == .piAgent }?.usage.processedTokens, 30)
+            XCTAssertEqual(index.values.map(\.usage.processedTokens), [10], "\(key)")
+        }
     }
 
-    func testClaudeIdentityKeepsPreferredRevisionAcrossInsertAndMerge() {
-        let id = UsageEvent.ClaudeID(messageID: "message", requestID: "request")
-        let revisions = [
-            UsageEvent.ClaudeRevision(usage: record(tokens: 30), outputTokens: 4, metadataCompleteness: 2),
-            UsageEvent.ClaudeRevision(usage: record(tokens: 10), outputTokens: 5, metadataCompleteness: 0),
-            UsageEvent.ClaudeRevision(usage: record(tokens: 9), outputTokens: 5, metadataCompleteness: 1),
-            UsageEvent.ClaudeRevision(usage: record(tokens: 20), outputTokens: 5, metadataCompleteness: 1),
-            UsageEvent.ClaudeRevision(
-                usage: record(tokens: 20, at: usageTestTimestamp.addingTimeInterval(1)),
+    func testClaudeKeyKeepsTheHighestRevisionAcrossInsertAndMerge() {
+        let ladder = [
+            claudeCopy(tokens: 30, outputTokens: 4, metadataCompleteness: 2),
+            claudeCopy(tokens: 10, outputTokens: 5, metadataCompleteness: 0),
+            claudeCopy(tokens: 9, outputTokens: 5, metadataCompleteness: 1),
+            claudeCopy(tokens: 20, outputTokens: 5, metadataCompleteness: 1),
+            claudeCopy(
+                tokens: 20,
                 outputTokens: 5,
-                metadataCompleteness: 1
+                metadataCompleteness: 1,
+                at: usageTestTimestamp.addingTimeInterval(1)
             ),
         ]
 
-        for (partial, complete) in zip(revisions, revisions.dropFirst()) {
+        for (partial, complete) in zip(ladder, ladder.dropFirst()) {
             var inserted = UsageEventIndex(since: .distantPast)
-            inserted.insert(.event(.claude(id: id, revision: complete)))
-            inserted.insert(.event(.claude(id: id, revision: partial)))
+            inserted.insert(.event(complete))
+            inserted.insert(.event(partial))
             var merged = UsageEventIndex(since: .distantPast)
-            merged.insert(.event(.claude(id: id, revision: partial)))
+            merged.insert(.event(partial))
             inserted.merge(merged)
             merged.merge(inserted)
 
@@ -54,18 +54,20 @@ final class UsageEventIndexTests: XCTestCase {
         }
     }
 
-    func testDiscardRemovesEveryProviderBeforeHistoryStart() {
+    func testDiscardRemovesEventsAndUnpricedModelsBeforeHistoryStart() {
         let historyStart = usageTestTimestamp
         let old = historyStart.addingTimeInterval(-1)
         var index = UsageEventIndex(since: .distantPast)
-        index.insert(.event(usageEvent(.codex, id: 1, processedTokens: 1, costUSD: 0, at: old)))
-        index.insert(.event(usageEvent(.claude, id: 2, processedTokens: 2, costUSD: 0, at: old)))
-        index.insert(.event(usageEvent(.piAgent, id: 3, processedTokens: 3, costUSD: 0, at: old)))
-        index.insert(.event(usageEvent(.codex, id: 4, processedTokens: 4, costUSD: 0)))
+        for (id, provider) in UsageProvider.allCases.enumerated() {
+            index.insert(.event(usageEvent(provider, id: id, processedTokens: 1, costUSD: 0, at: old)))
+        }
+        index.insert(.unpricedModel(id: "old-model", timestamp: old))
+        index.insert(.event(usageEvent(.codex, id: 100, processedTokens: 4, costUSD: 0)))
 
         index.discard(before: historyStart)
 
         XCTAssertEqual(index.values.map(\.usage.processedTokens), [4])
+        XCTAssertEqual(index.unpricedModelIDs, [])
     }
 
     private func record(tokens: UInt64, at date: Date = usageTestTimestamp) -> UsageRecord {
@@ -74,6 +76,19 @@ final class UsageEventIndexTests: XCTestCase {
             processedTokens: tokens,
             costUSD: 0,
             modelTurn: nil
+        )
+    }
+
+    private func claudeCopy(
+        tokens: UInt64,
+        outputTokens: UInt64,
+        metadataCompleteness: Int,
+        at date: Date = usageTestTimestamp
+    ) -> UsageEvent {
+        UsageEvent(
+            key: .claude(messageID: "message", requestID: "request"),
+            usage: record(tokens: tokens, at: date),
+            revision: UsageEvent.Revision(outputTokens: outputTokens, metadataCompleteness: metadataCompleteness)
         )
     }
 }

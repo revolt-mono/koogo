@@ -3,7 +3,7 @@ import UserNotifications
 
 @MainActor
 final class BreakReminderNotificationCenter: NSObject, BreakReminderNotifications {
-    private static let requestIdentifier = "break-reminder"
+    nonisolated private static let requestIdentifier = "break-reminder"
 
     private let center: UNUserNotificationCenter
 
@@ -13,34 +13,35 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
         center.delegate = self
     }
 
-    func schedule(after duration: TimeInterval) async throws(BreakReminderIssue) -> Date {
+    func schedule(after duration: TimeInterval) async throws(BreakReminderIssue) {
+        let isAuthorized: Bool
         do {
-            guard try await center.requestAuthorization(options: [.alert, .sound]) else {
-                throw BreakReminderIssue.notificationsDisabled
-            }
+            isAuthorized = try await center.requestAuthorization(options: [.alert, .sound])
+        } catch {
+            throw .schedulingFailed
+        }
+        guard isAuthorized else {
+            throw .notificationsDisabled
+        }
 
-            let content = UNMutableNotificationContent()
-            content.title = "Time to Stand Up"
-            content.body = "Take a short walk, restart your timer when you're back."
-            content.sound = .default
+        let content = UNMutableNotificationContent()
+        content.title = "Time to Stand Up"
+        content.body = "Take a short walk, restart your timer when you're back."
+        content.sound = .default
 
-            let scheduledDuration = max(duration, 1)
-            let deadline = Date.now.addingTimeInterval(scheduledDuration)
-            let trigger = UNTimeIntervalNotificationTrigger(
-                timeInterval: scheduledDuration,
-                repeats: false
-            )
-            let request = UNNotificationRequest(
-                identifier: Self.requestIdentifier,
-                content: content,
-                trigger: trigger
-            )
+        let trigger = UNTimeIntervalNotificationTrigger(
+            timeInterval: max(duration, 1),
+            repeats: false
+        )
+        let request = UNNotificationRequest(
+            identifier: Self.requestIdentifier,
+            content: content,
+            trigger: trigger
+        )
 
-            center.removeDeliveredNotifications(withIdentifiers: [Self.requestIdentifier])
+        center.removeDeliveredNotifications(withIdentifiers: [Self.requestIdentifier])
+        do {
             try await center.add(request)
-            return deadline
-        } catch let issue as BreakReminderIssue {
-            throw issue
         } catch {
             throw .schedulingFailed
         }
@@ -64,8 +65,8 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
     }
 }
 
-extension BreakReminderNotificationCenter: @MainActor UNUserNotificationCenterDelegate {
-    func userNotificationCenter(
+extension BreakReminderNotificationCenter: UNUserNotificationCenterDelegate {
+    nonisolated func userNotificationCenter(
         _: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void

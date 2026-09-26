@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TodoEditor: View {
-    let onSubmit: (Todo) -> Void
+    let onSubmit: (TodoText, TodoPriority) -> Void
 
     @State private var text = ""
     @State private var priority = TodoPriority.normal
@@ -13,10 +13,10 @@ struct TodoEditor: View {
                 .frame(height: 56)
                 .overlay(alignment: .topLeading) {
                     Text("Add a todo…")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Font(TodoTextInput.font as CTFont))
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, TodoTextInput.textInset.width)
+                        .padding(.vertical, TodoTextInput.textInset.height)
                         .opacity(text.isEmpty ? 1 : 0)
                         .allowsHitTesting(false)
                 }
@@ -26,15 +26,9 @@ struct TodoEditor: View {
 
                 Spacer(minLength: 8)
 
-                Button(action: submit) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 8, weight: .bold))
-                        .frame(width: 16, height: 16)
-                }
-                .buttonStyle(.glassProminent)
-                .buttonBorderShape(.circle)
-                .disabled(TodoText(text) == nil)
-                .accessibilityLabel("Add todo")
+                TodoSubmitButton(systemImage: "arrow.up", action: submit)
+                    .disabled(TodoText(text) == nil)
+                    .accessibilityLabel("Add todo")
             }
         }
         .padding(12)
@@ -48,7 +42,7 @@ struct TodoEditor: View {
         guard let todoText = TodoText(text) else {
             return
         }
-        onSubmit(Todo(text: todoText, priority: priority))
+        onSubmit(todoText, priority)
         text = ""
         priority = .normal
     }
@@ -79,15 +73,9 @@ struct TodoInlineEditor: View {
             .frame(maxWidth: .infinity)
             .frame(height: 40)
 
-            Button(action: submit) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 8, weight: .bold))
-                    .frame(width: 16, height: 16)
-            }
-            .buttonStyle(.glassProminent)
-            .buttonBorderShape(.circle)
-            .disabled(todoText == nil)
-            .accessibilityLabel("Save todo")
+            TodoSubmitButton(systemImage: "checkmark", action: submit)
+                .disabled(todoText == nil)
+                .accessibilityLabel("Save todo")
         }
     }
 
@@ -100,5 +88,20 @@ struct TodoInlineEditor: View {
             return
         }
         onFinish(.saved(todoText))
+    }
+}
+
+private struct TodoSubmitButton: View {
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 8, weight: .bold))
+                .frame(width: 16, height: 16)
+        }
+        .buttonStyle(.glassProminent)
+        .buttonBorderShape(.circle)
     }
 }

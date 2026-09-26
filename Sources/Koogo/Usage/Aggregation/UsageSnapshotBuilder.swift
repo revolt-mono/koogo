@@ -49,11 +49,7 @@ enum UsageSnapshotBuilder {
         var week = UsagePeriodSnapshot()
         var monthByDay: [Date: UsagePeriodSnapshot] = [:]
 
-        mutating func add(
-            _ usage: UsageRecord,
-            intervals: UsagePeriodIntervals,
-            calendar: Calendar
-        ) {
+        mutating func add(_ usage: UsageRecord, intervals: UsagePeriodIntervals) {
             favorite.add(usage.modelTurn)
             if intervals.day.current.contains(usage.timestamp) {
                 today.add(usage)
@@ -62,7 +58,7 @@ enum UsageSnapshotBuilder {
                 week.add(usage)
             }
             if intervals.month.current.contains(usage.timestamp) {
-                monthByDay[calendar.startOfDay(for: usage.timestamp), default: .init()].add(usage)
+                monthByDay[intervals.startOfDay(for: usage.timestamp), default: .init()].add(usage)
             }
         }
 
@@ -89,16 +85,16 @@ enum UsageSnapshotBuilder {
         events: some Sequence<UsageEvent>,
         providers: Set<UsageProvider> = Set(UsageProvider.allCases),
         intervals: UsagePeriodIntervals,
-        calendar: Calendar,
         piModels: PiModelCatalog = .empty
     ) -> UsageSnapshot {
         var accumulators = Dictionary(uniqueKeysWithValues: providers.map { ($0, ProviderAccumulator()) })
         var previousDay = UsagePeriodSnapshot()
         var previousMonth = UsagePeriodSnapshot()
 
-        for event in events {
+        // Previous-period baselines cover the same providers as the current totals.
+        for event in events where providers.contains(event.provider) {
             let usage = event.usage
-            accumulators[event.provider]?.add(usage, intervals: intervals, calendar: calendar)
+            accumulators[event.provider]?.add(usage, intervals: intervals)
             if intervals.day.previous.contains(usage.timestamp) {
                 previousDay.add(usage)
             }
@@ -118,16 +114,14 @@ enum UsageSnapshotBuilder {
 private extension UsageModelReference {
     var sortKey: String {
         switch self {
-        case .codex(let id, _): "codex/\(id)"
-        case .claude(let id, _): "claude/\(id)"
-        case .piAgent(let provider, let id): "pi/\(provider)/\(id)"
-        case .grok(let id, _): "grok/\(id)"
+        case .named(let id, _): id
+        case .piAgent(let provider, let id): "\(provider)/\(id)"
         }
     }
 
     func displayName(piModels: PiModelCatalog) -> String {
         switch self {
-        case .codex(_, let name), .claude(_, let name), .grok(_, let name): name
+        case .named(_, let name): name
         case .piAgent(let provider, let id):
             piModels.displayName(provider: provider, model: id)
         }

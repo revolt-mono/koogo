@@ -38,6 +38,7 @@ private struct UsageFileMetadata: Sendable {
 
 /// One log file read incrementally: bytes appended since the last pass are
 /// parsed in place, while a rotated or truncated file is re-read from scratch.
+/// The walk is provider-agnostic; per-file provider rules (admission and the parser switch) live only here.
 private struct TrackedUsageFile: Sendable {
     private static let parsedTailSize = 64
 
@@ -47,6 +48,15 @@ private struct TrackedUsageFile: Sendable {
     private var parsedTail: Data
     private var parser: any UsageLogParser
     var eventIndex: UsageEventIndex
+
+    /// Starts tracking a file seen for the first time. A Grok log counts only once it has a top-level
+    /// session summary; a rejected file is offered again on the next scan, and a reread never re-checks.
+    static func admit(_ location: UsageLogLocation, since historyStart: Date) -> Self? {
+        if location.provider == .grok, !GrokLogParser.isUsageLog(location.url) {
+            return nil
+        }
+        return Self(location, since: historyStart)
+    }
 
     init?(_ location: UsageLogLocation, since historyStart: Date) {
         guard let handle = try? FileHandle(forReadingFrom: location.url) else {
@@ -194,46 +204,45 @@ private struct TrackedUsageFile: Sendable {
     }
 }
 
-/// Every `.jsonl` file under the enabled providers' log roots, tracked across refreshes.
+/// Every `.jsonl` file under the requested providers' log roots, tracked across refreshes by `fts` path.
 struct UsageLogIndex {
     private let roots: [UsageLogLocation]
+    private var logRoots: [UsageIngestionStats.LogRoot] = []
     private var trackedFiles: [String: TrackedUsageFile] = [:]
     private var indexedFrom = Date.distantPast
 
-    init(locations: UsageLocations.Logs) {
-        roots = locations.roots
+    init(roots: [UsageLogLocation]) {
+        self.roots = roots
     }
 
-    var logRoots: [UsageIngestionStats.LogRoot] {
-        roots.map {
+    /// Events merged across every tracked file, with ingestion stats, as of the last `refresh`.
+    func collect() -> (events: [UsageEvent], stats: UsageIngestionStats) {
+        var merged = UsageEventIndex(since: indexedFrom)
+        for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
+            merged.merge(tracked.eventIndex)
+        }
+        let events = merged.values
+        let stats = UsageIngestionStats(
+            logRoots: logRoots,
+            trackedFiles: Self.tally(trackedFiles.values.map(\.location.provider)),
+            events: Self.tally(events.map(\.provider)),
+            unpricedModels: merged.unpricedModelIDs
+        )
+        return (events, stats)
+    }
+
+    /// Checks which roots exist, updates the tracked files of `providers`, drops all others, and
+    /// reports whether the usage report may need rebuilding.
+    mutating func refresh(since historyStart: Date, providers: Set<UsageProvider>) -> Bool {
+        let logRoots = roots.map {
             UsageIngestionStats.LogRoot(
                 provider: $0.provider,
                 path: $0.url.path,
                 exists: FileManager.default.fileExists(atPath: $0.url.path)
             )
         }
-    }
-
-    var trackedFileCounts: [UsageProvider: Int] {
-        let empty = Dictionary(uniqueKeysWithValues: UsageProvider.allCases.map { ($0, 0) })
-        return trackedFiles.values.reduce(into: empty) { counts, tracked in
-            counts[tracked.location.provider, default: 0] += 1
-        }
-    }
-
-    /// Events merged across every tracked file, as of the last `refresh`.
-    var events: UsageEventIndex {
-        var merged = UsageEventIndex(since: indexedFrom)
-        for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
-            merged.merge(tracked.eventIndex)
-        }
-        return merged
-    }
-
-    /// updates the tracked files of `providers`, drops all others, and reports whether the usage
-    /// report may need rebuilding.
-    mutating func refresh(since historyStart: Date, providers: Set<UsageProvider>) -> Bool {
-        var changed = false
+        var changed = logRoots != self.logRoots
+        self.logRoots = logRoots
         if historyStart < indexedFrom {
             trackedFiles.removeAll(keepingCapacity: true)
             changed = true
@@ -252,7 +261,7 @@ struct UsageLogIndex {
 
     private mutating func scanLogs(_ roots: [UsageLogLocation], since historyStart: Date) -> Bool {
         var seenPaths = Set<String>()
-        var newFiles: [UsageLogLocation] = []
+        var newFiles: [(path: String, location: UsageLogLocation)] = []
         var changed = false
 
         for root in roots {
@@ -267,10 +276,8 @@ struct UsageLogIndex {
                     changed = tracked.refresh(observed: metadata) || changed
                     trackedFiles[path] = tracked
                 } else {
-                    let url = URL(fileURLWithPath: path)
-                    if root.provider != .grok || GrokLogParser.isUsageLog(url) {
-                        newFiles.append(UsageLogLocation(provider: root.provider, url: url))
-                    }
+                    let location = UsageLogLocation(provider: root.provider, url: URL(fileURLWithPath: path))
+                    newFiles.append((path, location))
                 }
             }
         }
@@ -287,27 +294,35 @@ struct UsageLogIndex {
     }
 
     private static func load(
-        _ files: [UsageLogLocation],
+        _ files: [(path: String, location: UsageLogLocation)],
         since historyStart: Date
     ) -> [String: TrackedUsageFile] {
         let trackedFiles = Mutex<[String: TrackedUsageFile]>([:])
         // Keep refresh synchronous so actor state cannot interleave while workers build files.
         DispatchQueue.concurrentPerform(iterations: files.count) { index in
-            let file = files[index]
-            guard let tracked = TrackedUsageFile(file, since: historyStart) else {
+            let (path, location) = files[index]
+            guard let tracked = TrackedUsageFile.admit(location, since: historyStart) else {
                 return
             }
-            trackedFiles.withLock { $0[file.url.path] = tracked }
+            trackedFiles.withLock { $0[path] = tracked }
         }
         return trackedFiles.withLock { $0 }
     }
 
+    private static func tally(_ providers: [UsageProvider]) -> [UsageProvider: Int] {
+        let zeros = Dictionary(uniqueKeysWithValues: UsageProvider.allCases.map { ($0, 0) })
+        return providers.reduce(into: zeros) { counts, provider in
+            counts[provider, default: 0] += 1
+        }
+    }
+
     /// Walks `root` with `fts`, which hands back each entry's `stat` from the same
     /// directory read, so change detection costs no per-file syscalls or URL objects.
+    /// A symlinked root is followed; symlinks below it are skipped.
     private static func walkJSONL(in root: String, _ body: (String, UsageFileMetadata) -> Void) {
         var paths: [UnsafeMutablePointer<CChar>?] = [strdup(root), nil]
         defer { free(paths[0]) }
-        guard let stream = fts_open(&paths, FTS_PHYSICAL | FTS_NOCHDIR, nil) else {
+        guard let stream = fts_open(&paths, FTS_PHYSICAL | FTS_COMFOLLOW | FTS_NOCHDIR, nil) else {
             return
         }
         defer { fts_close(stream) }

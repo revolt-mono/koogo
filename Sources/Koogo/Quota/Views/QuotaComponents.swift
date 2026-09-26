@@ -34,7 +34,7 @@ struct QuotaWindowRow: View {
     }
 }
 
-/// The shape of a `QuotaWindowRow` while limits load; the caller styles and animates it.
+/// The shape of a `QuotaWindowRow` while limits load; callers style it and apply `loadingShimmer()`.
 struct QuotaWindowPlaceholder: View {
     var body: some View {
         VStack(spacing: 4) {

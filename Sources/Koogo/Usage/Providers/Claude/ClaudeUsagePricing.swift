@@ -40,42 +40,27 @@ struct ClaudeTokenUsage: Sendable {
     }
 }
 
-enum ClaudeUsageSpeed: Sendable {
-    case implicitStandard
-    case standard
-    case fast
-}
-
 struct ClaudeBillableUsage: Sendable {
     let tokens: ClaudeTokenUsage
-    let speed: ClaudeUsageSpeed
-    let inferenceGeo: String?
+    let isFast: Bool
+    let isUSInference: Bool
     let webSearchRequests: UInt64
-
-    func metadataCompleteness(reasoningEffort: String?) -> Int {
-        let explicitSpeed =
-            switch speed {
-            case .implicitStandard: 0
-            case .standard, .fast: 1
-            }
-        let explicitCacheDuration =
-            switch tokens.cacheCreation {
-            case .aggregate: 0
-            case .byDuration: 1
-            }
-        return explicitSpeed
-            + explicitCacheDuration
-            + (reasoningEffort == nil ? 0 : 1)
-    }
 }
 
 enum ClaudeUsagePricing {
+    /// Nanodollars per token (USD per million tokens × 1_000).
     private struct Rates: Sendable {
         let input: Decimal
         let cacheRead: Decimal
-        let cacheWriteFiveMinute: Decimal
-        let cacheWriteOneHour: Decimal
         let output: Decimal
+
+        var cacheWriteFiveMinute: Decimal {
+            input * 5 / 4
+        }
+
+        var cacheWriteOneHour: Decimal {
+            input * 2
+        }
 
         func costNanodollars(for tokens: ClaudeTokenUsage) -> Decimal {
             let cacheCreationCost =
@@ -95,8 +80,8 @@ enum ClaudeUsagePricing {
 
     private struct ModelPrice: Sendable {
         let displayName: String
-        let standard: Rates
-        let fast: Rates?
+        let rates: Rates
+        let supportsFastMode: Bool
         let supportsUSInference: Bool
     }
 
@@ -106,188 +91,86 @@ enum ClaudeUsagePricing {
     private static let prices: [String: ModelPrice] = [
         "claude-fable-5-1": ModelPrice(
             displayName: "Fable 5.1",
-            standard: Rates(
-                input: 10_000,
-                cacheRead: 250,
-                cacheWriteFiveMinute: 12_500,
-                cacheWriteOneHour: 20_000,
-                output: 50_000
-            ),
-            fast: nil,
+            rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),
+            supportsFastMode: false,
             supportsUSInference: true
         ),
         "claude-mythos-5-1": ModelPrice(
             displayName: "Mythos 5.1",
-            standard: Rates(
-                input: 10_000,
-                cacheRead: 250,
-                cacheWriteFiveMinute: 12_500,
-                cacheWriteOneHour: 20_000,
-                output: 50_000
-            ),
-            fast: nil,
+            rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),
+            supportsFastMode: false,
             supportsUSInference: true
         ),
         "claude-fable-5": ModelPrice(
             displayName: "Fable 5",
-            standard: Rates(
-                input: 10_000,
-                cacheRead: 1_000,
-                cacheWriteFiveMinute: 12_500,
-                cacheWriteOneHour: 20_000,
-                output: 50_000
-            ),
-            fast: nil,
+            rates: Rates(input: 10_000, cacheRead: 1_000, output: 50_000),
+            supportsFastMode: false,
             supportsUSInference: true
         ),
         "claude-mythos-5": ModelPrice(
             displayName: "Mythos 5",
-            standard: Rates(
-                input: 10_000,
-                cacheRead: 1_000,
-                cacheWriteFiveMinute: 12_500,
-                cacheWriteOneHour: 20_000,
-                output: 50_000
-            ),
-            fast: nil,
+            rates: Rates(input: 10_000, cacheRead: 1_000, output: 50_000),
+            supportsFastMode: false,
             supportsUSInference: true
         ),
         "claude-opus-5-5": ModelPrice(
             displayName: "Opus 5.5",
-            standard: Rates(
-                input: 4_000,
-                cacheRead: 200,
-                cacheWriteFiveMinute: 5_000,
-                cacheWriteOneHour: 8_000,
-                output: 20_000
-            ),
-            fast: Rates(
-                input: 8_000,
-                cacheRead: 400,
-                cacheWriteFiveMinute: 10_000,
-                cacheWriteOneHour: 16_000,
-                output: 40_000
-            ),
+            rates: Rates(input: 4_000, cacheRead: 200, output: 20_000),
+            supportsFastMode: true,
             supportsUSInference: true
         ),
         "claude-opus-5": ModelPrice(
             displayName: "Opus 5",
-            standard: Rates(
-                input: 5_000,
-                cacheRead: 500,
-                cacheWriteFiveMinute: 6_250,
-                cacheWriteOneHour: 10_000,
-                output: 25_000
-            ),
-            fast: Rates(
-                input: 10_000,
-                cacheRead: 1_000,
-                cacheWriteFiveMinute: 12_500,
-                cacheWriteOneHour: 20_000,
-                output: 50_000
-            ),
+            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+            supportsFastMode: true,
             supportsUSInference: true
         ),
         "claude-opus-4-8": ModelPrice(
             displayName: "Opus 4.8",
-            standard: Rates(
-                input: 5_000,
-                cacheRead: 500,
-                cacheWriteFiveMinute: 6_250,
-                cacheWriteOneHour: 10_000,
-                output: 25_000
-            ),
-            fast: Rates(
-                input: 10_000,
-                cacheRead: 1_000,
-                cacheWriteFiveMinute: 12_500,
-                cacheWriteOneHour: 20_000,
-                output: 50_000
-            ),
+            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+            supportsFastMode: true,
             supportsUSInference: true
         ),
         "claude-opus-4-7": ModelPrice(
             displayName: "Opus 4.7",
-            standard: Rates(
-                input: 5_000,
-                cacheRead: 500,
-                cacheWriteFiveMinute: 6_250,
-                cacheWriteOneHour: 10_000,
-                output: 25_000
-            ),
-            fast: nil,
+            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+            supportsFastMode: false,
             supportsUSInference: true
         ),
         "claude-opus-4-6": ModelPrice(
             displayName: "Opus 4.6",
-            standard: Rates(
-                input: 5_000,
-                cacheRead: 500,
-                cacheWriteFiveMinute: 6_250,
-                cacheWriteOneHour: 10_000,
-                output: 25_000
-            ),
-            fast: nil,
+            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+            supportsFastMode: false,
             supportsUSInference: true
         ),
         "claude-opus-4-5-20251101": ModelPrice(
             displayName: "Opus 4.5",
-            standard: Rates(
-                input: 5_000,
-                cacheRead: 500,
-                cacheWriteFiveMinute: 6_250,
-                cacheWriteOneHour: 10_000,
-                output: 25_000
-            ),
-            fast: nil,
+            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+            supportsFastMode: false,
             supportsUSInference: false
         ),
         "claude-sonnet-5": ModelPrice(
             displayName: "Sonnet 5",
-            standard: Rates(
-                input: 2_000,
-                cacheRead: 200,
-                cacheWriteFiveMinute: 2_500,
-                cacheWriteOneHour: 4_000,
-                output: 10_000
-            ),
-            fast: nil,
+            rates: Rates(input: 2_000, cacheRead: 200, output: 10_000),
+            supportsFastMode: false,
             supportsUSInference: true
         ),
         "claude-sonnet-4-6": ModelPrice(
             displayName: "Sonnet 4.6",
-            standard: Rates(
-                input: 3_000,
-                cacheRead: 300,
-                cacheWriteFiveMinute: 3_750,
-                cacheWriteOneHour: 6_000,
-                output: 15_000
-            ),
-            fast: nil,
+            rates: Rates(input: 3_000, cacheRead: 300, output: 15_000),
+            supportsFastMode: false,
             supportsUSInference: true
         ),
         "claude-sonnet-4-5-20250929": ModelPrice(
             displayName: "Sonnet 4.5",
-            standard: Rates(
-                input: 3_000,
-                cacheRead: 300,
-                cacheWriteFiveMinute: 3_750,
-                cacheWriteOneHour: 6_000,
-                output: 15_000
-            ),
-            fast: nil,
+            rates: Rates(input: 3_000, cacheRead: 300, output: 15_000),
+            supportsFastMode: false,
             supportsUSInference: false
         ),
         "claude-haiku-4-5-20251001": ModelPrice(
             displayName: "Haiku 4.5",
-            standard: Rates(
-                input: 1_000,
-                cacheRead: 100,
-                cacheWriteFiveMinute: 1_250,
-                cacheWriteOneHour: 2_000,
-                output: 5_000
-            ),
-            fast: nil,
+            rates: Rates(input: 1_000, cacheRead: 100, output: 5_000),
+            supportsFastMode: false,
             supportsUSInference: false
         ),
     ]
@@ -303,24 +186,23 @@ enum ClaudeUsagePricing {
         guard let price = prices[modelID] else {
             return nil
         }
-        let rates =
-            switch usage.speed {
-            case .implicitStandard, .standard: Optional(price.standard)
-            case .fast: price.fast
-            }
-        guard let rates else {
-            return nil
-        }
 
-        var costNanodollars = rates.costNanodollars(for: usage.tokens)
-        if usage.inferenceGeo == "us" {
+        var costNanodollars = price.rates.costNanodollars(for: usage.tokens)
+        if usage.isFast {
+            guard price.supportsFastMode else {
+                return nil
+            }
+            // Fast mode doubles the standard cost.
+            costNanodollars *= 2
+        }
+        if usage.isUSInference {
             guard price.supportsUSInference else {
                 return nil
             }
             costNanodollars = costNanodollars * 11 / 10
         }
         return UsageQuote(
-            model: .claude(id: modelID, name: price.displayName),
+            model: .named(id: modelID, name: price.displayName),
             costUSD: (costNanodollars + Decimal(usage.webSearchRequests) * 10_000_000)
                 / 1_000_000_000
         )

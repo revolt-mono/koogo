@@ -29,11 +29,15 @@ struct MountedDiskImage: Sendable {
 struct MountedDiskImages: Sendable {
     let values: [MountedDiskImage]
 
+    /// Keeps one image per whole disk (the last scanned wins), sorted by name the way Finder sorts; nil when empty.
     init?(_ diskImages: [MountedDiskImage]) {
-        guard !diskImages.isEmpty else {
+        let imagesByWholeDisk = Dictionary(diskImages.map { ($0.wholeDiskID, $0) }) { _, last in last }
+        guard !imagesByWholeDisk.isEmpty else {
             return nil
         }
-        values = diskImages
+        values = imagesByWholeDisk.values.sorted {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
     }
 }
 
@@ -64,16 +68,27 @@ enum SystemQuickActions {
         ]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = errorOutput
-        try process.run()
-        let details = errorOutput.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let message =
-                String(bytes: details, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            throw Failure.systemAppearance(
-                message.isEmpty ? "Could not change the system appearance." : message
-            )
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            process.terminationHandler = { process in
+                guard process.terminationStatus == 0 else {
+                    let details = (try? errorOutput.fileHandleForReading.readToEnd()) ?? Data()
+                    let message =
+                        String(bytes: details, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    continuation.resume(
+                        throwing: Failure.systemAppearance(
+                            message.isEmpty ? "Could not change the system appearance." : message
+                        )
+                    )
+                    return
+                }
+                continuation.resume()
+            }
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(throwing: error)
+            }
         }
     }
 
@@ -89,7 +104,7 @@ enum SystemQuickActions {
             throw Failure.diskImageScan
         }
 
-        var diskImages: [String: MountedDiskImage] = [:]
+        var diskImages: [MountedDiskImage] = []
         for mountURL in volumeURLs {
             guard
                 let values = try? mountURL.resourceValues(forKeys: [
@@ -116,14 +131,10 @@ enum SystemQuickActions {
                 continue
             }
 
-            diskImages[diskImage.wholeDiskID] = diskImage
+            diskImages.append(diskImage)
         }
 
-        return MountedDiskImages(
-            diskImages.values.sorted {
-                $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            }
-        )
+        return MountedDiskImages(diskImages)
     }
 
     @concurrent

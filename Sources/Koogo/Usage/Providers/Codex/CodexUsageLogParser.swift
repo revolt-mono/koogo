@@ -54,7 +54,9 @@ struct CodexLogParser: UsageLogParser {
 
         defer { previousTotalUsage = totalUsage }
 
-        guard !lastUsage.billableTokensAreZero, previousTotalUsage != totalUsage else {
+        // `CodexTokenUsage.init` bounds cached + cache-write tokens by input and reasoning tokens by output,
+        // so a request without input or output bills nothing.
+        guard lastUsage.input > 0 || lastUsage.output > 0, previousTotalUsage != totalUsage else {
             return nil
         }
         guard
@@ -69,8 +71,8 @@ struct CodexLogParser: UsageLogParser {
         }
 
         return .event(
-            .codex(
-                id: UsageEvent.CodexID(
+            UsageEvent(
+                key: .codex(
                     threadID: threadID,
                     turnID: turn.id,
                     ordinal: record.ordinal,
@@ -169,16 +171,6 @@ private struct CodexTokenInfo: Decodable {
         case lastTokenUsage = "last_token_usage"
         case totalTokenUsage = "total_token_usage"
         case modelContextWindow = "model_context_window"
-    }
-}
-
-extension CodexTokenUsage {
-    fileprivate var billableTokensAreZero: Bool {
-        input == 0
-            && cachedInput == 0
-            && cacheWrite == 0
-            && output == 0
-            && reasoningOutput == 0
     }
 }
 

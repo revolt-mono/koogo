@@ -5,49 +5,34 @@ import XCTest
 
 let usageTestTimestamp = Date(timeIntervalSince1970: 1_787_680_800)
 
+/// UTC with Monday weeks, so periods never depend on the host time zone or locale.
+let usageTestCalendar: Calendar = {
+    guard let utc = TimeZone(secondsFromGMT: 0) else {
+        preconditionFailure("UTC time zone must exist")
+    }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = utc
+    calendar.firstWeekday = 2
+    return calendar
+}()
+
+/// A fake home at `root` with every provider's log directories in their real layout.
 struct UsageTestWorkspace {
     let root: URL
     let locations: UsageLocations
-    let calendar: Calendar
 
-    init() throws {
-        root = FileManager.default.temporaryDirectory
-            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
-        let codexSessions = root.appending(path: "codex/sessions", directoryHint: .isDirectory)
-        let codexArchive = root.appending(path: "codex/archive", directoryHint: .isDirectory)
-        let claudeProjects = root.appending(path: "claude/projects", directoryHint: .isDirectory)
-        let piAgent = root.appending(path: "pi", directoryHint: .isDirectory)
-        let piSessions = piAgent.appending(path: "sessions", directoryHint: .isDirectory)
-        let grokSessions = root.appending(path: "grok/sessions", directoryHint: .isDirectory)
-        for directory in [codexSessions, codexArchive, claudeProjects, piSessions, grokSessions] {
+    var codexSessions: URL { root.appending(path: ".codex/sessions", directoryHint: .isDirectory) }
+    var codexArchivedSessions: URL { root.appending(path: ".codex/archived_sessions", directoryHint: .isDirectory) }
+    var claudeProjects: URL { root.appending(path: ".claude/projects", directoryHint: .isDirectory) }
+    var piSessions: URL { root.appending(path: ".pi/agent/sessions", directoryHint: .isDirectory) }
+    var grokSessions: URL { root.appending(path: ".grok/sessions", directoryHint: .isDirectory) }
+
+    init(root: URL) throws {
+        self.root = root
+        locations = UsageLocations(home: root)
+        for directory in [codexSessions, codexArchivedSessions, claudeProjects, piSessions, grokSessions] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        locations = UsageLocations(
-            logs: UsageLocations.Logs(
-                codex: UsageLocations.Logs.Codex(
-                    sessions: codexSessions,
-                    archivedSessions: codexArchive
-                ),
-                claudeProjects: claudeProjects,
-                piAgent: piSessions,
-                grokSessions: grokSessions
-            ),
-            piModels: UsageLocations.PiModels(
-                custom: piAgent.appending(path: "models.json"),
-                store: piAgent.appending(path: "models-store.json")
-            )
-        )
-        guard let utc = TimeZone(secondsFromGMT: 0) else {
-            preconditionFailure("UTC time zone must exist")
-        }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = utc
-        calendar.firstWeekday = 2
-        self.calendar = calendar
-    }
-
-    func remove() throws {
-        try FileManager.default.removeItem(at: root)
     }
 
     func write(
@@ -66,19 +51,12 @@ struct UsageTestWorkspace {
         )
     }
 
-    func append(
-        _ text: String,
-        to url: URL,
-        modificationDate: Date = usageTestTimestamp
-    ) throws {
+    func append(_ text: String, to url: URL) throws {
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
         try handle.seekToEnd()
         try handle.write(contentsOf: Data(text.utf8))
-        try FileManager.default.setAttributes(
-            [.modificationDate: modificationDate],
-            ofItemAtPath: url.path
-        )
+        try FileManager.default.setAttributes([.modificationDate: usageTestTimestamp], ofItemAtPath: url.path)
     }
 }
 
@@ -88,14 +66,9 @@ class UsageWorkspaceTestCase: XCTestCase {
     let now = usageTestTimestamp
 
     var locations: UsageLocations { workspace.locations }
-    var calendar: Calendar { workspace.calendar }
 
     override func setUpWithError() throws {
-        workspace = try UsageTestWorkspace()
-    }
-
-    override func tearDownWithError() throws {
-        try workspace.remove()
+        workspace = try UsageTestWorkspace(root: try makeTemporaryDirectory())
     }
 }
 
@@ -118,8 +91,8 @@ func usageEvent(
     )
     switch provider {
     case .codex:
-        return .codex(
-            id: UsageEvent.CodexID(
+        return UsageEvent(
+            key: .codex(
                 threadID: "thread-\(id)",
                 turnID: nil,
                 ordinal: nil,
@@ -129,74 +102,16 @@ func usageEvent(
             usage: usage
         )
     case .claude:
-        return .claude(
-            id: UsageEvent.ClaudeID(
-                messageID: "message-\(id)",
-                requestID: "request-\(id)"
-            ),
-            revision: UsageEvent.ClaudeRevision(
-                usage: usage,
-                outputTokens: processedTokens,
-                metadataCompleteness: 0
-            )
+        return UsageEvent(
+            key: .claude(messageID: "message-\(id)", requestID: "request-\(id)"),
+            usage: usage,
+            revision: UsageEvent.Revision(outputTokens: processedTokens, metadataCompleteness: 0)
         )
     case .piAgent:
-        return .piAgent(entryID: "entry-\(id)", usage: usage)
+        return UsageEvent(key: .piAgent(entryID: "entry-\(id)"), usage: usage)
     case .grok:
-        return .grok(id: UsageEvent.GrokID(eventID: "event-\(id)", timestamp: eventDate), usage: usage)
+        return UsageEvent(key: .grok(eventID: "event-\(id)", timestamp: eventDate), usage: usage)
     }
-}
-
-func codexTokenUsage(
-    uncachedInput: UInt64,
-    cachedInput: UInt64 = 0,
-    cacheWriteInput: UInt64 = 0,
-    output: UInt64 = 0
-) -> CodexTokenUsage {
-    guard
-        let usage = CodexTokenUsage(
-            input: uncachedInput + cachedInput + cacheWriteInput,
-            cachedInput: cachedInput,
-            cacheWrite: cacheWriteInput,
-            output: output,
-            reasoningOutput: 0,
-            processed: uncachedInput + cachedInput + cacheWriteInput + output
-        )
-    else {
-        preconditionFailure("invalid codex usage fixture")
-    }
-    return usage
-}
-
-func claudeBillableUsage(
-    uncachedInput: UInt64 = 0,
-    cachedInput: UInt64 = 0,
-    cacheWrite5MinuteInput: UInt64 = 0,
-    cacheWrite1HourInput: UInt64 = 0,
-    output: UInt64 = 0,
-    speed: ClaudeUsageSpeed = .standard,
-    inferenceGeo: String? = nil,
-    webSearchRequests: UInt64 = 0
-) -> ClaudeBillableUsage {
-    guard
-        let tokens = ClaudeTokenUsage(
-            input: uncachedInput,
-            cacheRead: cachedInput,
-            cacheCreation: .byDuration(
-                fiveMinute: cacheWrite5MinuteInput,
-                oneHour: cacheWrite1HourInput
-            ),
-            output: output
-        )
-    else {
-        preconditionFailure("invalid claude usage fixture")
-    }
-    return ClaudeBillableUsage(
-        tokens: tokens,
-        speed: speed,
-        inferenceGeo: inferenceGeo,
-        webSearchRequests: webSearchRequests
-    )
 }
 
 func codexLog(
@@ -206,57 +121,125 @@ func codexLog(
     model: String = "gpt-5.6-sol",
     usageTimestamp: String = "2026-08-25T12:00:00.000Z"
 ) -> String {
-    [
-        codexSessionMetadata(thread: thread),
-        codexTurnContext(model: model),
-        codexToken(
-            timestamp: usageTimestamp,
-            lastInput: input,
-            lastOutput: output,
-            totalInput: input,
-            totalOutput: output
-        ),
+    let usage = codexUsage(input: input, output: output)
+    return [
+        codexMeta(thread: thread),
+        codexTurn(model: model),
+        codexTokenCount(last: usage, total: usage, at: usageTimestamp),
         "",
     ].joined(separator: "\n")
 }
 
-func codexSessionMetadata(thread: String) -> String {
+func codexMeta(thread: String = "thread") -> String {
     """
     {"timestamp":"2026-08-25T11:00:00.000Z","type":"session_meta","payload":{"id":"\(thread)"}}
     """
 }
 
-func codexTurnContext(model: String) -> String {
+func codexTurn(model: String = "gpt-5.6-sol", effort: String = "high") -> String {
     """
-    {"timestamp":"2026-08-25T11:30:00.000Z","type":"turn_context","payload":{"turn_id":"turn","model":"\(model)","effort":"high"}}
+    {"timestamp":"2026-08-25T11:30:00.000Z","type":"turn_context","payload":{"turn_id":"turn","model":"\(model)","effort":"\(effort)"}}
     """
 }
 
-func codexToken(
-    timestamp: String,
-    lastInput: Int,
-    lastOutput: Int,
-    totalInput: Int,
-    totalOutput: Int
+/// Token amounts for `codexTokenCount`; a `nil` cache write omits the optional wire field.
+func codexUsage(
+    input: Int,
+    output: Int,
+    cached: Int = 0,
+    cacheWrite: Int? = nil,
+    total: Int? = nil
 ) -> String {
-    """
-    {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(lastInput),"cached_input_tokens":0,"output_tokens":\(lastOutput),"reasoning_output_tokens":0,"total_tokens":\(lastInput + lastOutput)},"total_token_usage":{"input_tokens":\(totalInput),"cached_input_tokens":0,"output_tokens":\(totalOutput),"reasoning_output_tokens":0,"total_tokens":\(totalInput + totalOutput)},"model_context_window":1000}}}
-    """
-}
-
-func claudeLog(output: Int, requestID: String? = "request") -> String {
-    let request = requestID.map { "\"requestId\":\"\($0)\"," } ?? ""
+    let cacheWriteField = cacheWrite.map { "\"cache_write_input_tokens\":\($0)," } ?? ""
     return """
-        {"type":"assistant","timestamp":"2026-08-25T12:30:00.000Z",\(request)"message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":\(output)}}}
-
+        {"input_tokens":\(input),"cached_input_tokens":\(cached),\(cacheWriteField)"output_tokens":\(output),"reasoning_output_tokens":0,"total_tokens":\(total ?? input + output)}
         """
 }
 
-func parse(_ line: String, with parser: inout some UsageLogParser) -> UsageEvent? {
-    Data(line.utf8).withUnsafeBytes {
-        guard case .event(let event)? = parser.parse($0, decoder: JSONDecoder()) else {
+func codexTokenCount(last: String, total: String, at timestamp: String = "2026-08-25T12:00:00.000Z") -> String {
+    """
+    {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":\(last),"total_token_usage":\(total),"model_context_window":1000}}}
+    """
+}
+
+/// An assistant record with both stable ids; `usage` holds the members of its usage object.
+func claudeAssistant(model: String, usage: String, effort: String? = nil) -> String {
+    let effortField = effort.map { "\"effort\":\"\($0)\"," } ?? ""
+    return """
+        {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request",\(effortField)"message":{"id":"message","model":"\(model)","usage":{\(usage)}}}
+        """
+}
+
+func claudeLog(output: Int) -> String {
+    claudeAssistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":\#(output)"#) + "\n"
+}
+
+func piAssistant(id: String, parentID: String?, model: String, usage: String) -> String {
+    let parent = parentID.map { "\"\($0)\"" } ?? "null"
+    return """
+        {"type":"message","id":"\(id)","parentId":\(parent),"timestamp":"2026-08-25T12:00:00.000Z","message":{"role":"assistant","provider":"provider","model":"\(model)","timestamp":1787680800000,"usage":\(usage)}}
+        """
+}
+
+func piUsage(
+    input: Int,
+    output: Int = 0,
+    cacheRead: Int = 0,
+    cacheWrite: Int = 0,
+    cost: String
+) -> String {
+    """
+    {"input":\(input),"output":\(output),"cacheRead":\(cacheRead),"cacheWrite":\(cacheWrite),"totalTokens":\(input + output + cacheRead + cacheWrite),"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":\(cost)}}
+    """
+}
+
+/// Priced as `grok-4.6-build`, this row costs $2.00.
+struct GrokModelRow {
+    var input = 1_000_000
+    var cachedInput = 400_000
+    var output = 100_000
+    var calls = 10
+}
+
+/// Server cost ticks are present but deliberately wrong; pricing must ignore them.
+func grokTurn(
+    eventID: String,
+    at date: Date = usageTestTimestamp,
+    models: [String: GrokModelRow] = ["grok-4.6-build": GrokModelRow()]
+) -> String {
+    let milliseconds = Int(date.timeIntervalSince1970 * 1_000)
+    let totalTokens = models.values.map { $0.input + $0.output }.reduce(0, +)
+    let modelUsage = models.map { model, row in
+        """
+        "\(model)":{"inputTokens":\(row.input),"cachedReadTokens":\(row.cachedInput),"outputTokens":\(row.output),\
+        "modelCalls":\(row.calls),"costUsdTicks":1}
+        """
+    }
+    return """
+        {"timestamp":1,"method":"_x.ai/session/update","params":{"sessionId":"session","update":{\
+        "sessionUpdate":"turn_completed","prompt_id":"prompt","stop_reason":"end_turn","usage":{\
+        "totalTokens":\(totalTokens),"costUsdTicks":1,"modelUsage":{\(modelUsage.joined(separator: ","))}}},\
+        "_meta":{"eventId":"\(eventID)","agentTimestampMs":\(milliseconds)}}}
+        """
+}
+
+/// Parses one line; `nil` is a silent drop, distinct from an unpriced model.
+func parse(_ line: String, with parser: inout some UsageLogParser) -> UsageLineOutcome? {
+    Data(line.utf8).withUnsafeBytes { parser.parse($0, decoder: JSONDecoder()) }
+}
+
+extension UsageLineOutcome {
+    var event: UsageEvent? {
+        guard case .event(let event) = self else {
             return nil
         }
         return event
+    }
+
+    var unpricedModelID: String? {
+        guard case .unpricedModel(let id, _) = self else {
+            return nil
+        }
+        return id
     }
 }

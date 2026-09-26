@@ -34,23 +34,6 @@ struct ProviderUsageCard<Accessory: View>: View {
     }
 }
 
-extension ProviderUsageCard where Accessory == EmptyView {
-    init(provider: UsageProvider, usage: ProviderUsageSnapshot) {
-        self.init(provider: provider, usage: usage) { EmptyView() }
-    }
-}
-
-extension UsageProvider {
-    var title: String {
-        switch self {
-        case .codex: "Codex"
-        case .claude: "Claude"
-        case .piAgent: "Pi"
-        case .grok: "Grok"
-        }
-    }
-}
-
 private extension UsageProvider {
     var imageAssetName: String {
         switch self {

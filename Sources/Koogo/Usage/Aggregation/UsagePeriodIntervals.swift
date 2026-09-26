@@ -26,6 +26,7 @@ struct UsagePeriodIntervals: Equatable, Sendable {
     let day: Comparison
     let week: Range<Date>
     let month: Comparison
+    private let calendar: Calendar
 
     var historyStart: Date {
         month.previous.lowerBound
@@ -39,5 +40,11 @@ struct UsagePeriodIntervals: Equatable, Sendable {
         day = Comparison(component: .day, containing: date, calendar: calendar)
         self.week = week.start..<week.end
         month = Comparison(component: .month, containing: date, calendar: calendar)
+        self.calendar = calendar
+    }
+
+    /// The day holding `date` in the calendar that shaped these periods, so daily buckets line up with them.
+    func startOfDay(for date: Date) -> Date {
+        calendar.startOfDay(for: date)
     }
 }

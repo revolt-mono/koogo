@@ -34,44 +34,46 @@ struct CodexTokenUsage: Equatable, Sendable {
 }
 
 enum CodexUsagePricing {
-    private enum CacheWriteRate: Sendable {
-        case unsupported
-        case priced(Decimal)
-    }
+    private static let longContextThreshold: UInt64 = 272_000
 
+    /// Nanodollars per token (USD per million tokens × 1_000).
     private struct Rates: Sendable {
         let input: Decimal
         let cachedInput: Decimal
-        let cacheWrite: CacheWriteRate
         let output: Decimal
+        let supportsCacheWrite: Bool
+
+        var longContext: Rates {
+            Rates(
+                input: input * 2,
+                cachedInput: cachedInput * 2,
+                output: output * 3 / 2,
+                supportsCacheWrite: supportsCacheWrite
+            )
+        }
 
         func costNanodollars(for tokens: CodexTokenUsage) -> Decimal? {
-            let cacheWriteCost: Decimal
-            switch (cacheWrite, tokens.cacheWrite) {
-            case (.unsupported, 0):
-                cacheWriteCost = 0
-            case (.unsupported, _):
+            guard supportsCacheWrite || tokens.cacheWrite == 0 else {
                 return nil
-            case (.priced(let rate), let amount):
-                cacheWriteCost = Decimal(amount) * rate
             }
             return Decimal(tokens.uncachedInput) * input
                 + Decimal(tokens.cachedInput) * cachedInput
-                + cacheWriteCost
+                + Decimal(tokens.cacheWrite) * (input * 5 / 4)
                 + Decimal(tokens.output) * output
         }
     }
 
     private enum ContextRates: Sendable {
         case flat(Rates)
-        case tiered(short: Rates, long: Rates)
+        /// The whole request bills at long-context rates once its input passes the threshold.
+        case tiered(Rates)
 
         func costNanodollars(for tokens: CodexTokenUsage) -> Decimal? {
             switch self {
             case .flat(let rates):
                 rates.costNanodollars(for: tokens)
-            case .tiered(let short, let long):
-                (tokens.input > 272_000 ? long : short).costNanodollars(for: tokens)
+            case .tiered(let rates):
+                (tokens.input > longContextThreshold ? rates.longContext : rates).costNanodollars(for: tokens)
             }
         }
     }
@@ -87,180 +89,49 @@ enum CodexUsagePricing {
     private static let prices: [String: ModelPrice] = [
         "gpt-6-astra": ModelPrice(
             displayName: "GPT 6 Astra",
-            rates: .tiered(
-                short: Rates(
-                    input: 10_000,
-                    cachedInput: 1_000,
-                    cacheWrite: .priced(12_500),
-                    output: 50_000
-                ),
-                long: Rates(
-                    input: 20_000,
-                    cachedInput: 2_000,
-                    cacheWrite: .priced(25_000),
-                    output: 75_000
-                )
-            )
+            rates: .tiered(Rates(input: 10_000, cachedInput: 1_000, output: 50_000, supportsCacheWrite: true))
         ),
         // https://developers.openai.com/api/docs/models/gpt-6-sol
         "gpt-6-sol": ModelPrice(
             displayName: "GPT 6 Sol",
-            rates: .tiered(
-                short: Rates(
-                    input: 2_000,
-                    cachedInput: 200,
-                    cacheWrite: .priced(2_500),
-                    output: 10_000
-                ),
-                long: Rates(
-                    input: 4_000,
-                    cachedInput: 400,
-                    cacheWrite: .priced(5_000),
-                    output: 15_000
-                )
-            )
+            rates: .tiered(Rates(input: 2_000, cachedInput: 200, output: 10_000, supportsCacheWrite: true))
         ),
         // https://developers.openai.com/api/docs/models/gpt-6-luna
         "gpt-6-luna": ModelPrice(
             displayName: "GPT 6 Luna",
-            rates: .tiered(
-                short: Rates(
-                    input: 100,
-                    cachedInput: 10,
-                    cacheWrite: .priced(125),
-                    output: 500
-                ),
-                long: Rates(
-                    input: 200,
-                    cachedInput: 20,
-                    cacheWrite: .priced(250),
-                    output: 750
-                )
-            )
+            rates: .tiered(Rates(input: 100, cachedInput: 10, output: 500, supportsCacheWrite: true))
         ),
         "gpt-daybreak-blue-latest": ModelPrice(
             displayName: "Daybreak Blue",
-            rates: .tiered(
-                short: Rates(
-                    input: 5_000,
-                    cachedInput: 500,
-                    cacheWrite: .priced(6_250),
-                    output: 30_000
-                ),
-                long: Rates(
-                    input: 10_000,
-                    cachedInput: 1_000,
-                    cacheWrite: .priced(12_500),
-                    output: 45_000
-                )
-            )
+            rates: .tiered(Rates(input: 5_000, cachedInput: 500, output: 30_000, supportsCacheWrite: true))
         ),
         "gpt-5.6-sol": ModelPrice(
             displayName: "GPT 5.6 Sol",
-            rates: .tiered(
-                short: Rates(
-                    input: 5_000,
-                    cachedInput: 500,
-                    cacheWrite: .priced(6_250),
-                    output: 30_000
-                ),
-                long: Rates(
-                    input: 10_000,
-                    cachedInput: 1_000,
-                    cacheWrite: .priced(12_500),
-                    output: 45_000
-                )
-            )
+            rates: .tiered(Rates(input: 5_000, cachedInput: 500, output: 30_000, supportsCacheWrite: true))
         ),
         "gpt-5.6-terra": ModelPrice(
             displayName: "GPT 5.6 Terra",
-            rates: .tiered(
-                short: Rates(
-                    input: 2_000,
-                    cachedInput: 200,
-                    cacheWrite: .priced(2_500),
-                    output: 12_000
-                ),
-                long: Rates(
-                    input: 4_000,
-                    cachedInput: 400,
-                    cacheWrite: .priced(5_000),
-                    output: 18_000
-                )
-            )
+            rates: .tiered(Rates(input: 2_000, cachedInput: 200, output: 12_000, supportsCacheWrite: true))
         ),
         "gpt-5.6-luna": ModelPrice(
             displayName: "GPT 5.6 Luna",
-            rates: .tiered(
-                short: Rates(
-                    input: 200,
-                    cachedInput: 20,
-                    cacheWrite: .priced(250),
-                    output: 1_200
-                ),
-                long: Rates(
-                    input: 400,
-                    cachedInput: 40,
-                    cacheWrite: .priced(500),
-                    output: 1_800
-                )
-            )
+            rates: .tiered(Rates(input: 200, cachedInput: 20, output: 1_200, supportsCacheWrite: true))
         ),
         "gpt-5.5": ModelPrice(
             displayName: "GPT 5.5",
-            rates: .tiered(
-                short: Rates(
-                    input: 5_000,
-                    cachedInput: 500,
-                    cacheWrite: .unsupported,
-                    output: 30_000
-                ),
-                long: Rates(
-                    input: 10_000,
-                    cachedInput: 1_000,
-                    cacheWrite: .unsupported,
-                    output: 45_000
-                )
-            )
+            rates: .tiered(Rates(input: 5_000, cachedInput: 500, output: 30_000, supportsCacheWrite: false))
         ),
         "gpt-5.4": ModelPrice(
             displayName: "GPT 5.4",
-            rates: .tiered(
-                short: Rates(
-                    input: 2_500,
-                    cachedInput: 250,
-                    cacheWrite: .unsupported,
-                    output: 15_000
-                ),
-                long: Rates(
-                    input: 5_000,
-                    cachedInput: 500,
-                    cacheWrite: .unsupported,
-                    output: 22_500
-                )
-            )
+            rates: .tiered(Rates(input: 2_500, cachedInput: 250, output: 15_000, supportsCacheWrite: false))
         ),
         "gpt-5.4-mini": ModelPrice(
             displayName: "GPT 5.4 Mini",
-            rates: .flat(
-                Rates(
-                    input: 750,
-                    cachedInput: 75,
-                    cacheWrite: .unsupported,
-                    output: 4_500
-                )
-            )
+            rates: .flat(Rates(input: 750, cachedInput: 75, output: 4_500, supportsCacheWrite: false))
         ),
         "gpt-5.3-codex": ModelPrice(
             displayName: "GPT 5.3 Codex",
-            rates: .flat(
-                Rates(
-                    input: 1_750,
-                    cachedInput: 175,
-                    cacheWrite: .unsupported,
-                    output: 14_000
-                )
-            )
+            rates: .flat(Rates(input: 1_750, cachedInput: 175, output: 14_000, supportsCacheWrite: false))
         ),
     ]
 
@@ -278,7 +149,7 @@ enum CodexUsagePricing {
 
         // Codex rollout logs do not reliably record service tiers, so usage uses standard rates.
         return UsageQuote(
-            model: .codex(id: modelID, name: price.displayName),
+            model: .named(id: modelID, name: price.displayName),
             costUSD: costNanodollars / 1_000_000_000
         )
     }

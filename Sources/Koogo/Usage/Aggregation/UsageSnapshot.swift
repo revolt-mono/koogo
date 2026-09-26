@@ -29,7 +29,7 @@ struct UsageMonthSnapshot: Equatable, Sendable, Encodable {
     let days: [UsageDaySnapshot]
 }
 
-struct ProviderUsageSnapshot: Sendable, Encodable {
+struct ProviderUsageSnapshot: Equatable, Sendable, Encodable {
     struct Favorite: Equatable, Sendable, Encodable {
         let modelName: String
         let reasoningEffort: String?
@@ -63,7 +63,7 @@ enum UsageCostChange: Equatable, Sendable, Encodable {
     }
 }
 
-struct UsageSummaryPeriodSnapshot: Sendable, Encodable {
+struct UsageSummaryPeriodSnapshot: Equatable, Sendable, Encodable {
     let current: UsagePeriodSnapshot
     let costChange: UsageCostChange
 
@@ -76,14 +76,15 @@ struct UsageSummaryPeriodSnapshot: Sendable, Encodable {
     }
 }
 
-struct UsageSummarySnapshot: Sendable, Encodable {
+struct UsageSummarySnapshot: Equatable, Sendable, Encodable {
     let today: UsageSummaryPeriodSnapshot
     let month: UsageSummaryPeriodSnapshot
 }
 
-struct UsageSnapshot: Sendable, Encodable {
+struct UsageSnapshot: Equatable, Sendable, Encodable {
     let summary: UsageSummarySnapshot
-    /// Exactly the enabled providers; the summary totals only these.
+    /// Exactly the requested providers (active in the app, all in `--report`); the summary totals
+    /// and compares only these.
     let providers: [UsageProvider: ProviderUsageSnapshot]
 
     init(

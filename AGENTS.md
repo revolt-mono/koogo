@@ -31,31 +31,34 @@
 ## Observability
 
 - `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file and event counts, unpriced model ids, the full usage snapshot, and the Codex and Grok quota outcomes with typed reasons. Prefer it over screenshots when verifying pipeline behavior.
-- Parsing failures are silent by design; events dropped for missing pricing surface only as `unpricedModels` in the report and as telemetry warnings.
+- Parsing failures are silent by design. Events dropped because a model or one of its billed options has no price surface only as model ids in `unpricedModels` in the report and as telemetry warnings.
 - Runtime telemetry logs under subsystem `com.revolt.koogo` (categories `usage`, `quota`); stream it with `script/build_and_run.sh telemetry`.
 
 ## Repo structure
 
-Each feature is a vertical slice that owns its state, services, and views; only `App`, `Panel`, and `Settings` compose across features.
+Each feature is a vertical slice that owns its rules, state, services, views, and tests; only `App`, `Panel`, and `Settings` compose across features, and every folder may use `Shared`.
 
 ```
-├── Sources/Koogo       menu bar application
-│   ├── App             entry point, scenes, headless report, telemetry
-│   ├── Panel           menu bar panel shell: toolbar, pager, usage page composition
-│   ├── Settings        settings window shell
-│   ├── Usage           log ingestion, pricing, aggregation, and usage views
-│   │   ├── Aggregation calendar-based snapshots and summaries
-│   │   ├── Ingestion   incremental log reading, parsing, and event indexing
-│   │   ├── Providers   Claude, Codex, Grok, and Pi Agent adapters and pricing
-│   │   └── Views       summary, provider cards, and chart
-│   ├── Quota           Codex and Grok quota transports, Codex reset flow, and views
-│   ├── QuickActions    system quick-action adapters and views
-│   ├── BreakReminder   countdown state, notifications, and controls
-│   ├── Inbox           todo state and editors
-│   ├── Update          Sparkle bridge and update indicator
-│   └── Resources       bundled image assets
-├── Tests/KoogoTests    feature-aligned behavior tests and shared fixtures
-└── script              signing, app bundle assembly, launch, and verification
+├── Sources/Koogo          menu bar application
+│   ├── App                entry point, model lifetimes and scene wiring, headless report
+│   ├── Shared             leaf primitives: telemetry, pager popover, local event monitor, Reduce Motion helpers
+│   ├── Panel              menu bar panel shell: toolbar, pager, usage page composition, quota gating
+│   ├── Settings           settings window shell hosting slice-owned controls
+│   ├── Usage              provider enablement, pipeline service, log locations, and usage vocabulary
+│   │   ├── Ingestion      file discovery and admission, incremental reads, event identity and dedup, ingestion stats
+│   │   ├── Providers      Codex, Claude, Grok, and Pi Agent formats, identities, and pricing
+│   │   ├── Aggregation    calendar periods, snapshots, and summary scope
+│   │   └── Views          summary, provider cards, chart, provider toggles
+│   ├── Quota              quota state and shared quota views
+│   │   ├── Codex          app-server transport, quota and reset flow, views
+│   │   └── Grok           billing transport, quota model, views
+│   ├── QuickActions       system quick-action adapters and views
+│   ├── BreakReminder      countdown state, notifications, controls, and issue alert
+│   ├── Inbox              todo rules, persistence, and editors
+│   ├── Update             Sparkle bridge and update indicator
+│   └── Resources          bundled image assets
+├── Tests/KoogoTests       slice-aligned behavior tests; Support holds shared test helpers
+└── script                 signing, app bundle assembly, launch, and verification
 ```
 
 ## Components and UI

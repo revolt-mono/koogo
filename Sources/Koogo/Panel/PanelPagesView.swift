@@ -51,20 +51,28 @@ struct PanelPagesView: View {
                 .padding(.bottom, 6)
         }
         .background {
-            ShiftScrollWheelMonitor(onStep: move)
+            LocalEventMonitor(events: .scrollWheel) { event, view in
+                guard let window = view.window, event.window === window,
+                    event.modifierFlags.intersection([.shift, .control, .option, .command]) == .shift,
+                    event.phase.isEmpty, event.momentumPhase.isEmpty
+                else {
+                    return event
+                }
+
+                let delta = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : -event.scrollingDeltaX
+                guard delta != 0 else {
+                    return event
+                }
+                if let destination = PanelPage(rawValue: selectedPage.rawValue + (delta > 0 ? 1 : -1)) {
+                    navigate(to: destination)
+                }
+                return nil
+            }
         }
         // Leaving a page drops keyboard focus so an off-screen text field cannot keep receiving keys.
         .onChange(of: selectedPage) {
             NSApp.keyWindow?.makeFirstResponder(nil)
         }
-    }
-
-    private func move(_ direction: PanelPageDirection) {
-        guard let destination = PanelPage(rawValue: selectedPage.rawValue + direction.rawValue)
-        else {
-            return
-        }
-        navigate(to: destination)
     }
 
     private func navigate(to page: PanelPage) {
@@ -76,17 +84,6 @@ struct PanelPagesView: View {
             scrollTarget = page
         }
     }
-}
-
-/// Whether the enclosing pager page is the selected one; mounted but unselected pages drop
-/// presentation state such as popovers here.
-extension EnvironmentValues {
-    @Entry var isSelectedPanelPage = true
-}
-
-private enum PanelPageDirection: Int {
-    case previous = -1
-    case next = 1
 }
 
 private enum PanelPage: Int, CaseIterable, Hashable {
@@ -102,8 +99,6 @@ private enum PanelPage: Int, CaseIterable, Hashable {
 }
 
 private struct PanelPageIndicator: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     let selectedPage: PanelPage
     let onSelect: (PanelPage) -> Void
 
@@ -130,10 +125,7 @@ private struct PanelPageIndicator: View {
                     .frame(width: 5, height: 5)
                     .frame(width: 14, height: 14)
                     .contentShape(.rect)
-                    .animation(
-                        reduceMotion ? nil : .easeOut(duration: 0.2),
-                        value: isSelected
-                    )
+                    .motionAnimation(.easeOut(duration: 0.2), value: isSelected)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(page.accessibilityLabel)
@@ -142,70 +134,5 @@ private struct PanelPageIndicator: View {
         }
         .padding(.horizontal, 4)
         .background(.black.opacity(0.22), in: Capsule())
-    }
-}
-
-private struct ShiftScrollWheelMonitor: NSViewRepresentable {
-    let onStep: (PanelPageDirection) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onStep: onStep)
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        context.coordinator.startMonitoring(view)
-        return view
-    }
-
-    func updateNSView(_: NSView, context: Context) {
-        context.coordinator.onStep = onStep
-    }
-
-    static func dismantleNSView(_: NSView, coordinator: Coordinator) {
-        coordinator.stopMonitoring()
-    }
-
-    @MainActor
-    final class Coordinator {
-        var onStep: (PanelPageDirection) -> Void
-        private var eventMonitor: Any?
-
-        init(onStep: @escaping (PanelPageDirection) -> Void) {
-            self.onStep = onStep
-        }
-
-        func startMonitoring(_ view: NSView) {
-            eventMonitor = NSEvent.addLocalMonitorForEvents(
-                matching: .scrollWheel,
-                handler: { [self, weak view] event in
-                    guard let window = view?.window, event.window === window,
-                        event.modifierFlags.intersection([
-                            .shift, .control, .option, .command,
-                        ]) == .shift,
-                        event.phase.isEmpty, event.momentumPhase.isEmpty
-                    else {
-                        return event
-                    }
-
-                    let delta =
-                        event.scrollingDeltaY != 0
-                        ? event.scrollingDeltaY
-                        : -event.scrollingDeltaX
-                    guard delta != 0 else {
-                        return event
-                    }
-                    onStep(delta > 0 ? .next : .previous)
-                    return nil
-                }
-            )
-        }
-
-        func stopMonitoring() {
-            if let eventMonitor {
-                NSEvent.removeMonitor(eventMonitor)
-                self.eventMonitor = nil
-            }
-        }
     }
 }

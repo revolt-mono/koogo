@@ -22,5 +22,6 @@ struct BreakReminderIntervalPicker: View {
         }
         .pickerStyle(.menu)
         .disabled(reminderModel.isScheduling)
+        .breakReminderIssueAlert()
     }
 }

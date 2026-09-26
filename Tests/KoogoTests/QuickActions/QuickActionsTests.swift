@@ -36,18 +36,52 @@ final class QuickActionsTests: XCTestCase {
         )
     }
 
-    func testMountedDiskImagesRequiresAtLeastOneImage() throws {
-        let diskImage = try XCTUnwrap(
+    func testMountedDiskImagesIsNilWhenEmpty() {
+        XCTAssertNil(MountedDiskImages([]))
+    }
+
+    func testMountedDiskImageNameFallsBackToMountDirectory() {
+        let names = [nil, ""].map { volumeName in
             MountedDiskImage(
                 wholeDiskID: "disk4",
-                volumeName: "Example",
+                volumeName: volumeName,
                 mountURL: URL(filePath: "/Volumes/Example"),
+                isEjectable: true,
+                deviceModel: "Disk Image"
+            )?.name
+        }
+
+        XCTAssertEqual(names, ["Example", "Example"])
+    }
+
+    func testMountedDiskImagesKeepsLastImagePerWholeDisk() throws {
+        let diskImages = MountedDiskImages([
+            try diskImage(wholeDiskID: "disk4", name: "First Volume"),
+            try diskImage(wholeDiskID: "disk5", name: "Other"),
+            try diskImage(wholeDiskID: "disk4", name: "Last Volume"),
+        ])
+
+        XCTAssertEqual(diskImages?.values.map(\.name), ["Last Volume", "Other"])
+    }
+
+    func testMountedDiskImagesSortsNamesInLocalizedStandardOrder() throws {
+        let diskImages = MountedDiskImages([
+            try diskImage(wholeDiskID: "disk4", name: "Disk 10"),
+            try diskImage(wholeDiskID: "disk5", name: "Disk 2"),
+        ])
+
+        XCTAssertEqual(diskImages?.values.map(\.name), ["Disk 2", "Disk 10"])
+    }
+
+    private func diskImage(wholeDiskID: String, name: String) throws -> MountedDiskImage {
+        try XCTUnwrap(
+            MountedDiskImage(
+                wholeDiskID: wholeDiskID,
+                volumeName: name,
+                mountURL: URL(filePath: "/Volumes/\(name)"),
                 isEjectable: true,
                 deviceModel: "Disk Image"
             )
         )
-
-        XCTAssertNil(MountedDiskImages([]))
-        XCTAssertEqual(MountedDiskImages([diskImage])?.values.count, 1)
     }
 }

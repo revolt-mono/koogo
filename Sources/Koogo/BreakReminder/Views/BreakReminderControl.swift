@@ -5,7 +5,8 @@ struct BreakReminderControl: View {
     @State private var isVisible = false
 
     var body: some View {
-        Group {
+        // A stable container, so appearance tracks the control rather than whichever branch is showing.
+        ZStack {
             if isVisible, case .running = reminderModel.status(at: .now) {
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
                     BreakReminderButton(status: reminderModel.status(at: timeline.date))
@@ -20,6 +21,10 @@ struct BreakReminderControl: View {
         .onDisappear {
             isVisible = false
         }
+        .task {
+            await reminderModel.perform(.reconcile)
+        }
+        .breakReminderIssueAlert()
     }
 }
 
@@ -136,24 +141,51 @@ func breakReminderTimeText(_ status: BreakReminderStatus) -> String {
 }
 
 extension View {
-    func breakReminderIssueAlert(_ reminderModel: BreakReminderModel) -> some View {
-        let isPresented = Binding(
-            get: { reminderModel.issue != nil },
-            set: { isPresented in
-                if !isPresented {
-                    reminderModel.dismissIssue()
-                }
-            }
-        )
+    /// Presents the break reminder's current issue, such as notifications being turned off.
+    func breakReminderIssueAlert() -> some View {
+        modifier(BreakReminderIssueAlert())
+    }
+}
 
-        return alert(
+private struct BreakReminderIssueAlert: ViewModifier {
+    @Environment(BreakReminderModel.self) private var reminderModel
+
+    func body(content: Content) -> some View {
+        content.alert(
             reminderModel.issue?.title ?? "Break Reminder",
-            isPresented: isPresented,
+            isPresented: Binding(
+                get: { reminderModel.issue != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        reminderModel.dismissIssue()
+                    }
+                }
+            ),
             presenting: reminderModel.issue
         ) { _ in
             Button("OK", role: .cancel) {}
         } message: { issue in
             Text(issue.message)
+        }
+    }
+}
+
+private extension BreakReminderIssue {
+    var title: String {
+        switch self {
+        case .notificationsDisabled:
+            "Notifications Are Off"
+        case .schedulingFailed:
+            "Couldn't Start Break Reminder"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .notificationsDisabled:
+            "Allow Koogo notifications in System Settings before starting the break reminder."
+        case .schedulingFailed:
+            "Koogo couldn't schedule the notification. Please try again."
         }
     }
 }

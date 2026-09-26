@@ -3,6 +3,8 @@ import Charts
 import SwiftUI
 
 struct MonthlyUsageChart: View {
+    @Environment(\.calendar) private var calendar
+
     let month: UsageMonthSnapshot
     let barColor: Color
 
@@ -13,7 +15,7 @@ struct MonthlyUsageChart: View {
             return nil
         }
         return month.days.first {
-            Calendar.autoupdatingCurrent.isDate($0.date, inSameDayAs: selectedDate)
+            calendar.isDate($0.date, inSameDayAs: selectedDate)
         }
     }
 
@@ -50,7 +52,7 @@ struct MonthlyUsageChart: View {
             .allowsHitTesting(false)
         }
         .frame(height: 48)
-        .animation(.smooth(duration: 0.35), value: month)
+        .motionAnimation(.smooth(duration: 0.35), value: month)
     }
 }
 

@@ -52,7 +52,7 @@ enum GrokUsagePricing {
             + Decimal(tokens.output) * price.output
 
         return UsageQuote(
-            model: .grok(id: model, name: isFast ? "\(price.displayName) Fast" : price.displayName),
+            model: .named(id: model, name: isFast ? "\(price.displayName) Fast" : price.displayName),
             costUSD: costNanodollars * (isFast ? 2 : 1) / 1_000_000_000
         )
     }

@@ -23,24 +23,12 @@ private struct UsageSummaryPeriod: View {
                 .foregroundStyle(.secondary)
 
             ViewThatFits(in: .horizontal) {
-                UsageSummaryValueLine(usage: usage, fontSize: 18)
-                UsageSummaryValueLine(usage: usage, fontSize: 15)
+                UsageSummaryLine(usage: usage, fontSize: 18)
+                UsageSummaryLine(usage: usage, fontSize: 15)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        AnimatedNumericText(text: UsageFormatting.cost(usage.current.costUSD))
-                        UsageCostChangeCapsule(change: usage.costChange)
-                    }
-
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("and")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-
-                        AnimatedNumericText(
-                            text: "\(UsageFormatting.tokens(usage.current.processedTokens)) tokens"
-                        )
-                    }
+                    UsageSummaryCost(usage: usage)
+                    UsageSummaryTokens(usage: usage)
                 }
                 .font(.system(size: 15, weight: .bold))
             }
@@ -61,16 +49,36 @@ private struct UsageSummaryPeriod: View {
     }
 }
 
-private struct UsageSummaryValueLine: View {
+private struct UsageSummaryLine: View {
     let usage: UsageSummaryPeriodSnapshot
     let fontSize: CGFloat
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
+            UsageSummaryCost(usage: usage)
+            UsageSummaryTokens(usage: usage)
+        }
+        .font(.system(size: fontSize, weight: .bold))
+        .fixedSize()
+    }
+}
+
+private struct UsageSummaryCost: View {
+    let usage: UsageSummaryPeriodSnapshot
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
             AnimatedNumericText(text: UsageFormatting.cost(usage.current.costUSD))
-
             UsageCostChangeCapsule(change: usage.costChange)
+        }
+    }
+}
 
+private struct UsageSummaryTokens: View {
+    let usage: UsageSummaryPeriodSnapshot
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text("and")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
@@ -79,8 +87,6 @@ private struct UsageSummaryValueLine: View {
                 text: "\(UsageFormatting.tokens(usage.current.processedTokens)) tokens"
             )
         }
-        .font(.system(size: fontSize, weight: .bold))
-        .fixedSize()
     }
 }
 
@@ -136,13 +142,11 @@ private struct UsageCostChangeCapsule: View {
 }
 
 private struct AnimatedNumericText: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     let text: String
 
     var body: some View {
         Text(text)
             .contentTransition(.numericText())
-            .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: text)
+            .motionAnimation(.smooth(duration: 0.35), value: text)
     }
 }

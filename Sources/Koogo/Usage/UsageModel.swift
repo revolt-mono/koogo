@@ -9,13 +9,12 @@ final class UsageModel {
     private let usageService: UsageService
     private let defaults: UserDefaults
     private let now: @MainActor () -> Date
-    private var isRefreshing = false
+    @ObservationIgnored private var isRefreshing = false
+    @ObservationIgnored private var needsRefresh = false
 
     private(set) var snapshot: UsageSnapshot?
     /// Persisted as the disabled set, so providers added later start enabled.
     private(set) var enabledProviders: Set<UsageProvider>
-    /// Enabled providers that were installed at the last refresh; only these have logs read and quota fetched.
-    private(set) var activeProviders: Set<UsageProvider> = []
 
     init(
         usageService: UsageService,
@@ -41,21 +40,25 @@ final class UsageModel {
         refresh()
     }
 
-    func refresh() {
-        activeProviders = enabledProviders.intersection(usageService.locations.logs.installedProviders())
+    /// Starts a refresh, or queues exactly one trailing rerun while one is in flight, and returns the
+    /// enabled providers installed right now; only these have logs read.
+    @discardableResult
+    func refresh() -> Set<UsageProvider> {
+        let active = enabledProviders.intersection(usageService.locations.installedProviders())
         guard !isRefreshing else {
-            return
+            needsRefresh = true
+            return active
         }
         let date = now()
-        let providers = activeProviders
         isRefreshing = true
         Task(priority: .utility) {
-            snapshot = await usageService.refresh(at: date, providers: providers).snapshot
+            snapshot = await usageService.refresh(at: date, providers: active).snapshot
             isRefreshing = false
-            // A toggle or install during this refresh was coalesced away, so catch up with it.
-            if providers != activeProviders {
+            if needsRefresh {
+                needsRefresh = false
                 refresh()
             }
         }
+        return active
     }
 }

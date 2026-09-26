@@ -35,6 +35,7 @@ final class UsagePeriodIntervalsTests: XCTestCase {
             calendar.dateComponents([.year, .month, .day], from: intervals.month.previous.upperBound),
             DateComponents(year: 2026, month: 3, day: 1)
         )
+        XCTAssertEqual(intervals.startOfDay(for: date), parseUsageTimestamp("2026-03-11T07:00:00.000Z"))
     }
 
     func testCalendarDayFollowsDaylightSavingTime() throws {

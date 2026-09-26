@@ -1,16 +1,18 @@
 import AppKit
 import SwiftUI
 
-/// Root of the menu bar panel: toolbar, pager, and the refresh kick-off for every feature.
+/// Root of the menu bar panel: toolbar, pager, and the panel-open refresh of usage and of the quotas
+/// the usage refresh reports active.
 struct PanelView: View {
+    private static let toolbarGap: CGFloat = 8
+
     @Environment(UsageModel.self) private var usageModel
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
     @Environment(GrokQuotaModel.self) private var grokQuotaModel
-    @Environment(BreakReminderModel.self) private var breakReminderModel
     @State private var toolbarHeight: CGFloat = 0
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Self.toolbarGap) {
             PanelToolbar()
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
@@ -21,7 +23,7 @@ struct PanelView: View {
                 }
 
             PanelPagesView(
-                maxHeight: (NSScreen.main?.visibleFrame.height ?? .infinity) - toolbarHeight - 8
+                maxHeight: (NSScreen.main?.visibleFrame.height ?? .infinity) - toolbarHeight - Self.toolbarGap
             )
         }
         .frame(width: 320)
@@ -43,18 +45,15 @@ struct PanelView: View {
                 endPoint: .bottom
             )
         }
-        .task {
-            // Refreshing usage first re-detects installed providers, which gate the quota fetches.
-            usageModel.refresh()
-            if usageModel.activeProviders.contains(.codex) {
+        .onAppear {
+            let active = usageModel.refresh()
+            if active.contains(.codex) {
                 codexQuotaModel.refresh()
             }
-            if usageModel.activeProviders.contains(.grok) {
+            if active.contains(.grok) {
                 grokQuotaModel.refresh()
             }
-            await breakReminderModel.perform(.reconcile)
         }
-        .breakReminderIssueAlert(breakReminderModel)
     }
 }
 
@@ -81,6 +80,6 @@ private struct PanelToolbar: View {
             .foregroundStyle(.secondary)
             .accessibilityLabel("Settings")
         }
-        .animation(.smooth(duration: 0.25), value: updateModel.showsUpdateIndicator)
+        .motionAnimation(.smooth(duration: 0.25), value: updateModel.showsUpdateIndicator)
     }
 }

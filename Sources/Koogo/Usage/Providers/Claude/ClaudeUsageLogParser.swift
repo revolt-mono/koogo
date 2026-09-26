@@ -27,33 +27,53 @@ struct ClaudeLogParser: UsageLogParser {
             return nil
         }
         let usage = record.message.usage
-        guard let quote = ClaudeUsagePricing.quote(model: model, usage: usage) else {
+        let isFast: Bool
+        switch usage.speed {
+        case nil, "standard": isFast = false
+        case "fast": isFast = true
+        default: return .unpricedModel(id: model, timestamp: timestamp)
+        }
+        let billable = ClaudeBillableUsage(
+            tokens: usage.tokens,
+            isFast: isFast,
+            isUSInference: usage.geo == "us",
+            webSearchRequests: usage.webSearchRequests
+        )
+        guard let quote = ClaudeUsagePricing.quote(model: model, usage: billable) else {
             return .unpricedModel(id: model, timestamp: timestamp)
         }
 
         let reasoningEffort = nonEmpty(record.effort)
         return .event(
-            .claude(
-                id: UsageEvent.ClaudeID(
-                    messageID: messageID,
-                    requestID: requestID
-                ),
-                revision: UsageEvent.ClaudeRevision(
-                    usage: UsageRecord(
-                        timestamp: timestamp,
-                        processedTokens: usage.tokens.processed,
-                        costUSD: quote.costUSD,
-                        modelTurn: UsageRecord.ModelTurn(
-                            model: quote.model,
-                            reasoningEffort: reasoningEffort
-                        )
-                    ),
-                    outputTokens: usage.tokens.output,
-                    metadataCompleteness: usage.metadataCompleteness(
+            UsageEvent(
+                key: .claude(messageID: messageID, requestID: requestID),
+                usage: UsageRecord(
+                    timestamp: timestamp,
+                    processedTokens: usage.tokens.processed,
+                    costUSD: quote.costUSD,
+                    modelTurn: UsageRecord.ModelTurn(
+                        model: quote.model,
                         reasoningEffort: reasoningEffort
                     )
-                )
+                ),
+                revision: Self.revision(of: usage, reasoningEffort: reasoningEffort)
             )
+        )
+    }
+
+    /// Claude logs partial copies of one request; the copy with more output wins, then the one
+    /// with more explicit metadata: a logged speed, a cache split by duration, a logged effort.
+    private static func revision(of usage: ClaudeLoggedUsage, reasoningEffort: String?) -> UsageEvent.Revision {
+        let explicitCacheDuration =
+            switch usage.tokens.cacheCreation {
+            case .aggregate: 0
+            case .byDuration: 1
+            }
+        return UsageEvent.Revision(
+            outputTokens: usage.tokens.output,
+            metadataCompleteness: (usage.speed == nil ? 0 : 1)
+                + explicitCacheDuration
+                + (reasoningEffort == nil ? 0 : 1)
         )
     }
 }
@@ -77,7 +97,7 @@ private struct ClaudeLogRecord: Decodable {
 private struct ClaudeMessage: Decodable {
     let id: String
     let model: String
-    let usage: ClaudeBillableUsage
+    let usage: ClaudeLoggedUsage
 
     static let usageMarker = Data("\"\(CodingKeys.usage.rawValue)\"".utf8)
 
@@ -88,7 +108,13 @@ private struct ClaudeMessage: Decodable {
     }
 }
 
-extension ClaudeBillableUsage: Decodable {
+/// The usage object as logged, with token amounts validated; speed and geo stay raw until the parser reads them.
+private struct ClaudeLoggedUsage: Decodable {
+    let tokens: ClaudeTokenUsage
+    let speed: String?
+    let geo: String?
+    let webSearchRequests: UInt64
+
     private enum CodingKeys: String, CodingKey {
         case inputTokens = "input_tokens"
         case cacheReadInputTokens = "cache_read_input_tokens"
@@ -96,25 +122,14 @@ extension ClaudeBillableUsage: Decodable {
         case outputTokens = "output_tokens"
         case cacheCreation = "cache_creation"
         case speed
-        case inferenceGeo = "inference_geo"
+        case geo = "inference_geo"
         case serverToolUse = "server_tool_use"
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        speed =
-            switch try container.decodeIfPresent(String.self, forKey: .speed) {
-            case nil: .implicitStandard
-            case "standard": .standard
-            case "fast": .fast
-            default:
-                throw DecodingError.dataCorruptedError(
-                    forKey: .speed,
-                    in: container,
-                    debugDescription: "unknown speed"
-                )
-            }
-        inferenceGeo = try container.decodeIfPresent(String.self, forKey: .inferenceGeo)
+        speed = try container.decodeIfPresent(String.self, forKey: .speed)
+        geo = try container.decodeIfPresent(String.self, forKey: .geo)
         webSearchRequests =
             try container.decodeIfPresent(
                 ClaudeServerToolUse.self,

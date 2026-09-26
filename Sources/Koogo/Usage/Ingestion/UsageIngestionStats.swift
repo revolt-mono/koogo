@@ -1,0 +1,16 @@
+/// How the last refresh went; the pipeline drops unparseable input silently,
+/// so this is the only place ingestion health becomes observable.
+struct UsageIngestionStats: Sendable, Encodable {
+    struct LogRoot: Equatable, Sendable, Encodable {
+        let provider: UsageProvider
+        let path: String
+        let exists: Bool
+    }
+
+    let logRoots: [LogRoot]
+    let trackedFiles: [UsageProvider: Int]
+    let events: [UsageProvider: Int]
+    /// Model ids with events inside the history window that were dropped because the model,
+    /// or one of its billed options (fast speed, US inference, cache writes, an unknown speed), has no price.
+    let unpricedModels: [String]
+}

@@ -1,15 +1,14 @@
-import Shimmer
 import SwiftUI
 
 /// The usage page composes three features: usage summary and provider cards,
 /// quick actions, and the Codex and Grok quotas folded into their cards.
 struct UsagePage: View {
-    /// With the cards' 12-point scroll margins, the gaps above and below the cards stay 20 and 32 points.
-    private static let headerGap: CGFloat = 8
-    private static let bottomInset: CGFloat = 20
+    /// The visible gaps above and below the cards are 20 and 32 points; the cards' scroll margins supply
+    /// `ProviderCards.spacing` of each.
+    private static let headerGap: CGFloat = 20 - ProviderCards.spacing
+    private static let bottomInset: CGFloat = 32 - ProviderCards.spacing
 
     @Environment(UsageModel.self) private var usageModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var headerHeight: CGFloat = 0
 
     /// The page never grows past this; only the provider cards give up height to stay within it.
@@ -42,17 +41,14 @@ struct UsagePage: View {
                 Text("Parsing logs…")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .shimmering(active: !reduceMotion)
+                    .loadingShimmer()
                     .frame(maxWidth: .infinity, minHeight: 96)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 24)
                     .transition(.blurReplace)
             }
         }
-        .animation(
-            reduceMotion ? nil : .smooth(duration: 0.35),
-            value: usageModel.snapshot != nil
-        )
+        .motionAnimation(.smooth(duration: 0.35), value: usageModel.snapshot != nil)
     }
 }
 
@@ -61,13 +57,12 @@ struct UsagePage: View {
 private struct ProviderCards: View {
     /// The gap between cards, reused as the scroll margin and fade band at each edge: at rest both bands
     /// cover only empty gaps, so the viewport shows exactly the first two cards.
-    private static let spacing: CGFloat = 12
+    fileprivate static let spacing: CGFloat = 12
     /// Horizontal card inset; the scroller lives in the trailing one.
     private static let inset: CGFloat = 20
 
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
     @Environment(GrokQuotaModel.self) private var grokQuotaModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var cardHeights: [UsageProvider: CGFloat] = [:]
 
     let providers: [UsageProvider: ProviderUsageSnapshot]
@@ -84,18 +79,11 @@ private struct ProviderCards: View {
             VStack(spacing: Self.spacing) {
                 ForEach(shown, id: \.self) { provider in
                     if let usage = providers[provider] {
-                        Group {
+                        ProviderUsageCard(provider: provider, usage: usage) {
                             switch provider {
-                            case .codex:
-                                ProviderUsageCard(provider: provider, usage: usage) {
-                                    CodexQuotaView()
-                                }
-                            case .grok:
-                                ProviderUsageCard(provider: provider, usage: usage) {
-                                    GrokQuotaView()
-                                }
-                            case .claude, .piAgent:
-                                ProviderUsageCard(provider: provider, usage: usage)
+                            case .codex: CodexQuotaView()
+                            case .grok: GrokQuotaView()
+                            case .claude, .piAgent: EmptyView()
                             }
                         }
                         .onGeometryChange(for: CGFloat.self) { proxy in
@@ -108,8 +96,8 @@ private struct ProviderCards: View {
             }
             .padding(.horizontal, Self.inset)
             // Animated here so sibling cards follow a card as its quota section resizes.
-            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: codexQuotaModel.state)
-            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: grokQuotaModel.state)
+            .motionAnimation(.smooth(duration: 0.25), value: codexQuotaModel.state)
+            .motionAnimation(.smooth(duration: 0.25), value: grokQuotaModel.state)
         }
         .contentMargins(.vertical, Self.spacing, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)

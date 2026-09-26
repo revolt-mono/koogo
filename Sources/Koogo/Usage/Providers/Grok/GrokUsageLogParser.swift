@@ -54,8 +54,8 @@ struct GrokLogParser: UsageLogParser {
         }
 
         return .event(
-            .grok(
-                id: UsageEvent.GrokID(eventID: meta.eventID, timestamp: timestamp),
+            UsageEvent(
+                key: .grok(eventID: meta.eventID, timestamp: timestamp),
                 usage: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: usage.totalTokens,
