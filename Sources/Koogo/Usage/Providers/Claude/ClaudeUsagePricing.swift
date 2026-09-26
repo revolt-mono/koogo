@@ -53,13 +53,15 @@ enum ClaudeUsagePricing {
         let input: Decimal
         let cacheRead: Decimal
         let output: Decimal
+        let cacheWriteFiveMinute: Decimal
+        let cacheWriteOneHour: Decimal
 
-        var cacheWriteFiveMinute: Decimal {
-            input * 5 / 4
-        }
-
-        var cacheWriteOneHour: Decimal {
-            input * 2
+        init(input: Decimal, cacheRead: Decimal, output: Decimal) {
+            self.input = input
+            self.cacheRead = cacheRead
+            self.output = output
+            cacheWriteFiveMinute = input * 5 / 4
+            cacheWriteOneHour = input * 2
         }
 
         func costNanodollars(for tokens: ClaudeTokenUsage) -> Decimal {
@@ -203,8 +205,7 @@ enum ClaudeUsagePricing {
         }
         return UsageQuote(
             model: .named(id: modelID, name: price.displayName),
-            costUSD: (costNanodollars + Decimal(usage.webSearchRequests) * 10_000_000)
-                / 1_000_000_000
+            costNanodollars: costNanodollars + Decimal(usage.webSearchRequests) * 10_000_000
         )
     }
 }

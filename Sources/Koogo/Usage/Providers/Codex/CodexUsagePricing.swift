@@ -42,6 +42,15 @@ enum CodexUsagePricing {
         let cachedInput: Decimal
         let output: Decimal
         let supportsCacheWrite: Bool
+        let cacheWrite: Decimal
+
+        init(input: Decimal, cachedInput: Decimal, output: Decimal, supportsCacheWrite: Bool) {
+            self.input = input
+            self.cachedInput = cachedInput
+            self.output = output
+            self.supportsCacheWrite = supportsCacheWrite
+            cacheWrite = input * 5 / 4
+        }
 
         var longContext: Rates {
             Rates(
@@ -58,7 +67,7 @@ enum CodexUsagePricing {
             }
             return Decimal(tokens.uncachedInput) * input
                 + Decimal(tokens.cachedInput) * cachedInput
-                + Decimal(tokens.cacheWrite) * (input * 5 / 4)
+                + Decimal(tokens.cacheWrite) * cacheWrite
                 + Decimal(tokens.output) * output
         }
     }
@@ -150,7 +159,7 @@ enum CodexUsagePricing {
         // Codex rollout logs do not reliably record service tiers, so usage uses standard rates.
         return UsageQuote(
             model: .named(id: modelID, name: price.displayName),
-            costUSD: costNanodollars / 1_000_000_000
+            costNanodollars: costNanodollars
         )
     }
 }

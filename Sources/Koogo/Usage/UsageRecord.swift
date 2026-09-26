@@ -38,4 +38,15 @@ struct UsageRecord: Sendable {
 struct UsageQuote: Sendable {
     let model: UsageModelReference
     let costUSD: Decimal
+
+    /// Takes the cost in nanodollars, the unit the pricing tables work in.
+    init(model: UsageModelReference, costNanodollars: Decimal) {
+        self.model = model
+        // Moving the decimal point is exact and far cheaper than dividing by 10^9.
+        costUSD = Decimal(
+            sign: costNanodollars.sign,
+            exponent: costNanodollars.exponent - 9,
+            significand: costNanodollars.significand
+        )
+    }
 }

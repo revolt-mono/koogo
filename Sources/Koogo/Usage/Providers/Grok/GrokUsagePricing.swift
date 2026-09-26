@@ -53,7 +53,7 @@ enum GrokUsagePricing {
 
         return UsageQuote(
             model: .named(id: model, name: isFast ? "\(price.displayName) Fast" : price.displayName),
-            costUSD: costNanodollars * (isFast ? 2 : 1) / 1_000_000_000
+            costNanodollars: costNanodollars * (isFast ? 2 : 1)
         )
     }
 }
