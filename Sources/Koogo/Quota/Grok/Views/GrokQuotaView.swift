@@ -28,14 +28,14 @@ struct GrokQuotaView: View {
                 case nil: "Usage limit"
                 }
             VStack(spacing: 16) {
-                QuotaWindowRow(scopeTitle: "Grok", title: title, window: snapshot.window)
-                switch stale {
-                case nil:
-                    EmptyView()
-                case .credentialsExpired:
-                    // Refreshing cannot help until the Grok CLI renews its session.
-                    GrokSessionExpiredHint()
-                case .some:
+                VStack(spacing: 8) {
+                    QuotaWindowRow(scopeTitle: "Grok", title: title, window: snapshot.window)
+                    if stale == .credentialsExpired {
+                        // Refreshing cannot help until the Grok CLI renews its session.
+                        GrokSessionExpiredHint()
+                    }
+                }
+                if let stale, stale != .credentialsExpired {
                     QuotaStaleNotice(isRefreshDisabled: model.isRefreshing) {
                         model.refresh(force: true)
                     }
