@@ -35,7 +35,8 @@ final class UsagePeriodIntervalsTests: XCTestCase {
             calendar.dateComponents([.year, .month, .day], from: intervals.month.previous.upperBound),
             DateComponents(year: 2026, month: 3, day: 1)
         )
-        XCTAssertEqual(intervals.startOfDay(for: date), parseUsageTimestamp("2026-03-11T07:00:00.000Z"))
+        XCTAssertEqual(intervals.currentMonthDay(containing: date), parseUsageTimestamp("2026-03-11T07:00:00.000Z"))
+        XCTAssertNil(intervals.currentMonthDay(containing: intervals.month.previous.lowerBound))
     }
 
     func testCalendarDayFollowsDaylightSavingTime() throws {
@@ -43,8 +44,17 @@ final class UsagePeriodIntervalsTests: XCTestCase {
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
         let date = try XCTUnwrap(parseUsageTimestamp("2026-03-08T12:00:00.000Z"))
 
-        let day = UsagePeriodIntervals(containing: date, calendar: calendar).day.current
+        let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
+        let day = intervals.day.current
 
         XCTAssertEqual(day.upperBound.timeIntervalSince(day.lowerBound), 23 * 60 * 60)
+        XCTAssertEqual(
+            intervals.currentMonthDay(containing: day.upperBound),
+            parseUsageTimestamp("2026-03-09T07:00:00.000Z")
+        )
+        XCTAssertEqual(
+            intervals.currentMonthDay(containing: day.lowerBound),
+            parseUsageTimestamp("2026-03-08T08:00:00.000Z")
+        )
     }
 }

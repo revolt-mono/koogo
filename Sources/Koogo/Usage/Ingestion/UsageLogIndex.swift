@@ -224,6 +224,7 @@ struct UsageLogIndex {
     /// Events merged across every tracked file, with ingestion stats, as of the last `refresh`.
     func collect() -> (events: [UsageEvent], stats: UsageIngestionStats) {
         var merged = UsageEventIndex(since: indexedFrom)
+        merged.reserveCapacity(trackedFiles.values.reduce(0) { $0 + $1.eventIndex.count })
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
             merged.merge(tracked.eventIndex)
         }
@@ -280,9 +281,8 @@ struct UsageLogIndex {
                     return
                 }
                 seenPaths.insert(path)
-                if var tracked = trackedFiles[path] {
-                    changed = tracked.refresh(observed: metadata) || changed
-                    trackedFiles[path] = tracked
+                if let fileChanged = trackedFiles[path]?.refresh(observed: metadata) {
+                    changed = fileChanged || changed
                 } else {
                     let location = UsageLogLocation(provider: root.provider, url: URL(fileURLWithPath: path))
                     newFiles.append((path, location))

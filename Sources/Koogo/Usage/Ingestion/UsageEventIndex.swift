@@ -19,6 +19,14 @@ struct UsageEventIndex: Sendable {
         Array(events.values)
     }
 
+    var count: Int {
+        events.count
+    }
+
+    mutating func reserveCapacity(_ minimumCapacity: Int) {
+        events.reserveCapacity(minimumCapacity)
+    }
+
     mutating func insert(_ outcome: UsageLineOutcome) {
         guard outcome.timestamp >= historyStart else {
             return

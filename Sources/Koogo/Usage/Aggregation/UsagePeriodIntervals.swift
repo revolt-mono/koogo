@@ -26,7 +26,8 @@ struct UsagePeriodIntervals: Equatable, Sendable {
     let day: Comparison
     let week: Range<Date>
     let month: Comparison
-    private let calendar: Calendar
+    /// The start of each day in the current month, ascending, as the calendar that shaped these periods has it.
+    private let currentMonthDays: [Date]
 
     var historyStart: Date {
         month.previous.lowerBound
@@ -37,14 +38,26 @@ struct UsagePeriodIntervals: Equatable, Sendable {
             preconditionFailure("calendar must provide a week interval")
         }
 
+        let month = Comparison(component: .month, containing: date, calendar: calendar)
         day = Comparison(component: .day, containing: date, calendar: calendar)
         self.week = week.start..<week.end
-        month = Comparison(component: .month, containing: date, calendar: calendar)
-        self.calendar = calendar
+        self.month = month
+        currentMonthDays = Array(
+            sequence(first: month.current.lowerBound) { dayStart in
+                guard let nextDay = calendar.dateInterval(of: .day, for: dayStart)?.end else {
+                    preconditionFailure("calendar must provide day intervals")
+                }
+                return nextDay
+            }
+            .prefix { $0 < month.current.upperBound }
+        )
     }
 
-    /// The day holding `date` in the calendar that shaped these periods, so daily buckets line up with them.
-    func startOfDay(for date: Date) -> Date {
-        calendar.startOfDay(for: date)
+    /// The start of the current-month day holding `date`, or nil for a date outside the current month.
+    func currentMonthDay(containing date: Date) -> Date? {
+        guard month.current.contains(date) else {
+            return nil
+        }
+        return currentMonthDays.last { $0 <= date }
     }
 }

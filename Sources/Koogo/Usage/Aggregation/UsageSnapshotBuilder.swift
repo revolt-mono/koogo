@@ -57,8 +57,8 @@ enum UsageSnapshotBuilder {
             if intervals.week.contains(usage.timestamp) {
                 week.add(usage)
             }
-            if intervals.month.current.contains(usage.timestamp) {
-                monthByDay[intervals.startOfDay(for: usage.timestamp), default: .init()].add(usage)
+            if let day = intervals.currentMonthDay(containing: usage.timestamp) {
+                monthByDay[day, default: .init()].add(usage)
             }
         }
 
