@@ -93,10 +93,10 @@ private struct CodexQuotaLoadingView: View {
 
             HStack {
                 RoundedRectangle(cornerRadius: 2)
-                    .frame(width: 76, height: 8)
+                    .frame(width: 120, height: 8)
                 Spacer()
                 RoundedRectangle(cornerRadius: 2)
-                    .frame(width: 52, height: 8)
+                    .frame(width: 8, height: 8)
             }
         }
         .foregroundStyle(.secondary.opacity(0.24))

@@ -10,23 +10,23 @@ struct CodexQuotaResetView: View {
                 isPresented.toggle()
             } label: {
                 HStack(spacing: 4) {
-                    Text("Quota reset")
-                        .fontWeight(.semibold)
-                    Spacer(minLength: 8)
                     if let credits = model.snapshot?.account?.resetCredits {
-                        Text("\(Text(credits.availableCount.formatted()).foregroundStyle(.white)) available")
-                            .foregroundStyle(.secondary)
+                        let noun = credits.availableCount == 1 ? "banked reset" : "banked resets"
+                        Text("\(Text("\(credits.availableCount)").foregroundStyle(.white)) \(noun) available")
                             .monospacedDigit()
+                    } else {
+                        Text("Banked resets")
                     }
+                    Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
-                        .foregroundStyle(.secondary)
                 }
                 .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Quota reset details")
+            .accessibilityLabel("Banked reset details")
             .panelPopover(isPresented: $isPresented) {
                 CodexQuotaResetDetail()
             }
@@ -44,7 +44,7 @@ private struct CodexQuotaResetDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("Quota resets").font(.headline)
+                Text("Banked resets").font(.headline)
                 if let resetCredits {
                     Text("\(resetCredits.availableCount) available")
                         .foregroundStyle(.secondary)
@@ -69,7 +69,7 @@ private struct CodexQuotaResetDetail: View {
                     }
                 }
             } else if let resetCredits, resetCredits.availableCount > 0 {
-                Text("Reset details are unavailable. Refresh to load them.")
+                Text("Banked reset details are unavailable. Refresh to load them.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -97,14 +97,14 @@ private struct CodexQuotaResetStatus: View {
                 } else {
                     Text("Does not expire")
                 }
-                Text("This consumes one reset for eligible usage limits. This can't be undone.")
+                Text("This consumes one banked reset for eligible usage limits. This can't be undone.")
                     .foregroundStyle(.secondary)
                 if let failure {
-                    Text("No reset was used. \(failureMessage(failure))")
+                    Text("No banked reset was used. \(failureMessage(failure))")
                         .foregroundStyle(.orange)
                 }
                 HStack(spacing: 8) {
-                    Button("Use reset") { model.submitReset() }
+                    Button("Use banked reset") { model.submitReset() }
                         .buttonStyle(.borderedProminent)
                         .disabled(model.isBusy)
                     Button("Cancel") { model.cancelReset() }
@@ -132,18 +132,18 @@ private struct CodexQuotaResetStatus: View {
     private func outcomeMessage(_ outcome: CodexQuotaResetOutcome) -> String {
         switch outcome {
         case .reset, .alreadyRedeemed:
-            "Reset used."
+            "Banked reset used."
         case .nothingToReset:
-            "No eligible usage to reset. No reset was used."
+            "No eligible usage to reset. No banked reset was used."
         case .noCredit:
-            "This reset is no longer available."
+            "This banked reset is no longer available."
         }
     }
 
     private func failureMessage(_ failure: CodexAppServer.Failure) -> String {
         switch failure {
         case .methodNotFound:
-            "This Codex version cannot use resets. Update Codex, then retry."
+            "This Codex version cannot use banked resets. Update Codex, then retry."
         case .rpc(let code):
             "Codex returned an error (code \(code))."
         case .binaryNotFound:
