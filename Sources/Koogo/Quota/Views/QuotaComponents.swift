@@ -18,6 +18,7 @@ struct QuotaWindowRow: View {
                     .foregroundStyle(.primary)
                     .monospacedDigit()
                     .contentTransition(.numericText())
+                    .environment(\.contentTransitionAddsDrawingGroup, true)
 
                 if let resetsAt = window.resetsAt {
                     QuotaDeadlineLabel(deadline: resetsAt)
