@@ -34,6 +34,23 @@ struct QuotaWindowRow: View {
     }
 }
 
+/// Names the model whose windows follow, with a rule filling the rest of the line.
+struct QuotaScopeHeader: View {
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Rectangle()
+                .fill(.quaternary)
+                .frame(height: 1)
+        }
+    }
+}
+
 /// The shape of a `QuotaWindowRow` while limits load; callers style it and apply `loadingShimmer()`.
 struct QuotaWindowPlaceholder: View {
     var body: some View {
@@ -90,7 +107,7 @@ private struct QuotaDeadlineLabel: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
-            Text("· resets \(quotaTimeRemainingText(until: deadline, now: timeline.date))")
+            Text("resets \(quotaTimeRemainingText(until: deadline, now: timeline.date))")
         }
         .foregroundStyle(.secondary)
         .help(deadline.formatted(date: .complete, time: .shortened))
@@ -128,8 +145,8 @@ private struct QuotaProgressViewStyle: ProgressViewStyle {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color.primary,
                                 Color.primary.opacity(0.42),
+                                Color.primary,
                             ],
                             startPoint: .leading,
                             endPoint: .trailing

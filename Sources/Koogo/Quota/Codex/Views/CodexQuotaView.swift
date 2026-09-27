@@ -52,29 +52,20 @@ private struct CodexQuotaLimitsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let title {
-                HStack(spacing: 8) {
-                    Text(title)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    Rectangle()
-                        .fill(.quaternary)
-                        .frame(height: 1)
-                }
+                QuotaScopeHeader(title: title)
             }
 
             if let fiveHour = limits.fiveHour {
                 QuotaWindowRow(
                     scopeTitle: title ?? "Codex",
-                    title: "5h limit",
+                    title: "Session",
                     window: fiveHour
                 )
             }
             if let weekly = limits.weekly {
                 QuotaWindowRow(
                     scopeTitle: title ?? "Codex",
-                    title: "Weekly limit",
+                    title: "Weekly",
                     window: weekly
                 )
             }

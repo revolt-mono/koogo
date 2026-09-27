@@ -23,7 +23,7 @@ struct GrokQuotaView: View {
         case .available(let snapshot, let stale):
             let title =
                 switch snapshot.period {
-                case .weekly: "Weekly limit"
+                case .weekly: "Weekly"
                 case .monthly: "Monthly limit"
                 case nil: "Usage limit"
                 }
