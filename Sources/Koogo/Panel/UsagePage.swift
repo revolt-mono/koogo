@@ -64,6 +64,7 @@ private struct ProviderCards: View {
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
     @Environment(ClaudeQuotaModel.self) private var claudeQuotaModel
     @Environment(GrokQuotaModel.self) private var grokQuotaModel
+    private var quotaPreferences = QuotaPreferences()
     @State private var cardHeights: [UsageProvider: CGFloat] = [:]
 
     let providers: [UsageProvider: ProviderUsageSnapshot]
@@ -82,9 +83,12 @@ private struct ProviderCards: View {
                     if let usage = providers[provider] {
                         ProviderUsageCard(provider: provider, usage: usage) {
                             switch provider {
-                            case .codex: CodexQuotaView()
-                            case .claude: ClaudeQuotaView()
-                            case .grok: GrokQuotaView()
+                            case .codex:
+                                if quotaPreferences.fetchCodex { CodexQuotaView() }
+                            case .claude:
+                                if quotaPreferences.fetchClaude { ClaudeQuotaView() }
+                            case .grok:
+                                if quotaPreferences.fetchGrok { GrokQuotaView() }
                             case .piAgent: EmptyView()
                             }
                         }

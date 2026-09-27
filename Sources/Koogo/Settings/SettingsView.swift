@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(UpdateModel.self) private var updateModel
+    private var quotaPreferences = QuotaPreferences()
 
     var body: some View {
         Form {
@@ -15,6 +16,12 @@ struct SettingsView: View {
                 UsageProviderToggles()
             }
 
+            Section("Fetch Quota") {
+                Toggle("Codex", isOn: quotaPreferences.$fetchCodex)
+                Toggle("Claude", isOn: quotaPreferences.$fetchClaude)
+                Toggle("Grok", isOn: quotaPreferences.$fetchGrok)
+            }
+
             Section("System") {
                 LaunchAtLoginToggle()
 
@@ -24,7 +31,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 440)
+        .frame(width: 440, height: 612)
         .onAppear {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate()

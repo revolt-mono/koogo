@@ -10,6 +10,7 @@ struct PanelView: View {
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
     @Environment(ClaudeQuotaModel.self) private var claudeQuotaModel
     @Environment(GrokQuotaModel.self) private var grokQuotaModel
+    private var quotaPreferences = QuotaPreferences()
     @State private var toolbarHeight: CGFloat = 0
 
     var body: some View {
@@ -48,13 +49,13 @@ struct PanelView: View {
         }
         .onAppear {
             let active = usageModel.refresh()
-            if active.contains(.codex) {
+            if quotaPreferences.fetchCodex, active.contains(.codex) {
                 codexQuotaModel.refresh()
             }
-            if active.contains(.claude) {
+            if quotaPreferences.fetchClaude, active.contains(.claude) {
                 claudeQuotaModel.refresh()
             }
-            if active.contains(.grok) {
+            if quotaPreferences.fetchGrok, active.contains(.grok) {
                 grokQuotaModel.refresh()
             }
         }
