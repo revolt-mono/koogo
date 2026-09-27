@@ -65,56 +65,22 @@ struct CodexAppServer: Sendable {
         // Flipped right before the request is written, so a later failure may still have reached the server.
         let requestStarted = Mutex(false)
         do {
-            return try await withThrowingTaskGroup(of: Value.self) { group in
-                group.addTask {
-                    try await Self.session(executable: executable) { connection in
-                        requestStarted.withLock { $0 = true }
-                        return try connection.request(request)
-                    }
+            return try await ProcessGroupLifetime.run(timeout: timeout) { processGroup in
+                try Self.blockingSession(executable: executable, processGroup: processGroup) { connection in
+                    requestStarted.withLock { $0 = true }
+                    return try connection.request(request)
                 }
-                group.addTask {
-                    try await Task.sleep(for: timeout)
-                    throw Failure.timedOut
-                }
-                defer { group.cancelAll() }
-                // Two racing children are in flight, so next() cannot return nil.
-                return try await group.next()!
             }
         } catch {
             let failure: Failure =
                 switch error {
                 case let failure as Failure: failure
+                case is ProcessGroupLifetime.TimedOut: .timedOut
                 case let error as RPCError where error.code == -32601: .methodNotFound
                 case let error as RPCError: .rpc(code: error.code)
                 default: .sessionFailed
                 }
             throw CallError(failure: failure, requestMayHaveArrived: requestStarted.withLock { $0 })
-        }
-    }
-
-    /// Pipe I/O and `waitUntilExit` block, so the session runs on GCD rather than a cooperative
-    /// thread. Cancellation terminates the process group, which unblocks reads through EOF.
-    private static func session<Value: Sendable>(
-        executable: URL,
-        operation: @escaping @Sendable (inout RPCConnection) throws -> Value
-    ) async throws -> Value {
-        let processGroup = ProcessGroupLifetime()
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                DispatchQueue.global(qos: .utility).async {
-                    continuation.resume(
-                        with: Result {
-                            try blockingSession(
-                                executable: executable,
-                                processGroup: processGroup,
-                                operation: operation
-                            )
-                        }
-                    )
-                }
-            }
-        } onCancel: {
-            processGroup.terminate()
         }
     }
 
@@ -193,93 +159,6 @@ private struct RPCConnection {
             return try decoder.decode(RPCSuccess<Value>.self, from: data).result
         }
         throw CodexAppServer.Failure.sessionFailed
-    }
-}
-
-private final class ProcessGroupLifetime: Sendable {
-    private enum State {
-        case pending
-        case running(Process)
-        case terminating(Process)
-        case stopped
-    }
-
-    private let state = Mutex(State.pending)
-
-    func start(_ process: Process) throws {
-        try state.withLock { state in
-            switch state {
-            case .pending:
-                try process.run()
-                guard getpgid(process.processIdentifier) == process.processIdentifier else {
-                    Darwin.kill(process.processIdentifier, SIGKILL)
-                    process.waitUntilExit()
-                    throw CodexAppServer.Failure.sessionFailed
-                }
-                state = .running(process)
-            case .stopped:
-                throw CancellationError()
-            case .running, .terminating:
-                preconditionFailure("process group lifetime cannot start twice")
-            }
-        }
-    }
-
-    func finish() {
-        state.withLock { state in
-            if case .terminating(let process) = state,
-                Self.processGroupExists(process.processIdentifier)
-            {
-                return
-            }
-            state = .stopped
-        }
-    }
-
-    func terminate() {
-        let process = state.withLock { state -> Process? in
-            switch state {
-            case .pending:
-                state = .stopped
-                return nil
-            case .running(let process) where Self.processGroupExists(process.processIdentifier):
-                state = .terminating(process)
-                return process
-            case .running:
-                state = .stopped
-                return nil
-            case .terminating, .stopped:
-                return nil
-            }
-        }
-        guard let process else {
-            return
-        }
-        if process.isRunning {
-            Darwin.kill(process.processIdentifier, SIGTERM)
-        }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
-            self.forceTerminate()
-        }
-    }
-
-    private func forceTerminate() {
-        guard
-            let process = state.withLock({ state -> Process? in
-                guard case .terminating(let process) = state else {
-                    return nil
-                }
-                state = .stopped
-                return process
-            })
-        else {
-            return
-        }
-        Darwin.kill(-process.processIdentifier, SIGKILL)
-    }
-
-    private static func processGroupExists(_ processGroupIdentifier: Int32) -> Bool {
-        Darwin.kill(-processGroupIdentifier, 0) != -1 || errno != ESRCH
     }
 }
 
