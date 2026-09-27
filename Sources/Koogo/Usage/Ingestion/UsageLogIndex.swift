@@ -222,7 +222,7 @@ struct UsageLogIndex {
     }
 
     /// Events merged across every tracked file, with ingestion stats, as of the last `refresh`.
-    func collect() -> (events: [UsageEvent], stats: UsageIngestionStats) {
+    func collect() -> (events: some Collection<UsageEvent>, stats: UsageIngestionStats) {
         var merged = UsageEventIndex(since: indexedFrom)
         merged.reserveCapacity(trackedFiles.values.reduce(0) { $0 + $1.eventIndex.count })
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
@@ -307,12 +307,16 @@ struct UsageLogIndex {
     ) -> [String: TrackedUsageFile] {
         let trackedFiles = Mutex<[String: TrackedUsageFile]>([:])
         // Keep refresh synchronous so actor state cannot interleave while workers build files.
-        DispatchQueue.concurrentPerform(iterations: files.count) { index in
-            let (path, location) = files[index]
-            guard let tracked = TrackedUsageFile.admit(location, since: historyStart) else {
-                return
+        // Each reader can grow its buffer to a whole log line; bound simultaneous readers.
+        let workers = min(files.count, 8)
+        DispatchQueue.concurrentPerform(iterations: workers) { worker in
+            for index in stride(from: worker, to: files.count, by: workers) {
+                let (path, location) = files[index]
+                guard let tracked = TrackedUsageFile.admit(location, since: historyStart) else {
+                    continue
+                }
+                trackedFiles.withLock { $0[path] = tracked }
             }
-            trackedFiles.withLock { $0[path] = tracked }
         }
         return trackedFiles.withLock { $0 }
     }

@@ -2,13 +2,15 @@ import CryptoKit
 import Darwin
 import Foundation
 
-/// `Koogo --benchmark [home]`: runs the usage refreshes behind the panel's journeys over the logs under `home`
-/// and prints each one's cost as JSON. Retired instructions barely move between runs over the same logs, so they
-/// are the number to compare across changes; an unchanged snapshot digest shows the change kept the output.
+/// `Koogo --benchmark [home]`: reports refresh instructions, time, and memory as JSON.
+/// An unchanged snapshot digest checks that optimizations preserve the output.
 enum UsageBenchmark {
     private struct Phase: Encodable {
         let instructions: UInt64
         let milliseconds: Int
+        let footprintBytes: UInt64
+        /// Process-wide high-water mark, including earlier phases.
+        let peakFootprintBytes: UInt64
     }
 
     private struct Result: Encodable {
@@ -39,18 +41,20 @@ enum UsageBenchmark {
     }
 
     private static func measure(_ work: () async -> UsageReport) async -> (phase: Phase, report: UsageReport) {
-        let startInstructions = retiredInstructions()
+        let startInstructions = resourceUsage().ri_instructions
         let started = ContinuousClock.now
         let report = await work()
+        let usage = resourceUsage()
         let phase = Phase(
-            instructions: retiredInstructions() - startInstructions,
-            milliseconds: Int((ContinuousClock.now - started) / .milliseconds(1))
+            instructions: usage.ri_instructions - startInstructions,
+            milliseconds: Int((ContinuousClock.now - started) / .milliseconds(1)),
+            footprintBytes: usage.ri_phys_footprint,
+            peakFootprintBytes: usage.ri_lifetime_max_phys_footprint
         )
         return (phase, report)
     }
 
-    /// Instructions retired by every thread of this process so far.
-    private static func retiredInstructions() -> UInt64 {
+    private static func resourceUsage() -> rusage_info_v4 {
         var usage = rusage_info_v4()
         let status = withUnsafeMutablePointer(to: &usage) { pointer in
             pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
@@ -58,6 +62,6 @@ enum UsageBenchmark {
             }
         }
         precondition(status == 0, "a process can always read its own resource usage")
-        return usage.ri_instructions
+        return usage
     }
 }

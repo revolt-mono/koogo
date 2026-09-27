@@ -4,6 +4,27 @@ import XCTest
 @testable import Koogo
 
 final class UsageServiceTests: UsageWorkspaceTestCase {
+    func testColdScanLoadsEveryFileAcrossReaderBatches() async throws {
+        let usage = codexUsage(input: 100, output: 20)
+        for index in 0..<19 {
+            try workspace.write(
+                [
+                    codexTurn(id: "turn-\(index)"),
+                    codexTokenCount(last: usage, total: usage),
+                    "",
+                ].joined(separator: "\n"),
+                to: workspace.codexSessions.appending(path: "session-\(index).jsonl")
+            )
+        }
+        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+
+        let report = await service.refresh(at: now)
+
+        XCTAssertEqual(report.ingestion.trackedFiles[.codex], 19)
+        XCTAssertEqual(report.ingestion.events[.codex], 19)
+        XCTAssertEqual(report.snapshot.providers[.codex]?.today.processedTokens, 2_280)
+    }
+
     func testDisabledProvidersAreNeitherScannedNorSummarized() async throws {
         try workspace.write(
             codexLog(input: 100, output: 20),

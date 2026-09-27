@@ -15,8 +15,8 @@ struct UsageEventIndex: Sendable {
         unpricedModels.keys.sorted()
     }
 
-    var values: [UsageEvent] {
-        Array(events.values)
+    var values: some Collection<UsageEvent> {
+        events.values
     }
 
     var count: Int {
