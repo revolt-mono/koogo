@@ -52,7 +52,7 @@ func windowCount() -> Int {
     }.count
 }
 
-for name in ["Quota reset details", "Quick Actions"] {
+for name in ["Banked reset details", "Quick Actions"] {
     guard let trigger = button(in: root, named: name),
         let position = attribute(trigger, kAXPositionAttribute), CFGetTypeID(position) == AXValueGetTypeID(),
         let size = attribute(trigger, kAXSizeAttribute), CFGetTypeID(size) == AXValueGetTypeID()
