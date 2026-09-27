@@ -1,5 +1,3 @@
-import Foundation
-
 struct ClaudeQuotaSnapshot: Equatable, Sendable, Encodable {
     struct Model: Equatable, Identifiable, Sendable, Encodable {
         let title: String

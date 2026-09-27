@@ -6,7 +6,7 @@ struct CodexQuotaResetAttempt: Equatable, Sendable {
     let idempotencyKey = UUID()
 }
 
-enum CodexQuotaResetOutcome: String, Decodable, Equatable, Sendable {
+enum CodexQuotaResetOutcome: String, Decodable, Sendable {
     case reset
     case alreadyRedeemed
     case nothingToReset

@@ -86,7 +86,7 @@ struct PanelPagesView: View {
     }
 }
 
-private enum PanelPage: Int, CaseIterable, Hashable {
+private enum PanelPage: Int, CaseIterable {
     case usage
     case inbox
 

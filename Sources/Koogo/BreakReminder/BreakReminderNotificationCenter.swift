@@ -5,10 +5,9 @@ import UserNotifications
 final class BreakReminderNotificationCenter: NSObject, BreakReminderNotifications {
     nonisolated private static let requestIdentifier = "break-reminder"
 
-    private let center: UNUserNotificationCenter
+    private let center = UNUserNotificationCenter.current()
 
-    init(center: UNUserNotificationCenter = .current()) {
-        self.center = center
+    override init() {
         super.init()
         center.delegate = self
     }

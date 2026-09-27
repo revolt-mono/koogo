@@ -1,5 +1,3 @@
-import Foundation
-
 /// The Grok Build credit limit: one weekly or monthly window per account.
 struct GrokQuotaSnapshot: Equatable, Sendable, Encodable {
     enum Period: String, Sendable, Encodable {

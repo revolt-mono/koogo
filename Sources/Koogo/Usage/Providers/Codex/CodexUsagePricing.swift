@@ -5,7 +5,6 @@ struct CodexTokenUsage: Equatable, Sendable {
     let cachedInput: UInt64
     let cacheWrite: UInt64
     let output: UInt64
-    let reasoningOutput: UInt64
     let processed: UInt64
 
     init?(
@@ -24,7 +23,6 @@ struct CodexTokenUsage: Equatable, Sendable {
         self.cachedInput = cachedInput
         self.cacheWrite = cacheWrite
         self.output = output
-        self.reasoningOutput = reasoningOutput
         self.processed = processed
     }
 
