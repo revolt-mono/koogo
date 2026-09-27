@@ -15,6 +15,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         let data = try await SystemReport.generate(
             usageService: UsageService(locations: locations, calendar: usageTestCalendar),
             codexQuotaService: CodexQuotaService(executableCandidates: [try quotaWorkspace.makeAppServer()]),
+            claudeQuotaService: ClaudeQuotaService(executableCandidates: []),
             grokQuotaService: GrokQuotaService(authURL: workspace.root.appending(path: "missing-auth.json")),
             at: now
         )
@@ -38,13 +39,17 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         let quota = try XCTUnwrap(report["quota"] as? [String: Any])
         let codex = try XCTUnwrap(quota["codex"] as? [String: Any])
         XCTAssertEqual(codex["state"] as? String, "available")
+        let claude = try XCTUnwrap(quota["claude"] as? [String: Any])
+        XCTAssertEqual(claude["state"] as? String, "unavailable")
+        XCTAssertEqual(claude["reason"] as? String, "binaryNotFound")
+        XCTAssertNil(claude["snapshot"])
         let grok = try XCTUnwrap(quota["grok"] as? [String: Any])
         XCTAssertEqual(grok["state"] as? String, "unavailable")
         XCTAssertEqual(grok["reason"] as? String, "signedOut")
         XCTAssertNil(grok["snapshot"])
     }
 
-    /// The single owner of the `--report` shape: one priced event per provider and both quotas
+    /// The single owner of the `--report` shape: one priced event per provider and all quotas
     /// available. Change `reportKeyPaths` only with an intended shape change.
     func testReportKeyPathsAreStable() async throws {
         let quotaWorkspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
@@ -64,12 +69,14 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         try workspace.write(grokTurn(eventID: "s-1") + "\n", to: grokSession.appending(path: "updates.jsonl"))
 
         let codexExecutable = try quotaWorkspace.makeAppServer(quotaResponse: codexQuotaResponse)
+        let claudeExecutable = try ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory()).makeCLI()
         let grokAuth = workspace.root.appending(path: "auth.json")
         try writeGrokSession(expiresAt: "2999-01-01T00:00:00Z", to: grokAuth)
 
         let data = try await SystemReport.generate(
             usageService: UsageService(locations: locations, calendar: usageTestCalendar),
             codexQuotaService: CodexQuotaService(executableCandidates: [codexExecutable]),
+            claudeQuotaService: ClaudeQuotaService(executableCandidates: [claudeExecutable]),
             grokQuotaService: GrokQuotaService(authURL: grokAuth) { _ in try grokBillingReply(grokBilling) },
             at: now
         )
@@ -80,6 +87,14 @@ final class SystemReportTests: UsageWorkspaceTestCase {
 
 private let reportKeyPaths = [
     "generatedAt",
+    "quota.claude.snapshot.models[].title",
+    "quota.claude.snapshot.models[].weekly.remainingPercent",
+    "quota.claude.snapshot.models[].weekly.resetsAt",
+    "quota.claude.snapshot.session.remainingPercent",
+    "quota.claude.snapshot.session.resetsAt",
+    "quota.claude.snapshot.weekly.remainingPercent",
+    "quota.claude.snapshot.weekly.resetsAt",
+    "quota.claude.state",
     "quota.codex.snapshot.account.limits.fiveHour.remainingPercent",
     "quota.codex.snapshot.account.limits.fiveHour.resetsAt",
     "quota.codex.snapshot.account.limits.weekly.remainingPercent",

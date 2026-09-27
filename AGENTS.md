@@ -31,7 +31,7 @@
 
 ## Observability
 
-- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file, event, decoded, and malformed line counts, unpriced model ids, the full usage snapshot, and the Codex and Grok quota outcomes with typed reasons. Prefer it over screenshots when verifying pipeline behavior.
+- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file, event, decoded, and malformed line counts, unpriced model ids, the full usage snapshot, and the Codex, Claude, and Grok quota outcomes with typed reasons. Prefer it over screenshots when verifying pipeline behavior.
 - `Koogo --benchmark [home]` times the cold, unchanged, and rebuild usage refreshes over the logs under `home` and prints retired instructions, milliseconds, and a digest of the cold snapshot. Instruction counts barely move between runs, so compare them before and after a pipeline change on the same logs and day; the digest must stay the same unless the snapshot is meant to change.
 - Decoding dominates ingestion, so parsers rule lines out from their bytes first; `decodedLines` counts what still reached the JSON decoder, and `UsageLinePrefilterTests` ratchets that count.
 - Dropped input never reaches the UI. Lines of a known record kind with unusable fields surface only as per-provider counts in `malformedLines`, and events dropped because a model or one of its billed options has no price surface only as model ids in `unpricedModels`; both also log telemetry warnings.
@@ -54,6 +54,7 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 │   │   └── Views          summary, provider cards, chart, provider toggles
 │   ├── Quota              quota state and shared quota views
 │   │   ├── Codex          app-server transport, quota and reset flow, views
+│   │   ├── Claude         local CLI usage report, quota model, views
 │   │   └── Grok           billing transport, quota model, views
 │   ├── QuickActions       system quick-action adapters and views
 │   ├── BreakReminder      countdown state, notifications, controls, and issue alert

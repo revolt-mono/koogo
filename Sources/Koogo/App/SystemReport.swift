@@ -1,11 +1,12 @@
 import Foundation
 
 /// Headless snapshot of the whole system for `Koogo --report`: runs the full
-/// usage pipeline and both quota fetches, then encodes the outcome as JSON. This is
+/// usage pipeline and all quota fetches, then encodes the outcome as JSON. This is
 /// the canonical way to verify behavior end to end without the menu bar UI.
 struct SystemReport: Encodable {
     private struct Quota: Encodable {
         let codex: QuotaOutcome<CodexQuotaSnapshot, CodexQuotaUnavailability>
+        let claude: QuotaOutcome<ClaudeQuotaSnapshot, ClaudeQuotaUnavailability>
         let grok: QuotaOutcome<GrokQuotaSnapshot, GrokQuotaUnavailability>
     }
 
@@ -38,16 +39,22 @@ struct SystemReport: Encodable {
     static func generate(
         usageService: UsageService = UsageService(),
         codexQuotaService: CodexQuotaService = CodexQuotaService(),
+        claudeQuotaService: ClaudeQuotaService = ClaudeQuotaService(),
         grokQuotaService: GrokQuotaService = GrokQuotaService(),
         at date: Date = .now
     ) async throws -> Data {
         async let codexQuota = codexQuotaService.fetch()
+        async let claudeQuota = claudeQuotaService.fetch()
         async let grokQuota = grokQuotaService.fetch()
         let usage = await usageService.refresh(at: date)
         let report = SystemReport(
             generatedAt: date,
             usage: usage,
-            quota: Quota(codex: QuotaOutcome(result: await codexQuota), grok: QuotaOutcome(result: await grokQuota))
+            quota: Quota(
+                codex: QuotaOutcome(result: await codexQuota),
+                claude: QuotaOutcome(result: await claudeQuota),
+                grok: QuotaOutcome(result: await grokQuota)
+            )
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

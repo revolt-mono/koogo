@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The usage page composes three features: usage summary and provider cards,
-/// quick actions, and the Codex and Grok quotas folded into their cards.
+/// quick actions, and provider quotas folded into their cards.
 struct UsagePage: View {
     /// The visible gaps above and below the cards are 20 and 32 points; the cards' scroll margins supply
     /// `ProviderCards.spacing` of each.
@@ -62,6 +62,7 @@ private struct ProviderCards: View {
     private static let inset: CGFloat = 20
 
     @Environment(CodexQuotaModel.self) private var codexQuotaModel
+    @Environment(ClaudeQuotaModel.self) private var claudeQuotaModel
     @Environment(GrokQuotaModel.self) private var grokQuotaModel
     @State private var cardHeights: [UsageProvider: CGFloat] = [:]
 
@@ -82,8 +83,9 @@ private struct ProviderCards: View {
                         ProviderUsageCard(provider: provider, usage: usage) {
                             switch provider {
                             case .codex: CodexQuotaView()
+                            case .claude: ClaudeQuotaView()
                             case .grok: GrokQuotaView()
-                            case .claude, .piAgent: EmptyView()
+                            case .piAgent: EmptyView()
                             }
                         }
                         .onGeometryChange(for: CGFloat.self) { proxy in
@@ -97,6 +99,7 @@ private struct ProviderCards: View {
             .padding(.horizontal, Self.inset)
             // Animated here so sibling cards follow a card as its quota section resizes.
             .motionAnimation(.smooth(duration: 0.25), value: codexQuotaModel.state)
+            .motionAnimation(.smooth(duration: 0.25), value: claudeQuotaModel.state)
             .motionAnimation(.smooth(duration: 0.25), value: grokQuotaModel.state)
         }
         .contentMargins(.vertical, Self.spacing, for: .scrollContent)
