@@ -10,9 +10,11 @@ enum GrokQuotaUnavailability: String, Error, Encodable, Sendable {
     case emptyLimits
 }
 
+typealias GrokQuotaModel = QuotaModel<GrokQuotaService>
+
 /// Reads the Grok Build credit limit the way `grok`'s `/usage` does, borrowing the CLI's
 /// grok.com session read-only.
-struct GrokQuotaService: Sendable {
+struct GrokQuotaService: QuotaService {
     typealias Transport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
     private static let billingURL = URL(string: "https://cli-chat-proxy.grok.com/v1/billing?format=credits")!
