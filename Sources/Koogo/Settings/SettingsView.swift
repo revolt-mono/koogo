@@ -31,13 +31,32 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 612)
+        .frame(width: 440)
+        .fixedSize(horizontal: false, vertical: true)
+        .background { SettingsWindowStyle() }
         .onAppear {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate()
         }
         .onDisappear {
             NSApp.setActivationPolicy(.accessory)
+        }
+    }
+}
+
+/// Drops the full-size content view style from the hosting window. With that style, a switch's glass
+/// press interaction on macOS 26 leaves the title bar unable to start a window drag.
+private struct SettingsWindowStyle: NSViewRepresentable {
+    func makeNSView(context: Context) -> WindowStyleView {
+        WindowStyleView()
+    }
+
+    func updateNSView(_: WindowStyleView, context: Context) {}
+
+    final class WindowStyleView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            window?.styleMask.remove(.fullSizeContentView)
         }
     }
 }
