@@ -24,12 +24,10 @@
 
 ## Observability
 
-- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file, event, and malformed line counts, unpriced model ids, the full usage snapshot, and the Codex, Claude, and Grok quota outcomes with typed reasons. Prefer it over screenshots when verifying pipeline behavior.
-- `Koogo --benchmark [home]` times the cold, unchanged, and rebuild usage refreshes over the logs under `home` and prints retired instructions, milliseconds, and a digest of the cold snapshot. Instruction counts barely move between runs, so compare them before and after a pipeline change on the same logs and day; the digest must stay the same unless the snapshot is meant to change.
-- Benchmark memory fields are `footprintBytes` and process-wide `peakFootprintBytes`, including earlier phases. Compare repeated release runs without allocation tracing. The opt-in memory test bounds heap growth from rendered numeric transitions.
-- Parsers read each line in place with `JSONObjectReader`, which finds values by scanning bytes and reads only the members a parser asks for, so a record ruled out by kind costs only the bytes before its kind.
-- Dropped input never reaches the UI. Lines of a known record kind with unusable fields surface only as per-provider counts in `malformedLines`, and events dropped because a model or one of its billed options has no price surface only as model ids in `unpricedModels`; both also log telemetry warnings.
-- Runtime telemetry logs under subsystem `com.revolt.koogo` (categories `usage`, `quota`); stream it with `script/build_and_run.sh telemetry`.
+- Verify pipeline behavior with `report` rather than screenshots; its JSON covers log roots, ingestion counts, the usage snapshot, and typed quota outcomes.
+- Measure pipeline changes with `benchmark` on the same logs and day: compare retired instructions, which stay stable across runs, and memory across repeated release runs without allocation tracing. The digest stays fixed unless the snapshot is meant to change.
+- Dropped input stays out of the UI: known-kind lines with unusable fields count in `malformedLines`, events with an unpriced model or billed option list their model in `unpricedModels`, and both log telemetry warnings.
+- Stream telemetry (subsystem `com.revolt.koogo`, categories `usage`, `quota`) with `script/build_and_run.sh telemetry`.
 
 ## Repo structure
 
