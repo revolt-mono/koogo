@@ -1,204 +1,167 @@
 import Foundation
 
-private enum PiRecordKind: String, LogRecordKind {
-    case message
-    case thinkingLevelChange = "thinking_level_change"
-    case compaction
-    case branchSummary = "branch_summary"
-    case other
-}
-
-private enum PiMessageRole: String, LogRecordKind {
-    case assistant
-    case toolResult
-    case other
-}
-
 struct PiLogParser: UsageLogParser {
-    private static let usageMarker = Data("\"usage\"".utf8)
-
     private var thinkingByEntry: [String: String] = [:]
 
-    mutating func parse(_ line: UnsafeRawBufferPointer, decoder: inout UsageLineDecoder) throws -> UsageLineOutcome? {
-        if let link = Self.passThroughLink(line) {
-            if let thinking = thinkingByEntry[link.parentID] {
-                thinkingByEntry[link.id] = thinking
-            }
+    mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
+        guard let entry = try PiEntry(line) else {
             return nil
         }
-        let record = try decoder.decode(PiLogRecord.self, from: line)
-
-        let thinking =
-            switch record.action {
-            case .thinking(let level): level
-            case .inherit, .billed: record.parentID.flatMap { thinkingByEntry[$0] }
-            }
+        // Every entry inherits its parent's thinking level unless it sets one, so each branch keeps its own.
+        let thinking = entry.thinkingLevel ?? entry.parentID.flatMap { thinkingByEntry[$0] }
         if let thinking {
-            thinkingByEntry[record.id] = thinking
+            thinkingByEntry[entry.id] = thinking
         }
-        guard
-            case .billed(let billedUsage, let model, let timestampSource) = record.action,
-            model != nil || billedUsage.processedTokens > 0 || billedUsage.costUSD > 0
+        guard let billed = entry.billed, billed.model != nil || billed.processedTokens > 0 || billed.costUSD > 0
         else {
             return nil
         }
-        let timestamp =
-            switch timestampSource {
-            case .entry: parseUsageTimestamp(record.timestamp)
-            case .milliseconds(let milliseconds):
-                Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
-            }
-        guard let timestamp else {
-            throw MalformedUsageRecord()
-        }
-
         return .event(
             UsageEvent(
-                key: .piAgent(entryID: record.id),
+                key: .piAgent(entryID: entry.id),
                 usage: UsageRecord(
-                    timestamp: timestamp,
-                    processedTokens: billedUsage.processedTokens,
-                    costUSD: billedUsage.costUSD,
-                    modelTurn: model.map {
+                    timestamp: billed.timestamp,
+                    processedTokens: billed.processedTokens,
+                    costUSD: billed.costUSD,
+                    modelTurn: billed.model.map {
                         UsageRecord.ModelTurn(model: $0, reasoningEffort: thinking)
                     }
                 )
             )
         )
     }
-
-    /// The ids of a record that can neither bill nor set a thinking level, read from its leading fields, so the
-    /// long prompts and tool results between turns only pass the thinking level on. `nil` means the record
-    /// needs a full decode.
-    private static func passThroughLink(_ line: UnsafeRawBufferPointer) -> (id: String, parentID: String)? {
-        var record = JSONLeadingMembers(line)
-        switch record.string("type").map(PiRecordKind.init(known:)) {
-        case .message, .compaction, .branchSummary:
-            guard !line.contains(usageMarker) else {
-                return nil
-            }
-        case .other:
-            break
-        case .thinkingLevelChange, nil:
-            return nil
-        }
-        guard let id = record.string("id"), let parentID = record.string("parentId") else {
-            return nil
-        }
-        return (id, parentID)
-    }
 }
 
-private struct PiLogRecord: Decodable {
-    enum Action: Decodable {
-        enum TimestampSource {
-            case entry
-            case milliseconds(UInt64)
-        }
-
-        case inherit
-        case thinking(String)
-        case billed(usage: PiLoggedUsage, model: UsageModelReference?, timestamp: TimestampSource)
-
-        private enum CodingKeys: String, CodingKey {
-            case role
-            case provider
-            case model
-            case timestamp
-            case usage
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            let role = try container.decode(PiMessageRole.self, forKey: .role)
-            guard let usage = try container.decodeIfPresent(PiLoggedUsage.self, forKey: .usage) else {
-                self = .inherit
-                return
-            }
-            let model: UsageModelReference?
-            switch role {
-            case .assistant:
-                model = .piAgent(
-                    provider: try container.decode(String.self, forKey: .provider),
-                    id: try container.decode(String.self, forKey: .model)
-                )
-            case .toolResult:
-                model = nil
-            case .other:
-                self = .inherit
-                return
-            }
-            self = .billed(
-                usage: usage,
-                model: model,
-                timestamp: .milliseconds(try container.decode(UInt64.self, forKey: .timestamp))
-            )
-        }
-    }
-
+/// One session tree entry: where it hangs, the thinking level it sets, and the usage it logs.
+private struct PiEntry {
     let id: String
     let parentID: String?
-    let timestamp: String
-    let action: Action
+    let thinkingLevel: String?
+    let billed: PiBilledEntry?
 
-    private enum CodingKeys: String, CodingKey {
-        case type
-        case id
-        case parentID = "parentId"
-        case timestamp
-        case thinkingLevel
-        case message
-        case usage
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
-        timestamp = try container.decode(String.self, forKey: .timestamp)
-        action =
-            switch try container.decode(PiRecordKind.self, forKey: .type) {
-            case .message:
-                try container.decode(Action.self, forKey: .message)
-            case .thinkingLevelChange:
-                .thinking(try container.decode(String.self, forKey: .thinkingLevel))
-            case .compaction, .branchSummary:
-                try container.decodeIfPresent(PiLoggedUsage.self, forKey: .usage)
-                    .map { .billed(usage: $0, model: nil, timestamp: .entry) }
-                    ?? .inherit
-            case .other:
-                .inherit
+    /// Nil for a line that holds no object.
+    init?(_ line: UnsafeRawBufferPointer) throws {
+        guard var record = JSONObjectReader(line) else {
+            return nil
+        }
+        var type: JSONValue?
+        var id: String?
+        var parentID: String?
+        var timestamp: String?
+        var thinkingLevel: JSONValue?
+        var message: JSONValue?
+        var usage: JSONValue?
+        while let member = try record.next() {
+            switch member.key {
+            case "type": type = member.value
+            case "id": id = try member.value.string()
+            case "parentId": parentID = try member.value.string()
+            case "timestamp": timestamp = try member.value.string()
+            case "thinkingLevel": thinkingLevel = member.value
+            case "message": message = member.value
+            case "usage": usage = member.value
+            default: continue
             }
+        }
+        guard let type, let id else {
+            throw MalformedUsageRecord()
+        }
+        self.id = id
+        self.parentID = parentID
+        switch type {
+        case "thinking_level_change":
+            guard let level = try thinkingLevel?.string() else {
+                throw MalformedUsageRecord()
+            }
+            self.thinkingLevel = level
+            billed = nil
+        case "message":
+            guard let message else {
+                throw MalformedUsageRecord()
+            }
+            self.thinkingLevel = nil
+            billed = try PiBilledEntry(message: message)
+        case "compaction", "branch_summary":
+            self.thinkingLevel = nil
+            billed = try usage.flatMap {
+                try PiBilledEntry(usage: $0, model: nil, timestamp: timestamp.flatMap(Date.init(iso8601:)))
+            }
+        default:
+            self.thinkingLevel = nil
+            billed = nil
+        }
     }
 }
 
-private struct PiLoggedUsage: Decodable {
+/// Usage an entry logs, with the model when an assistant turn produced it.
+private struct PiBilledEntry {
     let processedTokens: UInt64
     let costUSD: Decimal
+    let model: UsageModelReference?
+    let timestamp: Date
 
-    private enum CodingKeys: String, CodingKey {
-        case totalTokens
-        case cost
-    }
-
-    private enum CostCodingKeys: String, CodingKey {
-        case total
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        processedTokens = try container.decode(UInt64.self, forKey: .totalTokens)
-        let costUSD = try container.nestedContainer(
-            keyedBy: CostCodingKeys.self,
-            forKey: .cost
-        ).decode(Decimal.self, forKey: .total)
-        guard costUSD >= 0 else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .cost,
-                in: container,
-                debugDescription: "invalid usage cost"
-            )
+    /// Nil when `usage` is null.
+    init?(usage: JSONValue, model: UsageModelReference?, timestamp: Date?) throws {
+        guard var usage = try usage.nonNull?.object() else {
+            return nil
         }
+        var processedTokens: UInt64?
+        var costUSD: Decimal?
+        while let member = try usage.next() {
+            switch member.key {
+            case "totalTokens": processedTokens = try member.value.integer()
+            case "cost": costUSD = try member.value.member("total")?.decimal()
+            default: continue
+            }
+        }
+        guard let processedTokens, let costUSD, costUSD >= 0, let timestamp else {
+            throw MalformedUsageRecord()
+        }
+        self.processedTokens = processedTokens
         self.costUSD = costUSD
+        self.model = model
+        self.timestamp = timestamp
+    }
+
+    /// The usage of an assistant turn or tool result; nil for any other message or one without usage.
+    init?(message: JSONValue) throws {
+        var message = try message.object()
+        var role: JSONValue?
+        var provider: String?
+        var model: String?
+        var milliseconds: JSONValue?
+        var usage: JSONValue?
+        while let member = try message.next() {
+            switch member.key {
+            case "role": role = member.value
+            case "provider": provider = try member.value.string()
+            case "model": model = try member.value.string()
+            case "timestamp": milliseconds = member.value
+            case "usage": usage = member.value
+            default: continue
+            }
+        }
+        guard let role else {
+            throw MalformedUsageRecord()
+        }
+        guard let usage else {
+            return nil
+        }
+        let reference: UsageModelReference?
+        switch role {
+        case "assistant":
+            guard let provider, let model else {
+                throw MalformedUsageRecord()
+            }
+            reference = .piAgent(provider: provider, id: model)
+        case "toolResult":
+            reference = nil
+        default:
+            return nil
+        }
+        let timestamp = try milliseconds?.integer(UInt64.self).map {
+            Date(timeIntervalSince1970: TimeInterval($0) / 1_000)
+        }
+        try self.init(usage: usage, model: reference, timestamp: timestamp)
     }
 }

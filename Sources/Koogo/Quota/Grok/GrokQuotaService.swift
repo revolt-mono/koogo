@@ -17,6 +17,7 @@ typealias GrokQuotaModel = QuotaModel<GrokQuotaService>
 struct GrokQuotaService: QuotaService {
     typealias Transport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
+    static let name = "grok"
     private static let billingURL = URL(string: "https://cli-chat-proxy.grok.com/v1/billing?format=credits")!
 
     private let authURL: URL
@@ -30,19 +31,7 @@ struct GrokQuotaService: QuotaService {
         self.transport = transport
     }
 
-    @concurrent
-    func fetch() async -> Result<GrokQuotaSnapshot, GrokQuotaUnavailability> {
-        let result = await load()
-        switch result {
-        case .success:
-            Telemetry.quota.info("grok fetch available")
-        case .failure(let reason):
-            Telemetry.quota.info("grok fetch unavailable reason=\(reason.rawValue, privacy: .public)")
-        }
-        return result
-    }
-
-    private func load() async -> Result<GrokQuotaSnapshot, GrokQuotaUnavailability> {
+    func load() async -> Result<GrokQuotaSnapshot, GrokQuotaUnavailability> {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard
@@ -115,11 +104,9 @@ private struct GrokBillingResponse: Decodable {
             case "USAGE_PERIOD_TYPE_MONTHLY": .monthly
             default: nil
             }
-        let usedPercent = min(max(config.creditUsagePercent ?? 0, 0), 100)
         return GrokQuotaSnapshot(
             period: period,
-            // Grok floors the used share, so 3.9% used leaves 97%.
-            window: QuotaWindow(usedPercent: Int(usedPercent.rounded(.down)), resetsAt: config.currentPeriod?.end)
+            window: QuotaWindow(usedPercent: config.creditUsagePercent ?? 0, resetsAt: config.currentPeriod?.end)
         )
     }
 }

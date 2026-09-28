@@ -146,9 +146,7 @@ private struct AnimatedNumericText: View {
 
     var body: some View {
         Text(text)
-            .contentTransition(.numericText())
-            // Rasterize the transition so each animation scale does not enter the system font cache.
-            .environment(\.contentTransitionAddsDrawingGroup, true)
+            .numericTextTransition()
             .motionAnimation(.smooth(duration: 0.35), value: text)
     }
 }

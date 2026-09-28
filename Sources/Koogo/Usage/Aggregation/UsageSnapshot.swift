@@ -1,17 +1,17 @@
 import Foundation
 
 struct UsagePeriodSnapshot: Equatable, Sendable, Encodable {
-    private(set) var processedTokens: Decimal = 0
+    private(set) var processedTokens: UInt64 = 0
     private(set) var costUSD: Decimal = 0
 
     mutating func add(_ usage: UsageRecord) {
-        processedTokens += Decimal(usage.processedTokens)
+        processedTokens = processedTokens.saturatingAdding(usage.processedTokens)
         costUSD += usage.costUSD
     }
 
     static func + (lhs: Self, rhs: Self) -> Self {
         UsagePeriodSnapshot(
-            processedTokens: lhs.processedTokens + rhs.processedTokens,
+            processedTokens: lhs.processedTokens.saturatingAdding(rhs.processedTokens),
             costUSD: lhs.costUSD + rhs.costUSD
         )
     }
@@ -103,5 +103,13 @@ struct UsageSnapshot: Equatable, Sendable, Encodable {
             )
         )
         self.providers = providers
+    }
+}
+
+private extension UInt64 {
+    /// Token totals saturate, so one absurd logged counter cannot crash aggregation.
+    func saturatingAdding(_ other: Self) -> Self {
+        let (sum, overflow) = addingReportingOverflow(other)
+        return overflow ? .max : sum
     }
 }

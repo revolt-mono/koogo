@@ -17,9 +17,9 @@ final class CodexQuotaServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.models.map(\.id), ["codex_bengalfox"])
         XCTAssertEqual(snapshot.models[0].title, "GPT-5.3-Codex-Spark")
 
-        XCTAssertEqual(snapshot.account?.limits?.fiveHour?.remainingPercent, 55)
+        XCTAssertEqual(snapshot.account?.limits?.session?.remainingPercent, 55)
         XCTAssertEqual(
-            snapshot.account?.limits?.fiveHour?.resetsAt,
+            snapshot.account?.limits?.session?.resetsAt,
             Date(timeIntervalSince1970: 1_700_000_000)
         )
         XCTAssertEqual(snapshot.account?.limits?.weekly?.remainingPercent, 85)
@@ -27,7 +27,7 @@ final class CodexQuotaServiceTests: XCTestCase {
             snapshot.account?.limits?.weekly?.resetsAt,
             Date(timeIntervalSince1970: 1_800_000_000)
         )
-        XCTAssertEqual(snapshot.models[0].limits.fiveHour?.remainingPercent, 90)
+        XCTAssertEqual(snapshot.models[0].limits.session?.remainingPercent, 90)
         XCTAssertEqual(snapshot.models[0].limits.weekly?.remainingPercent, 80)
     }
 
@@ -45,7 +45,7 @@ final class CodexQuotaServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.models.count, 1)
         XCTAssertEqual(model.id, "base_model_inference")
         XCTAssertEqual(model.title, "Reserve quota")
-        XCTAssertNil(model.limits.fiveHour)
+        XCTAssertNil(model.limits.session)
         XCTAssertEqual(model.limits.weekly?.remainingPercent, 52)
         XCTAssertEqual(model.limits.weekly?.resetsAt, Date(timeIntervalSince1970: 1_800_000_000))
     }
@@ -92,7 +92,7 @@ final class CodexQuotaServiceTests: XCTestCase {
 
         let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
 
-        XCTAssertEqual(snapshot.account?.limits?.fiveHour?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.account?.limits?.session?.remainingPercent, 75)
         XCTAssertNil(snapshot.account?.resetCredits)
     }
 
@@ -136,7 +136,7 @@ final class CodexQuotaServiceTests: XCTestCase {
 
         let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
 
-        XCTAssertEqual(snapshot.account?.limits?.fiveHour?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.account?.limits?.session?.remainingPercent, 75)
     }
 
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
@@ -169,7 +169,7 @@ final class CodexQuotaServiceTests: XCTestCase {
         let started = ContinuousClock.now
         let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
 
-        XCTAssertEqual(snapshot.account?.limits?.fiveHour?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.account?.limits?.session?.remainingPercent, 75)
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
     }
 

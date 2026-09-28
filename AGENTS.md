@@ -1,11 +1,3 @@
-# Koogo repository guide
-
-## Workflow
-
-- Read code and docs relevant to the change; expand only to resolve dependencies or uncertainty.
-- Complete the requested outcome, not just a first implementation: check the result and fix failures caused by the change. Match verification to the affected behavior; repeat checks only after changes, failures, or unresolved concerns.
-- Continue within the agreed scope without step-by-step approval. Pause for missing access, consequential decisions the request does not settle, or destructive actions not already authorized.
-
 ## Engineering
 
 - Prefer the simplest end-to-end solution for current requirements. Extract shared logic only for real reuse or a shared invariant.
@@ -32,10 +24,10 @@
 
 ## Observability
 
-- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file, event, decoded, and malformed line counts, unpriced model ids, the full usage snapshot, and the Codex, Claude, and Grok quota outcomes with typed reasons. Prefer it over screenshots when verifying pipeline behavior.
+- `Koogo --report` runs the whole system headlessly and prints JSON: per-provider log roots with existence, tracked file, event, and malformed line counts, unpriced model ids, the full usage snapshot, and the Codex, Claude, and Grok quota outcomes with typed reasons. Prefer it over screenshots when verifying pipeline behavior.
 - `Koogo --benchmark [home]` times the cold, unchanged, and rebuild usage refreshes over the logs under `home` and prints retired instructions, milliseconds, and a digest of the cold snapshot. Instruction counts barely move between runs, so compare them before and after a pipeline change on the same logs and day; the digest must stay the same unless the snapshot is meant to change.
 - Benchmark memory fields are `footprintBytes` and process-wide `peakFootprintBytes`, including earlier phases. Compare repeated release runs without allocation tracing. The opt-in memory test bounds heap growth from rendered numeric transitions.
-- Decoding dominates ingestion, so parsers rule lines out from their bytes first; `decodedLines` counts what still reached the JSON decoder, and `UsageLinePrefilterTests` ratchets that count.
+- Parsers read each line in place with `JSONObjectReader`, which finds values by scanning bytes and reads only the members a parser asks for, so a record ruled out by kind costs only the bytes before its kind.
 - Dropped input never reaches the UI. Lines of a known record kind with unusable fields surface only as per-provider counts in `malformedLines`, and events dropped because a model or one of its billed options has no price surface only as model ids in `unpricedModels`; both also log telemetry warnings.
 - Runtime telemetry logs under subsystem `com.revolt.koogo` (categories `usage`, `quota`); stream it with `script/build_and_run.sh telemetry`.
 
@@ -46,7 +38,7 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 ```
 ├── Sources/Koogo          menu bar application
 │   ├── App                entry point, model lifetimes and scene wiring, headless report and benchmark
-│   ├── Shared             leaf primitives: telemetry, pager popover, local event monitor, Reduce Motion helpers
+│   ├── Shared             leaf primitives: telemetry, command-line tool runner, ISO 8601 dates, pager popover, local event monitor, Reduce Motion helpers
 │   ├── Panel              menu bar panel shell: toolbar, pager, usage page composition, quota gating
 │   ├── Settings           settings window shell hosting slice-owned controls
 │   ├── Usage              provider enablement, pipeline service, log locations, and usage vocabulary
@@ -54,7 +46,7 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 │   │   ├── Providers      Codex, Claude, Grok, and Pi Agent formats, identities, and pricing
 │   │   ├── Aggregation    calendar periods, snapshots, and summary scope
 │   │   └── Views          summary, provider cards, chart, provider toggles
-│   ├── Quota              quota state and shared quota views
+│   ├── Quota              quota service contract, state, limits, and shared quota views
 │   │   ├── Codex          app-server transport, quota and reset flow, views
 │   │   ├── Claude         local CLI usage report, quota model, views
 │   │   └── Grok           billing transport, quota model, views

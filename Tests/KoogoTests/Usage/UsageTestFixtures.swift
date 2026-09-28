@@ -216,8 +216,7 @@ func grokTurn(
 
 /// Parses one line; `nil` is a line that bills nothing, distinct from an unpriced model, and a malformed record throws.
 func parse(_ line: String, with parser: inout some UsageLogParser) throws -> UsageLineOutcome? {
-    var decoder = UsageLineDecoder()
-    return try Data(line.utf8).withUnsafeBytes { try parser.parse($0, decoder: &decoder) }
+    try Data(line.utf8).withUnsafeBytes { try parser.parse($0) }
 }
 
 extension UsageLineOutcome {

@@ -16,7 +16,7 @@ final class CodexQuotaModelTests: XCTestCase {
         XCTAssertEqual(model.state, .loading)
         try await waitUntil { !model.isBusy }
 
-        XCTAssertEqual(model.snapshot?.account?.limits?.fiveHour?.remainingPercent, 75)
+        XCTAssertEqual(model.snapshot?.account?.limits?.session?.remainingPercent, 75)
         model.refresh()
         XCTAssertFalse(model.isBusy)
         XCTAssertEqual(try workspace.lines(in: workspace.readRequestsFile).count, 1)
@@ -96,7 +96,7 @@ final class CodexQuotaModelTests: XCTestCase {
 
         XCTAssertEqual(model.resetState, .completed(.reset))
         guard case .available(let snapshot, stale: nil) = model.state else { return XCTFail("expected fresh quota") }
-        XCTAssertEqual(snapshot.account?.limits?.fiveHour?.remainingPercent, 83)
+        XCTAssertEqual(snapshot.account?.limits?.session?.remainingPercent, 83)
         XCTAssertEqual(snapshot.account?.resetCredits?.availableCount, 0)
         XCTAssertEqual(try workspace.lines(in: workspace.consumeRequestsFile).count, 1)
         XCTAssertEqual(try workspace.lines(in: workspace.readRequestsFile).count, 2)

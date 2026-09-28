@@ -16,7 +16,7 @@ struct CodexQuotaResponse: Decodable, Sendable {
                     return nil
                 }
                 let title = rateLimit.limitName.flatMap { $0.isEmpty ? nil : $0 } ?? id
-                return CodexQuotaSnapshot.Model(
+                return ModelQuotaLimits(
                     id: id,
                     title: title.caseInsensitiveCompare("gpt-reserve") == .orderedSame ? "Reserve quota" : title,
                     limits: limits
@@ -42,9 +42,9 @@ private struct CodexRateLimitSnapshot: Decodable {
     let primary: CodexRateLimitWindow?
     let secondary: CodexRateLimitWindow?
 
-    var limits: CodexQuotaSnapshot.Limits? {
-        CodexQuotaSnapshot.Limits(
-            fiveHour: window(around: 300),
+    var limits: QuotaLimits? {
+        QuotaLimits(
+            session: window(around: 300),
             weekly: window(around: 10_080)
         )
     }
@@ -67,7 +67,7 @@ private struct CodexRateLimitSnapshot: Decodable {
         else {
             return nil
         }
-        return QuotaWindow(usedPercent: window.usedPercent, resetsAt: window.resetsAt)
+        return QuotaWindow(usedPercent: Double(window.usedPercent), resetsAt: window.resetsAt)
     }
 }
 

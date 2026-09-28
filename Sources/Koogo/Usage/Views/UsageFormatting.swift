@@ -12,7 +12,7 @@ enum UsageFormatting {
         )
     }
 
-    static func tokens(_ tokens: Decimal) -> String {
+    static func tokens(_ tokens: UInt64) -> String {
         tokens.formatted(
             .number
                 .locale(locale)

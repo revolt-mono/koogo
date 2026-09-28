@@ -9,7 +9,7 @@ struct ClaudeQuotaResponse: Decodable {
         func snapshot() throws -> ClaudeQuotaSnapshot? {
             var session: QuotaWindow?
             var weekly: QuotaWindow?
-            var models: [String: QuotaWindow] = [:]
+            var models: [String: QuotaLimits] = [:]
             for limit in rateLimits?.limits ?? [] where limit.scope?.surface == nil {
                 switch limit.kind {
                 case "session" where limit.scope == nil:
@@ -20,16 +20,15 @@ struct ClaudeQuotaResponse: Decodable {
                     guard let title = limit.scope?.model?.displayName.trimmingCharacters(in: .whitespaces),
                         !title.isEmpty
                     else { break }
-                    models[title] = try limit.window()
+                    models[title] = QuotaLimits(session: nil, weekly: try limit.window())
                 default:
                     break
                 }
             }
             return ClaudeQuotaSnapshot(
-                session: session,
-                weekly: weekly,
+                account: QuotaLimits(session: session, weekly: weekly),
                 models: models.sorted { $0.key < $1.key }.map {
-                    ClaudeQuotaSnapshot.Model(title: $0.key, weekly: $0.value)
+                    ModelQuotaLimits(id: $0.key, title: $0.key, limits: $0.value)
                 }
             )
         }
@@ -46,15 +45,12 @@ struct ClaudeQuotaResponse: Decodable {
         let scope: Scope?
 
         func window() throws -> QuotaWindow {
-            guard let percent, percent.isFinite else { throw ClaudeQuotaUnavailability.sessionFailed }
+            guard let percent else { throw CLIQuotaUnavailability.sessionFailed }
             let resetsAt = try resetsAt.map { text in
-                guard
-                    let date = (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text))
-                        ?? (try? Date.ISO8601FormatStyle().parse(text))
-                else { throw ClaudeQuotaUnavailability.sessionFailed }
+                guard let date = Date(iso8601: text) else { throw CLIQuotaUnavailability.sessionFailed }
                 return date
             }
-            return QuotaWindow(usedPercent: Int(min(max(percent, 0), 100)), resetsAt: resetsAt)
+            return QuotaWindow(usedPercent: percent, resetsAt: resetsAt)
         }
     }
 
@@ -86,14 +82,14 @@ struct ClaudeQuotaResponse: Decodable {
                 report = event.usageReport ?? report
             case "result":
                 guard event.subtype == "success", event.isError == false else {
-                    throw ClaudeQuotaUnavailability.sessionFailed
+                    throw CLIQuotaUnavailability.sessionFailed
                 }
                 succeeded = true
             default:
                 break
             }
         }
-        guard succeeded, let report else { throw ClaudeQuotaUnavailability.sessionFailed }
+        guard succeeded, let report else { throw CLIQuotaUnavailability.sessionFailed }
         return try report.snapshot()
     }
 }

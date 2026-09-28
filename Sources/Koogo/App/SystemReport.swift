@@ -5,13 +5,13 @@ import Foundation
 /// the canonical way to verify behavior end to end without the menu bar UI.
 struct SystemReport: Encodable {
     private struct Quota: Encodable {
-        let codex: QuotaOutcome<CodexQuotaSnapshot, CodexQuotaUnavailability>
-        let claude: QuotaOutcome<ClaudeQuotaSnapshot, ClaudeQuotaUnavailability>
-        let grok: QuotaOutcome<GrokQuotaSnapshot, GrokQuotaUnavailability>
+        let codex: QuotaOutcome<CodexQuotaService>
+        let claude: QuotaOutcome<ClaudeQuotaService>
+        let grok: QuotaOutcome<GrokQuotaService>
     }
 
-    private struct QuotaOutcome<Snapshot: Encodable, Reason: Error & Encodable>: Encodable {
-        let result: Result<Snapshot, Reason>
+    private struct QuotaOutcome<Service: QuotaService>: Encodable {
+        let result: Result<Service.Snapshot, Service.Reason>
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)

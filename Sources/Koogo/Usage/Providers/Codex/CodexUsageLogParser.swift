@@ -1,63 +1,35 @@
 import Foundation
 
-private enum CodexRecordKind: String, LogRecordKind {
-    case turnContext = "turn_context"
-    case eventMessage = "event_msg"
-    case other
-}
-
-private enum CodexPayloadKind: String, LogRecordKind {
-    case tokenCount = "token_count"
-    case other
-}
-
 struct CodexLogParser: UsageLogParser {
-    private static let eventMarkers = [
-        CodexRecordKind.turnContext.jsonStringMarker,
-        CodexPayloadKind.tokenCount.jsonStringMarker,
-    ]
-
     private var turn: CodexTurn?
     private var previousTotalUsage: CodexTokenUsage?
 
-    mutating func parse(_ line: UnsafeRawBufferPointer, decoder: inout UsageLineDecoder) throws -> UsageLineOutcome? {
-        guard Self.mayMatter(line) else {
+    mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
+        switch try CodexRecord(line) {
+        case .turnContext(let payload):
+            turn = try CodexTurn(payload)
+            return nil
+        case .eventMessage(let payload, let timestamp):
+            guard let tokenCount = try CodexTokenCount(payload) else {
+                return nil
+            }
+            guard let timestamp = try timestamp?.string() else {
+                throw MalformedUsageRecord()
+            }
+            return try bill(tokenCount, at: timestamp)
+        case nil:
             return nil
         }
-        switch try decoder.decode(CodexLogRecord.self, from: line) {
-        case .turnContext(let turn):
-            self.turn = turn
-        case .tokenCount(let tokenCount):
-            return try parseTokenCount(tokenCount)
-        case .other:
-            break
-        }
-        return nil
     }
 
-    /// Whether `line` may be a turn context or a token count. Codex leads each record with its kind, so reading
-    /// the leading fields rules out the long response and item records without scanning them; any other layout
-    /// falls back to searching the whole line.
-    private static func mayMatter(_ line: UnsafeRawBufferPointer) -> Bool {
-        var record = JSONLeadingMembers(line)
-        switch record.string("type").map(CodexRecordKind.init(known:)) {
-        case .turnContext:
-            return true
-        case .eventMessage:
-            if var payload = record.object("payload"), let kind = payload.string("type") {
-                return kind == CodexPayloadKind.tokenCount.rawValue
-            }
-        case .other:
-            return false
-        case nil:
-            break
-        }
-        return eventMarkers.contains { line.contains($0) }
-    }
-
-    private mutating func parseTokenCount(_ record: CodexTokenCount) throws -> UsageLineOutcome? {
-        let lastUsage = record.info.lastTokenUsage
-        let totalUsage = record.info.totalTokenUsage
+    private mutating func bill(
+        _ tokenCount: CodexTokenCount,
+        at loggedTimestamp: String
+    ) throws
+        -> UsageLineOutcome?
+    {
+        let lastUsage = tokenCount.last
+        let totalUsage = tokenCount.total
 
         defer { previousTotalUsage = totalUsage }
 
@@ -69,7 +41,7 @@ struct CodexLogParser: UsageLogParser {
         guard let turn else {
             return nil
         }
-        guard let timestamp = parseUsageTimestamp(record.timestamp) else {
+        guard let timestamp = Date(iso8601: loggedTimestamp) else {
             throw MalformedUsageRecord()
         }
         guard let quote = CodexUsagePricing.quote(model: turn.model, tokens: lastUsage) else {
@@ -93,102 +65,144 @@ struct CodexLogParser: UsageLogParser {
     }
 }
 
-private enum CodexLogRecord: Decodable {
-    case turnContext(CodexTurn)
-    case tokenCount(CodexTokenCount)
-    case other
+/// The record kinds that bill: a turn context names the model, and an event message may count tokens.
+private enum CodexRecord {
+    case turnContext(payload: JSONValue)
+    case eventMessage(payload: JSONValue, timestamp: JSONValue?)
 
-    private enum CodingKeys: String, CodingKey {
-        case timestamp
-        case type
-        case payload
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(CodexRecordKind.self, forKey: .type) {
-        case .turnContext:
-            self = .turnContext(try container.decode(CodexTurn.self, forKey: .payload))
-        case .eventMessage:
-            let payload = try container.decode(CodexEventMessage.self, forKey: .payload)
-            guard payload.type == .tokenCount, let info = payload.info else {
-                self = .other
-                return
-            }
-            self = .tokenCount(
-                CodexTokenCount(
-                    timestamp: try container.decode(String.self, forKey: .timestamp),
-                    info: info
-                )
-            )
-        case .other:
-            self = .other
+    /// Nil for any other record kind.
+    init?(_ line: UnsafeRawBufferPointer) throws {
+        guard var record = JSONObjectReader(line) else {
+            return nil
         }
+        var isTurnContext: Bool?
+        var timestamp: JSONValue?
+        var payload: JSONValue?
+        while let member = try record.next() {
+            switch member.key {
+            case "type":
+                // Codex leads each record with its kind, so the long response and item records end here.
+                switch member.value {
+                case "turn_context": isTurnContext = true
+                case "event_msg": isTurnContext = false
+                default: return nil
+                }
+            case "timestamp": timestamp = member.value
+            case "payload": payload = member.value
+            default: continue
+            }
+        }
+        guard let isTurnContext else {
+            return nil
+        }
+        guard let payload else {
+            throw MalformedUsageRecord()
+        }
+        self = isTurnContext ? .turnContext(payload: payload) : .eventMessage(payload: payload, timestamp: timestamp)
     }
 }
 
-private struct CodexEventMessage: Decodable {
-    let type: CodexPayloadKind
-    let info: CodexTokenInfo?
-}
-
-private struct CodexTurn: Decodable, Sendable {
+private struct CodexTurn {
     let id: String
     let model: String
     let reasoningEffort: String?
 
-    private enum CodingKeys: String, CodingKey {
-        case id = "turn_id"
-        case model
-        case reasoningEffort = "effort"
+    init(_ payload: JSONValue) throws {
+        var payload = try payload.object()
+        var id: String?
+        var model: String?
+        var reasoningEffort: String?
+        while let member = try payload.next() {
+            switch member.key {
+            case "turn_id": id = try member.value.string()
+            case "model": model = try member.value.string()
+            case "effort": reasoningEffort = try member.value.string()
+            default: continue
+            }
+        }
+        guard let id, let model else {
+            throw MalformedUsageRecord()
+        }
+        self.id = id
+        self.model = model
+        self.reasoningEffort = reasoningEffort
     }
 }
 
+/// The request usage and running total a `token_count` event logs.
 private struct CodexTokenCount {
-    let timestamp: String
-    let info: CodexTokenInfo
-}
+    let last: CodexTokenUsage
+    let total: CodexTokenUsage
 
-private struct CodexTokenInfo: Decodable {
-    let lastTokenUsage: CodexTokenUsage
-    let totalTokenUsage: CodexTokenUsage
-    // decoding this field still rejects malformed context-window values.
-    let modelContextWindow: Int64?
-
-    private enum CodingKeys: String, CodingKey {
-        case lastTokenUsage = "last_token_usage"
-        case totalTokenUsage = "total_token_usage"
-        case modelContextWindow = "model_context_window"
+    /// Nil for any other event and for a count without info.
+    init?(_ payload: JSONValue) throws {
+        var payload = try payload.object()
+        var isTokenCount = false
+        var info: JSONValue?
+        while let member = try payload.next() {
+            switch member.key {
+            case "type":
+                guard member.value.isString("token_count") else {
+                    return nil
+                }
+                isTokenCount = true
+            case "info": info = member.value
+            default: continue
+            }
+        }
+        guard isTokenCount, var info = try info?.nonNull?.object() else {
+            return nil
+        }
+        var last: CodexTokenUsage?
+        var total: CodexTokenUsage?
+        while let member = try info.next() {
+            switch member.key {
+            case "last_token_usage": last = try CodexTokenUsage(member.value)
+            case "total_token_usage": total = try CodexTokenUsage(member.value)
+            // Read only so a malformed record cannot move the cumulative baseline.
+            case "model_context_window": _ = try member.value.integer(Int64.self)
+            default: continue
+            }
+        }
+        guard let last, let total else {
+            throw MalformedUsageRecord()
+        }
+        self.last = last
+        self.total = total
     }
 }
 
-extension CodexTokenUsage: Decodable {
-    private enum CodingKeys: String, CodingKey {
-        case input = "input_tokens"
-        case cachedInput = "cached_input_tokens"
-        case cacheWrite = "cache_write_input_tokens"
-        case output = "output_tokens"
-        case reasoningOutput = "reasoning_output_tokens"
-        case processed = "total_tokens"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        guard
+extension CodexTokenUsage {
+    fileprivate init(_ value: JSONValue) throws {
+        var usage = try value.object()
+        var input: UInt64?
+        var cachedInput: UInt64?
+        var cacheWrite: UInt64?
+        var output: UInt64?
+        var reasoningOutput: UInt64?
+        var processed: UInt64?
+        while let member = try usage.next() {
+            switch member.key {
+            case "input_tokens": input = try member.value.integer()
+            case "cached_input_tokens": cachedInput = try member.value.integer()
+            case "cache_write_input_tokens": cacheWrite = try member.value.integer()
+            case "output_tokens": output = try member.value.integer()
+            case "reasoning_output_tokens": reasoningOutput = try member.value.integer()
+            case "total_tokens": processed = try member.value.integer()
+            default: continue
+            }
+        }
+        guard let input, let cachedInput, let output, let reasoningOutput, let processed,
             let usage = CodexTokenUsage(
-                input: try container.decode(UInt64.self, forKey: .input),
-                cachedInput: try container.decode(UInt64.self, forKey: .cachedInput),
-                cacheWrite: try container.decodeIfPresent(UInt64.self, forKey: .cacheWrite) ?? 0,
-                output: try container.decode(UInt64.self, forKey: .output),
-                reasoningOutput: try container.decode(UInt64.self, forKey: .reasoningOutput),
-                processed: try container.decode(UInt64.self, forKey: .processed)
+                input: input,
+                cachedInput: cachedInput,
+                cacheWrite: cacheWrite ?? 0,
+                output: output,
+                reasoningOutput: reasoningOutput,
+                processed: processed
             )
         else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .processed,
-                in: container,
-                debugDescription: "invalid token usage"
-            )
+            throw MalformedUsageRecord()
         }
         self = usage
     }

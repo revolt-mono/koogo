@@ -17,8 +17,7 @@ struct QuotaWindowRow: View {
                 Text("\(window.remainingPercent)% left")
                     .foregroundStyle(.primary)
                     .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .environment(\.contentTransitionAddsDrawingGroup, true)
+                    .numericTextTransition()
 
                 if let resetsAt = window.resetsAt {
                     QuotaDeadlineLabel(deadline: resetsAt)
@@ -35,8 +34,30 @@ struct QuotaWindowRow: View {
     }
 }
 
+/// One scope's windows; a model scope is named in a header and in the rows' accessibility labels.
+struct QuotaLimitsView: View {
+    let provider: String
+    var model: String?
+    let limits: QuotaLimits
+
+    var body: some View {
+        let scopeTitle = model.map { "\(provider) \($0)" } ?? provider
+        VStack(alignment: .leading, spacing: 8) {
+            if let model {
+                QuotaScopeHeader(title: model)
+            }
+            if let session = limits.session {
+                QuotaWindowRow(scopeTitle: scopeTitle, title: "Session", window: session)
+            }
+            if let weekly = limits.weekly {
+                QuotaWindowRow(scopeTitle: scopeTitle, title: "Weekly", window: weekly)
+            }
+        }
+    }
+}
+
 /// Names the model whose windows follow, with a rule filling the rest of the line.
-struct QuotaScopeHeader: View {
+private struct QuotaScopeHeader: View {
     let title: String
 
     var body: some View {

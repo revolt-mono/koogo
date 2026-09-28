@@ -17,6 +17,17 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(snapshot.summary.today.current.costUSD, Decimal(string: "0.01"))
     }
 
+    func testTokenTotalsSaturateInsteadOfOverflowing() {
+        let snapshot = UsageSnapshotBuilder.build(
+            events: [
+                usageEvent(.piAgent, id: 1, processedTokens: .max, costUSD: 0),
+                usageEvent(.piAgent, id: 2, processedTokens: 1, costUSD: 0),
+            ],
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
+        )
+        XCTAssertEqual(snapshot.summary.month.current.processedTokens, .max)
+    }
+
     func testCostChangeUsesStockStyleZeroBaseline() throws {
         for (current, previous, expected) in [
             (Decimal(5), Decimal(0), UsageCostChange.increase(fraction: 1)),
@@ -38,26 +49,26 @@ final class UsageSnapshotBuilderTests: XCTestCase {
                     id: 1,
                     processedTokens: 1_000,
                     costUSD: 0.005,
-                    at: try XCTUnwrap(parseUsageTimestamp("2026-08-24T17:00:00Z"))
+                    at: try XCTUnwrap(Date(iso8601: "2026-08-24T17:00:00Z"))
                 ),
                 usageEvent(
                     .claude,
                     processedTokens: 10_000,
                     costUSD: 0.05,
-                    at: try XCTUnwrap(parseUsageTimestamp("2026-08-24T19:00:00Z"))
+                    at: try XCTUnwrap(Date(iso8601: "2026-08-24T19:00:00Z"))
                 ),
                 usageEvent(
                     .codex,
                     id: 3,
                     processedTokens: 2_000,
                     costUSD: 0.01,
-                    at: try XCTUnwrap(parseUsageTimestamp("2026-07-25T17:00:00Z"))
+                    at: try XCTUnwrap(Date(iso8601: "2026-07-25T17:00:00Z"))
                 ),
                 usageEvent(
                     .claude,
                     processedTokens: 20_000,
                     costUSD: 0.1,
-                    at: try XCTUnwrap(parseUsageTimestamp("2026-07-25T19:00:00Z"))
+                    at: try XCTUnwrap(Date(iso8601: "2026-07-25T19:00:00Z"))
                 ),
             ],
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
@@ -84,7 +95,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     }
 
     func testPreviousMonthExcludesCurrentMonthBoundary() throws {
-        let now = try XCTUnwrap(parseUsageTimestamp("2026-03-31T12:00:00Z"))
+        let now = try XCTUnwrap(Date(iso8601: "2026-03-31T12:00:00Z"))
 
         let snapshot = UsageSnapshotBuilder.build(
             events: [
@@ -93,14 +104,14 @@ final class UsageSnapshotBuilderTests: XCTestCase {
                     id: 1,
                     processedTokens: 1_000,
                     costUSD: 0.005,
-                    at: try XCTUnwrap(parseUsageTimestamp("2026-02-28T23:59:59Z"))
+                    at: try XCTUnwrap(Date(iso8601: "2026-02-28T23:59:59Z"))
                 ),
                 usageEvent(
                     .codex,
                     id: 2,
                     processedTokens: 10_000,
                     costUSD: 0.05,
-                    at: try XCTUnwrap(parseUsageTimestamp("2026-03-01T00:00:00Z"))
+                    at: try XCTUnwrap(Date(iso8601: "2026-03-01T00:00:00Z"))
                 ),
             ],
             intervals: UsagePeriodIntervals(containing: now, calendar: usageTestCalendar)
@@ -141,12 +152,12 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     }
 
     func testSnapshotUsesCalendarWeekAndMonthBoundaries() throws {
-        let now = try XCTUnwrap(parseUsageTimestamp("2026-09-01T12:00:00Z"))
+        let now = try XCTUnwrap(Date(iso8601: "2026-09-01T12:00:00Z"))
         let sameWeekPreviousMonth = try XCTUnwrap(
-            parseUsageTimestamp("2026-08-31T12:00:00Z")
+            Date(iso8601: "2026-08-31T12:00:00Z")
         )
         let previousCalendarWeek = try XCTUnwrap(
-            parseUsageTimestamp("2026-08-30T12:00:00Z")
+            Date(iso8601: "2026-08-30T12:00:00Z")
         )
         let intervals = UsagePeriodIntervals(containing: now, calendar: usageTestCalendar)
 
@@ -207,7 +218,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     }
 
     func testSnapshotFavoritesUseFullParsedRangeAndFavoriteModelEfforts() throws {
-        let earlierHistory = try XCTUnwrap(parseUsageTimestamp("2026-07-10T12:00:00Z"))
+        let earlierHistory = try XCTUnwrap(Date(iso8601: "2026-07-10T12:00:00Z"))
         let snapshot = UsageSnapshotBuilder.build(
             events: [
                 favoriteEvent(1, model: luna, effort: "high", at: earlierHistory),

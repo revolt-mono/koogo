@@ -1,24 +1,11 @@
 import Foundation
 
 struct CodexQuotaSnapshot: Equatable, Sendable, Encodable {
-    struct Limits: Equatable, Sendable, Encodable {
-        let fiveHour: QuotaWindow?
-        let weekly: QuotaWindow?
-
-        init?(fiveHour: QuotaWindow?, weekly: QuotaWindow?) {
-            guard fiveHour != nil || weekly != nil else {
-                return nil
-            }
-            self.fiveHour = fiveHour
-            self.weekly = weekly
-        }
-    }
-
     struct Account: Equatable, Sendable, Encodable {
-        let limits: Limits?
+        let limits: QuotaLimits?
         let resetCredits: ResetCredits?
 
-        init?(limits: Limits?, resetCredits: ResetCredits?) {
+        init?(limits: QuotaLimits?, resetCredits: ResetCredits?) {
             guard limits != nil || resetCredits != nil else {
                 return nil
             }
@@ -43,16 +30,10 @@ struct CodexQuotaSnapshot: Equatable, Sendable, Encodable {
         }
     }
 
-    struct Model: Equatable, Identifiable, Sendable, Encodable {
-        let id: String
-        let title: String
-        let limits: Limits
-    }
-
     let account: Account?
-    let models: [Model]
+    let models: [ModelQuotaLimits]
 
-    init?(account: Account?, models: [Model]) {
+    init?(account: Account?, models: [ModelQuotaLimits]) {
         guard account != nil || !models.isEmpty else {
             return nil
         }

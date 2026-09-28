@@ -1,45 +1,35 @@
 import Foundation
 
-/// Why no quota is shown; surfaced in telemetry and the `--report` output.
-enum CodexQuotaUnavailability: String, Error, Encodable, Sendable {
-    case binaryNotFound
-    case timedOut
-    case sessionFailed
-    case emptyLimits
-}
+struct CodexQuotaService: QuotaService {
+    static let name = "codex"
 
-struct CodexQuotaService: Sendable {
     private let appServer: CodexAppServer
 
     init(
-        executableCandidates: [URL] = CodexAppServer.standardCandidates(),
+        executableCandidates: [URL] = CommandLineTool.candidates(
+            named: "codex",
+            preferring: [
+                FileManager.default.homeDirectoryForCurrentUser.appending(
+                    path: ".codex/packages/standalone/current/bin"
+                )
+            ]
+        ),
         timeout: Duration = .seconds(15)
     ) {
-        appServer = CodexAppServer(executableCandidates: executableCandidates, timeout: timeout)
+        appServer = CodexAppServer(tool: CommandLineTool(candidates: executableCandidates, timeout: timeout))
     }
 
-    @concurrent
-    func fetch() async -> Result<CodexQuotaSnapshot, CodexQuotaUnavailability> {
-        let result: Result<CodexQuotaSnapshot, CodexQuotaUnavailability>
+    func load() async -> Result<CodexQuotaSnapshot, CLIQuotaUnavailability> {
         do {
             let response: CodexQuotaResponse = try await appServer.call("account/rateLimits/read")
-            result = response.snapshot.map(Result.success) ?? .failure(.emptyLimits)
+            return response.snapshot.map(Result.success) ?? .failure(.emptyLimits)
         } catch {
-            result =
-                switch error.failure {
-                case .binaryNotFound: .failure(.binaryNotFound)
-                case .timedOut: .failure(.timedOut)
-                case .sessionFailed, .methodNotFound, .rpc: .failure(.sessionFailed)
-                }
+            return switch error.failure {
+            case .binaryNotFound: .failure(.binaryNotFound)
+            case .timedOut: .failure(.timedOut)
+            case .sessionFailed, .methodNotFound, .rpc: .failure(.sessionFailed)
+            }
         }
-
-        switch result {
-        case .success:
-            Telemetry.quota.info("codex fetch available")
-        case .failure(let reason):
-            Telemetry.quota.info("codex fetch unavailable reason=\(reason.rawValue, privacy: .public)")
-        }
-        return result
     }
 
     @concurrent

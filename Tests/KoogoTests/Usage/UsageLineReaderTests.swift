@@ -3,11 +3,9 @@ import XCTest
 
 @testable import Koogo
 
-/// Parsers rule lines out from their bytes before decoding them; these pin both halves of that deal.
-final class UsageLinePrefilterTests: UsageWorkspaceTestCase {
-    /// A ratchet: decoding dominates ingestion, so only records that can bill or carry billing context
-    /// may reach the JSON decoder.
-    func testOnlyBillingRecordsAreDecoded() async throws {
+/// Parsers read a line's members in place, whatever their order, and skip every value they do not bill from.
+final class UsageLineReaderTests: UsageWorkspaceTestCase {
+    func testRecordsBesideBilledOnesAreSkipped() async throws {
         let request = codexUsage(input: 100, output: 20)
         try workspace.write(
             [
@@ -54,7 +52,7 @@ final class UsageLinePrefilterTests: UsageWorkspaceTestCase {
 
         let report = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now)
 
-        XCTAssertEqual(report.ingestion.decodedLines, [.codex: 2, .claude: 1, .piAgent: 3, .grok: 0])
+        XCTAssertEqual(report.ingestion.malformedLines, [.codex: 0, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.events, [.codex: 1, .claude: 1, .piAgent: 1, .grok: 0])
         XCTAssertEqual(report.snapshot.providers[.piAgent]?.favorite?.reasoningEffort, "high")
     }
@@ -80,6 +78,69 @@ final class UsageLinePrefilterTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(event.usage.processedTokens, 120)
         XCTAssertEqual(event.usage.modelTurn?.reasoningEffort, "high")
+    }
+
+    func testSkippedValuesMayHoldEscapesAndBrackets() throws {
+        var parser = ClaudeLogParser()
+        let content = #"""
+            [{"type":"text","text":"a \"quoted\" } ] { [ path\\\\"},{"type":"tool_use","input":{"k":[1,{"v":"\\\""}]}}]
+            """#
+        let line = #"""
+            {"parentUuid":null,"message":{"id":"message","model":"claude-opus-5","content":\#(content),\#
+            "usage":{"input_tokens":10,"output_tokens":5}},"requestId":"request","type":"assistant",\#
+            "timestamp":"2026-08-25T12:00:00.000Z"}
+            """#
+
+        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).usage.processedTokens, 15)
+    }
+
+    func testWholeNumbersInAnyJSONFormAreRead() throws {
+        var parser = ClaudeLogParser()
+        let line = claudeAssistant(
+            model: "claude-opus-5",
+            usage: #""input_tokens":1e1,"output_tokens":5.0,"cache_read_input_tokens":0e0"#
+        )
+
+        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).usage.processedTokens, 15)
+    }
+
+    func testIntegersInUnusualFormsAreReadAsJSON() throws {
+        var parser = PiLogParser()
+        for (usage, tokens) in [
+            (#"{"totalTokens":-0,"cost":{"total":0.01}}"#, UInt64(0)),
+            (#"{"totalTokens":100000000000000000000e-20,"cost":{"total":0.01}}"#, 1),
+        ] {
+            let line = piAssistant(id: "reply", parentID: nil, model: "model-a", usage: usage)
+            XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event, usage).usage.processedTokens, tokens)
+        }
+    }
+
+    func testMalformedReadValuesMakeARecordMalformed() {
+        var parser = PiLogParser()
+        for usage in [
+            #"{"totalTokens":01,"cost":{"total":0.01}}"#,
+            #"{"totalTokens":1,"cost":{"total":00.01}}"#,
+            #"{"totalTokens":1,"cost":{"total":1.}}"#,
+            #"{"totalTokens":1,"cost":{"total":0.01 "extra":0}}"#,
+        ] {
+            let line = piAssistant(id: "reply", parentID: nil, model: "model-a", usage: usage)
+            XCTAssertThrowsError(try parse(line, with: &parser), usage)
+        }
+        let tabbedID = piAssistant(id: "re\tply", parentID: nil, model: "model-a", usage: piUsage(input: 1, cost: "0"))
+        XCTAssertThrowsError(try parse(tabbedID, with: &parser))
+        var invalidUTF8 = Data(
+            piAssistant(id: "reply", parentID: nil, model: "model-a", usage: piUsage(input: 1, cost: "0")).utf8
+        )
+        invalidUTF8.replaceSubrange(invalidUTF8.range(of: Data("reply".utf8))!, with: [0x72, 0xFF])
+        XCTAssertThrowsError(try invalidUTF8.withUnsafeBytes { try parser.parse($0) })
+    }
+
+    func testTrailingDataMakesARecordMalformed() {
+        var parser = ClaudeLogParser()
+        let line = claudeAssistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":5"#)
+
+        XCTAssertThrowsError(try parse(line + " garbage", with: &parser))
+        XCTAssertNotNil(try parse(line + " \t", with: &parser))
     }
 
     func testPiThinkingPassesThroughRecordsInAnyLayout() throws {

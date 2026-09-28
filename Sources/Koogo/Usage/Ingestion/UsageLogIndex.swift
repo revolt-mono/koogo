@@ -50,7 +50,6 @@ private struct TrackedUsageFile: Sendable {
     private var parsedTail: Data
     private var parser: any UsageLogParser
     var eventIndex: UsageEventIndex
-    private(set) var decodedLines = 0
     private(set) var malformedLines = 0
 
     /// Starts tracking a file seen for the first time. A Grok log counts only once it has a top-level
@@ -145,8 +144,6 @@ private struct TrackedUsageFile: Sendable {
         // Bytes of an unfinished line kept at the front of `buffer`.
         var pending = 0
         var readOffset = offsets.lowerBound
-        var decoder = UsageLineDecoder()
-        defer { decodedLines += decoder.decodedLines }
         while readOffset < offsets.upperBound {
             if pending == buffer.count {
                 let larger = UnsafeMutableRawBufferPointer.allocate(byteCount: buffer.count * 2, alignment: 1)
@@ -166,7 +163,7 @@ private struct TrackedUsageFile: Sendable {
             }
             readOffset += UInt64(count)
             pending += count
-            let parsed = parseCompleteLines(UnsafeRawBufferPointer(rebasing: buffer[..<pending]), decoder: &decoder)
+            let parsed = parseCompleteLines(UnsafeRawBufferPointer(rebasing: buffer[..<pending]))
             parsedOffset += UInt64(parsed)
             pending -= parsed
             if let base = buffer.baseAddress, parsed > 0 {
@@ -177,7 +174,7 @@ private struct TrackedUsageFile: Sendable {
     }
 
     /// Parses each newline-terminated line in `bytes` and returns how many bytes those lines span.
-    private mutating func parseCompleteLines(_ bytes: UnsafeRawBufferPointer, decoder: inout UsageLineDecoder) -> Int {
+    private mutating func parseCompleteLines(_ bytes: UnsafeRawBufferPointer) -> Int {
         guard let base = bytes.baseAddress else {
             return 0
         }
@@ -186,7 +183,7 @@ private struct TrackedUsageFile: Sendable {
             let lineEnd = base.distance(to: newline)
             do {
                 let line = UnsafeRawBufferPointer(rebasing: bytes[lineStart..<lineEnd])
-                if let outcome = try parser.parse(line, decoder: &decoder) {
+                if let outcome = try parser.parse(line) {
                     eventIndex.insert(outcome)
                 }
             } catch {
@@ -233,7 +230,6 @@ struct UsageLogIndex {
             logRoots: logRoots,
             trackedFiles: Self.tally(trackedFiles.values.map { ($0.location.provider, 1) }),
             events: Self.tally(events.map { ($0.provider, 1) }),
-            decodedLines: Self.tally(trackedFiles.values.map { ($0.location.provider, $0.decodedLines) }),
             malformedLines: Self.tally(trackedFiles.values.map { ($0.location.provider, $0.malformedLines) }),
             unpricedModels: merged.unpricedModelIDs
         )
@@ -308,9 +304,10 @@ struct UsageLogIndex {
         let trackedFiles = Mutex<[String: TrackedUsageFile]>([:])
         // Keep refresh synchronous so actor state cannot interleave while workers build files.
         // Each reader can grow its buffer to a whole log line; bound simultaneous readers.
-        let workers = min(files.count, 8)
-        DispatchQueue.concurrentPerform(iterations: workers) { worker in
-            for index in stride(from: worker, to: files.count, by: workers) {
+        let nextFile = Atomic(0)
+        DispatchQueue.concurrentPerform(iterations: min(files.count, 8)) { _ in
+            // Workers claim files one at a time, so a few large logs cannot leave the rest idle.
+            while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
                 let (path, location) = files[index]
                 guard let tracked = TrackedUsageFile.admit(location, since: historyStart) else {
                     continue

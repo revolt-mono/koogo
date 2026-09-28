@@ -33,41 +33,13 @@ private struct CodexQuotaContent: View {
         VStack(spacing: 16) {
             VStack(spacing: 8) {
                 if let limits = snapshot.account?.limits {
-                    CodexQuotaLimitsView(title: nil, limits: limits)
+                    QuotaLimitsView(provider: "Codex", limits: limits)
                 }
                 CodexQuotaResetView()
             }
 
             ForEach(snapshot.models) { model in
-                CodexQuotaLimitsView(title: model.title, limits: model.limits)
-            }
-        }
-    }
-}
-
-private struct CodexQuotaLimitsView: View {
-    let title: String?
-    let limits: CodexQuotaSnapshot.Limits
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let title {
-                QuotaScopeHeader(title: title)
-            }
-
-            if let fiveHour = limits.fiveHour {
-                QuotaWindowRow(
-                    scopeTitle: title ?? "Codex",
-                    title: "Session",
-                    window: fiveHour
-                )
-            }
-            if let weekly = limits.weekly {
-                QuotaWindowRow(
-                    scopeTitle: title ?? "Codex",
-                    title: "Weekly",
-                    window: weekly
-                )
+                QuotaLimitsView(provider: "Codex", model: model.title, limits: model.limits)
             }
         }
     }

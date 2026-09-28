@@ -14,7 +14,7 @@ final class ClaudeQuotaModelTests: XCTestCase {
         XCTAssertEqual(model.state, .loading)
         try await waitUntil { !model.isRefreshing }
         let snapshot = try XCTUnwrap(model.state.snapshot)
-        XCTAssertEqual(snapshot.session?.remainingPercent, 88)
+        XCTAssertEqual(snapshot.account?.session?.remainingPercent, 88)
         model.refresh()
         XCTAssertFalse(model.isRefreshing)
         XCTAssertEqual(try String(contentsOf: workspace.callsFile, encoding: .utf8), "usage\n")
@@ -45,6 +45,6 @@ final class ClaudeQuotaModelTests: XCTestCase {
         model.refresh(force: true)
         XCTAssertEqual(model.state, .unavailable(.binaryNotFound))
         try await waitUntil { !model.isRefreshing }
-        XCTAssertEqual(model.state.snapshot?.weekly?.remainingPercent, 71)
+        XCTAssertEqual(model.state.snapshot?.account?.weekly?.remainingPercent, 71)
     }
 }

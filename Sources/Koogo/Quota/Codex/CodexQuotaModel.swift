@@ -20,7 +20,7 @@ final class CodexQuotaModel {
     private var refreshAfter = ContinuousClock.now
     private var isRefreshing = false
 
-    private(set) var state: QuotaState<CodexQuotaSnapshot, CodexQuotaUnavailability> = .loading
+    private(set) var state: QuotaState<CodexQuotaService.Snapshot, CodexQuotaService.Reason> = .loading
     private(set) var resetState = ResetState.idle
 
     var snapshot: CodexQuotaSnapshot? { state.snapshot }

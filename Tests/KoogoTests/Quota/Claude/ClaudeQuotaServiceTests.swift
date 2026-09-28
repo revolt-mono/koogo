@@ -9,13 +9,13 @@ final class ClaudeQuotaServiceTests: XCTestCase {
         let executable = try workspace.makeCLI()
         let snapshot = try await ClaudeQuotaService(executableCandidates: [executable]).fetch().get()
 
-        XCTAssertEqual(snapshot.session?.remainingPercent, 88)
-        XCTAssertEqual(snapshot.session?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800.125))
-        XCTAssertEqual(snapshot.weekly?.remainingPercent, 71)
-        XCTAssertEqual(snapshot.weekly?.resetsAt, Date(timeIntervalSince1970: 1_788_393_600))
+        XCTAssertEqual(snapshot.account?.session?.remainingPercent, 88)
+        XCTAssertEqual(snapshot.account?.session?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800.125))
+        XCTAssertEqual(snapshot.account?.weekly?.remainingPercent, 71)
+        XCTAssertEqual(snapshot.account?.weekly?.resetsAt, Date(timeIntervalSince1970: 1_788_393_600))
         XCTAssertEqual(snapshot.models.map(\.title), ["Fable"])
-        XCTAssertEqual(snapshot.models.first?.weekly.remainingPercent, 37)
-        XCTAssertEqual(snapshot.models.first?.weekly.resetsAt, Date(timeIntervalSince1970: 1_788_307_200))
+        XCTAssertEqual(snapshot.models.first?.limits.weekly?.remainingPercent, 37)
+        XCTAssertEqual(snapshot.models.first?.limits.weekly?.resetsAt, Date(timeIntervalSince1970: 1_788_307_200))
         let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8)
         XCTAssertEqual(
             arguments.components(separatedBy: "\n"),
@@ -73,11 +73,11 @@ final class ClaudeQuotaServiceTests: XCTestCase {
         let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
         let snapshot = try await ClaudeQuotaService(executableCandidates: [executable]).fetch().get()
 
-        XCTAssertEqual(snapshot.session?.remainingPercent, 100)
-        XCTAssertNil(snapshot.session?.resetsAt)
-        XCTAssertEqual(snapshot.weekly?.remainingPercent, 0)
+        XCTAssertEqual(snapshot.account?.session?.remainingPercent, 100)
+        XCTAssertNil(snapshot.account?.session?.resetsAt)
+        XCTAssertEqual(snapshot.account?.weekly?.remainingPercent, 0)
         XCTAssertEqual(snapshot.models.map(\.title), ["Other model"])
-        XCTAssertEqual(snapshot.models.first?.weekly.remainingPercent, 97)
+        XCTAssertEqual(snapshot.models.first?.limits.weekly?.remainingPercent, 97)
     }
 
     func testFetchReportsMissingExecutable() async throws {

@@ -8,7 +8,7 @@ final class UsagePeriodIntervalsTests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
         calendar.firstWeekday = 2
-        let date = try XCTUnwrap(parseUsageTimestamp("2026-03-11T12:00:00.000Z"))
+        let date = try XCTUnwrap(Date(iso8601: "2026-03-11T12:00:00.000Z"))
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
 
         XCTAssertEqual(
@@ -35,14 +35,14 @@ final class UsagePeriodIntervalsTests: XCTestCase {
             calendar.dateComponents([.year, .month, .day], from: intervals.month.previous.upperBound),
             DateComponents(year: 2026, month: 3, day: 1)
         )
-        XCTAssertEqual(intervals.currentMonthDay(containing: date), parseUsageTimestamp("2026-03-11T07:00:00.000Z"))
+        XCTAssertEqual(intervals.currentMonthDay(containing: date), Date(iso8601: "2026-03-11T07:00:00.000Z"))
         XCTAssertNil(intervals.currentMonthDay(containing: intervals.month.previous.lowerBound))
     }
 
     func testCalendarDayFollowsDaylightSavingTime() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
-        let date = try XCTUnwrap(parseUsageTimestamp("2026-03-08T12:00:00.000Z"))
+        let date = try XCTUnwrap(Date(iso8601: "2026-03-08T12:00:00.000Z"))
 
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
         let day = intervals.day.current
@@ -50,11 +50,11 @@ final class UsagePeriodIntervalsTests: XCTestCase {
         XCTAssertEqual(day.upperBound.timeIntervalSince(day.lowerBound), 23 * 60 * 60)
         XCTAssertEqual(
             intervals.currentMonthDay(containing: day.upperBound),
-            parseUsageTimestamp("2026-03-09T07:00:00.000Z")
+            Date(iso8601: "2026-03-09T07:00:00.000Z")
         )
         XCTAssertEqual(
             intervals.currentMonthDay(containing: day.lowerBound),
-            parseUsageTimestamp("2026-03-08T08:00:00.000Z")
+            Date(iso8601: "2026-03-08T08:00:00.000Z")
         )
     }
 }

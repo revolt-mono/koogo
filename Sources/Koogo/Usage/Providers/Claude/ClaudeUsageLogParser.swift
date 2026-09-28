@@ -1,32 +1,20 @@
 import Foundation
 
-private enum ClaudeRecordKind: String, LogRecordKind {
-    case assistant
-    case other
-}
-
 struct ClaudeLogParser: UsageLogParser {
-    private static let eventMarkers = [
-        ClaudeRecordKind.assistant.jsonStringMarker,
-        ClaudeMessage.usageMarker,
-    ]
-
-    func parse(_ line: UnsafeRawBufferPointer, decoder: inout UsageLineDecoder) throws -> UsageLineOutcome? {
-        guard Self.mayBill(line),
-            case .assistant(let record) = try decoder.decode(ClaudeLogRecord.self, from: line)
-        else {
+    func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
+        guard let reply = try ClaudeAssistantReply(line) else {
             return nil
         }
-        let usage = record.message.usage
+        let usage = reply.usage
         // Claude Code logs its own synthetic replies, such as API errors, with zero usage and often no request id.
         guard usage.tokens.processed > 0 || usage.webSearchRequests > 0 else {
             return nil
         }
         guard
-            let timestamp = parseUsageTimestamp(record.timestamp),
-            let messageID = nonEmpty(record.message.id),
-            let requestID = nonEmpty(record.requestID),
-            let model = nonEmpty(record.message.model)
+            let timestamp = reply.timestamp.flatMap(Date.init(iso8601:)),
+            let messageID = nonEmpty(reply.messageID),
+            let requestID = nonEmpty(reply.requestID),
+            let model = nonEmpty(reply.model)
         else {
             throw MalformedUsageRecord()
         }
@@ -46,7 +34,7 @@ struct ClaudeLogParser: UsageLogParser {
             return .unpricedModel(id: model, timestamp: timestamp)
         }
 
-        let reasoningEffort = nonEmpty(record.effort)
+        let reasoningEffort = nonEmpty(reply.effort)
         return .event(
             UsageEvent(
                 key: .claude(messageID: messageID, requestID: requestID),
@@ -62,16 +50,6 @@ struct ClaudeLogParser: UsageLogParser {
                 revision: Self.revision(of: usage, reasoningEffort: reasoningEffort)
             )
         )
-    }
-
-    /// Whether `line` may be an assistant reply with usage. Prompts name their kind among their leading fields,
-    /// which rules them out without scanning their long content.
-    private static func mayBill(_ line: UnsafeRawBufferPointer) -> Bool {
-        var record = JSONLeadingMembers(line)
-        if let kind = record.string("type"), kind != ClaudeRecordKind.assistant.rawValue {
-            return false
-        }
-        return eventMarkers.allSatisfy { line.contains($0) }
     }
 
     /// Claude logs partial copies of one request; the copy with more output wins, then the one
@@ -91,146 +69,132 @@ struct ClaudeLogParser: UsageLogParser {
     }
 }
 
-private enum ClaudeLogRecord: Decodable {
-    case assistant(ClaudeAssistantRecord)
-    case other
-
-    private enum CodingKeys: String, CodingKey {
-        case type
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(ClaudeRecordKind.self, forKey: .type) {
-        case .assistant: self = .assistant(try ClaudeAssistantRecord(from: decoder))
-        case .other: self = .other
-        }
-    }
-}
-
-private struct ClaudeAssistantRecord: Decodable {
-    let timestamp: String
+/// The fields of an assistant record that bill, read as logged.
+private struct ClaudeAssistantReply {
+    let timestamp: String?
     let requestID: String?
     let effort: String?
-    let message: ClaudeMessage
-
-    private enum CodingKeys: String, CodingKey {
-        case timestamp
-        case requestID = "requestId"
-        case effort
-        case message
-    }
-}
-
-private struct ClaudeMessage: Decodable {
-    let id: String
-    let model: String
+    let messageID: String?
+    let model: String?
     let usage: ClaudeLoggedUsage
 
-    static let usageMarker = Data("\"\(CodingKeys.usage.rawValue)\"".utf8)
-
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case model
-        case usage
+    /// Nil for any other record kind and for a reply without usage.
+    init?(_ line: UnsafeRawBufferPointer) throws {
+        guard var record = JSONObjectReader(line) else {
+            return nil
+        }
+        var isAssistant = false
+        var timestamp: String?
+        var requestID: String?
+        var effort: String?
+        var message: JSONValue?
+        while let member = try record.next() {
+            switch member.key {
+            case "type":
+                // Prompts name their kind before their long content, so they end here.
+                guard member.value.isString("assistant") else {
+                    return nil
+                }
+                isAssistant = true
+            case "timestamp": timestamp = try member.value.string()
+            case "requestId": requestID = try member.value.string()
+            case "effort": effort = try member.value.string()
+            case "message": message = member.value
+            default: continue
+            }
+        }
+        guard isAssistant, var message = try message?.object() else {
+            return nil
+        }
+        var messageID: String?
+        var model: String?
+        var usage: ClaudeLoggedUsage?
+        while let member = try message.next() {
+            switch member.key {
+            case "id": messageID = try member.value.string()
+            case "model": model = try member.value.string()
+            case "usage": usage = try ClaudeLoggedUsage(member.value)
+            default: continue
+            }
+        }
+        guard let usage else {
+            return nil
+        }
+        self.timestamp = timestamp
+        self.requestID = requestID
+        self.effort = effort
+        self.messageID = messageID
+        self.model = model
+        self.usage = usage
     }
 }
 
 /// The usage object as logged, with token amounts validated; speed and geo stay raw until the parser reads them.
-private struct ClaudeLoggedUsage: Decodable {
+private struct ClaudeLoggedUsage {
     let tokens: ClaudeTokenUsage
     let speed: String?
     let geo: String?
     let webSearchRequests: UInt64
 
-    private enum CodingKeys: String, CodingKey {
-        case inputTokens = "input_tokens"
-        case cacheReadInputTokens = "cache_read_input_tokens"
-        case cacheCreationInputTokens = "cache_creation_input_tokens"
-        case outputTokens = "output_tokens"
-        case cacheCreation = "cache_creation"
-        case speed
-        case geo = "inference_geo"
-        case serverToolUse = "server_tool_use"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        speed = try container.decodeIfPresent(String.self, forKey: .speed)
-        geo = try container.decodeIfPresent(String.self, forKey: .geo)
-        webSearchRequests =
-            try container.decodeIfPresent(
-                ClaudeServerToolUse.self,
-                forKey: .serverToolUse
-            )?.webSearchRequests ?? 0
-
-        guard
+    init(_ value: JSONValue) throws {
+        var usage = try value.object()
+        var input: UInt64?
+        var cacheRead: UInt64?
+        var cacheCreationTotal: UInt64?
+        var cacheCreationSplit: JSONValue?
+        var output: UInt64?
+        var speed: String?
+        var geo: String?
+        var webSearchRequests: UInt64?
+        while let member = try usage.next() {
+            switch member.key {
+            case "input_tokens": input = try member.value.integer()
+            case "cache_read_input_tokens": cacheRead = try member.value.integer()
+            case "cache_creation_input_tokens": cacheCreationTotal = try member.value.integer()
+            case "cache_creation": cacheCreationSplit = member.value.nonNull
+            case "output_tokens": output = try member.value.integer()
+            case "speed": speed = try member.value.string()
+            case "inference_geo": geo = try member.value.string()
+            case "server_tool_use":
+                webSearchRequests = try member.value.nonNull?.member("web_search_requests")?.integer()
+            default: continue
+            }
+        }
+        guard let input, let output,
             let tokens = ClaudeTokenUsage(
-                input: try container.decode(UInt64.self, forKey: .inputTokens),
-                cacheRead: try container.decodeIfPresent(
-                    UInt64.self,
-                    forKey: .cacheReadInputTokens
-                ) ?? 0,
-                cacheCreation: try Self.cacheCreation(
-                    aggregate: container.decodeIfPresent(
-                        UInt64.self,
-                        forKey: .cacheCreationInputTokens
-                    ) ?? 0,
-                    breakdown: container.decodeIfPresent(
-                        ClaudeCacheCreationBreakdown.self,
-                        forKey: .cacheCreation
-                    ),
-                    in: container
-                ),
-                output: try container.decode(UInt64.self, forKey: .outputTokens)
+                input: input,
+                cacheRead: cacheRead ?? 0,
+                cacheCreation: try Self.cacheCreation(total: cacheCreationTotal ?? 0, split: cacheCreationSplit),
+                output: output
             )
         else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .inputTokens,
-                in: container,
-                debugDescription: "invalid token usage"
-            )
+            throw MalformedUsageRecord()
         }
         self.tokens = tokens
+        self.speed = speed
+        self.geo = geo
+        self.webSearchRequests = webSearchRequests ?? 0
     }
 
-    private static func cacheCreation(
-        aggregate: UInt64,
-        breakdown: ClaudeCacheCreationBreakdown?,
-        in container: KeyedDecodingContainer<CodingKeys>
-    ) throws -> ClaudeTokenUsage.CacheCreation {
-        guard let breakdown else {
-            return .aggregate(aggregate)
+    /// The logged cache writes, split by duration when the split adds up to the total.
+    private static func cacheCreation(total: UInt64, split: JSONValue?) throws -> ClaudeTokenUsage.CacheCreation {
+        guard var split = try split?.object() else {
+            return .aggregate(total)
         }
-        let fiveMinute = breakdown.ephemeral5MinuteInputTokens ?? 0
-        let oneHour = breakdown.ephemeral1HourInputTokens ?? 0
-        let (total, overflow) = fiveMinute.addingReportingOverflow(oneHour)
-        guard !overflow, total == aggregate else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .cacheCreationInputTokens,
-                in: container,
-                debugDescription: "invalid usage metadata"
-            )
+        var fiveMinute: UInt64?
+        var oneHour: UInt64?
+        while let member = try split.next() {
+            switch member.key {
+            case "ephemeral_5m_input_tokens": fiveMinute = try member.value.integer()
+            case "ephemeral_1h_input_tokens": oneHour = try member.value.integer()
+            default: continue
+            }
         }
-        return .byDuration(fiveMinute: fiveMinute, oneHour: oneHour)
-    }
-}
-
-private struct ClaudeCacheCreationBreakdown: Decodable {
-    let ephemeral5MinuteInputTokens: UInt64?
-    let ephemeral1HourInputTokens: UInt64?
-
-    private enum CodingKeys: String, CodingKey {
-        case ephemeral5MinuteInputTokens = "ephemeral_5m_input_tokens"
-        case ephemeral1HourInputTokens = "ephemeral_1h_input_tokens"
-    }
-}
-
-private struct ClaudeServerToolUse: Decodable {
-    let webSearchRequests: UInt64?
-
-    private enum CodingKeys: String, CodingKey {
-        case webSearchRequests = "web_search_requests"
+        let (sum, overflow) = (fiveMinute ?? 0).addingReportingOverflow(oneHour ?? 0)
+        guard !overflow, sum == total else {
+            throw MalformedUsageRecord()
+        }
+        return .byDuration(fiveMinute: fiveMinute ?? 0, oneHour: oneHour ?? 0)
     }
 }
 

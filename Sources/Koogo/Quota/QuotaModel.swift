@@ -1,10 +1,30 @@
 import Observation
 
 protocol QuotaService: Sendable {
-    associatedtype Snapshot: Equatable
-    associatedtype Reason: Error & Equatable
+    associatedtype Snapshot: Equatable & Sendable & Encodable
+    associatedtype Reason: Error & Equatable & RawRepresentable<String> & Encodable
 
-    func fetch() async -> Result<Snapshot, Reason>
+    /// Names the provider in telemetry.
+    static var name: String { get }
+
+    /// Reads the quota once; callers use `fetch()`, which also records the outcome.
+    func load() async -> Result<Snapshot, Reason>
+}
+
+extension QuotaService {
+    @concurrent
+    func fetch() async -> Result<Snapshot, Reason> {
+        let result = await load()
+        switch result {
+        case .success:
+            Telemetry.quota.info("\(Self.name, privacy: .public) fetch available")
+        case .failure(let reason):
+            Telemetry.quota.info(
+                "\(Self.name, privacy: .public) fetch unavailable reason=\(reason.rawValue, privacy: .public)"
+            )
+        }
+        return result
+    }
 }
 
 /// Fetches one provider's quota on demand, coalescing overlapping refreshes and holding a cooldown

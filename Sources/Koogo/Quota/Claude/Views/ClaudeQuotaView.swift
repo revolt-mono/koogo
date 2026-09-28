@@ -21,19 +21,11 @@ struct ClaudeQuotaView: View {
             }
         case .available(let snapshot, let stale):
             VStack(spacing: 16) {
-                VStack(spacing: 8) {
-                    if let session = snapshot.session {
-                        QuotaWindowRow(scopeTitle: "Claude", title: "Session", window: session)
-                    }
-                    if let weekly = snapshot.weekly {
-                        QuotaWindowRow(scopeTitle: "Claude", title: "Weekly", window: weekly)
-                    }
+                if let limits = snapshot.account {
+                    QuotaLimitsView(provider: "Claude", limits: limits)
                 }
                 ForEach(snapshot.models) { model in
-                    VStack(alignment: .leading, spacing: 8) {
-                        QuotaScopeHeader(title: model.title)
-                        QuotaWindowRow(scopeTitle: "Claude \(model.title)", title: "Weekly", window: model.weekly)
-                    }
+                    QuotaLimitsView(provider: "Claude", model: model.title, limits: model.limits)
                 }
                 if stale != nil {
                     QuotaStaleNotice(isRefreshDisabled: model.isRefreshing) {

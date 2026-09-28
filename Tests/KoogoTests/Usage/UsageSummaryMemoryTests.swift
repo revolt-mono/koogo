@@ -50,7 +50,7 @@ final class UsageSummaryMemoryTests: XCTestCase {
     private func summaryView(step: Int) -> some View {
         let period = UsageSummaryPeriodSnapshot(
             current: UsagePeriodSnapshot(
-                processedTokens: Decimal(12_340_000 + step * 87_321),
+                processedTokens: UInt64(12_340_000 + step * 87_321),
                 costUSD: Decimal(12_400 + step * 13) / 100
             ),
             previous: UsagePeriodSnapshot(processedTokens: 0, costUSD: 105)

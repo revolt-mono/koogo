@@ -1,10 +1,8 @@
-import Darwin
 import Foundation
 import Synchronization
 
-/// Talks to `codex app-server --stdio`: each call launches the server in its own process group,
-/// completes the handshake, sends one JSON-RPC request and tears the group down. JSON-RPC error
-/// codes are interpreted only here.
+/// Talks to `codex app-server --stdio`: each call launches the server, completes the handshake, sends one
+/// JSON-RPC request, and stops the server. JSON-RPC error codes are interpreted only here.
 struct CodexAppServer: Sendable {
     enum Failure: Error, Equatable, Sendable {
         case binaryNotFound
@@ -21,27 +19,7 @@ struct CodexAppServer: Sendable {
         let requestMayHaveArrived: Bool
     }
 
-    private let executableCandidates: [URL]
-    private let timeout: Duration
-
-    /// The first executable candidate at call time is launched.
-    init(executableCandidates: [URL], timeout: Duration) {
-        self.executableCandidates = executableCandidates
-        self.timeout = timeout
-    }
-
-    /// Codex's own install locations, then every `PATH` entry.
-    static func standardCandidates() -> [URL] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let installs = [
-            home.appending(path: ".codex/packages/standalone/current/bin/codex"),
-            home.appending(path: ".local/bin/codex"),
-            URL(filePath: "/opt/homebrew/bin/codex"),
-            URL(filePath: "/usr/local/bin/codex"),
-        ]
-        let path = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":")
-        return installs + path.map { URL(filePath: String($0)).appending(path: "codex") }
-    }
+    let tool: CommandLineTool
 
     /// Sends `method` without a params key.
     func call<Value: Decodable & Sendable>(_ method: String) async throws(CallError) -> Value {
@@ -58,79 +36,34 @@ struct CodexAppServer: Sendable {
     private func call<Value: Decodable & Sendable, Params: Encodable & Sendable>(
         _ request: RPCMessage<Params>
     ) async throws(CallError) -> Value {
-        let executable = executableCandidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
-        guard let executable else {
-            throw CallError(failure: .binaryNotFound, requestMayHaveArrived: false)
-        }
         // Flipped right before the request is written, so a later failure may still have reached the server.
         let requestStarted = Mutex(false)
         do {
-            return try await ProcessGroupLifetime.run(timeout: timeout) { processGroup in
-                try Self.blockingSession(executable: executable, processGroup: processGroup) { connection in
-                    requestStarted.withLock { $0 = true }
-                    return try connection.request(request)
-                }
+            return try await tool.session(["app-server", "--stdio"]) { input, output in
+                var connection = RPCConnection(input: input, reader: output)
+                let _: InitializeResponse = try connection.request(
+                    RPCMessage(
+                        method: "initialize",
+                        id: 1,
+                        params: ["clientInfo": ["name": "koogo", "title": "Koogo", "version": "1.0"]]
+                    )
+                )
+                try connection.send(RPCMessage<Never>(method: "initialized"))
+                requestStarted.withLock { $0 = true }
+                return try connection.request(request)
             }
         } catch {
             let failure: Failure =
                 switch error {
                 case let failure as Failure: failure
-                case is ProcessGroupLifetime.TimedOut: .timedOut
+                case CommandLineTool.Failure.notFound: .binaryNotFound
+                case CommandLineTool.Failure.timedOut: .timedOut
                 case let error as RPCError where error.code == -32601: .methodNotFound
                 case let error as RPCError: .rpc(code: error.code)
                 default: .sessionFailed
                 }
             throw CallError(failure: failure, requestMayHaveArrived: requestStarted.withLock { $0 })
         }
-    }
-
-    private static func blockingSession<Value>(
-        executable: URL,
-        processGroup: ProcessGroupLifetime,
-        operation: (inout RPCConnection) throws -> Value
-    ) throws -> Value {
-        let process = Process()
-        let input = Pipe()
-        let output = Pipe()
-        guard fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else {
-            throw Failure.sessionFailed
-        }
-        process.executableURL = executable
-        process.arguments = ["app-server", "--stdio"]
-        process.standardInput = input
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-        var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = [executable.deletingLastPathComponent().path, environment["PATH"]]
-            .compactMap { $0 }
-            .joined(separator: ":")
-        process.environment = environment
-
-        defer {
-            try? input.fileHandleForWriting.close()
-            if process.isRunning {
-                process.waitUntilExit()
-            }
-            try? output.fileHandleForReading.close()
-            processGroup.finish()
-        }
-        try processGroup.start(process)
-
-        // Also terminate on protocol errors; closing stdin alone need not stop app-server.
-        defer { processGroup.terminate() }
-        var connection = RPCConnection(
-            input: input.fileHandleForWriting,
-            reader: LineReader(fileHandle: output.fileHandleForReading)
-        )
-        let _: InitializeResponse = try connection.request(
-            RPCMessage(
-                method: "initialize",
-                id: 1,
-                params: ["clientInfo": ["name": "koogo", "title": "Koogo", "version": "1.0"]]
-            )
-        )
-        try connection.send(RPCMessage<Never>(method: "initialized"))
-        return try operation(&connection)
     }
 }
 
@@ -159,33 +92,6 @@ private struct RPCConnection {
             return try decoder.decode(RPCSuccess<Value>.self, from: data).result
         }
         throw CodexAppServer.Failure.sessionFailed
-    }
-}
-
-private struct LineReader {
-    let fileHandle: FileHandle
-    var buffer = Data()
-
-    mutating func nextLine() throws -> Data? {
-        while true {
-            if let newline = buffer.firstIndex(of: 0x0A) {
-                let line = Data(buffer[..<newline])
-                buffer.removeSubrange(...newline)
-                return line
-            }
-            let chunk = fileHandle.availableData
-            if chunk.isEmpty {
-                guard !buffer.isEmpty else {
-                    return nil
-                }
-                defer { buffer.removeAll() }
-                return buffer
-            }
-            buffer.append(chunk)
-            guard buffer.count <= 4 * 1_024 * 1_024 else {
-                throw CodexAppServer.Failure.sessionFailed
-            }
-        }
     }
 }
 
