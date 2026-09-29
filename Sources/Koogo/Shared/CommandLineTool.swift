@@ -55,13 +55,14 @@ struct CommandLineTool: Sendable {
     /// returns. Lines longer than the output limit fail the session.
     func session<Value: Sendable>(
         _ arguments: [String],
+        in directory: URL? = nil,
         _ session: @escaping @Sendable (_ input: FileHandle, _ output: LineReader) throws -> Value
     ) async throws -> Value {
         let input = Pipe()
         guard fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else {
             throw Failure.failed
         }
-        return try await run(arguments, in: nil, input: input) { _, output in
+        return try await run(arguments, in: directory, input: input) { _, output in
             try session(input.fileHandleForWriting, LineReader(fileHandle: output))
         }
     }

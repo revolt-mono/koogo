@@ -3,16 +3,6 @@ import Foundation
 struct CodexQuotaTestWorkspace {
     let root: URL
 
-    func makeExecutable(script: String) throws -> URL {
-        let executable = root.appending(path: UUID().uuidString)
-        try script.write(to: executable, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o755],
-            ofItemAtPath: executable.path
-        )
-        return executable
-    }
-
     static let resetCredit = """
         {"id":"credit-a","resetType":"codexRateLimits","status":"available","grantedAt":1700000000,"expiresAt":4102444800,"title":"Usage reset","description":"Reset eligible usage limits"}
         """
@@ -49,7 +39,8 @@ struct CodexQuotaTestWorkspace {
     ) throws -> URL {
         let object = try JSONSerialization.jsonObject(with: Data(quotaResponse.utf8))
         try JSONSerialization.data(withJSONObject: object).write(to: quotaResponseFile)
-        return try makeExecutable(
+        return try makeTestExecutable(
+            in: root,
             script: """
                 #!/bin/sh
                 \(onStart)

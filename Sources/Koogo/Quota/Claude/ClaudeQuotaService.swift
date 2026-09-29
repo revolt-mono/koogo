@@ -32,12 +32,8 @@ struct ClaudeQuotaService: QuotaService {
                 in: URL(filePath: "/tmp", directoryHint: .isDirectory)
             )
             return try ClaudeQuotaResponse.snapshot(from: output).map(Result.success) ?? .failure(.emptyLimits)
-        } catch CommandLineTool.Failure.notFound {
-            return .failure(.binaryNotFound)
-        } catch CommandLineTool.Failure.timedOut {
-            return .failure(.timedOut)
         } catch {
-            return .failure(.sessionFailed)
+            return .failure(CLIQuotaUnavailability(error))
         }
     }
 }

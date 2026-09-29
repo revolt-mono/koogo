@@ -1,112 +1,48 @@
 import Foundation
 
-/// Why no Grok quota is shown; surfaced in telemetry and the `--report` output.
-enum GrokQuotaUnavailability: String, Error, Encodable, Sendable {
-    /// No grok.com session in the Grok CLI credentials, e.g. an API-key login.
-    case signedOut
-    /// Only the Grok CLI refreshes its session, so the quota waits until `grok` runs again.
-    case credentialsExpired
-    case requestFailed
-    case emptyLimits
-}
-
 typealias GrokQuotaModel = QuotaModel<GrokQuotaService>
 
-/// Reads the Grok Build credit limit the way `grok`'s `/usage` does, borrowing the CLI's
-/// grok.com session read-only.
+/// Delegates credentials and billing to Grok's ACP server. Initialization performs the CLI's
+/// unattended authentication refresh; billing needs neither a session nor a model prompt.
 struct GrokQuotaService: QuotaService {
-    typealias Transport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
-
     static let name = "grok"
-    private static let billingURL = URL(string: "https://cli-chat-proxy.grok.com/v1/billing?format=credits")!
 
-    private let authURL: URL
-    private let transport: Transport
+    private let tool: CommandLineTool
 
     init(
-        authURL: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: ".grok/auth.json"),
-        transport: @escaping Transport = { try await URLSession.shared.data(for: $0) }
+        executableCandidates: [URL] = CommandLineTool.candidates(
+            named: "grok",
+            preferring: [FileManager.default.homeDirectoryForCurrentUser.appending(path: ".grok/bin")]
+        ),
+        timeout: Duration = .seconds(30)
     ) {
-        self.authURL = authURL
-        self.transport = transport
+        tool = CommandLineTool(candidates: executableCandidates, timeout: timeout)
     }
 
-    func load() async -> Result<GrokQuotaSnapshot, GrokQuotaUnavailability> {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard
-            let credentials = try? Data(contentsOf: authURL),
-            let session = try? decoder.decode(GrokAuthFile.self, from: credentials).session
-        else {
-            return .failure(.signedOut)
-        }
-        if let expiresAt = session.expiresAt, expiresAt <= .now {
-            return .failure(.credentialsExpired)
-        }
-
-        var request = URLRequest(url: Self.billingURL, timeoutInterval: 15)
-        request.setValue("Bearer \(session.key)", forHTTPHeaderField: "Authorization")
-        request.setValue("xai-grok-cli", forHTTPHeaderField: "X-XAI-Token-Auth")
-        request.setValue(session.userID, forHTTPHeaderField: "x-userid")
-        guard
-            case let (body, response)? = try? await transport(request),
-            let status = (response as? HTTPURLResponse)?.statusCode, 200..<300 ~= status,
-            let billing = try? decoder.decode(GrokBillingResponse.self, from: body)
-        else {
-            return .failure(.requestFailed)
-        }
-        return billing.snapshot.map(Result.success) ?? .failure(.emptyLimits)
-    }
-}
-
-/// `auth.json` keys each session by `issuer::client_id`; billing accepts only the grok.com one.
-private struct GrokAuthFile: Decodable {
-    struct Session: Decodable {
-        let key: String
-        let userID: String
-        let expiresAt: Date?
-
-        private enum CodingKeys: String, CodingKey {
-            case key
-            case userID = "user_id"
-            case expiresAt = "expires_at"
-        }
-    }
-
-    let session: Session?
-
-    private enum CodingKeys: String, CodingKey {
-        case session = "https://auth.x.ai::b1a00492-073a-47ea-816f-4c329264a828"
-    }
-}
-
-private struct GrokBillingResponse: Decodable {
-    struct Config: Decodable {
-        /// proto3 JSON drops zero values, so an untouched quota arrives without this field.
-        let creditUsagePercent: Double?
-        let currentPeriod: Period?
-    }
-
-    struct Period: Decodable {
-        let type: String?
-        let end: Date?
-    }
-
-    let config: Config?
-
-    var snapshot: GrokQuotaSnapshot? {
-        guard let config else {
-            return nil
-        }
-        let period: GrokQuotaSnapshot.Period? =
-            switch config.currentPeriod?.type {
-            case "USAGE_PERIOD_TYPE_WEEKLY": .weekly
-            case "USAGE_PERIOD_TYPE_MONTHLY": .monthly
-            default: nil
+    func load() async -> Result<GrokQuotaSnapshot, CLIQuotaUnavailability> {
+        do {
+            let response: GrokQuotaResponse = try await tool.session(
+                ["--no-auto-update", "agent", "--no-leader", "stdio"],
+                in: URL(filePath: "/tmp", directoryHint: .isDirectory)
+            ) { input, output in
+                var connection = JSONRPCConnection(input: input, output: output, dateDecodingStrategy: .iso8601)
+                let initialized: InitializeResponse = try connection.request("initialize", params: InitializeParams())
+                guard initialized.protocolVersion == 1 else { throw JSONRPCConnection.Failure.invalidMessage }
+                return try connection.request("_x.ai/billing", params: [String: String]())
             }
-        return GrokQuotaSnapshot(
-            period: period,
-            window: QuotaWindow(usedPercent: config.creditUsagePercent ?? 0, resetsAt: config.currentPeriod?.end)
-        )
+            return response.snapshot.map(Result.success) ?? .failure(.emptyLimits)
+        } catch {
+            return .failure(CLIQuotaUnavailability(error))
+        }
     }
+}
+
+private struct InitializeParams: Encodable {
+    let protocolVersion = 1
+    let clientCapabilities: [String: String] = [:]
+    let clientInfo = ["name": "koogo", "version": "1.0"]
+}
+
+private struct InitializeResponse: Decodable {
+    let protocolVersion: Int
 }

@@ -122,8 +122,9 @@ final class CodexQuotaServiceTests: XCTestCase {
 
     func testFetchAddsLauncherDirectoryToChildPath() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let runtime = try workspace.makeExecutable(script: "#!/bin/sh\nexec /bin/sh \"$@\"\n")
-        let executable = try workspace.makeExecutable(
+        let runtime = try makeTestExecutable(in: workspace.root, script: "#!/bin/sh\nexec /bin/sh \"$@\"\n")
+        let executable = try makeTestExecutable(
+            in: workspace.root,
             script: """
                 #!/usr/bin/env \(runtime.lastPathComponent)
                 IFS= read -r initialize
@@ -141,7 +142,8 @@ final class CodexQuotaServiceTests: XCTestCase {
 
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeExecutable(
+        let executable = try makeTestExecutable(
+            in: workspace.root,
             script:
                 "#!/bin/sh\nIFS= read -r initialize\nexec 0<&-\nprintf '%s\\n' '{\"id\":1,\"result\":{}}'\nsleep 1\n"
         )
@@ -153,7 +155,8 @@ final class CodexQuotaServiceTests: XCTestCase {
 
     func testFetchReturnsSnapshotWhenServerDoesNotExitAfterResponse() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeExecutable(
+        let executable = try makeTestExecutable(
+            in: workspace.root,
             script: """
                 #!/bin/sh
                 trap '' TERM
@@ -177,7 +180,8 @@ final class CodexQuotaServiceTests: XCTestCase {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let readyMarker = workspace.root.appending(path: "ready")
         let childMarker = workspace.root.appending(path: "child")
-        let executable = try workspace.makeExecutable(
+        let executable = try makeTestExecutable(
+            in: workspace.root,
             script: """
                 #!/bin/sh
                 IFS= read -r initialize
@@ -212,7 +216,8 @@ final class CodexQuotaServiceTests: XCTestCase {
     func testFetchTimesOutAndKillsStalledServer() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let pidMarker = workspace.root.appending(path: "pid")
-        let executable = try workspace.makeExecutable(
+        let executable = try makeTestExecutable(
+            in: workspace.root,
             script: """
                 #!/bin/sh
                 printf '%s\\n' "$$" > '\(pidMarker.path)'

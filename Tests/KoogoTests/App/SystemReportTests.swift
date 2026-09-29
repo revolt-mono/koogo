@@ -16,7 +16,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
             usageService: UsageService(locations: locations, calendar: usageTestCalendar),
             codexQuotaService: CodexQuotaService(executableCandidates: [try quotaWorkspace.makeAppServer()]),
             claudeQuotaService: ClaudeQuotaService(executableCandidates: []),
-            grokQuotaService: GrokQuotaService(authURL: workspace.root.appending(path: "missing-auth.json")),
+            grokQuotaService: GrokQuotaService(executableCandidates: []),
             at: now
         )
         let report = try XCTUnwrap(
@@ -45,7 +45,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         XCTAssertNil(claude["snapshot"])
         let grok = try XCTUnwrap(quota["grok"] as? [String: Any])
         XCTAssertEqual(grok["state"] as? String, "unavailable")
-        XCTAssertEqual(grok["reason"] as? String, "signedOut")
+        XCTAssertEqual(grok["reason"] as? String, "binaryNotFound")
         XCTAssertNil(grok["snapshot"])
     }
 
@@ -70,14 +70,13 @@ final class SystemReportTests: UsageWorkspaceTestCase {
 
         let codexExecutable = try quotaWorkspace.makeAppServer(quotaResponse: codexQuotaResponse)
         let claudeExecutable = try ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory()).makeCLI()
-        let grokAuth = workspace.root.appending(path: "auth.json")
-        try writeGrokSession(expiresAt: "2999-01-01T00:00:00Z", to: grokAuth)
+        let grokExecutable = try GrokQuotaTestWorkspace(root: try makeTemporaryDirectory()).makeAgent()
 
         let data = try await SystemReport.generate(
             usageService: UsageService(locations: locations, calendar: usageTestCalendar),
             codexQuotaService: CodexQuotaService(executableCandidates: [codexExecutable]),
             claudeQuotaService: ClaudeQuotaService(executableCandidates: [claudeExecutable]),
-            grokQuotaService: GrokQuotaService(authURL: grokAuth) { _ in try grokBillingReply(grokBilling) },
+            grokQuotaService: GrokQuotaService(executableCandidates: [grokExecutable]),
             at: now
         )
 
@@ -190,11 +189,6 @@ private let codexQuotaResponse = """
     "limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,\
     "resetsAt":1787698800}}},"rateLimitResetCredits":{"availableCount":1,\
     "credits":[\(CodexQuotaTestWorkspace.resetCredit)]}}}
-    """
-
-private let grokBilling = """
-    {"config":{"creditUsagePercent":25,"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY",\
-    "end":"2026-09-01T00:00:00Z"}}}
     """
 
 /// Object keys join with `.`, array elements append `[]` and are unioned, and scalars,

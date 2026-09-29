@@ -1,129 +1,64 @@
 import Foundation
 import Synchronization
 
-/// Talks to `codex app-server --stdio`: each call launches the server, completes the handshake, sends one
-/// JSON-RPC request, and stops the server. JSON-RPC error codes are interpreted only here.
+/// Owns the Codex handshake and distinguishes setup failures from requests that may have reached
+/// the server. Each call starts one app-server process and stops it after the reply.
 struct CodexAppServer: Sendable {
     enum Failure: Error, Equatable, Sendable {
         case binaryNotFound
         case timedOut
         case sessionFailed
-        /// JSON-RPC -32601: this Codex version does not know the method.
         case methodNotFound
         case rpc(code: Int)
     }
 
-    struct CallError: Error {
-        let failure: Failure
-        /// The method request started writing, so the server may have acted on it.
-        let requestMayHaveArrived: Bool
+    enum CallError: Error, Equatable {
+        /// The operation was never sent; a reset attempt can be cancelled.
+        case rejected(Failure)
+        /// The operation may have reached the server; a reset retry must keep the same idempotency key.
+        case unconfirmed(Failure)
+
+        var failure: Failure {
+            switch self {
+            case .rejected(let failure), .unconfirmed(let failure): failure
+            }
+        }
     }
 
     let tool: CommandLineTool
 
-    /// Sends `method` without a params key.
-    func call<Value: Decodable & Sendable>(_ method: String) async throws(CallError) -> Value {
-        try await call(RPCMessage<Never>(method: method, id: 2))
-    }
-
     func call<Value: Decodable & Sendable, Params: Encodable & Sendable>(
         _ method: String,
-        params: Params
+        params: Params? = Optional<Never>.none
     ) async throws(CallError) -> Value {
-        try await call(RPCMessage(method: method, id: 2, params: params))
-    }
-
-    private func call<Value: Decodable & Sendable, Params: Encodable & Sendable>(
-        _ request: RPCMessage<Params>
-    ) async throws(CallError) -> Value {
-        // Flipped right before the request is written, so a later failure may still have reached the server.
+        // The timeout races the blocking session. Only the request write crosses the uncertain-outcome boundary.
         let requestStarted = Mutex(false)
         do {
             return try await tool.session(["app-server", "--stdio"]) { input, output in
-                var connection = RPCConnection(input: input, reader: output)
-                let _: InitializeResponse = try connection.request(
-                    RPCMessage(
-                        method: "initialize",
-                        id: 1,
-                        params: ["clientInfo": ["name": "koogo", "title": "Koogo", "version": "1.0"]]
-                    )
+                var connection = JSONRPCConnection(
+                    input: input,
+                    output: output,
+                    dateDecodingStrategy: .secondsSince1970
                 )
-                try connection.send(RPCMessage<Never>(method: "initialized"))
+                let _: InitializeResponse = try connection.request(
+                    "initialize",
+                    params: ["clientInfo": ["name": "koogo", "title": "Koogo", "version": "1.0"]]
+                )
+                try connection.notify("initialized")
                 requestStarted.withLock { $0 = true }
-                return try connection.request(request)
+                return try connection.request(method, params: params)
             }
         } catch {
             let failure: Failure =
                 switch error {
-                case let failure as Failure: failure
                 case CommandLineTool.Failure.notFound: .binaryNotFound
                 case CommandLineTool.Failure.timedOut: .timedOut
-                case let error as RPCError where error.code == -32601: .methodNotFound
-                case let error as RPCError: .rpc(code: error.code)
+                case JSONRPCConnection.Failure.rpc(code: -32601): .methodNotFound
+                case JSONRPCConnection.Failure.rpc(let code): .rpc(code: code)
                 default: .sessionFailed
                 }
-            throw CallError(failure: failure, requestMayHaveArrived: requestStarted.withLock { $0 })
+            throw requestStarted.withLock { $0 } ? .unconfirmed(failure) : .rejected(failure)
         }
-    }
-}
-
-private struct RPCConnection {
-    let input: FileHandle
-    var reader: LineReader
-
-    func send<Params: Encodable & Sendable>(_ message: RPCMessage<Params>) throws {
-        var data = try JSONEncoder().encode(message)
-        data.append(0x0A)
-        try input.write(contentsOf: data)
-    }
-
-    mutating func request<Value: Decodable, Params: Encodable & Sendable>(
-        _ message: RPCMessage<Params>
-    ) throws -> Value {
-        try send(message)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .secondsSince1970
-
-        while let data = try reader.nextLine() {
-            guard let envelope = try? decoder.decode(RPCEnvelope.self, from: data), envelope.id == message.id
-            else {
-                continue
-            }
-            return try decoder.decode(RPCSuccess<Value>.self, from: data).result
-        }
-        throw CodexAppServer.Failure.sessionFailed
-    }
-}
-
-/// Nil `id` marks a notification; nil `params` is omitted from the wire.
-private struct RPCMessage<Params: Encodable & Sendable>: Encodable, Sendable {
-    let method: String
-    var id: Int?
-    var params: Params?
-}
-
-private struct RPCEnvelope: Decodable {
-    let id: Int?
-}
-
-private struct RPCError: Decodable, Error {
-    let code: Int
-}
-
-private struct RPCSuccess<Result: Decodable>: Decodable {
-    let result: Result
-
-    private enum CodingKeys: CodingKey {
-        case result
-        case error
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if container.contains(.error) {
-            throw try container.decode(RPCError.self, forKey: .error)
-        }
-        result = try container.decode(Result.self, forKey: .result)
     }
 }
 

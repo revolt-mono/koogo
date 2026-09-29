@@ -13,11 +13,6 @@ struct GrokQuotaView: View {
                     .accessibilityLabel("Loading Grok limits")
                 Divider()
             }
-        case .unavailable(.credentialsExpired):
-            VStack(spacing: 16) {
-                GrokSessionExpiredHint()
-                Divider()
-            }
         case .unavailable:
             EmptyView()
         case .available(let snapshot, let stale):
@@ -28,14 +23,8 @@ struct GrokQuotaView: View {
                 case nil: "Usage limit"
                 }
             VStack(spacing: 16) {
-                VStack(spacing: 8) {
-                    QuotaWindowRow(scopeTitle: "Grok", title: title, window: snapshot.window)
-                    if stale == .credentialsExpired {
-                        // Refreshing cannot help until the Grok CLI renews its session.
-                        GrokSessionExpiredHint()
-                    }
-                }
-                if let stale, stale != .credentialsExpired {
+                QuotaWindowRow(scopeTitle: "Grok", title: title, window: snapshot.window)
+                if stale != nil {
                     QuotaStaleNotice(isRefreshDisabled: model.isRefreshing) {
                         model.refresh(force: true)
                     }
@@ -43,14 +32,5 @@ struct GrokQuotaView: View {
                 Divider()
             }
         }
-    }
-}
-
-private struct GrokSessionExpiredHint: View {
-    var body: some View {
-        Text("Run grok to refresh its quota")
-            .font(.system(size: 9))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

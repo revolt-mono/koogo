@@ -59,7 +59,7 @@ final class CodexQuotaResetTests: XCTestCase {
                 consumeResponse: "{\"id\":2,\"result\":{\"outcome\":\"\(value)\"}}"
             )
             let result = await CodexQuotaService(executableCandidates: [executable]).consume(attempt)
-            XCTAssertEqual(result, .completed(expected))
+            XCTAssertEqual(result, .success(expected))
         }
         let requests = try workspace.lines(in: workspace.consumeRequestsFile)
         XCTAssertEqual(requests.count, 4)
@@ -83,13 +83,48 @@ final class CodexQuotaResetTests: XCTestCase {
         for (response, expected) in cases {
             let executable = try workspace.makeAppServer(consumeResponse: response)
             let result = await CodexQuotaService(executableCandidates: [executable]).consume(attempt)
-            XCTAssertEqual(result, .unconfirmed(expected))
+            XCTAssertEqual(result, .failure(.unconfirmed(expected)))
         }
+    }
+
+    func testHandshakeFailureCannotSendAConsumeRequest() async throws {
+        let root = try makeTemporaryDirectory()
+        let unexpected = root.appending(path: "unexpected")
+        let executable = try makeTestExecutable(
+            in: root,
+            script: """
+                #!/bin/sh
+                IFS= read -r initialize
+                printf '%s\\n' '{"id":1,"error":{"code":-32603}}'
+                while IFS= read -r request; do
+                  printf '%s\\n' "$request" >> '\(unexpected.path)'
+                done
+                """
+        )
+
+        let result = await CodexQuotaService(executableCandidates: [executable]).consume(resetAttempt())
+
+        XCTAssertEqual(result, .failure(.rejected(.rpc(code: -32603))))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: unexpected.path))
+    }
+
+    func testTimeoutKeepsTheRequestPhase() async throws {
+        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+        let initializing = try workspace.makeAppServer(onStart: "while :; do :; done")
+        let consuming = try workspace.makeAppServer(onConsume: "while :; do :; done")
+
+        let rejected = await CodexQuotaService(executableCandidates: [initializing], timeout: .milliseconds(500))
+            .consume(resetAttempt())
+        let unconfirmed = await CodexQuotaService(executableCandidates: [consuming], timeout: .milliseconds(500))
+            .consume(resetAttempt())
+
+        XCTAssertEqual(rejected, .failure(.rejected(.timedOut)))
+        XCTAssertEqual(unconfirmed, .failure(.unconfirmed(.timedOut)))
     }
 
     func testFailureBeforeTheWriteIsRejected() async {
         let result = await CodexQuotaService(executableCandidates: []).consume(resetAttempt())
-        XCTAssertEqual(result, .rejected(.binaryNotFound))
+        XCTAssertEqual(result, .failure(.rejected(.binaryNotFound)))
     }
 }
 

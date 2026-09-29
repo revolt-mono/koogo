@@ -25,6 +25,14 @@ extension XCTestCase {
     }
 }
 
+/// An executable fixture in an isolated test directory.
+func makeTestExecutable(in directory: URL, script: String) throws -> URL {
+    let executable = directory.appending(path: UUID().uuidString)
+    try script.write(to: executable, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+    return executable
+}
+
 /// Polls `condition` every 10 ms on the caller's actor until it holds or `timeout` passes,
 /// then asserts it.
 func waitUntil(

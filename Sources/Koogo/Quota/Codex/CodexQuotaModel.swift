@@ -76,11 +76,11 @@ final class CodexQuotaModel {
             let result = await quotaService.consume(attempt)
             await fetchQuota()
             switch result {
-            case .completed(let outcome):
+            case .success(let outcome):
                 resetState = .completed(outcome)
-            case .unconfirmed(let failure):
+            case .failure(.unconfirmed(let failure)):
                 resetState = .unconfirmed(attempt, failure)
-            case .rejected(let failure):
+            case .failure(.rejected(let failure)):
                 // An earlier attempt may already have reached the server; a rejected retry cannot clear that.
                 resetState = wasUnconfirmed ? .unconfirmed(attempt, failure) : .confirming(attempt, failure: failure)
             }

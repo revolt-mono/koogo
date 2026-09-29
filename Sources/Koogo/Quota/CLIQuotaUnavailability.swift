@@ -4,4 +4,13 @@ enum CLIQuotaUnavailability: String, Error, Encodable, Sendable {
     case timedOut
     case sessionFailed
     case emptyLimits
+
+    init(_ error: any Error) {
+        self =
+            switch error {
+            case CommandLineTool.Failure.notFound: .binaryNotFound
+            case CommandLineTool.Failure.timedOut: .timedOut
+            default: .sessionFailed
+            }
+    }
 }

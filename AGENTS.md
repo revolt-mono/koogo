@@ -36,7 +36,7 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 ```
 ├── Sources/Koogo          menu bar application
 │   ├── App                entry point, model lifetimes and scene wiring, headless report and benchmark
-│   ├── Shared             leaf primitives: telemetry, command-line tool runner, ISO 8601 dates, pager popover, local event monitor, Reduce Motion helpers
+│   ├── Shared             leaf primitives: telemetry, command-line tool runner, JSON-RPC connection, ISO 8601 dates, pager popover, local event monitor, Reduce Motion helpers
 │   ├── Panel              menu bar panel shell: toolbar, pager, usage page composition, quota gating
 │   ├── Settings           settings window shell hosting slice-owned controls
 │   ├── Usage              provider enablement, pipeline service, log locations, and usage vocabulary
@@ -47,7 +47,7 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 │   ├── Quota              quota service contract, state, limits, and shared quota views
 │   │   ├── Codex          app-server transport, quota and reset flow, views
 │   │   ├── Claude         local CLI usage report, quota model, views
-│   │   └── Grok           billing transport, quota model, views
+│   │   └── Grok           local CLI ACP billing, quota model, views
 │   ├── QuickActions       system quick-action adapters and views
 │   ├── BreakReminder      countdown state, notifications, controls, and issue alert
 │   ├── Inbox              todo rules, persistence, and editors

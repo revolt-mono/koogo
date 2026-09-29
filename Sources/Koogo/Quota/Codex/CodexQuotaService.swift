@@ -40,16 +40,16 @@ struct CodexQuotaService: QuotaService {
                 "account/rateLimitResetCredit/consume",
                 params: ConsumeParams(creditId: attempt.credit.id, idempotencyKey: attempt.idempotencyKey.uuidString)
             )
-            result = .completed(response.outcome)
+            result = .success(response.outcome)
         } catch {
-            result = error.requestMayHaveArrived ? .unconfirmed(error.failure) : .rejected(error.failure)
+            result = .failure(error)
         }
 
         switch result {
-        case .completed(let outcome):
+        case .success(let outcome):
             Telemetry.quota.info("codex reset outcome=\(outcome.rawValue, privacy: .public)")
-        case .rejected, .unconfirmed:
-            Telemetry.quota.error("codex reset failed \(String(describing: result), privacy: .public)")
+        case .failure(let error):
+            Telemetry.quota.error("codex reset failed \(String(describing: error), privacy: .public)")
         }
         return result
     }

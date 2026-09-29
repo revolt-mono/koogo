@@ -31,9 +31,7 @@ final class PanelViewTests: XCTestCase {
             )
             let codex = CodexQuotaModel(quotaService: CodexQuotaService(executableCandidates: []))
             let claude = ClaudeQuotaModel(quotaService: ClaudeQuotaService(executableCandidates: []))
-            let grok = GrokQuotaModel(
-                quotaService: GrokQuotaService(authURL: workspace.root.appending(path: "missing"))
-            )
+            let grok = GrokQuotaModel(quotaService: GrokQuotaService(executableCandidates: []))
             let host = NSHostingView(
                 rootView: PanelView()
                     .defaultAppStorage(defaults)
@@ -52,7 +50,7 @@ final class PanelViewTests: XCTestCase {
             try await waitUntil { !codex.isBusy && !claude.isRefreshing && !grok.isRefreshing }
             XCTAssertEqual(codex.state, fetchCodex ?? true ? .unavailable(.binaryNotFound) : .loading)
             XCTAssertEqual(claude.state, fetchClaude ?? true ? .unavailable(.binaryNotFound) : .loading)
-            XCTAssertEqual(grok.state, fetchGrok ?? true ? .unavailable(.signedOut) : .loading)
+            XCTAssertEqual(grok.state, fetchGrok ?? true ? .unavailable(.binaryNotFound) : .loading)
             withExtendedLifetime(host) {}
         }
     }
