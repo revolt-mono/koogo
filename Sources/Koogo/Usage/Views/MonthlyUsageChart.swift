@@ -25,7 +25,7 @@ struct MonthlyUsageChart: View {
                     x: .value("Day", day.date, unit: .day),
                     y: .value("Cost", NSDecimalNumber(decimal: day.usage.costUSD).doubleValue)
                 )
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.primary)
                 .cornerRadius(1)
             }
         }
