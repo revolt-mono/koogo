@@ -1,74 +1,36 @@
 import Foundation
 import Observation
 
-enum BreakReminderInterval: Int, CaseIterable, Codable {
-    case oneHour = 60
-    case ninetyMinutes = 90
-    case twoHours = 120
-
-    var duration: TimeInterval {
-        TimeInterval(rawValue * 60)
-    }
-}
-
-enum BreakReminderStatus: Equatable {
-    case running(remaining: TimeInterval)
-    case paused(remaining: TimeInterval)
-    case expired
-}
-
-enum BreakReminderIssue: Error, Equatable {
-    case notificationsDisabled
-    case schedulingFailed
-}
-
+/// The system notification that mirrors the countdown: pending while it runs, absent while it's paused.
 @MainActor
 protocol BreakReminderNotifications: AnyObject {
     func schedule(after duration: TimeInterval) async throws(BreakReminderIssue)
-    func hasDeliverableReminder() async -> Bool
+    func isPending() async -> Bool
     func cancel()
 }
 
+/// Owns the countdown and keeps the system notification in step with it. Every intent returns the
+/// issue that stopped it, if any, so the view that asked can show it.
 @MainActor
 @Observable
 final class BreakReminderModel {
-    enum Action {
-        case toggle
-        case restart
-        case setInterval(BreakReminderInterval)
-        case reconcile
-    }
-
-    private enum Countdown: Codable {
-        case scheduled(interval: BreakReminderInterval, deadline: Date)
-        case paused(interval: BreakReminderInterval, remaining: TimeInterval)
-
-        var isValid: Bool {
-            switch self {
-            case .scheduled(_, let deadline):
-                deadline.timeIntervalSinceReferenceDate.isFinite
-            case .paused(let interval, let remaining):
-                remaining > 0 && remaining <= interval.duration
-            }
-        }
-    }
-
     private static let defaultsKey = "break-reminder-state"
 
     private let notifications: any BreakReminderNotifications
     private let defaults: UserDefaults
     private let now: @MainActor () -> Date
-    private var countdown: Countdown
 
-    var interval: BreakReminderInterval {
-        switch countdown {
-        case .scheduled(let interval, _), .paused(let interval, _):
-            interval
+    private(set) var countdown: BreakReminderCountdown {
+        didSet {
+            guard let data = try? PropertyListEncoder().encode(countdown) else {
+                return
+            }
+            defaults.set(data, forKey: Self.defaultsKey)
         }
     }
 
-    private(set) var issue: BreakReminderIssue?
-    private(set) var isScheduling = false
+    /// A notification change is in flight; intents arriving meanwhile are dropped.
+    private(set) var isBusy = false
 
     init(
         notifications: any BreakReminderNotifications,
@@ -78,96 +40,61 @@ final class BreakReminderModel {
         self.notifications = notifications
         self.defaults = defaults
         self.now = now
+        let stored = defaults.data(forKey: Self.defaultsKey)
+            .flatMap { try? PropertyListDecoder().decode(BreakReminderCountdown.self, from: $0) }
+        countdown = if let stored, stored.isValid { stored } else { .initial }
+    }
 
-        if let data = defaults.data(forKey: Self.defaultsKey),
-            let countdown = try? PropertyListDecoder().decode(Countdown.self, from: data),
-            countdown.isValid
-        {
-            self.countdown = countdown
-        } else {
-            countdown = .paused(interval: .oneHour, remaining: BreakReminderInterval.oneHour.duration)
+    func perform(_ action: BreakReminderCountdown.Action) async -> BreakReminderIssue? {
+        await whileBusy {
+            guard let change = countdown.change(for: action, at: now()) else {
+                return nil
+            }
+            return await apply(change)
         }
     }
 
-    func status(at date: Date) -> BreakReminderStatus {
-        switch countdown {
-        case .scheduled(_, let deadline):
-            deadline > date
-                ? .running(remaining: deadline.timeIntervalSince(date))
-                : .expired
-        case .paused(_, let remaining):
-            .paused(remaining: remaining)
-        }
-    }
-
-    func perform(_ action: Action) async {
-        guard !isScheduling else {
-            return
-        }
-        isScheduling = true
-        defer {
-            isScheduling = false
-        }
-
-        switch (action, status(at: now())) {
-        case (.toggle, .running(let remaining)):
-            pause(interval: interval, remaining: remaining)
-        case (.toggle, .paused(let remaining)):
-            await start(interval: interval, after: remaining)
-        case (.toggle, .expired), (.restart, _):
-            await start(interval: interval, after: interval.duration)
-        case (.setInterval(let newInterval), let status):
-            guard newInterval != interval else {
-                return
-            }
-            if case .running = status {
-                await start(interval: newInterval, after: newInterval.duration)
-            } else {
-                pause(interval: newInterval, remaining: newInterval.duration)
-            }
-        case (.reconcile, .running):
-            guard !(await notifications.hasDeliverableReminder()),
-                case .running(let remaining) = status(at: now())
+    /// Reschedules the notification of a running countdown that lost it, such as after a relaunch
+    /// or once notifications were turned off; the latter pauses the countdown with the issue.
+    func reconcile() async -> BreakReminderIssue? {
+        await whileBusy {
+            guard case .running = countdown.status(at: now()),
+                !(await notifications.isPending()),
+                case .running(let remaining) = countdown.status(at: now())
             else {
-                return
+                return nil
             }
-            await start(interval: interval, after: remaining)
-        case (.reconcile, .paused), (.reconcile, .expired):
-            break
+            return await apply(.run(countdown.interval, for: remaining))
         }
     }
 
-    func dismissIssue() {
-        issue = nil
+    private func whileBusy(_ work: () async -> BreakReminderIssue?) async -> BreakReminderIssue? {
+        guard !isBusy else {
+            return nil
+        }
+        isBusy = true
+        defer {
+            isBusy = false
+        }
+        return await work()
     }
 
-    private func start(interval: BreakReminderInterval, after duration: TimeInterval) async {
-        issue = nil
-        do {
-            try await notifications.schedule(after: duration)
+    private func apply(_ change: BreakReminderCountdown.Change) async -> BreakReminderIssue? {
+        switch change {
+        case .run(let interval, let duration):
+            do {
+                try await notifications.schedule(after: duration)
+            } catch {
+                notifications.cancel()
+                countdown = .paused(interval: interval, remaining: duration)
+                return error
+            }
             // Measured once scheduling returns, so an authorization prompt doesn't shorten the countdown.
             countdown = .scheduled(interval: interval, deadline: now().addingTimeInterval(duration))
-            persist()
-        } catch {
-            pause(interval: interval, remaining: duration, issue: error)
+        case .pause(let interval, let remaining):
+            notifications.cancel()
+            countdown = .paused(interval: interval, remaining: remaining)
         }
-    }
-
-    private func pause(
-        interval: BreakReminderInterval,
-        remaining: TimeInterval,
-        issue: BreakReminderIssue? = nil
-    ) {
-        countdown = .paused(interval: interval, remaining: remaining)
-        notifications.cancel()
-        self.issue = issue
-        persist()
-    }
-
-    private func persist() {
-        guard let data = try? PropertyListEncoder().encode(countdown) else {
-            return
-        }
-        defaults.set(data, forKey: Self.defaultsKey)
+        return nil
     }
 }

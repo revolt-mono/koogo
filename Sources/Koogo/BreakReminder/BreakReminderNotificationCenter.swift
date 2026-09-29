@@ -9,6 +9,7 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
 
     override init() {
         super.init()
+        // The process has one notification delegate; this is the only feature that posts notifications.
         center.delegate = self
     }
 
@@ -46,7 +47,7 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
         }
     }
 
-    func hasDeliverableReminder() async -> Bool {
+    func isPending() async -> Bool {
         switch await center.notificationSettings().authorizationStatus {
         case .authorized, .provisional, .ephemeral:
             return await center.pendingNotificationRequests().contains {

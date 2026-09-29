@@ -11,7 +11,7 @@ final class PanelViewTests: XCTestCase {
         try workspace.write(codexLog(input: 700, output: 300), to: workspace.codexSessions.appending(path: "log.jsonl"))
         let defaults = try makeIsolatedDefaults()
         let update = UpdateModel()
-        let reminder = BreakReminderModel(notifications: PanelTestNotifications(), defaults: defaults)
+        let reminder = BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults)
         let inbox = InboxModel(defaults: defaults)
 
         // Recreate the panel so each open reads the persisted choice, including the default-on case.
@@ -57,11 +57,4 @@ final class PanelViewTests: XCTestCase {
             withExtendedLifetime(host) {}
         }
     }
-}
-
-@MainActor
-private final class PanelTestNotifications: BreakReminderNotifications {
-    func schedule(after _: TimeInterval) async throws(BreakReminderIssue) {}
-    func hasDeliverableReminder() async -> Bool { false }
-    func cancel() {}
 }

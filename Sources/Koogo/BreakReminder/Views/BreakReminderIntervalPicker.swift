@@ -2,15 +2,16 @@ import SwiftUI
 
 struct BreakReminderIntervalPicker: View {
     @Environment(BreakReminderModel.self) private var reminderModel
+    @State private var issue: BreakReminderIssue?
 
     var body: some View {
         Picker(
             "Remind Me Every",
             selection: Binding(
-                get: { reminderModel.interval },
+                get: { reminderModel.countdown.interval },
                 set: { interval in
                     Task {
-                        await reminderModel.perform(.setInterval(interval))
+                        issue = await reminderModel.perform(.setInterval(interval))
                     }
                 }
             )
@@ -21,7 +22,7 @@ struct BreakReminderIntervalPicker: View {
             }
         }
         .pickerStyle(.menu)
-        .disabled(reminderModel.isScheduling)
-        .breakReminderIssueAlert()
+        .disabled(reminderModel.isBusy)
+        .breakReminderIssueAlert($issue)
     }
 }

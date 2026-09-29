@@ -3,16 +3,17 @@ import SwiftUI
 struct BreakReminderControl: View {
     @Environment(BreakReminderModel.self) private var reminderModel
     @State private var isVisible = false
+    @State private var issue: BreakReminderIssue?
 
     var body: some View {
         // A stable container, so appearance tracks the control rather than whichever branch is showing.
         ZStack {
-            if isVisible, case .running = reminderModel.status(at: .now) {
+            if isVisible, case .running = reminderModel.countdown.status(at: .now) {
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                    BreakReminderButton(status: reminderModel.status(at: timeline.date))
+                    button(at: timeline.date)
                 }
             } else {
-                BreakReminderButton(status: reminderModel.status(at: .now))
+                button(at: .now)
             }
         }
         .onAppear {
@@ -22,16 +23,24 @@ struct BreakReminderControl: View {
             isVisible = false
         }
         .task {
-            await reminderModel.perform(.reconcile)
+            issue = await reminderModel.reconcile()
         }
-        .breakReminderIssueAlert()
+        .breakReminderIssueAlert($issue)
+    }
+
+    private func button(at date: Date) -> some View {
+        BreakReminderButton(status: reminderModel.countdown.status(at: date), isBusy: reminderModel.isBusy) { action in
+            Task {
+                issue = await reminderModel.perform(action)
+            }
+        }
     }
 }
 
 private struct BreakReminderButton: View {
-    @Environment(BreakReminderModel.self) private var reminderModel
-
     let status: BreakReminderStatus
+    let isBusy: Bool
+    let perform: (BreakReminderCountdown.Action) -> Void
 
     private var systemImage: String {
         switch status {
@@ -78,19 +87,15 @@ private struct BreakReminderButton: View {
     }
 
     var body: some View {
-        let timeText = breakReminderTimeText(status)
-
         Button {
-            Task {
-                await reminderModel.perform(.toggle)
-            }
+            perform(.toggle)
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: systemImage)
                     .font(.system(size: 7, weight: .semibold))
                     .frame(width: 6)
 
-                Text(timeText)
+                Text(status.timeText)
                     .font(.system(size: 9, weight: .medium))
                     .monospacedDigit()
                     .frame(width: 40, alignment: .leading)
@@ -100,92 +105,39 @@ private struct BreakReminderButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(foregroundColor)
-        .disabled(reminderModel.isScheduling)
+        .disabled(isBusy)
         .help(help)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue(timeText)
+        .accessibilityValue(status.timeText)
         .accessibilityHint(help)
         .accessibilityAction(named: "Restart Timer") {
-            restart()
+            perform(.restart)
         }
         .contextMenu {
-            Button("Restart Timer", action: restart)
-                .disabled(reminderModel.isScheduling)
-        }
-    }
-
-    private func restart() {
-        Task {
-            await reminderModel.perform(.restart)
+            Button("Restart Timer") {
+                perform(.restart)
+            }
+            .disabled(isBusy)
         }
     }
 }
 
-func breakReminderTimeText(_ status: BreakReminderStatus) -> String {
-    let remaining: TimeInterval
-    switch status {
-    case .running(let value), .paused(let value):
-        remaining = value
-    case .expired:
-        remaining = 0
-    }
+extension BreakReminderStatus {
+    /// The time left as `h:mm:ss`, or `mm:ss` under an hour; an expired reminder shows zero.
+    var timeText: String {
+        let remaining: TimeInterval =
+            switch self {
+            case .running(let value), .paused(let value): value
+            case .expired: 0
+            }
 
-    let totalSeconds = Int(ceil(remaining))
-    let hours = totalSeconds / 3_600
-    let minutes = (totalSeconds % 3_600) / 60
-    let seconds = totalSeconds % 60
-    if hours > 0 {
-        return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-    }
-    return String(format: "%02d:%02d", minutes, seconds)
-}
-
-extension View {
-    /// Presents the break reminder's current issue, such as notifications being turned off.
-    func breakReminderIssueAlert() -> some View {
-        modifier(BreakReminderIssueAlert())
-    }
-}
-
-private struct BreakReminderIssueAlert: ViewModifier {
-    @Environment(BreakReminderModel.self) private var reminderModel
-
-    func body(content: Content) -> some View {
-        content.alert(
-            reminderModel.issue?.title ?? "Break Reminder",
-            isPresented: Binding(
-                get: { reminderModel.issue != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        reminderModel.dismissIssue()
-                    }
-                }
-            ),
-            presenting: reminderModel.issue
-        ) { _ in
-            Button("OK", role: .cancel) {}
-        } message: { issue in
-            Text(issue.message)
+        let totalSeconds = Int(ceil(remaining))
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
         }
-    }
-}
-
-private extension BreakReminderIssue {
-    var title: String {
-        switch self {
-        case .notificationsDisabled:
-            "Notifications Are Off"
-        case .schedulingFailed:
-            "Couldn't Start Break Reminder"
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .notificationsDisabled:
-            "Allow Koogo notifications in System Settings before starting the break reminder."
-        case .schedulingFailed:
-            "Koogo couldn't schedule the notification. Please try again."
-        }
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 }
