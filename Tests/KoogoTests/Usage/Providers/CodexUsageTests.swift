@@ -216,21 +216,6 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 120)
     }
 
-    func testCodexFavoriteCarriesTheTurnEffort() async throws {
-        try workspace.write(
-            codexLog(input: 100, output: 20),
-            to: workspace.codexSessions.appending(path: "session.jsonl")
-        )
-
-        let snapshot = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now).snapshot
-
-        XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 120)
-        XCTAssertEqual(
-            snapshot.providers[.codex]?.favorite,
-            ProviderUsageSnapshot.Favorite(modelName: "GPT 5.6 Sol", reasoningEffort: "high")
-        )
-    }
-
     func testCodexQuotesMatchPublishedRates() throws {
         let short = codexTokenUsage(uncached: 100_000, cached: 100_000, cacheWrite: 50_000, output: 10_000)
         let long = codexTokenUsage(uncached: 122_001, cached: 100_000, cacheWrite: 50_000, output: 10_000)

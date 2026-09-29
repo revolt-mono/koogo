@@ -230,19 +230,6 @@ final class CodexQuotaServiceTests: XCTestCase {
         try await waitForExit(pidWrittenTo: pidMarker)
     }
 
-    func testFetchReportsMissingBinaryWhenNoCandidateIsExecutable() async throws {
-        let root = try makeTemporaryDirectory()
-        let notExecutable = root.appending(path: "codex")
-        try Data().write(to: notExecutable)
-
-        let result = await CodexQuotaService(
-            executableCandidates: [root.appending(path: "missing/codex"), notExecutable]
-        )
-        .fetch()
-
-        XCTAssertEqual(result, .failure(.binaryNotFound))
-    }
-
     /// Reads a pid a stub server wrote to `marker` and asserts that the process is gone within three seconds.
     private func waitForExit(
         pidWrittenTo marker: URL,

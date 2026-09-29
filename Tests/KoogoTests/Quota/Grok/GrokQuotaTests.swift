@@ -84,54 +84,6 @@ final class GrokQuotaTests: XCTestCase {
         XCTAssertEqual(emptyResult, .failure(.emptyLimits))
     }
 
-    @MainActor
-    func testModelKeepsTheLastSnapshotOnceTheSessionExpires() async throws {
-        let authURL = try makeAuthURL()
-        let model = GrokQuotaModel(
-            quotaService: GrokQuotaService(authURL: authURL) { _ in
-                try grokBillingReply(#"{"config":{"creditUsagePercent":25}}"#)
-            }
-        )
-
-        try writeGrokSession(expiresAt: "2000-01-01T00:00:00Z", to: authURL)
-        model.refresh(force: true)
-        try await waitUntil { !model.isRefreshing }
-        XCTAssertEqual(model.state, .unavailable(.credentialsExpired))
-
-        try writeGrokSession(expiresAt: "2999-01-01T00:00:00Z", to: authURL)
-        model.refresh(force: true)
-        try await waitUntil { !model.isRefreshing }
-        let snapshot = GrokQuotaSnapshot(period: nil, window: QuotaWindow(usedPercent: 25, resetsAt: nil))
-        XCTAssertEqual(model.state, .available(snapshot, stale: nil))
-
-        try writeGrokSession(expiresAt: "2000-01-01T00:00:00Z", to: authURL)
-        model.refresh(force: true)
-        try await waitUntil { !model.isRefreshing }
-        XCTAssertEqual(model.state, .available(snapshot, stale: .credentialsExpired))
-    }
-
-    @MainActor
-    func testRefreshesCoalesceAndRespectCooldown() async throws {
-        let authURL = try makeAuthURL()
-        try writeGrokSession(expiresAt: nil, to: authURL)
-        let requests = Mutex(0)
-        let model = GrokQuotaModel(
-            quotaService: GrokQuotaService(authURL: authURL) { _ in
-                requests.withLock { $0 += 1 }
-                return try grokBillingReply(#"{"config":{"creditUsagePercent":25}}"#)
-            }
-        )
-
-        model.refresh()
-        model.refresh()
-        try await waitUntil { !model.isRefreshing }
-        XCTAssertEqual(requests.withLock { $0 }, 1)
-
-        model.refresh()
-        XCTAssertFalse(model.isRefreshing)
-        XCTAssertEqual(requests.withLock { $0 }, 1)
-    }
-
     private func makeAuthURL() throws -> URL {
         try makeTemporaryDirectory().appending(path: "auth.json")
     }

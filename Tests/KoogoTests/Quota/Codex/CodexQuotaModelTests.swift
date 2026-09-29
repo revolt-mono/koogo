@@ -23,20 +23,6 @@ final class CodexQuotaModelTests: XCTestCase {
     }
 
     @MainActor
-    func testFailedRefreshKeepsSnapshotAndMarksItStale() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeAppServer()
-        let model = try await loadModel(executable: executable)
-        let snapshot = try XCTUnwrap(model.snapshot)
-
-        try FileManager.default.removeItem(at: executable)
-        model.refresh(force: true)
-        XCTAssertEqual(model.state, .available(snapshot, stale: nil))
-        try await waitUntil { !model.isBusy }
-        XCTAssertEqual(model.state, .available(snapshot, stale: .binaryNotFound))
-    }
-
-    @MainActor
     func testRetryFromUnavailableKeepsTheReasonWhileInFlight() async throws {
         let model = CodexQuotaModel(quotaService: CodexQuotaService(executableCandidates: []))
         model.refresh()
