@@ -20,12 +20,12 @@ final class GrokQuotaTests: XCTestCase {
                 """
         )
 
-        let snapshot = try await GrokQuotaService(executableCandidates: [executable]).fetch().get()
+        let snapshot = try await GrokQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.period, .weekly)
-        XCTAssertEqual(snapshot.window.remainingPercent, 97)
+        XCTAssertEqual(snapshot.account.map(\.title), ["Weekly"])
+        XCTAssertEqual(snapshot.account["Weekly"]?.remainingPercent, 97)
         XCTAssertEqual(
-            try XCTUnwrap(snapshot.window.resetsAt).timeIntervalSince1970,
+            try XCTUnwrap(snapshot.account["Weekly"]?.resetsAt).timeIntervalSince1970,
             1_790_533_996.478,
             accuracy: 0.001
         )
@@ -61,12 +61,9 @@ final class GrokQuotaTests: XCTestCase {
             )
         )
 
-        let result = await GrokQuotaService(executableCandidates: [executable]).fetch()
+        let result = await GrokQuotaSource(executableCandidates: [executable]).load()
 
-        XCTAssertEqual(
-            result,
-            .success(GrokQuotaSnapshot(period: .monthly, window: QuotaWindow(usedPercent: 0, resetsAt: nil)))
-        )
+        XCTAssertEqual(try result.get().account, [QuotaWindow(title: "Monthly limit", usedPercent: 0, resetsAt: nil)])
     }
 
     func testUnknownPeriodsKeepTheAllowanceAndResetDate() async throws {
@@ -78,27 +75,25 @@ final class GrokQuotaTests: XCTestCase {
             )
         )
 
-        let snapshot = try await GrokQuotaService(executableCandidates: [executable]).fetch().get()
+        let snapshot = try await GrokQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertNil(snapshot.period)
-        XCTAssertEqual(snapshot.window.remainingPercent, 0)
-        XCTAssertEqual(snapshot.window.resetsAt, Date(timeIntervalSince1970: 1_788_220_800))
+        XCTAssertEqual(snapshot.account.map(\.title), ["Usage limit"])
+        XCTAssertEqual(snapshot.account["Usage limit"]?.remainingPercent, 0)
+        XCTAssertEqual(snapshot.account["Usage limit"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800))
     }
 
     func testMissingConfigIsUnavailableButAnEmptyConfigIsAnUntouchedAllowance() async throws {
-        let cases: [(String, Result<GrokQuotaSnapshot, CLIQuotaUnavailability>)] = [
+        let untouched = QuotaSnapshot(account: [QuotaWindow(title: "Usage limit", usedPercent: 0, resetsAt: nil)])
+        let cases: [(String, Result<QuotaSnapshot?, QuotaUnavailability>)] = [
             (#"{"id":2,"result":{}}"#, .failure(.emptyLimits)),
             (GrokQuotaTestWorkspace.response(config: "null"), .failure(.emptyLimits)),
-            (
-                GrokQuotaTestWorkspace.response(config: "{}"),
-                .success(GrokQuotaSnapshot(period: nil, window: QuotaWindow(usedPercent: 0, resetsAt: nil)))
-            ),
+            (GrokQuotaTestWorkspace.response(config: "{}"), .success(untouched)),
         ]
         for (response, expected) in cases {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(billingResponse: response)
-            let result = await GrokQuotaService(executableCandidates: [executable]).fetch()
-            XCTAssertEqual(result, expected)
+            let result = await GrokQuotaSource(executableCandidates: [executable]).load()
+            XCTAssertEqual(result.map(Optional.some), expected)
         }
     }
 
@@ -113,7 +108,7 @@ final class GrokQuotaTests: XCTestCase {
         for response in responses {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(billingResponse: response)
-            let result = await GrokQuotaService(executableCandidates: [executable]).fetch()
+            let result = await GrokQuotaSource(executableCandidates: [executable]).load()
             XCTAssertEqual(result, .failure(.sessionFailed))
         }
     }
@@ -127,7 +122,7 @@ final class GrokQuotaTests: XCTestCase {
         for response in responses {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(initializeResponse: response)
-            let result = await GrokQuotaService(executableCandidates: [executable]).fetch()
+            let result = await GrokQuotaSource(executableCandidates: [executable]).load()
             XCTAssertEqual(result, .failure(.sessionFailed))
             let requests = try String(contentsOf: workspace.requestsFile, encoding: .utf8).split(separator: "\n")
             XCTAssertEqual(requests.count, 1)
@@ -135,7 +130,7 @@ final class GrokQuotaTests: XCTestCase {
     }
 
     func testMissingBinaryIsUnavailable() async {
-        let result = await GrokQuotaService(executableCandidates: []).fetch()
+        let result = await GrokQuotaSource(executableCandidates: []).load()
         XCTAssertEqual(result, .failure(.binaryNotFound))
     }
 
@@ -146,7 +141,7 @@ final class GrokQuotaTests: XCTestCase {
                 beforeInitialize: stallsDuringInitialize ? "while :; do :; done" : "",
                 beforeBilling: stallsDuringInitialize ? "" : "while :; do :; done"
             )
-            let result = await GrokQuotaService(executableCandidates: [executable], timeout: .milliseconds(500)).fetch()
+            let result = await GrokQuotaSource(executableCandidates: [executable], timeout: .milliseconds(500)).load()
             XCTAssertEqual(result, .failure(.timedOut))
             let text = try String(contentsOf: workspace.pidFile, encoding: .utf8).trimmingCharacters(in: .newlines)
             let pid = try XCTUnwrap(pid_t(text))

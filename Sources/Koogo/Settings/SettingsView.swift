@@ -4,7 +4,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(UpdateModel.self) private var updateModel
-    private var quotaPreferences = QuotaPreferences()
 
     var body: some View {
         Form {
@@ -17,9 +16,7 @@ struct SettingsView: View {
             }
 
             Section("Fetch Quota") {
-                Toggle("Codex", isOn: quotaPreferences.$fetchCodex)
-                Toggle("Claude", isOn: quotaPreferences.$fetchClaude)
-                Toggle("Grok", isOn: quotaPreferences.$fetchGrok)
+                QuotaProviderToggles()
             }
 
             Section("System") {

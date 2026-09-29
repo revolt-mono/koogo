@@ -37,17 +37,17 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 ├── Sources/Koogo          menu bar application
 │   ├── App                entry point, model lifetimes and scene wiring, headless report and benchmark
 │   ├── Shared             leaf primitives: provider identity, telemetry, command-line tool runner, JSON-RPC connection, ISO 8601 dates, pager popover, local event monitor, Reduce Motion helpers
-│   ├── Panel              menu bar panel shell: toolbar, pager, usage page composition, quota gating
+│   ├── Panel              menu bar panel shell: toolbar, pager, usage page composition, panel-open refresh
 │   ├── Settings           settings window shell hosting slice-owned controls
 │   ├── Usage              provider enablement, pipeline service, log locations, and usage vocabulary
 │   │   ├── Ingestion      log source and log contracts, file discovery, incremental reads, event identity and dedup, ingestion stats
 │   │   ├── Providers      the provider-to-source registry; Codex, Claude, Grok, and Pi Agent sources, formats, identities, and pricing
 │   │   ├── Aggregation    calendar periods, snapshots, and summary scope
 │   │   └── Views          summary, provider cards, chart, provider toggles
-│   ├── Quota              quota service contract, state, limits, and shared quota views
-│   │   ├── Codex          app-server transport, quota and reset flow, views
-│   │   ├── Claude         local CLI usage report, quota model, views
-│   │   └── Grok           local CLI ACP billing, quota model, views
+│   ├── Quota              quota vocabulary, the provider-to-source registry, one model for every provider's state and switches, section and toggle views
+│   │   ├── Codex          app-server transport, quota source, banked reset model and views
+│   │   ├── Claude         local CLI usage report as a quota source
+│   │   └── Grok           local CLI ACP billing as a quota source
 │   ├── QuickActions       scan-then-act model, system adapters (appearance, disk images, orphaned agents), and views
 │   ├── BreakReminder      countdown state, notifications, controls, and issue alert
 │   ├── Inbox              todo rules, persistence, and editors

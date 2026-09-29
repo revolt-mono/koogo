@@ -1,8 +1,6 @@
 import Foundation
 
-struct CodexQuotaService: QuotaService {
-    static let name = "codex"
-
+struct CodexQuotaSource: QuotaSource {
     private let appServer: CodexAppServer
 
     init(
@@ -19,7 +17,7 @@ struct CodexQuotaService: QuotaService {
         appServer = CodexAppServer(tool: CommandLineTool(candidates: executableCandidates, timeout: timeout))
     }
 
-    func load() async -> Result<CodexQuotaSnapshot, CLIQuotaUnavailability> {
+    func load() async -> Result<QuotaSnapshot, QuotaUnavailability> {
         do {
             let response: CodexQuotaResponse = try await appServer.call("account/rateLimits/read")
             return response.snapshot.map(Result.success) ?? .failure(.emptyLimits)

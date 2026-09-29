@@ -61,10 +61,7 @@ private struct ProviderCards: View {
     /// Horizontal card inset; the scroller lives in the trailing one.
     private static let inset: CGFloat = 20
 
-    @Environment(CodexQuotaModel.self) private var codexQuotaModel
-    @Environment(ClaudeQuotaModel.self) private var claudeQuotaModel
-    @Environment(GrokQuotaModel.self) private var grokQuotaModel
-    private var quotaPreferences = QuotaPreferences()
+    @Environment(QuotaModel.self) private var quotaModel
     @State private var cardHeights: [Provider: CGFloat] = [:]
 
     let providers: [Provider: ProviderUsageSnapshot]
@@ -82,15 +79,7 @@ private struct ProviderCards: View {
                 ForEach(shown, id: \.self) { provider in
                     if let usage = providers[provider] {
                         ProviderUsageCard(provider: provider, usage: usage) {
-                            switch provider {
-                            case .codex:
-                                if quotaPreferences.fetchCodex { CodexQuotaView() }
-                            case .claude:
-                                if quotaPreferences.fetchClaude { ClaudeQuotaView() }
-                            case .grok:
-                                if quotaPreferences.fetchGrok { GrokQuotaView() }
-                            case .piAgent: EmptyView()
-                            }
+                            QuotaSection(provider: provider)
                         }
                         .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.size.height
@@ -102,9 +91,7 @@ private struct ProviderCards: View {
             }
             .padding(.horizontal, Self.inset)
             // Animated here so sibling cards follow a card as its quota section resizes.
-            .motionAnimation(.smooth(duration: 0.25), value: codexQuotaModel.state)
-            .motionAnimation(.smooth(duration: 0.25), value: claudeQuotaModel.state)
-            .motionAnimation(.smooth(duration: 0.25), value: grokQuotaModel.state)
+            .motionAnimation(.smooth(duration: 0.25), value: quotaModel.states)
         }
         .contentMargins(.vertical, Self.spacing, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)

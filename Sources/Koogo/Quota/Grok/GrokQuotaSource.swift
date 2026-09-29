@@ -1,12 +1,8 @@
 import Foundation
 
-typealias GrokQuotaModel = QuotaModel<GrokQuotaService>
-
 /// Delegates credentials and billing to Grok's ACP server. Initialization performs the CLI's
 /// unattended authentication refresh; billing needs neither a session nor a model prompt.
-struct GrokQuotaService: QuotaService {
-    static let name = "grok"
-
+struct GrokQuotaSource: QuotaSource {
     private let tool: CommandLineTool
 
     init(
@@ -19,7 +15,7 @@ struct GrokQuotaService: QuotaService {
         tool = CommandLineTool(candidates: executableCandidates, timeout: timeout)
     }
 
-    func load() async -> Result<GrokQuotaSnapshot, CLIQuotaUnavailability> {
+    func load() async -> Result<QuotaSnapshot, QuotaUnavailability> {
         do {
             let response: GrokQuotaResponse = try await tool.session(
                 ["--no-auto-update", "agent", "--no-leader", "stdio"],
@@ -32,7 +28,7 @@ struct GrokQuotaService: QuotaService {
             }
             return response.snapshot.map(Result.success) ?? .failure(.emptyLimits)
         } catch {
-            return .failure(CLIQuotaUnavailability(error))
+            return .failure(QuotaUnavailability(error))
         }
     }
 }

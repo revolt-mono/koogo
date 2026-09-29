@@ -1,12 +1,8 @@
 import Foundation
 
-typealias ClaudeQuotaModel = QuotaModel<ClaudeQuotaService>
-
 /// Delegates authentication and quota access to the local Claude CLI, without reading credentials
 /// or making HTTP requests from the app.
-struct ClaudeQuotaService: QuotaService {
-    static let name = "claude"
-
+struct ClaudeQuotaSource: QuotaSource {
     // Keep quota reads isolated from project settings, hooks, tools, and saved sessions.
     private static let arguments = [
         "--setting-sources", "",
@@ -25,7 +21,7 @@ struct ClaudeQuotaService: QuotaService {
         tool = CommandLineTool(candidates: executableCandidates, timeout: timeout)
     }
 
-    func load() async -> Result<ClaudeQuotaSnapshot, CLIQuotaUnavailability> {
+    func load() async -> Result<QuotaSnapshot, QuotaUnavailability> {
         do {
             let output = try await tool.output(
                 of: Self.arguments,
@@ -33,7 +29,7 @@ struct ClaudeQuotaService: QuotaService {
             )
             return try ClaudeQuotaResponse.snapshot(from: output).map(Result.success) ?? .failure(.emptyLimits)
         } catch {
-            return .failure(CLIQuotaUnavailability(error))
+            return .failure(QuotaUnavailability(error))
         }
     }
 }

@@ -15,17 +15,18 @@ struct GrokQuotaResponse: Decodable {
 
     let config: Config?
 
-    var snapshot: GrokQuotaSnapshot? {
+    /// The Grok Build credit limit: one weekly or monthly window per account, or a window of unknown
+    /// period that keeps the allowance and reset date.
+    var snapshot: QuotaSnapshot? {
         guard let config else { return nil }
-        let period: GrokQuotaSnapshot.Period? =
+        let title =
             switch config.currentPeriod?.type {
-            case "USAGE_PERIOD_TYPE_WEEKLY": .weekly
-            case "USAGE_PERIOD_TYPE_MONTHLY": .monthly
-            default: nil
+            case "USAGE_PERIOD_TYPE_WEEKLY": "Weekly"
+            case "USAGE_PERIOD_TYPE_MONTHLY": "Monthly limit"
+            default: "Usage limit"
             }
-        return GrokQuotaSnapshot(
-            period: period,
-            window: QuotaWindow(usedPercent: config.creditUsagePercent ?? 0, resetsAt: config.currentPeriod?.end)
-        )
+        return QuotaSnapshot(account: [
+            QuotaWindow(title: title, usedPercent: config.creditUsagePercent ?? 0, resetsAt: config.currentPeriod?.end)
+        ])
     }
 }

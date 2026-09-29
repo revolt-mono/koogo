@@ -3,13 +3,12 @@ import SwiftUI
 /// One quota window: title, what is left, a live reset countdown, and a remaining-share bar.
 struct QuotaWindowRow: View {
     let scopeTitle: String
-    let title: String
     let window: QuotaWindow
 
     var body: some View {
         VStack(spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(title)
+                Text(window.title)
                     .fontWeight(.semibold)
 
                 Spacer(minLength: 12)
@@ -28,29 +27,25 @@ struct QuotaWindowRow: View {
 
             ProgressView(value: Double(window.remainingPercent), total: 100)
                 .progressViewStyle(QuotaProgressViewStyle())
-                .accessibilityLabel("\(scopeTitle) \(title)")
+                .accessibilityLabel("\(scopeTitle) \(window.title)")
                 .accessibilityValue("\(window.remainingPercent) percent left")
         }
     }
 }
 
 /// One scope's windows; a model scope is named in a header and in the rows' accessibility labels.
-struct QuotaLimitsView: View {
-    let provider: String
-    var model: String?
-    let limits: QuotaLimits
+struct QuotaWindowsView: View {
+    let scopeTitle: String
+    var header: String?
+    let windows: [QuotaWindow]
 
     var body: some View {
-        let scopeTitle = model.map { "\(provider) \($0)" } ?? provider
         VStack(alignment: .leading, spacing: 8) {
-            if let model {
-                QuotaScopeHeader(title: model)
+            if let header {
+                QuotaScopeHeader(title: header)
             }
-            if let session = limits.session {
-                QuotaWindowRow(scopeTitle: scopeTitle, title: "Session", window: session)
-            }
-            if let weekly = limits.weekly {
-                QuotaWindowRow(scopeTitle: scopeTitle, title: "Weekly", window: weekly)
+            ForEach(windows, id: \.title) { window in
+                QuotaWindowRow(scopeTitle: scopeTitle, window: window)
             }
         }
     }

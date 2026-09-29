@@ -4,14 +4,8 @@ import Foundation
 /// usage pipeline and all quota fetches, then encodes the outcome as JSON. This is
 /// the canonical way to verify behavior end to end without the menu bar UI.
 struct SystemReport: Encodable {
-    private struct Quota: Encodable {
-        let codex: QuotaOutcome<CodexQuotaService>
-        let claude: QuotaOutcome<ClaudeQuotaService>
-        let grok: QuotaOutcome<GrokQuotaService>
-    }
-
-    private struct QuotaOutcome<Service: QuotaService>: Encodable {
-        let result: Result<Service.Snapshot, Service.Reason>
+    private struct QuotaOutcome: Encodable {
+        let result: Result<QuotaSnapshot, QuotaUnavailability>
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
@@ -34,28 +28,21 @@ struct SystemReport: Encodable {
 
     private let generatedAt: Date
     private let usage: UsageReport
-    private let quota: Quota
+    private let quota: [Provider: QuotaOutcome]
 
     static func generate(
         usageService: UsageService = UsageService(),
-        codexQuotaService: CodexQuotaService = CodexQuotaService(),
-        claudeQuotaService: ClaudeQuotaService = ClaudeQuotaService(),
-        grokQuotaService: GrokQuotaService = GrokQuotaService(),
+        quotaSources: [Provider: any QuotaSource] = Provider.quotaSources,
         at date: Date = .now
     ) async throws -> Data {
-        async let codexQuota = codexQuotaService.fetch()
-        async let claudeQuota = claudeQuotaService.fetch()
-        async let grokQuota = grokQuotaService.fetch()
+        async let quota = withTaskGroup(of: (Provider, QuotaOutcome).self) { group in
+            for (provider, source) in quotaSources {
+                group.addTask { (provider, QuotaOutcome(result: await source.load())) }
+            }
+            return await group.reduce(into: [:]) { quota, outcome in quota[outcome.0] = outcome.1 }
+        }
         let usage = await usageService.refresh(at: date)
-        let report = SystemReport(
-            generatedAt: date,
-            usage: usage,
-            quota: Quota(
-                codex: QuotaOutcome(result: await codexQuota),
-                claude: QuotaOutcome(result: await claudeQuota),
-                grok: QuotaOutcome(result: await grokQuota)
-            )
-        )
+        let report = SystemReport(generatedAt: date, usage: usage, quota: await quota)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601

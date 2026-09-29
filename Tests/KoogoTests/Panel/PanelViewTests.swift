@@ -15,30 +15,32 @@ final class PanelViewTests: XCTestCase {
         let inbox = InboxModel(defaults: defaults)
 
         // Recreate the panel so each open reads the persisted choice, including the default-on case.
-        let choices: [(Bool?, Bool?, Bool?)] = [
-            (nil, nil, nil),
-            (true, false, false), (false, true, false), (false, false, true),
-            (false, false, false), (true, true, true),
+        let choices: [Set<Provider>?] = [
+            nil, [.claude, .grok], [.codex, .grok], [.codex, .claude], [.codex, .claude, .grok], [],
         ]
-        for (fetchCodex, fetchClaude, fetchGrok) in choices {
-            defaults.set(fetchCodex, forKey: "fetch-codex-quota")
-            defaults.set(fetchClaude, forKey: "fetch-claude-quota")
-            defaults.set(fetchGrok, forKey: "fetch-grok-quota")
+        for disabled in choices {
+            defaults.set(disabled.map { $0.map(\.rawValue).sorted() }, forKey: "quota-disabled-providers")
             let usage = UsageModel(
                 usageService: UsageService(locations: workspace.locations, calendar: usageTestCalendar),
                 defaults: defaults,
                 now: { usageTestTimestamp }
             )
-            let codex = CodexQuotaModel(quotaService: CodexQuotaService(executableCandidates: []))
-            let claude = ClaudeQuotaModel(quotaService: ClaudeQuotaService(executableCandidates: []))
-            let grok = GrokQuotaModel(quotaService: GrokQuotaService(executableCandidates: []))
+            let codexSource = CodexQuotaSource(executableCandidates: [])
+            let quota = QuotaModel(
+                sources: [
+                    .codex: codexSource,
+                    .claude: ClaudeQuotaSource(executableCandidates: []),
+                    .grok: GrokQuotaSource(executableCandidates: []),
+                ],
+                defaults: defaults
+            )
+            let codexReset = CodexQuotaResetModel(quotaModel: quota, source: codexSource)
             let host = NSHostingView(
                 rootView: PanelView()
                     .defaultAppStorage(defaults)
                     .environment(usage)
-                    .environment(codex)
-                    .environment(claude)
-                    .environment(grok)
+                    .environment(quota)
+                    .environment(codexReset)
                     .environment(update)
                     .environment(reminder)
                     .environment(inbox)
@@ -47,10 +49,11 @@ final class PanelViewTests: XCTestCase {
             try await waitUntil { usage.snapshot != nil }
             XCTAssertEqual(usage.snapshot?.providers[.codex]?.today.processedTokens, 1_000)
 
-            try await waitUntil { !codex.isBusy && !claude.isRefreshing && !grok.isRefreshing }
-            XCTAssertEqual(codex.state, fetchCodex ?? true ? .unavailable(.binaryNotFound) : .loading)
-            XCTAssertEqual(claude.state, fetchClaude ?? true ? .unavailable(.binaryNotFound) : .loading)
-            XCTAssertEqual(grok.state, fetchGrok ?? true ? .unavailable(.binaryNotFound) : .loading)
+            try await waitUntil { quota.providers.allSatisfy { !quota.isBusy($0) } }
+            for provider in quota.providers {
+                let isEnabled = !(disabled ?? []).contains(provider)
+                XCTAssertEqual(quota.states[provider], isEnabled ? .unavailable(.binaryNotFound) : nil, "\(provider)")
+            }
             withExtendedLifetime(host) {}
         }
     }

@@ -14,9 +14,11 @@ final class SystemReportTests: UsageWorkspaceTestCase {
 
         let data = try await SystemReport.generate(
             usageService: UsageService(locations: locations, calendar: usageTestCalendar),
-            codexQuotaService: CodexQuotaService(executableCandidates: [try quotaWorkspace.makeAppServer()]),
-            claudeQuotaService: ClaudeQuotaService(executableCandidates: []),
-            grokQuotaService: GrokQuotaService(executableCandidates: []),
+            quotaSources: [
+                .codex: CodexQuotaSource(executableCandidates: [try quotaWorkspace.makeAppServer()]),
+                .claude: ClaudeQuotaSource(executableCandidates: []),
+                .grok: GrokQuotaSource(executableCandidates: []),
+            ],
             at: now
         )
         let report = try XCTUnwrap(
@@ -74,9 +76,11 @@ final class SystemReportTests: UsageWorkspaceTestCase {
 
         let data = try await SystemReport.generate(
             usageService: UsageService(locations: locations, calendar: usageTestCalendar),
-            codexQuotaService: CodexQuotaService(executableCandidates: [codexExecutable]),
-            claudeQuotaService: ClaudeQuotaService(executableCandidates: [claudeExecutable]),
-            grokQuotaService: GrokQuotaService(executableCandidates: [grokExecutable]),
+            quotaSources: [
+                .codex: CodexQuotaSource(executableCandidates: [codexExecutable]),
+                .claude: ClaudeQuotaSource(executableCandidates: [claudeExecutable]),
+                .grok: GrokQuotaSource(executableCandidates: [grokExecutable]),
+            ],
             at: now
         )
 
@@ -86,31 +90,32 @@ final class SystemReportTests: UsageWorkspaceTestCase {
 
 private let reportKeyPaths = [
     "generatedAt",
-    "quota.claude.snapshot.account.session.remainingPercent",
-    "quota.claude.snapshot.account.session.resetsAt",
-    "quota.claude.snapshot.account.weekly.remainingPercent",
-    "quota.claude.snapshot.account.weekly.resetsAt",
+    "quota.claude.snapshot.account[].remainingPercent",
+    "quota.claude.snapshot.account[].resetsAt",
+    "quota.claude.snapshot.account[].title",
     "quota.claude.snapshot.models[].id",
-    "quota.claude.snapshot.models[].limits.weekly.remainingPercent",
-    "quota.claude.snapshot.models[].limits.weekly.resetsAt",
     "quota.claude.snapshot.models[].title",
+    "quota.claude.snapshot.models[].windows[].remainingPercent",
+    "quota.claude.snapshot.models[].windows[].resetsAt",
+    "quota.claude.snapshot.models[].windows[].title",
     "quota.claude.state",
-    "quota.codex.snapshot.account.limits.session.remainingPercent",
-    "quota.codex.snapshot.account.limits.session.resetsAt",
-    "quota.codex.snapshot.account.limits.weekly.remainingPercent",
-    "quota.codex.snapshot.account.limits.weekly.resetsAt",
-    "quota.codex.snapshot.account.resetCredits.availableCount",
-    "quota.codex.snapshot.account.resetCredits.credits[].expiresAt",
-    "quota.codex.snapshot.account.resetCredits.credits[].id",
-    "quota.codex.snapshot.account.resetCredits.credits[].title",
+    "quota.codex.snapshot.account[].remainingPercent",
+    "quota.codex.snapshot.account[].resetsAt",
+    "quota.codex.snapshot.account[].title",
     "quota.codex.snapshot.models[].id",
-    "quota.codex.snapshot.models[].limits.session.remainingPercent",
-    "quota.codex.snapshot.models[].limits.session.resetsAt",
     "quota.codex.snapshot.models[].title",
+    "quota.codex.snapshot.models[].windows[].remainingPercent",
+    "quota.codex.snapshot.models[].windows[].resetsAt",
+    "quota.codex.snapshot.models[].windows[].title",
+    "quota.codex.snapshot.resetCredits.availableCount",
+    "quota.codex.snapshot.resetCredits.credits[].expiresAt",
+    "quota.codex.snapshot.resetCredits.credits[].id",
+    "quota.codex.snapshot.resetCredits.credits[].title",
     "quota.codex.state",
-    "quota.grok.snapshot.period",
-    "quota.grok.snapshot.window.remainingPercent",
-    "quota.grok.snapshot.window.resetsAt",
+    "quota.grok.snapshot.account[].remainingPercent",
+    "quota.grok.snapshot.account[].resetsAt",
+    "quota.grok.snapshot.account[].title",
+    "quota.grok.snapshot.models",
     "quota.grok.state",
     "usage.ingestion.events.claude",
     "usage.ingestion.events.codex",

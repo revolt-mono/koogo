@@ -1,16 +1,16 @@
 import SwiftUI
 
 struct CodexQuotaResetView: View {
-    @Environment(CodexQuotaModel.self) private var model
+    @Environment(CodexQuotaResetModel.self) private var model
     @State private var isPresented = false
 
     var body: some View {
-        if model.snapshot?.account?.resetCredits != nil || model.resetState != .idle {
+        if model.resetCredits != nil || model.state != .idle {
             Button {
                 isPresented.toggle()
             } label: {
                 HStack(spacing: 4) {
-                    if let credits = model.snapshot?.account?.resetCredits {
+                    if let credits = model.resetCredits {
                         let noun = credits.availableCount == 1 ? "banked reset" : "banked resets"
                         Text("\(Text("\(credits.availableCount)").foregroundStyle(.white)) \(noun) available")
                             .monospacedDigit()
@@ -35,31 +35,25 @@ struct CodexQuotaResetView: View {
 }
 
 private struct CodexQuotaResetDetail: View {
-    @Environment(CodexQuotaModel.self) private var model
-
-    private var resetCredits: CodexQuotaSnapshot.ResetCredits? {
-        model.snapshot?.account?.resetCredits
-    }
+    @Environment(CodexQuotaResetModel.self) private var model
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("Banked resets").font(.headline)
-                if let resetCredits {
+                if let resetCredits = model.resetCredits {
                     Text("\(resetCredits.availableCount) available")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                QuotaRefreshButton(isDisabled: model.isBusy) {
-                    model.refresh(force: true)
-                }
+                QuotaRefreshButton(isDisabled: model.isBusy, action: model.refresh)
             }
             CodexQuotaResetStatus()
-            if case .available(_, stale: .some) = model.state {
+            if case .available(_, stale: .some) = model.quota {
                 Text("Quota data may be out of date. Refresh to check the latest limits and resets.")
                     .foregroundStyle(.orange)
             }
-            if let credits = resetCredits?.credits, !credits.isEmpty {
+            if let credits = model.resetCredits?.credits, !credits.isEmpty {
                 VStack(spacing: 8) {
                     ForEach(credits) { credit in
                         if credit.id != credits.first?.id {
@@ -68,7 +62,7 @@ private struct CodexQuotaResetDetail: View {
                         CodexQuotaResetCreditRow(credit: credit)
                     }
                 }
-            } else if let resetCredits, resetCredits.availableCount > 0 {
+            } else if let resetCredits = model.resetCredits, resetCredits.availableCount > 0 {
                 Text("Banked reset details are unavailable. Refresh to load them.")
                     .foregroundStyle(.secondary)
             }
@@ -82,10 +76,10 @@ private struct CodexQuotaResetDetail: View {
 }
 
 private struct CodexQuotaResetStatus: View {
-    @Environment(CodexQuotaModel.self) private var model
+    @Environment(CodexQuotaResetModel.self) private var model
 
     var body: some View {
-        switch model.resetState {
+        switch model.state {
         case .idle:
             EmptyView()
         case .confirming(let attempt, let failure):
@@ -157,8 +151,8 @@ private struct CodexQuotaResetStatus: View {
 private struct CodexQuotaResetCreditRow: View {
     private static let expiryWarning: TimeInterval = 48 * 3_600
 
-    @Environment(CodexQuotaModel.self) private var model
-    let credit: CodexQuotaSnapshot.ResetCredit
+    @Environment(CodexQuotaResetModel.self) private var model
+    let credit: QuotaSnapshot.ResetCredit
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in

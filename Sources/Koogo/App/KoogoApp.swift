@@ -3,9 +3,8 @@ import SwiftUI
 
 struct KoogoApp: App {
     @State private var usageModel: UsageModel
-    @State private var codexQuotaModel = CodexQuotaModel(quotaService: CodexQuotaService())
-    @State private var claudeQuotaModel = ClaudeQuotaModel(quotaService: ClaudeQuotaService())
-    @State private var grokQuotaModel = GrokQuotaModel(quotaService: GrokQuotaService())
+    @State private var quotaModel: QuotaModel
+    @State private var codexQuotaResetModel: CodexQuotaResetModel
     @State private var updateModel: UpdateModel
     @State private var breakReminderModel = BreakReminderModel(
         notifications: BreakReminderNotificationCenter()
@@ -19,6 +18,11 @@ struct KoogoApp: App {
         // and the first panel open finds a snapshot instead of the parsing placeholder.
         usageModel.refresh()
         _usageModel = State(initialValue: usageModel)
+        let quotaModel = QuotaModel()
+        _quotaModel = State(initialValue: quotaModel)
+        _codexQuotaResetModel = State(
+            initialValue: CodexQuotaResetModel(quotaModel: quotaModel, source: CodexQuotaSource())
+        )
         let updateModel = UpdateModel()
         updateModel.start()
         _updateModel = State(initialValue: updateModel)
@@ -41,9 +45,8 @@ struct KoogoApp: App {
             .windowResizability(.contentSize)
         }
         .environment(usageModel)
-        .environment(codexQuotaModel)
-        .environment(claudeQuotaModel)
-        .environment(grokQuotaModel)
+        .environment(quotaModel)
+        .environment(codexQuotaResetModel)
         .environment(updateModel)
         .environment(breakReminderModel)
         .environment(inboxModel)

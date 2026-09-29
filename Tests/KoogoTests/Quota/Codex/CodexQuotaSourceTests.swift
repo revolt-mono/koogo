@@ -3,7 +3,7 @@ import XCTest
 
 @testable import Koogo
 
-final class CodexQuotaServiceTests: XCTestCase {
+final class CodexQuotaSourceTests: XCTestCase {
     func testFetchUsesAccountAndModelLimitsAndClassifiesSwappedWindows() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let executable = try workspace.makeAppServer(
@@ -12,23 +12,23 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
+        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
         XCTAssertEqual(snapshot.models.map(\.id), ["codex_bengalfox"])
         XCTAssertEqual(snapshot.models[0].title, "GPT-5.3-Codex-Spark")
 
-        XCTAssertEqual(snapshot.account?.limits?.session?.remainingPercent, 55)
+        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 55)
         XCTAssertEqual(
-            snapshot.account?.limits?.session?.resetsAt,
+            snapshot.account["Session"]?.resetsAt,
             Date(timeIntervalSince1970: 1_700_000_000)
         )
-        XCTAssertEqual(snapshot.account?.limits?.weekly?.remainingPercent, 85)
+        XCTAssertEqual(snapshot.account["Weekly"]?.remainingPercent, 85)
         XCTAssertEqual(
-            snapshot.account?.limits?.weekly?.resetsAt,
+            snapshot.account["Weekly"]?.resetsAt,
             Date(timeIntervalSince1970: 1_800_000_000)
         )
-        XCTAssertEqual(snapshot.models[0].limits.session?.remainingPercent, 90)
-        XCTAssertEqual(snapshot.models[0].limits.weekly?.remainingPercent, 80)
+        XCTAssertEqual(snapshot.models[0].windows["Session"]?.remainingPercent, 90)
+        XCTAssertEqual(snapshot.models[0].windows["Weekly"]?.remainingPercent, 80)
     }
 
     func testFetchNamesReserveQuotaWithoutChangingItsIdentityOrWindows() async throws {
@@ -39,15 +39,15 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
+        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
         let model = try XCTUnwrap(snapshot.models.first)
 
         XCTAssertEqual(snapshot.models.count, 1)
         XCTAssertEqual(model.id, "base_model_inference")
         XCTAssertEqual(model.title, "Reserve quota")
-        XCTAssertNil(model.limits.session)
-        XCTAssertEqual(model.limits.weekly?.remainingPercent, 52)
-        XCTAssertEqual(model.limits.weekly?.resetsAt, Date(timeIntervalSince1970: 1_800_000_000))
+        XCTAssertNil(model.windows["Session"])
+        XCTAssertEqual(model.windows["Weekly"]?.remainingPercent, 52)
+        XCTAssertEqual(model.windows["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_800_000_000))
     }
 
     func testFetchDropsEmptyModelIDsAndTitlesUntitledModelsByID() async throws {
@@ -59,7 +59,7 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
+        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
         XCTAssertEqual(snapshot.models.map(\.id), ["model_x", "model_y"])
         XCTAssertEqual(snapshot.models.map(\.title), ["model_x", "model_y"])
@@ -76,11 +76,11 @@ final class CodexQuotaServiceTests: XCTestCase {
             )
         )
 
-        let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
+        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertNil(snapshot.account?.limits)
-        XCTAssertEqual(snapshot.account?.resetCredits?.availableCount, 0)
-        XCTAssertEqual(snapshot.account?.resetCredits?.credits, [])
+        XCTAssertEqual(snapshot.account, [])
+        XCTAssertEqual(snapshot.resetCredits?.availableCount, 0)
+        XCTAssertEqual(snapshot.resetCredits?.credits, [])
         XCTAssertTrue(snapshot.models.isEmpty)
     }
 
@@ -90,10 +90,10 @@ final class CodexQuotaServiceTests: XCTestCase {
             quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(resetCount: -1, credits: "[]")
         )
 
-        let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
+        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account?.limits?.session?.remainingPercent, 75)
-        XCTAssertNil(snapshot.account?.resetCredits)
+        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 75)
+        XCTAssertNil(snapshot.resetCredits)
     }
 
     func testFetchReportsEmptyLimitsWhenNoWindowOrCreditSurvives() async throws {
@@ -102,7 +102,7 @@ final class CodexQuotaServiceTests: XCTestCase {
             quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(usedPercent: 20, windowMinutes: 1_440)
         )
 
-        let result = await CodexQuotaService(executableCandidates: [executable]).fetch()
+        let result = await CodexQuotaSource(executableCandidates: [executable]).load()
 
         XCTAssertEqual(result, .failure(.emptyLimits))
     }
@@ -115,7 +115,7 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        let result = await CodexQuotaService(executableCandidates: [executable]).fetch()
+        let result = await CodexQuotaSource(executableCandidates: [executable]).load()
 
         XCTAssertEqual(result, .failure(.sessionFailed))
     }
@@ -135,9 +135,9 @@ final class CodexQuotaServiceTests: XCTestCase {
                 """
         )
 
-        let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
+        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account?.limits?.session?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 75)
     }
 
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
@@ -148,7 +148,7 @@ final class CodexQuotaServiceTests: XCTestCase {
                 "#!/bin/sh\nIFS= read -r initialize\nexec 0<&-\nprintf '%s\\n' '{\"id\":1,\"result\":{}}'\nsleep 1\n"
         )
 
-        let result = await CodexQuotaService(executableCandidates: [executable]).fetch()
+        let result = await CodexQuotaSource(executableCandidates: [executable]).load()
 
         XCTAssertEqual(result, .failure(.sessionFailed))
     }
@@ -170,9 +170,9 @@ final class CodexQuotaServiceTests: XCTestCase {
         )
 
         let started = ContinuousClock.now
-        let snapshot = try await CodexQuotaService(executableCandidates: [executable]).fetch().get()
+        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account?.limits?.session?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 75)
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
     }
 
@@ -200,7 +200,7 @@ final class CodexQuotaServiceTests: XCTestCase {
         )
 
         let fetch = Task {
-            await CodexQuotaService(executableCandidates: [executable]).fetch()
+            await CodexQuotaSource(executableCandidates: [executable]).load()
         }
         try await waitUntil(timeout: .seconds(2)) { FileManager.default.fileExists(atPath: readyMarker.path) }
 
@@ -227,8 +227,8 @@ final class CodexQuotaServiceTests: XCTestCase {
         )
 
         let started = ContinuousClock.now
-        let result = await CodexQuotaService(executableCandidates: [executable], timeout: .milliseconds(500))
-            .fetch()
+        let result = await CodexQuotaSource(executableCandidates: [executable], timeout: .milliseconds(500))
+            .load()
 
         XCTAssertEqual(result, .failure(.timedOut))
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
