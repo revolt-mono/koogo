@@ -48,7 +48,7 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 │   │   ├── Codex          app-server transport, quota and reset flow, views
 │   │   ├── Claude         local CLI usage report, quota model, views
 │   │   └── Grok           local CLI ACP billing, quota model, views
-│   ├── QuickActions       system quick-action adapters and views
+│   ├── QuickActions       scan-then-act model, system adapters (appearance, disk images, orphaned agents), and views
 │   ├── BreakReminder      countdown state, notifications, controls, and issue alert
 │   ├── Inbox              todo rules, persistence, and editors
 │   ├── Update             Sparkle bridge and update indicator
