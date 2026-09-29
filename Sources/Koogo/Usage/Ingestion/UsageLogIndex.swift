@@ -48,7 +48,7 @@ private struct TrackedUsageFile: Sendable {
     private var metadata: UsageFileMetadata
     private var parsedOffset: UInt64
     private var parsedTail: Data
-    private var parser: any UsageLogParser
+    private(set) var parser: any UsageLogParser
     var eventIndex: UsageEventIndex
     private(set) var malformedLines = 0
 
@@ -79,6 +79,7 @@ private struct TrackedUsageFile: Sendable {
             case .codex: CodexLogParser()
             case .claude: ClaudeLogParser()
             case .piAgent: PiLogParser()
+            case .grok where location.url.lastPathComponent == "chat_history.jsonl": GrokHistoryLogParser()
             case .grok: GrokLogParser()
             }
         eventIndex = UsageEventIndex(since: historyStart)
@@ -223,7 +224,14 @@ struct UsageLogIndex {
         var merged = UsageEventIndex(since: indexedFrom)
         merged.reserveCapacity(trackedFiles.values.reduce(0) { $0 + $1.eventIndex.count })
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
-            merged.merge(tracked.eventIndex)
+            if let grok = tracked.parser as? GrokLogParser {
+                let historyPath = tracked.location.url.deletingLastPathComponent().appending(path: "chat_history.jsonl")
+                    .path
+                let history = trackedFiles[historyPath]?.parser as? GrokHistoryLogParser
+                grok.merge(tracked.eventIndex, history: history, into: &merged)
+            } else {
+                merged.merge(tracked.eventIndex)
+            }
         }
         let events = merged.values
         let stats = UsageIngestionStats(
