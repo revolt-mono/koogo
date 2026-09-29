@@ -4,7 +4,7 @@ import XCTest
 @testable import Koogo
 
 final class ClaudeQuotaSourceTests: XCTestCase {
-    func testFetchRunsOnlyIsolatedUsageCommand() async throws {
+    func testFetchSendsOneIsolatedUsageRequestAndReadsThePlanWindows() async throws {
         let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let executable = try workspace.makeCLI()
         let snapshot = try await ClaudeQuotaSource(executableCandidates: [executable]).load().get()
@@ -21,55 +21,61 @@ final class ClaudeQuotaSourceTests: XCTestCase {
             arguments.components(separatedBy: "\n"),
             [
                 "--setting-sources", "", "--settings", #"{"disableAllHooks":true,"remoteControlAtStartup":false}"#,
-                "--strict-mcp-config", "--tools", "", "--no-session-persistence", "--max-budget-usd", "0.01",
-                "-p", "/usage", "--output-format", "stream-json", "--verbose", "",
+                "--strict-mcp-config", "--tools", "", "--no-session-persistence",
+                "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "",
             ]
         )
-        XCTAssertEqual(try String(contentsOf: workspace.callsFile, encoding: .utf8), "usage\n")
+        let directory = try String(contentsOf: workspace.directoryFile, encoding: .utf8).trimmingCharacters(
+            in: .newlines
+        )
+        XCTAssertEqual(
+            URL(filePath: directory).resolvingSymlinksInPath(),
+            URL(filePath: "/tmp").resolvingSymlinksInPath()
+        )
+        let lines = try String(contentsOf: workspace.requestsFile, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(lines.count, 1)
+        let request = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(lines[0].utf8)) as? [String: Any])
+        XCTAssertEqual(request["type"] as? String, "control_request")
+        XCTAssertEqual(request["request_id"] as? String, "1")
+        XCTAssertEqual(request["request"] as? NSDictionary, ["subtype": "get_usage", "skip_behaviors": true])
     }
 
-    func testEmptyLimitsAreDistinctFromInvalidOrUnsuccessfulOutput() async throws {
+    func testEmptyLimitsAreDistinctFromInvalidOrUnansweredOutput() async throws {
         let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        for limits in ["null", #"{"limits":null}"#, #"{"limits":[]}"#, #"{"limits":[{"kind":"future_limit"}]}"#] {
+        for limits in [
+            "null", "{}",
+            #"{"five_hour":{"utilization":null,"resets_at":null},"seven_day":null,"model_scoped":[]}"#,
+        ] {
             let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
             let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result, .failure(.emptyLimits))
+            XCTAssertEqual(result, .failure(.emptyLimits), limits)
         }
         for output in [
             "not json",
-            #"{"type":"result","subtype":"success","is_error":false,"result":"12% used"}"#,
-            #"{"type":"assistant","usage_report":{"rate_limits":null}}"#,
-            ClaudeQuotaTestWorkspace.response().replacingOccurrences(
-                of: "\"is_error\":false",
-                with: "\"is_error\":true"
-            ),
-            ClaudeQuotaTestWorkspace.response(rateLimits: #"{"limits":[{"kind":"session"}]}"#),
+            #"{"type":"system","subtype":"init"}"#,
+            #"{"type":"control_response","response":{"subtype":"error","request_id":"1","error":"nope"}}"#,
             ClaudeQuotaTestWorkspace.response(
-                rateLimits: #"{"limits":[{"kind":"session","percent":5,"resets_at":"not a date"}]}"#
+                rateLimits: #"{"five_hour":{"utilization":5,"resets_at":"not a date"}}"#
             ),
         ] {
             let executable = try workspace.makeCLI(output: output)
             let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result, .failure(.sessionFailed))
+            XCTAssertEqual(result, .failure(.sessionFailed), output)
         }
-        let executable = try workspace.makeCLI(afterOutput: "exit 1")
+        let executable = try workspace.makeCLI(beforeOutput: "exit 1")
         let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
         XCTAssertEqual(result, .failure(.sessionFailed))
     }
 
-    func testPartialLimitsClampPercentAndNeverPromoteScopedQuotaToAccountQuota() async throws {
+    func testWindowsClampPercentAndUnstartedOrUnnamedModelWindowsAreSkipped() async throws {
         let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let limits = """
-            {"limits":[
-            {"kind":"session","percent":-8},
-            {"kind":"weekly_all","percent":130},
-            {"kind":"weekly_scoped","percent":3.9,"scope":{"model":{"display_name":"Other model"}}},
-            {"kind":"weekly_scoped","percent":2,"scope":null},
-            {"kind":"weekly_scoped","percent":1,"scope":{"model":{"display_name":" "}}},
-            {"kind":"weekly_all","percent":4,"scope":{"model":{"display_name":"Scoped"}}},
-            {"kind":"session","percent":6,"scope":{"surface":"web"}}
-            ]}
-            """.replacingOccurrences(of: "\n", with: "")
+            {"five_hour":{"utilization":-8,"resets_at":null},"seven_day":{"utilization":130},\
+            "model_scoped":[\
+            {"display_name":"Other model","utilization":3.9,"resets_at":null},\
+            {"display_name":" ","utilization":1,"resets_at":null},\
+            {"display_name":"Unstarted","utilization":null,"resets_at":null}]}
+            """
         let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
         let snapshot = try await ClaudeQuotaSource(executableCandidates: [executable]).load().get()
 

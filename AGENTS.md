@@ -46,7 +46,7 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 │   │   └── Views          summary, provider cards, chart, provider toggles
 │   ├── Quota              quota vocabulary, the provider-to-source registry, one model for every provider's state and switches, section and toggle views
 │   │   ├── Codex          app-server transport, quota source, banked reset model and views
-│   │   ├── Claude         local CLI usage report as a quota source
+│   │   ├── Claude         local CLI stream-json usage request as a quota source
 │   │   └── Grok           local CLI ACP billing as a quota source
 │   ├── QuickActions       scan-then-act model, system adapters (appearance, disk images, orphaned agents), and views
 │   ├── BreakReminder      countdown state, notifications, controls, and issue alert

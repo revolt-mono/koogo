@@ -3,24 +3,26 @@ import Foundation
 struct ClaudeQuotaTestWorkspace {
     let root: URL
 
-    var outputFile: URL { root.appending(path: "output.jsonl") }
-    var callsFile: URL { root.appending(path: "calls") }
+    var requestsFile: URL { root.appending(path: "requests.jsonl") }
     var argumentsFile: URL { root.appending(path: "arguments") }
+    var directoryFile: URL { root.appending(path: "directory") }
 
+    /// A stream-json peer: records the client's first line, answers it with `output`, then exits.
     func makeCLI(
         output: String = response(),
-        beforeOutput: String = "",
-        afterOutput: String = ""
+        beforeOutput: String = ""
     ) throws -> URL {
-        try output.write(to: outputFile, atomically: true, encoding: .utf8)
         let executable = root.appending(path: "claude")
         try """
         #!/bin/sh
-        printf 'usage\\n' >> '\(callsFile.path)'
         printf '%s\\n' "$@" > '\(argumentsFile.path)'
+        pwd > '\(directoryFile.path)'
         \(beforeOutput)
-        /bin/cat '\(outputFile.path)'
-        \(afterOutput)
+        IFS= read -r request || exit 1
+        printf '%s\\n' "$request" > '\(requestsFile.path)'
+        /bin/cat <<'OUTPUT'
+        \(output)
+        OUTPUT
         """.write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
         return executable
@@ -28,17 +30,18 @@ struct ClaudeQuotaTestWorkspace {
 
     static func response(rateLimits: String = limits) -> String {
         """
-        {"type":"system","subtype":"init"}
-        {"type":"assistant","usage_report":{"rate_limits":\(rateLimits)}}
-        {"type":"result","subtype":"success","is_error":false,"num_turns":0,"total_cost_usd":0}
+        {"type":"system","subtype":"init","session_id":"s"}
+        {"type":"control_response","response":{"subtype":"success","request_id":"1",\
+        "response":{"session":{},"subscription_type":"max","rate_limits_available":true,\
+        "rate_limits":\(rateLimits),"behaviors":null}}}
         """
     }
 
     static let limits = """
-        {"limits":[
-        {"kind":"weekly_scoped","percent":63,"resets_at":"2026-09-02T08:00:00+08:00","scope":{"model":{"display_name":"Fable"},"surface":null},"is_active":false},
-        {"kind":"session","percent":12,"resets_at":"2026-09-01T00:00:00.125000+00:00","scope":null,"is_active":false},
-        {"kind":"weekly_all","percent":29,"resets_at":"2026-09-03T00:00:00Z","scope":null,"is_active":true}
-        ],"extra_usage":{"is_enabled":false}}
-        """.replacingOccurrences(of: "\n", with: "")
+        {"five_hour":{"utilization":12,"resets_at":"2026-09-01T00:00:00.125000+00:00","limit_dollars":null},\
+        "seven_day":{"utilization":29,"resets_at":"2026-09-03T00:00:00Z"},"seven_day_sonnet":null,\
+        "model_scoped":[{"display_name":"Fable","utilization":63,"resets_at":"2026-09-02T08:00:00+08:00"}],\
+        "limits":[{"kind":"weekly_all","group":"weekly","percent":29,"is_active":true}],\
+        "extra_usage":{"is_enabled":false}}
+        """
 }

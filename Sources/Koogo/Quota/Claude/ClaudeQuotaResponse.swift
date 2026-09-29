@@ -1,96 +1,79 @@
 import Foundation
 
-/// One `stream-json` event from `claude -p /usage`. Only the assistant's structured usage report
-/// is authoritative; result text is never scraped.
+/// The `get_usage` control reply of the Claude CLI's stream-json protocol. The plan windows are the fields
+/// the CLI keeps even when it answers from its own cached snapshot; the raw server rows are dropped then.
 struct ClaudeQuotaResponse: Decodable {
-    /// The CLI ran but its output cannot be used: an unsuccessful result, or a limit missing a field.
+    /// The CLI ran but its output cannot be used: no reply before its output ended, an error reply, or a window
+    /// with an unreadable reset time.
     struct Invalid: Error {}
 
-    struct Report: Decodable {
-        let rateLimits: RateLimits?
-
-        func snapshot() throws -> QuotaSnapshot? {
-            var session: QuotaWindow?
-            var weekly: QuotaWindow?
-            var models: [String: QuotaWindow] = [:]
-            for limit in rateLimits?.limits ?? [] where limit.scope?.surface == nil {
-                switch limit.kind {
-                case "session" where limit.scope == nil:
-                    session = try limit.window("Session")
-                case "weekly_all" where limit.scope == nil:
-                    weekly = try limit.window("Weekly")
-                case "weekly_scoped":
-                    guard let title = limit.scope?.model?.displayName.trimmingCharacters(in: .whitespaces),
-                        !title.isEmpty
-                    else { break }
-                    models[title] = try limit.window("Weekly")
-                default:
-                    break
-                }
-            }
-            return QuotaSnapshot(
-                account: [session, weekly].compactMap { $0 },
-                models: models.sorted { $0.key < $1.key }.compactMap {
-                    QuotaSnapshot.ModelLimits(id: $0.key, title: $0.key, windows: [$0.value])
-                }
-            )
-        }
-    }
-
-    struct RateLimits: Decodable {
-        let limits: [Limit]?
-    }
-
-    struct Limit: Decodable {
-        let kind: String
-        let percent: Double?
+    struct Window: Decodable {
+        /// Only model-scoped windows carry a name.
+        let displayName: String?
+        /// Null while the window has not started.
+        let utilization: Double?
         let resetsAt: String?
-        let scope: Scope?
 
-        func window(_ title: String) throws -> QuotaWindow {
-            guard let percent else { throw Invalid() }
+        func quotaWindow(_ title: String) throws -> QuotaWindow? {
+            guard let utilization else { return nil }
             let resetsAt = try resetsAt.map { text in
                 guard let date = Date(iso8601: text) else { throw Invalid() }
                 return date
             }
-            return QuotaWindow(title: title, usedPercent: percent, resetsAt: resetsAt)
+            return QuotaWindow(title: title, usedPercent: utilization, resetsAt: resetsAt)
         }
     }
 
-    struct Scope: Decodable {
-        let model: Model?
-        /// A surface-scoped limit cannot be presented as an account or model-wide limit.
-        let surface: String?
+    struct RateLimits: Decodable {
+        let fiveHour: Window?
+        let sevenDay: Window?
+        let modelScoped: [Window]?
     }
 
-    struct Model: Decodable {
-        let displayName: String
+    /// Null for API-key sessions and while the usage endpoint cannot be reached.
+    let rateLimits: RateLimits?
+
+    /// Nil when the CLI succeeded but reported no usable window.
+    func snapshot() throws -> QuotaSnapshot? {
+        guard let rateLimits else { return nil }
+        let account = try [
+            rateLimits.fiveHour?.quotaWindow("Session"),
+            rateLimits.sevenDay?.quotaWindow("Weekly"),
+        ].compactMap { $0 }
+        var models: [String: QuotaWindow] = [:]
+        for model in rateLimits.modelScoped ?? [] {
+            guard let title = model.displayName?.trimmingCharacters(in: .whitespaces), !title.isEmpty,
+                let window = try model.quotaWindow("Weekly")
+            else { continue }
+            models[title] = window
+        }
+        return QuotaSnapshot(
+            account: account,
+            models: models.sorted { $0.key < $1.key }.compactMap {
+                QuotaSnapshot.ModelLimits(id: $0.key, title: $0.key, windows: [$0.value])
+            }
+        )
+    }
+}
+
+/// One line of the CLI's stream-json output; everything but the reply to the one request sent is skipped.
+struct ClaudeControlResponse: Decodable {
+    struct Envelope: Decodable {
+        let subtype: String
+        let response: ClaudeQuotaResponse?
     }
 
     let type: String
-    let subtype: String?
-    let isError: Bool?
-    let usageReport: Report?
+    let response: Envelope?
 
-    /// Nil when the CLI succeeded but reported no usable limits.
-    static func snapshot(from output: Data) throws -> QuotaSnapshot? {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        var report: Report?
-        var succeeded = false
-        for line in output.split(separator: 0x0A) {
-            let event = try decoder.decode(Self.self, from: Data(line))
-            switch event.type {
-            case "assistant":
-                report = event.usageReport ?? report
-            case "result":
-                guard event.subtype == "success", event.isError == false else { throw Invalid() }
-                succeeded = true
-            default:
-                break
+    /// Nil for any event other than a control reply; an error reply is invalid output.
+    var reply: ClaudeQuotaResponse? {
+        get throws {
+            guard type == "control_response", let response else { return nil }
+            guard response.subtype == "success", let reply = response.response else {
+                throw ClaudeQuotaResponse.Invalid()
             }
+            return reply
         }
-        guard succeeded, let report else { throw Invalid() }
-        return try report.snapshot()
     }
 }
