@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class UsageModel {
     private static let disabledProvidersKey = "usage-disabled-providers"
+    private static let providerOrderKey = "usage-provider-order"
 
     private let usageService: UsageService
     private let defaults: UserDefaults
@@ -15,6 +16,8 @@ final class UsageModel {
     private(set) var snapshot: UsageSnapshot?
     /// Persisted as the disabled set, so providers added later start enabled.
     private(set) var enabledProviders: Set<Provider>
+    /// The order providers show in the panel and settings; providers added later go last.
+    private(set) var providerOrder: [Provider]
 
     init(
         usageService: UsageService,
@@ -27,6 +30,21 @@ final class UsageModel {
         let disabled = (defaults.stringArray(forKey: Self.disabledProvidersKey) ?? [])
             .compactMap(Provider.init(rawValue:))
         enabledProviders = Set(Provider.allCases).subtracting(disabled)
+        let stored = (defaults.stringArray(forKey: Self.providerOrderKey) ?? [])
+            .compactMap(Provider.init(rawValue:))
+        // First occurrence wins, so every provider lands exactly once even if the stored list repeats one.
+        providerOrder = (stored + Provider.allCases).reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
+    }
+
+    /// Moves `provider` into `destination`'s slot; the rows between shift toward the vacated one.
+    func moveProvider(_ provider: Provider, to destination: Provider) {
+        guard let source = providerOrder.firstIndex(of: provider),
+            let target = providerOrder.firstIndex(of: destination),
+            source != target
+        else { return }
+        providerOrder.remove(at: source)
+        providerOrder.insert(provider, at: target)
+        defaults.set(providerOrder.map(\.rawValue), forKey: Self.providerOrderKey)
     }
 
     func setEnabled(_ isEnabled: Bool, for provider: Provider) {

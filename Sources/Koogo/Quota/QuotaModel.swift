@@ -19,7 +19,7 @@ final class QuotaModel {
     /// shows a quota at all.
     private(set) var states: [Provider: QuotaState]
 
-    /// Providers that can show a quota, in settings order.
+    /// Providers that can show a quota.
     var providers: [Provider] { Provider.allCases.filter { sources[$0] != nil } }
 
     init(sources: [Provider: any QuotaSource] = Provider.quotaSources, defaults: UserDefaults = .standard) {

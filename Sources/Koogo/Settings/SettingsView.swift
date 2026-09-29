@@ -3,6 +3,7 @@ import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(UsageModel.self) private var usageModel
     @Environment(UpdateModel.self) private var updateModel
 
     var body: some View {
@@ -16,7 +17,7 @@ struct SettingsView: View {
             }
 
             Section("Fetch Quota") {
-                QuotaProviderToggles()
+                QuotaProviderToggles(order: usageModel.providerOrder)
             }
 
             Section("System") {

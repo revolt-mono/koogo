@@ -31,6 +31,7 @@ struct UsagePage: View {
                     }
 
                     ProviderCards(
+                        order: usageModel.providerOrder,
                         providers: snapshot.providers,
                         heightLimit: max(maxHeight - headerHeight - Self.headerGap - Self.bottomInset, 0)
                     )
@@ -64,11 +65,12 @@ private struct ProviderCards: View {
     @Environment(QuotaModel.self) private var quotaModel
     @State private var cardHeights: [Provider: CGFloat] = [:]
 
+    let order: [Provider]
     let providers: [Provider: ProviderUsageSnapshot]
     let heightLimit: CGFloat
 
     var body: some View {
-        let shown = Provider.allCases.filter { providers[$0] != nil }
+        let shown = order.filter { providers[$0] != nil }
         let leading = shown.prefix(3)
         let visibleHeight =
             leading.compactMap { cardHeights[$0] }.reduce(0, +)

@@ -96,6 +96,13 @@ cat >"$CONTENTS_DIR/Info.plist" <<EOF
   <key>SUFeedURL</key><string>https://github.com/revolt-mono/koogo/releases/latest/download/appcast.xml</string>
   <key>SUPublicEDKey</key><string>2RXhmQRhki0JYXIP9PMcjh1GIsVVIn7Nsae3tHl555M=</string>
   <key>SUScheduledCheckInterval</key><integer>86400</integer>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>$BUNDLE_ID.provider</string>
+      <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+    </dict>
+  </array>
 </dict>
 </plist>
 EOF

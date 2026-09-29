@@ -77,4 +77,22 @@ final class UsageModelTests: UsageWorkspaceTestCase {
         try await waitUntil { model.snapshot?.providers[.grok] != nil }
         XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), Set(Provider.allCases))
     }
+
+    @MainActor
+    func testMovedProviderTakesTheTargetSlotAndPersists() throws {
+        let defaults = try makeIsolatedDefaults()
+        defaults.set(["grok", "codex", "grok"], forKey: "usage-provider-order")
+        let model = UsageModel(usageService: UsageService(), defaults: defaults, now: { usageTestTimestamp })
+        XCTAssertEqual(model.providerOrder, [.grok, .codex, .claude, .piAgent])
+
+        model.moveProvider(.piAgent, to: .codex)
+        XCTAssertEqual(model.providerOrder, [.grok, .piAgent, .codex, .claude])
+        model.moveProvider(.grok, to: .claude)
+        XCTAssertEqual(model.providerOrder, [.piAgent, .codex, .claude, .grok])
+        model.moveProvider(.grok, to: .grok)
+        XCTAssertEqual(
+            UsageModel(usageService: UsageService(), defaults: defaults).providerOrder,
+            [.piAgent, .codex, .claude, .grok]
+        )
+    }
 }
