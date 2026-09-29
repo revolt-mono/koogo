@@ -29,6 +29,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        // The window already fits the form's ideal height; disabling scrolling keeps a sub-point
+        // rounding overflow from showing a scroller.
+        .scrollDisabled(true)
         .frame(width: 440)
         .fixedSize(horizontal: false, vertical: true)
         .background { SettingsWindowStyle() }
