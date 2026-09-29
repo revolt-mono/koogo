@@ -36,15 +36,26 @@ struct UsageEvent: Sendable {
         }
     }
 
-    let key: Key
-    let usage: UsageRecord
-    let revision: Revision?
+    /// Stored apart from the key so an event index holds each identity only once.
+    struct Value: Sendable {
+        let usage: UsageRecord
+        let revision: Revision?
 
-    init(key: Key, usage: UsageRecord, revision: Revision? = nil) {
-        self.key = key
-        self.usage = usage
-        self.revision = revision
+        /// Whether this copy replaces `existing` under the same key. Unless both copies carry a
+        /// revision, the earlier copy wins, since replayed copies are stamped when they are written.
+        func supersedes(_ existing: Self) -> Bool {
+            guard let revision, let existingRevision = existing.revision else {
+                return usage.timestamp < existing.usage.timestamp
+            }
+            return (revision, usage.processedTokens, usage.timestamp)
+                > (existingRevision, existing.usage.processedTokens, existing.usage.timestamp)
+        }
     }
+
+    let key: Key
+    let value: Value
+
+    var usage: UsageRecord { value.usage }
 
     var provider: UsageProvider {
         switch key {
@@ -54,14 +65,10 @@ struct UsageEvent: Sendable {
         case .grok: .grok
         }
     }
+}
 
-    /// Whether this copy replaces `existing` under the same key. Unless both copies carry a
-    /// revision, the earlier copy wins, since replayed copies are stamped when they are written.
-    func supersedes(_ existing: UsageEvent) -> Bool {
-        guard let revision, let existingRevision = existing.revision else {
-            return usage.timestamp < existing.usage.timestamp
-        }
-        return (revision, usage.processedTokens, usage.timestamp)
-            > (existingRevision, existing.usage.processedTokens, existing.usage.timestamp)
+extension UsageEvent {
+    init(key: Key, usage: UsageRecord, revision: Revision? = nil) {
+        self.init(key: key, value: Value(usage: usage, revision: revision))
     }
 }
