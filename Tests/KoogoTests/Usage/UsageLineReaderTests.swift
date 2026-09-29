@@ -94,6 +94,24 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
         XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).usage.processedTokens, 15)
     }
 
+    func testEscapedKeysAndRecordKindsMatchDecodedText() throws {
+        var parser = ClaudeLogParser()
+        let line = claudeAssistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":5"#)
+            .replacingOccurrences(of: #""type":"assistant""#, with: #""ty\u0070e":"ass\u0069stant""#)
+            .replacingOccurrences(of: #""input_tokens""#, with: #""input_\u0074okens""#)
+
+        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).usage.processedTokens, 15)
+    }
+
+    func testSimilarAndNonStringRecordKindsAreSkipped() throws {
+        let line = claudeAssistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":5"#)
+        for kind in [#""assistant-extra""#, #""assistanx""#, #""assistant\t""#, "null", "1", #"["assistant"]"#] {
+            var parser = ClaudeLogParser()
+            let changed = line.replacingOccurrences(of: #""type":"assistant""#, with: "\"type\":\(kind)")
+            XCTAssertNil(try parse(changed, with: &parser), kind)
+        }
+    }
+
     func testWholeNumbersInAnyJSONFormAreRead() throws {
         var parser = ClaudeLogParser()
         let line = claudeAssistant(

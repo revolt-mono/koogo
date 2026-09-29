@@ -150,12 +150,13 @@ struct JSONValue {
         bytes.elementsEqual("null".utf8)
     }
 
+    /// Matches known field names and record kinds, whose literals need no JSON escaping.
     func isString(_ literal: StaticString) -> Bool {
-        guard let raw = rawString else {
-            return (try? string()).flatMap(\.self) == literal.description
+        guard let content = unescapedString else {
+            return bytes.first == UInt8(ascii: "\"") && (try? string()) == literal.description
         }
-        return raw.count == literal.utf8CodeUnitCount
-            && memcmp(raw.baseAddress, literal.utf8Start, literal.utf8CodeUnitCount) == 0
+        return content.count == literal.utf8CodeUnitCount
+            && memcmp(content.baseAddress, literal.utf8Start, literal.utf8CodeUnitCount) == 0
     }
 
     /// The string this value holds, or nil for null.
@@ -163,7 +164,7 @@ struct JSONValue {
         if isNull {
             return nil
         }
-        if let raw = rawString {
+        if let raw = unescapedString, !raw.contains(where: { $0 < 0x20 }) {
             guard let string = String(validating: raw, as: UTF8.self) else {
                 throw MalformedUsageRecord()
             }
@@ -273,17 +274,13 @@ struct JSONValue {
         (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte)
     }
 
-    /// The content of a string without escapes or control characters; nil for anything else.
-    private var rawString: UnsafeRawBufferPointer? {
+    /// The content of a string without escapes; nil for anything else.
+    private var unescapedString: UnsafeRawBufferPointer? {
         guard bytes.count >= 2, bytes.first == UInt8(ascii: "\""), let base = bytes.baseAddress,
             memchr(base + 1, Int32(UInt8(ascii: "\\")), bytes.count - 2) == nil
         else {
             return nil
         }
-        let content = UnsafeRawBufferPointer(rebasing: bytes[1..<bytes.count - 1])
-        for byte in content where byte < 0x20 {
-            return nil
-        }
-        return content
+        return UnsafeRawBufferPointer(rebasing: bytes[1..<bytes.count - 1])
     }
 }
