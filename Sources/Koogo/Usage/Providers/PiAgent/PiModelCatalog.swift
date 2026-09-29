@@ -1,6 +1,7 @@
+import CryptoKit
 import Foundation
 
-struct PiModelCatalog: Equatable, Sendable {
+struct PiModelCatalog: Sendable {
     private struct ID: Hashable, Sendable {
         let provider: String
         let model: String
@@ -33,16 +34,23 @@ struct PiModelCatalog: Equatable, Sendable {
         let providers: [String: CustomProvider]
     }
 
-    static let empty = PiModelCatalog(names: [:])
+    static let empty = PiModelCatalog()
 
-    private let names: [ID: String]
+    private var names: [ID: String] = [:]
+    private var sourceDigests: [SHA256.Digest?] = [nil, nil]
 
-    /// Reads the names Pi keeps under its `home`: `models-store.json`, then the JSON5 `models.json`
-    /// entries and overrides on top.
-    init(home: URL) {
-        let store = home.appending(path: "models-store.json", directoryHint: .notDirectory)
-        let custom = home.appending(path: "models.json", directoryHint: .notDirectory)
-        var names: [ID: String] = [:]
+    /// Reloads the names Pi keeps under its `home`: `models-store.json`, then the JSON5 `models.json`
+    /// entries and overrides on top. Returns whether either file changed.
+    mutating func refresh(home: URL) -> Bool {
+        let store = try? Data(contentsOf: home.appending(path: "models-store.json", directoryHint: .notDirectory))
+        let custom = try? Data(contentsOf: home.appending(path: "models.json", directoryHint: .notDirectory))
+        // Compares content, including same-size rewrites, without retaining configuration secrets.
+        let digests = [store, custom].map { $0.map { SHA256.hash(data: $0) } }
+        guard digests != sourceDigests else {
+            return false
+        }
+        sourceDigests = digests
+        names = [:]
         for (provider, configuration) in Self.decode([String: StoredProvider].self, from: store) ?? [:] {
             for model in configuration.models {
                 names[ID(provider: provider, model: model.id)] = model.name
@@ -61,11 +69,7 @@ struct PiModelCatalog: Equatable, Sendable {
                 names[ID(provider: provider, model: model)] = name
             }
         }
-        self.names = names
-    }
-
-    private init(names: [ID: String]) {
-        self.names = names
+        return true
     }
 
     func displayName(provider: String, model: String) -> String {
@@ -74,10 +78,10 @@ struct PiModelCatalog: Equatable, Sendable {
 
     private static func decode<Value: Decodable>(
         _ type: Value.Type,
-        from url: URL,
+        from data: Data?,
         allowsJSON5: Bool = false
     ) -> Value? {
-        guard let data = try? Data(contentsOf: url) else {
+        guard let data else {
             return nil
         }
         let decoder = JSONDecoder()

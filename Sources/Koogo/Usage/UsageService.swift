@@ -8,17 +8,17 @@ struct UsageReport: Sendable, Encodable {
 }
 
 actor UsageService {
-    /// The inputs that shaped the last report; an unchanged set means the report can be reused.
+    /// The last report and the calendar and provider scope it covers.
     private struct LastRefresh {
         let intervals: UsagePeriodIntervals
         let providers: Set<UsageProvider>
-        let piModels: PiModelCatalog
         let report: UsageReport
     }
 
     let locations: UsageLocations
     private let calendar: Calendar
     private var logIndex: UsageLogIndex
+    private var piModels = PiModelCatalog.empty
     private var lastRefresh: LastRefresh?
 
     init(
@@ -36,10 +36,10 @@ actor UsageService {
     ) -> UsageReport {
         let started = ContinuousClock.now
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
-        let changed = logIndex.refresh(since: intervals.historyStart, providers: providers)
-        let piModels = providers.contains(.piAgent) ? PiModelCatalog(home: locations.home(of: .piAgent)) : .empty
-        if !changed, let lastRefresh, lastRefresh.intervals == intervals, lastRefresh.providers == providers,
-            lastRefresh.piModels == piModels
+        let logsChanged = logIndex.refresh(since: intervals.historyStart, providers: providers)
+        let modelsChanged = providers.contains(.piAgent) && piModels.refresh(home: locations.home(of: .piAgent))
+        if !logsChanged, !modelsChanged, let lastRefresh,
+            lastRefresh.intervals == intervals, lastRefresh.providers == providers
         {
             return lastRefresh.report
         }
@@ -72,7 +72,7 @@ actor UsageService {
                 piModels: piModels
             )
         )
-        lastRefresh = LastRefresh(intervals: intervals, providers: providers, piModels: piModels, report: report)
+        lastRefresh = LastRefresh(intervals: intervals, providers: providers, report: report)
         return report
     }
 }

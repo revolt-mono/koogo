@@ -97,7 +97,8 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     func testCatalogPrefersCustomNamesAndOverridesOverStoredNames() throws {
         try writeModelCatalog()
 
-        let catalog = PiModelCatalog(home: locations.home(of: .piAgent))
+        var catalog = PiModelCatalog.empty
+        XCTAssertTrue(catalog.refresh(home: locations.home(of: .piAgent)))
 
         XCTAssertEqual(catalog.displayName(provider: "provider", model: "model-a"), "Readable Model A")
         XCTAssertEqual(catalog.displayName(provider: "provider", model: "model-b"), "Preferred Model B")
@@ -146,7 +147,34 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         )
         let updated = await service.refresh(at: now).snapshot
 
+        // Both writes have the same byte count and modification date.
         XCTAssertEqual(updated.providers[.piAgent]?.favorite?.modelName, "Updated Name")
+        let unchanged = await service.refresh(at: now).snapshot
+        XCTAssertEqual(unchanged, updated)
+    }
+
+    func testCachedCatalogReflectsMalformedDeletedAndRecreatedFiles() async throws {
+        try writeModelCatalog()
+        try workspace.write(piSessionLog, to: workspace.piSessions.appending(path: "session.jsonl"))
+        let home = locations.home(of: .piAgent)
+        let custom = home.appending(path: "models.json")
+        let store = home.appending(path: "models-store.json")
+        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let initial = await service.refresh(at: now).snapshot
+        XCTAssertEqual(initial.providers[.piAgent]?.favorite?.modelName, "Readable Model A")
+
+        try workspace.write("{invalid", to: custom)
+        let malformed = await service.refresh(at: now).snapshot
+        XCTAssertEqual(malformed.providers[.piAgent]?.favorite?.modelName, "Cached Model A")
+
+        try FileManager.default.removeItem(at: custom)
+        try FileManager.default.removeItem(at: store)
+        let deleted = await service.refresh(at: now).snapshot
+        XCTAssertEqual(deleted.providers[.piAgent]?.favorite?.modelName, "model-a")
+
+        try writeModelCatalog()
+        let restored = await service.refresh(at: now).snapshot
+        XCTAssertEqual(restored, initial)
     }
 
     func testServiceDeduplicatesForkHistoryDuringColdAndIncrementalScans() async throws {
