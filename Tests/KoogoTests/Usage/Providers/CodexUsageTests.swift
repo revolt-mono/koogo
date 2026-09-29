@@ -169,12 +169,18 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     }
 
     func testCodexPricesLoggedCacheWrites() throws {
-        var parser = codexParserInTurn()
-        let request = codexUsage(input: 100, output: 20, cached: 10, cacheWrite: 30)
-        let event = try XCTUnwrap(try parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
+        for (model, expectedUSD) in [
+            ("gpt-5.6-sol", "0.0010925"),
+            ("gpt-6.1-sol", "0.000396"),
+        ] {
+            var parser = codexParserInTurn(model: model)
+            let request = codexUsage(input: 100, output: 20, cached: 10, cacheWrite: 30)
+            let event = try XCTUnwrap(try parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
 
-        XCTAssertEqual(event.usage.processedTokens, 120)
-        XCTAssertEqual(event.usage.costUSD, Decimal(string: "0.0010925"))
+            XCTAssertEqual(event.usage.processedTokens, 120)
+            XCTAssertEqual(event.usage.modelTurn?.model.id, model)
+            XCTAssertEqual(event.usage.costUSD, Decimal(string: expectedUSD), model)
+        }
     }
 
     func testCodexRejectsOverflowingTokenFields() {
@@ -223,6 +229,8 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         let longWithoutWrites = codexTokenUsage(uncached: 172_001, cached: 100_000, output: 10_000)
 
         for (model, name, tokens, expectedUSD) in [
+            ("gpt-6.1-sol", "GPT 6.1 Sol", short, "0.435"),
+            ("gpt-6.1-sol", "GPT 6.1 Sol", long, "0.908004"),
             ("gpt-6-astra", "GPT 6 Astra", short, "2.225"),
             ("gpt-6-astra", "GPT 6 Astra", long, "4.64002"),
             ("gpt-6-sol", "GPT 6 Sol", short, "0.445"),
