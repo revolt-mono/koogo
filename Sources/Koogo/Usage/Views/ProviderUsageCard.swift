@@ -14,10 +14,7 @@ struct ProviderUsageCard<Accessory: View>: View {
             VStack(spacing: 12) {
                 accessory()
 
-                MonthlyUsageChart(
-                    month: usage.dailyMonth,
-                    barColor: provider.barColor
-                )
+                MonthlyUsageChart(month: usage.dailyMonth)
 
                 VStack(spacing: 6) {
                     ProviderUsageRow(title: "Today", usage: usage.today)
@@ -41,14 +38,6 @@ private extension Provider {
         case .claude: "ClaudeSymbol"
         case .piAgent: "PiSymbol"
         case .grok: "GrokSymbol"
-        }
-    }
-
-    var barColor: Color {
-        switch self {
-        case .codex, .grok: .primary
-        case .claude: Color(red: 217.0 / 255, green: 119.0 / 255, blue: 87.0 / 255)
-        case .piAgent: .accentColor
         }
     }
 }

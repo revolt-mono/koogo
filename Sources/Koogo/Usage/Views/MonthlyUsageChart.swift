@@ -6,7 +6,6 @@ struct MonthlyUsageChart: View {
     @Environment(\.calendar) private var calendar
 
     let month: UsageMonthSnapshot
-    let barColor: Color
 
     @State private var selectedDate: Date?
 
@@ -26,7 +25,7 @@ struct MonthlyUsageChart: View {
                     x: .value("Day", day.date, unit: .day),
                     y: .value("Cost", NSDecimalNumber(decimal: day.usage.costUSD).doubleValue)
                 )
-                .foregroundStyle(barColor)
+                .foregroundStyle(.primary)
                 .cornerRadius(1)
             }
         }
