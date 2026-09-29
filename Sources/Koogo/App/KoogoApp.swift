@@ -6,7 +6,7 @@ struct KoogoApp: App {
     @State private var codexQuotaModel = CodexQuotaModel(quotaService: CodexQuotaService())
     @State private var claudeQuotaModel = ClaudeQuotaModel(quotaService: ClaudeQuotaService())
     @State private var grokQuotaModel = GrokQuotaModel(quotaService: GrokQuotaService())
-    @State private var updateModel = UpdateModel()
+    @State private var updateModel: UpdateModel
     @State private var breakReminderModel = BreakReminderModel(
         notifications: BreakReminderNotificationCenter()
     )
@@ -19,6 +19,9 @@ struct KoogoApp: App {
         // and the first panel open finds a snapshot instead of the parsing placeholder.
         usageModel.refresh()
         _usageModel = State(initialValue: usageModel)
+        let updateModel = UpdateModel()
+        updateModel.start()
+        _updateModel = State(initialValue: updateModel)
     }
 
     var body: some Scene {

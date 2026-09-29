@@ -6,7 +6,7 @@ import Sparkle
 final class UpdateModel: NSObject {
     @ObservationIgnored
     private lazy var updaterController = SPUStandardUpdaterController(
-        startingUpdater: true,
+        startingUpdater: false,
         updaterDelegate: nil,
         userDriverDelegate: self
     )
@@ -22,9 +22,10 @@ final class UpdateModel: NSObject {
         #endif
     }
 
-    override init() {
-        super.init()
-        _ = updaterController
+    /// Starts scheduled update checks. Only the signed app bundle carries the Sparkle feed and key, so
+    /// the app calls this once at launch and tests never do.
+    func start() {
+        updaterController.startUpdater()
     }
 
     func checkForUpdates() {
