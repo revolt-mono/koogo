@@ -1,210 +1,26 @@
 import Darwin
 import Foundation
 import Synchronization
-import System
 
-private struct UsageFileIdentity: Equatable, Sendable {
-    let device: UInt64
-    let inode: UInt64
-}
+/// An admitted log and its provider. Per-path provider rules (admission and the log switch) live only here.
+private struct TrackedUsageLog: Sendable {
+    let provider: UsageProvider
+    var log: any UsageLog
 
-private struct UsageFileMetadata: Sendable {
-    let identity: UsageFileIdentity
-    let size: UInt64
-    let modificationDate: Date
-
-    init?(fileDescriptor: Int32) {
-        var status = Darwin.stat()
-        guard Darwin.fstat(fileDescriptor, &status) == 0 else {
-            return nil
-        }
-        self.init(status: status)
-    }
-
-    init?(status: Darwin.stat) {
-        guard status.st_size >= 0, status.st_mode & S_IFMT == S_IFREG else {
-            return nil
-        }
-        identity = UsageFileIdentity(
-            device: UInt64(status.st_dev),
-            inode: UInt64(status.st_ino)
-        )
-        size = UInt64(status.st_size)
-        modificationDate = Date(
-            timeIntervalSince1970: TimeInterval(status.st_mtimespec.tv_sec)
-                + TimeInterval(status.st_mtimespec.tv_nsec) / 1_000_000_000
-        )
-    }
-}
-
-/// One log file read incrementally: bytes appended since the last pass are
-/// parsed in place, while a rotated or truncated file is re-read from scratch.
-/// The walk is provider-agnostic; per-file provider rules (admission and the parser switch) live only here.
-private struct TrackedUsageFile: Sendable {
-    private static let parsedTailSize = 64
-    private static let readSize = 1 << 20
-
-    let location: UsageLogLocation
-    private var metadata: UsageFileMetadata
-    private var parsedOffset: UInt64
-    private var parsedTail: Data
-    private(set) var parser: any UsageLogParser
-    var eventIndex: UsageEventIndex
-    private(set) var malformedLines = 0
-
-    /// Starts tracking a file seen for the first time. A Grok log counts only once it has a top-level
-    /// session summary; a rejected file is offered again on the next scan, and a reread never re-checks.
-    static func admit(_ location: UsageLogLocation, since historyStart: Date) -> Self? {
-        if location.provider == .grok, !GrokLogParser.isUsageLog(location.url) {
-            return nil
-        }
-        return Self(location, since: historyStart)
-    }
-
+    /// Opens a log seen for the first time; a rejected path is offered again on the next scan.
     init?(_ location: UsageLogLocation, since historyStart: Date) {
-        guard let file = try? FileDescriptor.open(FilePath(location.url.path), .readOnly) else {
-            return nil
-        }
-        defer { try? file.close() }
-        guard let metadata = UsageFileMetadata(fileDescriptor: file.rawValue) else {
-            return nil
-        }
-
-        self.location = location
-        self.metadata = metadata
-        parsedOffset = 0
-        parsedTail = Data()
-        parser =
+        let log: (any UsageLog)? =
             switch location.provider {
-            case .codex: CodexLogParser()
-            case .claude: ClaudeLogParser()
-            case .piAgent: PiLogParser()
-            case .grok where location.url.lastPathComponent == "chat_history.jsonl": GrokHistoryLogParser()
-            case .grok: GrokLogParser()
+            case .codex: UsageLogFile(location.url, lines: ParsedUsage<CodexLogParser>(since: historyStart))
+            case .claude: UsageLogFile(location.url, lines: ParsedUsage<ClaudeLogParser>(since: historyStart))
+            case .piAgent: UsageLogFile(location.url, lines: ParsedUsage<PiLogParser>(since: historyStart))
+            case .grok: GrokSessionLog(location.url, since: historyStart)
             }
-        eventIndex = UsageEventIndex(since: historyStart)
-        guard readLines(file, in: 0..<metadata.size) else {
+        guard let log else {
             return nil
         }
-    }
-
-    /// Returns whether the file changed on disk since the last pass.
-    mutating func refresh(observed metadata: UsageFileMetadata) -> Bool {
-        let wasReplaced =
-            self.metadata.identity != metadata.identity
-            || metadata.size < self.metadata.size
-            || (metadata.size == self.metadata.size
-                && metadata.modificationDate != self.metadata.modificationDate)
-        if wasReplaced {
-            reread()
-        } else if metadata.size > self.metadata.size {
-            readAppendedLines()
-        } else {
-            return false
-        }
-        return true
-    }
-
-    private mutating func reread() {
-        if let replacement = Self(location, since: eventIndex.historyStart) {
-            self = replacement
-        }
-    }
-
-    private mutating func readAppendedLines() {
-        guard let file = try? FileDescriptor.open(FilePath(location.url.path), .readOnly) else {
-            return
-        }
-        defer { try? file.close() }
-        guard let metadata = UsageFileMetadata(fileDescriptor: file.rawValue) else {
-            return
-        }
-
-        guard self.metadata.identity == metadata.identity,
-            metadata.size >= self.metadata.size,
-            parsedTailMatches(file)
-        else {
-            reread()
-            return
-        }
-
-        // A failed read leaves the old size in place so the next pass retries from parsedOffset.
-        if readLines(file, in: parsedOffset..<metadata.size) {
-            self.metadata = metadata
-        }
-    }
-
-    /// Parses every complete line in `offsets`; a trailing partial line waits for the next pass.
-    /// Returns false when the range could not be read to its end.
-    private mutating func readLines(_ file: FileDescriptor, in offsets: Range<UInt64>) -> Bool {
-        var buffer = UnsafeMutableRawBufferPointer.allocate(
-            byteCount: min(offsets.count, Self.readSize),
-            alignment: 1
-        )
-        defer { buffer.deallocate() }
-        // Bytes of an unfinished line kept at the front of `buffer`.
-        var pending = 0
-        var readOffset = offsets.lowerBound
-        while readOffset < offsets.upperBound {
-            if pending == buffer.count {
-                let larger = UnsafeMutableRawBufferPointer.allocate(byteCount: buffer.count * 2, alignment: 1)
-                larger.copyMemory(from: UnsafeRawBufferPointer(buffer))
-                buffer.deallocate()
-                buffer = larger
-            }
-            let space = buffer[pending..<min(buffer.count, pending + Int(clamping: offsets.upperBound - readOffset))]
-            guard
-                let count = try? file.read(
-                    fromAbsoluteOffset: Int64(readOffset),
-                    into: UnsafeMutableRawBufferPointer(rebasing: space)
-                ),
-                count > 0
-            else {
-                return false
-            }
-            readOffset += UInt64(count)
-            pending += count
-            let parsed = parseCompleteLines(UnsafeRawBufferPointer(rebasing: buffer[..<pending]))
-            parsedOffset += UInt64(parsed)
-            pending -= parsed
-            if let base = buffer.baseAddress, parsed > 0 {
-                memmove(base, base + parsed, pending)
-            }
-        }
-        return true
-    }
-
-    /// Parses each newline-terminated line in `bytes` and returns how many bytes those lines span.
-    private mutating func parseCompleteLines(_ bytes: UnsafeRawBufferPointer) -> Int {
-        guard let base = bytes.baseAddress else {
-            return 0
-        }
-        var lineStart = 0
-        while let newline = memchr(base + lineStart, 0x0A, bytes.count - lineStart) {
-            let lineEnd = base.distance(to: newline)
-            do {
-                let line = UnsafeRawBufferPointer(rebasing: bytes[lineStart..<lineEnd])
-                if let outcome = try parser.parse(line) {
-                    eventIndex.insert(outcome)
-                }
-            } catch {
-                malformedLines += 1
-            }
-            lineStart = lineEnd + 1
-        }
-        if lineStart > 0 {
-            let tail = bytes[max(lineStart - Self.parsedTailSize, 0)..<lineStart]
-            parsedTail = Data((parsedTail + tail).suffix(Self.parsedTailSize))
-        }
-        return lineStart
-    }
-
-    private func parsedTailMatches(_ file: FileDescriptor) -> Bool {
-        var tail = Data(count: parsedTail.count)
-        let count = try? tail.withUnsafeMutableBytes {
-            try file.read(fromAbsoluteOffset: Int64(parsedOffset) - Int64(parsedTail.count), into: $0)
-        }
-        return count == parsedTail.count && tail == parsedTail
+        provider = location.provider
+        self.log = log
     }
 }
 
@@ -212,7 +28,7 @@ private struct TrackedUsageFile: Sendable {
 struct UsageLogIndex {
     private let roots: [UsageLogLocation]
     private var logRoots: [UsageIngestionStats.LogRoot] = []
-    private var trackedFiles: [String: TrackedUsageFile] = [:]
+    private var trackedFiles: [String: TrackedUsageLog] = [:]
     private var indexedFrom = Date.distantPast
 
     init(roots: [UsageLogLocation]) {
@@ -222,23 +38,16 @@ struct UsageLogIndex {
     /// Events merged across every tracked file, with ingestion stats, as of the last `refresh`.
     func collect() -> (events: some Collection<UsageEvent>, stats: UsageIngestionStats) {
         var merged = UsageEventIndex(since: indexedFrom)
-        merged.reserveCapacity(trackedFiles.values.reduce(0) { $0 + $1.eventIndex.count })
+        merged.reserveCapacity(trackedFiles.values.reduce(0) { $0 + $1.log.events.count })
         for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
-            if let grok = tracked.parser as? GrokLogParser {
-                let historyPath = tracked.location.url.deletingLastPathComponent().appending(path: "chat_history.jsonl")
-                    .path
-                let history = trackedFiles[historyPath]?.parser as? GrokHistoryLogParser
-                grok.merge(tracked.eventIndex, history: history, into: &merged)
-            } else {
-                merged.merge(tracked.eventIndex)
-            }
+            merged.merge(tracked.log.events)
         }
         let events = merged.values
         let stats = UsageIngestionStats(
             logRoots: logRoots,
-            trackedFiles: Self.tally(trackedFiles.values.map { ($0.location.provider, 1) }),
+            trackedFiles: Self.tally(trackedFiles.values.map { ($0.provider, 1) }),
             events: Self.tally(events.map { ($0.provider, 1) }),
-            malformedLines: Self.tally(trackedFiles.values.map { ($0.location.provider, $0.malformedLines) }),
+            malformedLines: Self.tally(trackedFiles.values.map { ($0.provider, $0.log.malformedLines) }),
             unpricedModels: merged.unpricedModelIDs
         )
         return (events, stats)
@@ -262,7 +71,7 @@ struct UsageLogIndex {
         } else if historyStart > indexedFrom {
             trackedFiles = trackedFiles.mapValues { tracked in
                 var tracked = tracked
-                tracked.eventIndex.discard(before: historyStart)
+                tracked.log.discard(before: historyStart)
                 return tracked
             }
             changed = true
@@ -285,7 +94,7 @@ struct UsageLogIndex {
                     return
                 }
                 seenPaths.insert(path)
-                if let fileChanged = trackedFiles[path]?.refresh(observed: metadata) {
+                if let fileChanged = trackedFiles[path]?.log.refresh(observed: metadata) {
                     changed = fileChanged || changed
                 } else {
                     let location = UsageLogLocation(
@@ -311,8 +120,8 @@ struct UsageLogIndex {
     private static func load(
         _ files: [(path: String, location: UsageLogLocation)],
         since historyStart: Date
-    ) -> [String: TrackedUsageFile] {
-        let trackedFiles = Mutex<[String: TrackedUsageFile]>([:])
+    ) -> [String: TrackedUsageLog] {
+        let trackedFiles = Mutex<[String: TrackedUsageLog]>([:])
         // Keep refresh synchronous so actor state cannot interleave while workers build files.
         // Each reader can grow its buffer to a whole log line; bound simultaneous readers.
         let nextFile = Atomic(0)
@@ -320,7 +129,7 @@ struct UsageLogIndex {
             // Workers claim files one at a time, so a few large logs cannot leave the rest idle.
             while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
                 let (path, location) = files[index]
-                guard let tracked = TrackedUsageFile.admit(location, since: historyStart) else {
+                guard let tracked = TrackedUsageLog(location, since: historyStart) else {
                     continue
                 }
                 trackedFiles.withLock { $0[path] = tracked }

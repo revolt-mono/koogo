@@ -3,24 +3,11 @@ import Foundation
 /// Reads the `turn_completed` updates that Grok appends to each session's `updates.jsonl`.
 /// Each one sums a whole prompt per model, subagents included.
 struct GrokLogParser: UsageLogParser {
+    /// The prompt the next completed turn bills.
     private var promptIndex: UInt64?
-    private var promptIndices: [UsageEvent.Key: UInt64] = [:]
-
-    /// admits updates and response history for top-level sessions; parent usage already includes subagents.
-    static func isUsageLog(_ url: URL) -> Bool {
-        let sessionURL = url.deletingLastPathComponent()
-        let summaryURL = sessionURL.appending(path: "summary.json")
-        guard
-            url.lastPathComponent == "updates.jsonl"
-                || (url.lastPathComponent == "chat_history.jsonl"
-                    && FileManager.default.fileExists(atPath: sessionURL.appending(path: "updates.jsonl").path)),
-            let data = try? Data(contentsOf: summaryURL),
-            let summary = try? JSONDecoder().decode(GrokSessionSummary.self, from: data)
-        else {
-            return false
-        }
-        return summary.kind?.hasPrefix("subagent") != true
-    }
+    /// Billed turns of the surviving branch by prompt. A rewind abandons later prompts, which stay billed
+    /// but no longer match the rewritten response history.
+    private(set) var promptTurns: [UInt64: UsageEvent] = [:]
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         do {
@@ -39,53 +26,31 @@ struct GrokLogParser: UsageLogParser {
             case "rewind_marker":
                 promptIndex = nil
                 guard let target = try? update.member("target_prompt_index")?.integer(UInt64.self) else {
-                    promptIndices.removeAll()
+                    promptTurns.removeAll()
                     throw MalformedUsageRecord()
                 }
-                // the abandoned branch stays billed, but current history only describes surviving prompts.
-                promptIndices = promptIndices.filter { $0.value < target }
+                promptTurns = promptTurns.filter { $0.key < target }
             case "turn_completed":
                 defer { promptIndex = nil }
-                if let usage = try update.member("usage")?.nonNull {
-                    return try completedTurn(GrokPromptUsage(usage), params: params)
+                guard let usage = try update.member("usage")?.nonNull else {
+                    return nil
                 }
+                let outcome = try Self.completedTurn(GrokPromptUsage(usage), params: params)
+                if case .event(let event) = outcome, let promptIndex {
+                    promptTurns[promptIndex] = event
+                }
+                return outcome
             default: break
             }
             return nil
         } catch {
+            // An unreadable line may have been the prompt, so the next turn stays unmatched.
             promptIndex = nil
             throw error
         }
     }
 
-    /// merges response effort while preserving raw billed records for later history rewrites or removal.
-    func merge(_ events: UsageEventIndex, history: GrokHistoryLogParser?, into merged: inout UsageEventIndex) {
-        merged.merge(events)
-        guard let history else {
-            return
-        }
-        for event in events.values {
-            guard let index = promptIndices[event.key], let turn = event.usage.modelTurn,
-                case .named(let model, _) = turn.model,
-                let effort = history.effort(for: index, model: model)
-            else {
-                continue
-            }
-            var usage = event.usage
-            usage.modelTurn = .init(model: turn.model, reasoningEffort: effort)
-            merged.insert(
-                .event(
-                    UsageEvent(
-                        key: event.key,
-                        usage: usage,
-                        revision: .init(outputTokens: 0, metadataCompleteness: 1)
-                    )
-                )
-            )
-        }
-    }
-
-    private mutating func completedTurn(_ usage: GrokPromptUsage, params: JSONValue) throws -> UsageLineOutcome? {
+    private static func completedTurn(_ usage: GrokPromptUsage, params: JSONValue) throws -> UsageLineOutcome? {
         guard let meta = try params.member("_meta"),
             let eventID = try meta.member("eventId")?.string(),
             let milliseconds = try meta.member("agentTimestampMs")?.integer(UInt64.self)
@@ -104,13 +69,9 @@ struct GrokLogParser: UsageLogParser {
             return nil
         }
 
-        let key = UsageEvent.Key.grok(eventID: eventID, timestamp: timestamp)
-        if let promptIndex {
-            promptIndices[key] = promptIndex
-        }
         return .event(
             UsageEvent(
-                key: key,
+                key: .grok(eventID: eventID, timestamp: timestamp),
                 usage: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: usage.totalTokens,
@@ -185,13 +146,5 @@ extension GrokTokenUsage {
             throw MalformedUsageRecord()
         }
         self = usage
-    }
-}
-
-private struct GrokSessionSummary: Decodable {
-    let kind: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case kind = "session_kind"
     }
 }

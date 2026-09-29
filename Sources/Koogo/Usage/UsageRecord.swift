@@ -32,7 +32,7 @@ struct UsageRecord: Sendable {
     let timestamp: Date
     let processedTokens: UInt64
     let costUSD: Decimal
-    var modelTurn: ModelTurn?
+    let modelTurn: ModelTurn?
 }
 
 struct UsageQuote: Sendable {

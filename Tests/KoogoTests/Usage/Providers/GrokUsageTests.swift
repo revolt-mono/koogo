@@ -80,7 +80,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
 
         let report = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now)
 
-        XCTAssertEqual(report.ingestion.trackedFiles[.grok], 4)
+        XCTAssertEqual(report.ingestion.trackedFiles[.grok], 3)
         XCTAssertEqual(report.ingestion.events[.grok], 4)
         let grok = try XCTUnwrap(report.snapshot.providers[.grok])
         XCTAssertEqual(grok.today.processedTokens, 4_400_000)
