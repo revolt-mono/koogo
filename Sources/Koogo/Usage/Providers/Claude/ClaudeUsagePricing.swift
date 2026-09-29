@@ -87,7 +87,7 @@ enum ClaudeUsagePricing {
         let supportsUSInference: Bool
     }
 
-    // Sources, checked 2026-09-23:
+    // Sources, checked 2026-09-29:
     // https://platform.claude.com/docs/en/about-claude/pricing
     // https://platform.claude.com/docs/en/models/overview
     private static let prices: [String: ModelPrice] = [
@@ -150,6 +150,12 @@ enum ClaudeUsagePricing {
             rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
             supportsFastMode: false,
             supportsUSInference: false
+        ),
+        "claude-sonnet-5-5": ModelPrice(
+            displayName: "Sonnet 5.5",
+            rates: Rates(input: 2_000, cacheRead: 200, output: 10_000),
+            supportsFastMode: false,
+            supportsUSInference: true
         ),
         "claude-sonnet-5": ModelPrice(
             displayName: "Sonnet 5",
