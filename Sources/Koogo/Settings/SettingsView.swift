@@ -75,14 +75,7 @@ private struct LaunchAtLoginToggle: View {
         }
         .alert(
             "Couldn't Change Login Setting",
-            isPresented: Binding(
-                get: { failure != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        failure = nil
-                    }
-                }
-            ),
+            isPresented: $failure.isPresent(),
             presenting: failure
         ) { _ in
             Button("OK", role: .cancel) {}
