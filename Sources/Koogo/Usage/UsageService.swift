@@ -11,7 +11,7 @@ actor UsageService {
     /// The last report and the calendar and provider scope it covers.
     private struct LastRefresh {
         let intervals: UsagePeriodIntervals
-        let providers: Set<UsageProvider>
+        let providers: Set<Provider>
         let report: UsageReport
     }
 
@@ -31,7 +31,7 @@ actor UsageService {
 
     func refresh(
         at date: Date,
-        providers: Set<UsageProvider> = Set(UsageProvider.allCases)
+        providers: Set<Provider> = Set(Provider.allCases)
     ) -> UsageReport {
         let started = ContinuousClock.now
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)

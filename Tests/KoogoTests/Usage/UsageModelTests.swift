@@ -73,8 +73,8 @@ final class UsageModelTests: UsageWorkspaceTestCase {
         XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), [.codex, .claude, .piAgent])
 
         try FileManager.default.createDirectory(at: grokHome, withIntermediateDirectories: true)
-        XCTAssertEqual(model.refresh(), Set(UsageProvider.allCases))
+        XCTAssertEqual(model.refresh(), Set(Provider.allCases))
         try await waitUntil { model.snapshot?.providers[.grok] != nil }
-        XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), Set(UsageProvider.allCases))
+        XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), Set(Provider.allCases))
     }
 }

@@ -80,7 +80,7 @@ enum UsageSnapshotBuilder {
 
     static func build(
         events: some Sequence<UsageEvent>,
-        providers: Set<UsageProvider> = Set(UsageProvider.allCases),
+        providers: Set<Provider> = Set(Provider.allCases),
         intervals: UsagePeriodIntervals
     ) -> UsageSnapshot {
         var accumulators = Dictionary(uniqueKeysWithValues: providers.map { ($0, ProviderAccumulator()) })

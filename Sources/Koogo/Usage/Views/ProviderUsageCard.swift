@@ -3,7 +3,7 @@ import SwiftUI
 /// One provider's card: header with favorite model, an optional accessory
 /// above the chart, then today/weekly/monthly rows.
 struct ProviderUsageCard<Accessory: View>: View {
-    let provider: UsageProvider
+    let provider: Provider
     let usage: ProviderUsageSnapshot
     @ViewBuilder let accessory: () -> Accessory
 
@@ -34,7 +34,7 @@ struct ProviderUsageCard<Accessory: View>: View {
     }
 }
 
-private extension UsageProvider {
+private extension Provider {
     var imageAssetName: String {
         switch self {
         case .codex: "OpenAISymbol"
@@ -54,7 +54,7 @@ private extension UsageProvider {
 }
 
 private struct ProviderUsageHeader: View {
-    let provider: UsageProvider
+    let provider: Provider
     let favorite: ProviderUsageSnapshot.Favorite?
 
     var body: some View {

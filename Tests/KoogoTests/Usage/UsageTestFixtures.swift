@@ -73,7 +73,7 @@ class UsageWorkspaceTestCase: XCTestCase {
 }
 
 func usageEvent(
-    _ provider: UsageProvider,
+    _ provider: Provider,
     id: Int = 0,
     model: UsageModelReference? = nil,
     effort: String? = nil,

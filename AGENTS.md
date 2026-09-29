@@ -36,7 +36,7 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 ```
 ├── Sources/Koogo          menu bar application
 │   ├── App                entry point, model lifetimes and scene wiring, headless report and benchmark
-│   ├── Shared             leaf primitives: telemetry, command-line tool runner, JSON-RPC connection, ISO 8601 dates, pager popover, local event monitor, Reduce Motion helpers
+│   ├── Shared             leaf primitives: provider identity, telemetry, command-line tool runner, JSON-RPC connection, ISO 8601 dates, pager popover, local event monitor, Reduce Motion helpers
 │   ├── Panel              menu bar panel shell: toolbar, pager, usage page composition, quota gating
 │   ├── Settings           settings window shell hosting slice-owned controls
 │   ├── Usage              provider enablement, pipeline service, log locations, and usage vocabulary

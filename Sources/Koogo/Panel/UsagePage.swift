@@ -65,13 +65,13 @@ private struct ProviderCards: View {
     @Environment(ClaudeQuotaModel.self) private var claudeQuotaModel
     @Environment(GrokQuotaModel.self) private var grokQuotaModel
     private var quotaPreferences = QuotaPreferences()
-    @State private var cardHeights: [UsageProvider: CGFloat] = [:]
+    @State private var cardHeights: [Provider: CGFloat] = [:]
 
-    let providers: [UsageProvider: ProviderUsageSnapshot]
+    let providers: [Provider: ProviderUsageSnapshot]
     let heightLimit: CGFloat
 
     var body: some View {
-        let shown = UsageProvider.allCases.filter { providers[$0] != nil }
+        let shown = Provider.allCases.filter { providers[$0] != nil }
         let leading = shown.prefix(3)
         let visibleHeight =
             leading.compactMap { cardHeights[$0] }.reduce(0, +)

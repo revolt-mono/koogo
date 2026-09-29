@@ -1,4 +1,4 @@
-extension UsageProvider {
+extension Provider {
     /// The one place that maps a provider to its log format; ingestion never names a provider type.
     var logSource: any UsageLogSource {
         switch self {

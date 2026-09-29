@@ -4,7 +4,7 @@ import Synchronization
 
 /// An admitted log and its provider.
 private struct TrackedUsageLog: Sendable {
-    let provider: UsageProvider
+    let provider: Provider
     var log: any UsageLog
 }
 
@@ -12,14 +12,14 @@ private struct TrackedUsageLog: Sendable {
 /// Provider formats enter only through each provider's `UsageLogSource`.
 struct UsageLogIndex {
     private let locations: UsageLocations
-    private var sources: [UsageProvider: any UsageLogSource]
+    private var sources: [Provider: any UsageLogSource]
     private var logRoots: [UsageIngestionStats.LogRoot] = []
     private var trackedFiles: [String: TrackedUsageLog] = [:]
     private var indexedFrom = Date.distantPast
 
     init(locations: UsageLocations) {
         self.locations = locations
-        sources = Dictionary(uniqueKeysWithValues: UsageProvider.allCases.map { ($0, $0.logSource) })
+        sources = Dictionary(uniqueKeysWithValues: Provider.allCases.map { ($0, $0.logSource) })
     }
 
     /// Events merged across every tracked file, with ingestion stats, as of the last `refresh`.
@@ -42,7 +42,7 @@ struct UsageLogIndex {
 
     /// Checks which roots exist, refreshes each requested provider's source and tracked files, drops
     /// all others, and reports whether the usage report may need rebuilding.
-    mutating func refresh(since historyStart: Date, providers: Set<UsageProvider>) -> Bool {
+    mutating func refresh(since historyStart: Date, providers: Set<Provider>) -> Bool {
         let roots = locations.logRoots
         let logRoots = roots.map {
             UsageIngestionStats.LogRoot(
@@ -80,7 +80,7 @@ struct UsageLogIndex {
 
     private mutating func scanLogs(_ roots: [UsageLogLocation], since historyStart: Date) -> Bool {
         var seenPaths = Set<String>()
-        var newFiles: [(path: String, provider: UsageProvider)] = []
+        var newFiles: [(path: String, provider: Provider)] = []
         var changed = false
 
         for root in roots {
@@ -111,8 +111,8 @@ struct UsageLogIndex {
     }
 
     private static func open(
-        _ files: [(path: String, provider: UsageProvider)],
-        with sources: [UsageProvider: any UsageLogSource],
+        _ files: [(path: String, provider: Provider)],
+        with sources: [Provider: any UsageLogSource],
         since historyStart: Date
     ) -> [String: TrackedUsageLog] {
         let trackedFiles = Mutex<[String: TrackedUsageLog]>([:])
@@ -133,8 +133,8 @@ struct UsageLogIndex {
         return trackedFiles.withLock { $0 }
     }
 
-    private static func tally(_ counts: [(UsageProvider, Int)]) -> [UsageProvider: Int] {
-        let zeros = Dictionary(uniqueKeysWithValues: UsageProvider.allCases.map { ($0, 0) })
+    private static func tally(_ counts: [(Provider, Int)]) -> [Provider: Int] {
+        let zeros = Dictionary(uniqueKeysWithValues: Provider.allCases.map { ($0, 0) })
         return counts.reduce(into: zeros) { totals, count in
             totals[count.0, default: 0] += count.1
         }

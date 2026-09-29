@@ -85,10 +85,10 @@ struct UsageSnapshot: Equatable, Sendable, Encodable {
     let summary: UsageSummarySnapshot
     /// Exactly the requested providers (active in the app, all in `--report`); the summary totals
     /// and compares only these.
-    let providers: [UsageProvider: ProviderUsageSnapshot]
+    let providers: [Provider: ProviderUsageSnapshot]
 
     init(
-        providers: [UsageProvider: ProviderUsageSnapshot],
+        providers: [Provider: ProviderUsageSnapshot],
         previousDay: UsagePeriodSnapshot,
         previousMonth: UsagePeriodSnapshot
     ) {

@@ -57,7 +57,7 @@ struct UsageEvent: Sendable {
 
     var usage: UsageRecord { value.usage }
 
-    var provider: UsageProvider {
+    var provider: Provider {
         switch key {
         case .codex: .codex
         case .claude: .claude

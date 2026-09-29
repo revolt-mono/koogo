@@ -2,17 +2,17 @@
 /// so this is the only place ingestion health becomes observable.
 struct UsageIngestionStats: Sendable, Encodable {
     struct LogRoot: Equatable, Sendable, Encodable {
-        let provider: UsageProvider
+        let provider: Provider
         let path: String
         let exists: Bool
     }
 
     let logRoots: [LogRoot]
-    let trackedFiles: [UsageProvider: Int]
-    let events: [UsageProvider: Int]
+    let trackedFiles: [Provider: Int]
+    let events: [Provider: Int]
     /// Lines in tracked files whose record kind the provider's parser knows but whose fields it cannot use;
     /// a nonzero count usually means the provider changed its log format.
-    let malformedLines: [UsageProvider: Int]
+    let malformedLines: [Provider: Int]
     /// Model ids with events inside the history window that were dropped because the model,
     /// or one of its billed options (fast speed, US inference, cache writes, an unknown speed), has no price.
     let unpricedModels: [String]

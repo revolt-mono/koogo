@@ -59,7 +59,7 @@ final class UsageEventIndexTests: XCTestCase {
         let historyStart = usageTestTimestamp
         let old = historyStart.addingTimeInterval(-1)
         var index = UsageEventIndex(since: .distantPast)
-        for (id, provider) in UsageProvider.allCases.enumerated() {
+        for (id, provider) in Provider.allCases.enumerated() {
             index.insert(.event(usageEvent(provider, id: id, processedTokens: 1, costUSD: 0, at: old)))
         }
         index.insert(.unpricedModel(id: "old-model", timestamp: old))

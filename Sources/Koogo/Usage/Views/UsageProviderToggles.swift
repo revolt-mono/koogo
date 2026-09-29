@@ -5,7 +5,7 @@ struct UsageProviderToggles: View {
     @Environment(UsageModel.self) private var usageModel
 
     var body: some View {
-        ForEach(UsageProvider.allCases, id: \.self) { provider in
+        ForEach(Provider.allCases, id: \.self) { provider in
             Toggle(
                 provider.title,
                 isOn: Binding(

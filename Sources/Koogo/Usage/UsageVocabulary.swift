@@ -1,23 +1,5 @@
 import Foundation
 
-enum UsageProvider: String, CaseIterable, Sendable, Encodable, CodingKeyRepresentable {
-    case codex
-    case claude
-    case piAgent
-    case grok
-}
-
-extension UsageProvider {
-    var title: String {
-        switch self {
-        case .codex: "Codex"
-        case .claude: "Claude"
-        case .piAgent: "Pi"
-        case .grok: "Grok"
-        }
-    }
-}
-
 /// A priced model as the snapshot names it; `id` orders ties and `name` is what the UI shows.
 struct UsageModelReference: Hashable, Sendable {
     let id: String
