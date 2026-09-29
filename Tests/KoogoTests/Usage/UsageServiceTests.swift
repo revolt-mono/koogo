@@ -25,6 +25,26 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
         XCTAssertEqual(report.snapshot.providers[.codex]?.today.processedTokens, 2_280)
     }
 
+    func testUnicodeAndReservedCharactersInLogPaths() async throws {
+        let log = workspace.codexSessions.appending(path: "项目 #100%/session ?.jsonl")
+        try workspace.write(codexLog(input: 100, output: 20), to: log)
+        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let initial = await service.refresh(at: now)
+        XCTAssertEqual(initial.ingestion.trackedFiles[.codex], 1)
+        XCTAssertEqual(initial.snapshot.providers[.codex]?.today.processedTokens, 120)
+
+        try workspace.append(
+            codexTokenCount(
+                last: codexUsage(input: 50, output: 10),
+                total: codexUsage(input: 150, output: 30)
+            ) + "\n",
+            to: log
+        )
+        let appended = await service.refresh(at: now)
+        XCTAssertEqual(appended.ingestion.trackedFiles[.codex], 1)
+        XCTAssertEqual(appended.snapshot.providers[.codex]?.today.processedTokens, 180)
+    }
+
     func testDisabledProvidersAreNeitherScannedNorSummarized() async throws {
         try workspace.write(
             codexLog(input: 100, output: 20),

@@ -288,7 +288,10 @@ struct UsageLogIndex {
                 if let fileChanged = trackedFiles[path]?.refresh(observed: metadata) {
                     changed = fileChanged || changed
                 } else {
-                    let location = UsageLogLocation(provider: root.provider, url: URL(fileURLWithPath: path))
+                    let location = UsageLogLocation(
+                        provider: root.provider,
+                        url: URL(filePath: path, directoryHint: .notDirectory)
+                    )
                     newFiles.append((path, location))
                 }
             }
