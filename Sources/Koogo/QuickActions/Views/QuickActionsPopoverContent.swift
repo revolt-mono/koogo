@@ -11,6 +11,7 @@ struct QuickActionsPopoverContent: View {
 
             SystemAppearanceQuickAction()
             MountedDiskImagesQuickAction()
+            OrphanedAgentProcessesQuickAction()
         }
         .padding(12)
         .frame(width: 228)
@@ -158,6 +159,94 @@ private struct MountedDiskImagesQuickAction: View {
         Task {
             do {
                 try await SystemQuickActions.eject(diskImages)
+            } catch {
+                state = .failed(error.localizedDescription)
+                return
+            }
+            state = .loading
+            reloadRequest &+= 1
+        }
+    }
+}
+
+private struct OrphanedAgentProcessesQuickAction: View {
+    private enum State {
+        case loading
+        case none
+        case available(OrphanedAgentProcesses)
+        case terminating(OrphanedAgentProcesses)
+        case failed(String)
+    }
+
+    @State private var state = State.loading
+    @State private var reloadRequest = 0
+
+    var body: some View {
+        Group {
+            switch state {
+            case .loading:
+                QuickActionRow(
+                    title: "Checking Agent Processes",
+                    detail: "Looking for orphaned claude, codex, and grok",
+                    interaction: .working
+                )
+            case .none:
+                QuickActionRow(
+                    title: "No Orphaned Agents",
+                    detail: "Agent processes left behind appear here",
+                    interaction: .unavailable(systemImage: "xmark.octagon")
+                )
+            case .available(let processes):
+                let count = processes.values.count
+                QuickActionRow(
+                    title: "Stop \(count) Orphaned Agent\(count == 1 ? "" : "s")",
+                    detail: processes.summary,
+                    interaction: .action(systemImage: "xmark.octagon") {
+                        terminate(processes)
+                    }
+                )
+            case .terminating(let processes):
+                let count = processes.values.count
+                QuickActionRow(
+                    title: "Stopping \(count) Agent\(count == 1 ? "" : "s")",
+                    detail: "Waiting for the processes to exit",
+                    interaction: .working
+                )
+            case .failed(let message):
+                QuickActionRow(
+                    title: "Retry Agent Process Scan",
+                    detail: message,
+                    interaction: .action(systemImage: "exclamationmark.triangle") {
+                        reloadRequest &+= 1
+                    }
+                )
+            }
+        }
+        .task(id: reloadRequest, load)
+    }
+
+    private func load() async {
+        if case .terminating = state {
+            return
+        }
+
+        state = .loading
+        do {
+            let processes = try await SystemQuickActions.orphanedAgentProcesses()
+            guard !Task.isCancelled else {
+                return
+            }
+            state = processes.map(State.available) ?? .none
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    private func terminate(_ processes: OrphanedAgentProcesses) {
+        state = .terminating(processes)
+        Task {
+            do {
+                try await SystemQuickActions.terminate(processes)
             } catch {
                 state = .failed(error.localizedDescription)
                 return
