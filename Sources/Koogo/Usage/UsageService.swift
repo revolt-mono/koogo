@@ -18,7 +18,6 @@ actor UsageService {
     let locations: UsageLocations
     private let calendar: Calendar
     private var logIndex: UsageLogIndex
-    private var piModels = PiModelCatalog.empty
     private var lastRefresh: LastRefresh?
 
     init(
@@ -27,7 +26,7 @@ actor UsageService {
     ) {
         self.locations = locations
         self.calendar = calendar
-        logIndex = UsageLogIndex(roots: locations.logRoots)
+        logIndex = UsageLogIndex(locations: locations)
     }
 
     func refresh(
@@ -37,10 +36,7 @@ actor UsageService {
         let started = ContinuousClock.now
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)
         let logsChanged = logIndex.refresh(since: intervals.historyStart, providers: providers)
-        let modelsChanged = providers.contains(.piAgent) && piModels.refresh(home: locations.home(of: .piAgent))
-        if !logsChanged, !modelsChanged, let lastRefresh,
-            lastRefresh.intervals == intervals, lastRefresh.providers == providers
-        {
+        if !logsChanged, let lastRefresh, lastRefresh.intervals == intervals, lastRefresh.providers == providers {
             return lastRefresh.report
         }
         let (events, ingestion) = logIndex.collect()
@@ -65,12 +61,7 @@ actor UsageService {
 
         let report = UsageReport(
             ingestion: ingestion,
-            snapshot: UsageSnapshotBuilder.build(
-                events: events,
-                providers: providers,
-                intervals: intervals,
-                piModels: piModels
-            )
+            snapshot: UsageSnapshotBuilder.build(events: events, providers: providers, intervals: intervals)
         )
         lastRefresh = LastRefresh(intervals: intervals, providers: providers, report: report)
         return report

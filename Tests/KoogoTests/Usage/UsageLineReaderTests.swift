@@ -123,7 +123,7 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
     }
 
     func testIntegersInUnusualFormsAreReadAsJSON() throws {
-        var parser = PiLogParser()
+        var parser = PiLogParser(models: PiModelCatalog())
         for (usage, tokens) in [
             (#"{"totalTokens":-0,"cost":{"total":0.01}}"#, UInt64(0)),
             (#"{"totalTokens":100000000000000000000e-20,"cost":{"total":0.01}}"#, 1),
@@ -134,7 +134,7 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
     }
 
     func testMalformedReadValuesMakeARecordMalformed() {
-        var parser = PiLogParser()
+        var parser = PiLogParser(models: PiModelCatalog())
         for usage in [
             #"{"totalTokens":01,"cost":{"total":0.01}}"#,
             #"{"totalTokens":1,"cost":{"total":00.01}}"#,
@@ -162,7 +162,7 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
     }
 
     func testPiThinkingPassesThroughRecordsInAnyLayout() throws {
-        var parser = PiLogParser()
+        var parser = PiLogParser(models: PiModelCatalog())
         let records = [
             piHighThinking,
             #"{"type":"model_change","id":"model","parentId":"high","timestamp":"2026-08-25T11:40:00.000Z"}"#,

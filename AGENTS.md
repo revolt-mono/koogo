@@ -40,8 +40,8 @@ Each feature is a vertical slice that owns its rules, state, services, views, an
 │   ├── Panel              menu bar panel shell: toolbar, pager, usage page composition, quota gating
 │   ├── Settings           settings window shell hosting slice-owned controls
 │   ├── Usage              provider enablement, pipeline service, log locations, and usage vocabulary
-│   │   ├── Ingestion      file discovery and admission, incremental reads, event identity and dedup, ingestion stats
-│   │   ├── Providers      Codex, Claude, Grok, and Pi Agent formats, identities, and pricing
+│   │   ├── Ingestion      log source and log contracts, file discovery, incremental reads, event identity and dedup, ingestion stats
+│   │   ├── Providers      the provider-to-source registry; Codex, Claude, Grok, and Pi Agent sources, formats, identities, and pricing
 │   │   ├── Aggregation    calendar periods, snapshots, and summary scope
 │   │   └── Views          summary, provider cards, chart, provider toggles
 │   ├── Quota              quota service contract, state, limits, and shared quota views

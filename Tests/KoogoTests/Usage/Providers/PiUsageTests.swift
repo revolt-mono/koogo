@@ -5,7 +5,7 @@ import XCTest
 
 final class PiUsageTests: UsageWorkspaceTestCase {
     func testParserUsesBranchLocalThinkingAndLoggedUsage() throws {
-        var parser = PiLogParser()
+        var parser = PiLogParser(models: PiModelCatalog())
         for record in [piSessionHeader, piThinking(id: "high", parentID: nil, level: "high"), piUser] {
             XCTAssertNil(try parse(record, with: &parser))
         }
@@ -39,7 +39,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     }
 
     func testParserIncludesAuxiliaryUsageWithoutFavoriteMetadata() throws {
-        var parser = PiLogParser()
+        var parser = PiLogParser(models: PiModelCatalog())
         _ = try parse(piSessionHeader, with: &parser)
         let records = [
             """
@@ -60,7 +60,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     }
 
     func testParserUsesProviderTotalTokens() throws {
-        var parser = PiLogParser()
+        var parser = PiLogParser(models: PiModelCatalog())
         let log = """
             {"type":"compaction","id":"compaction","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","usage":{"input":10,"output":20,"cacheRead":30,"cacheWrite":40,"totalTokens":125,"cost":{"total":1}}}
             """
@@ -69,7 +69,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     }
 
     func testParserKeepsZeroUsageAssistantTurnsForFavorites() throws {
-        var parser = PiLogParser()
+        var parser = PiLogParser(models: PiModelCatalog())
 
         let event = try XCTUnwrap(
             try parse(
@@ -81,7 +81,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(event.usage.processedTokens, 0)
         XCTAssertEqual(
             event.usage.modelTurn?.model,
-            .piAgent(provider: "provider", id: "free-model")
+            UsageModelReference(id: "provider/free-model", name: "free-model")
         )
         let snapshot = UsageSnapshotBuilder.build(
             events: [event],
@@ -97,13 +97,17 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     func testCatalogPrefersCustomNamesAndOverridesOverStoredNames() throws {
         try writeModelCatalog()
 
-        var catalog = PiModelCatalog.empty
+        var catalog = PiModelCatalog()
         XCTAssertTrue(catalog.refresh(home: locations.home(of: .piAgent)))
 
-        XCTAssertEqual(catalog.displayName(provider: "provider", model: "model-a"), "Readable Model A")
-        XCTAssertEqual(catalog.displayName(provider: "provider", model: "model-b"), "Preferred Model B")
-        XCTAssertEqual(catalog.displayName(provider: "provider", model: "unnamed"), "unnamed")
-        XCTAssertEqual(catalog.displayName(provider: "provider", model: "unknown"), "unknown")
+        let names = ["model-a", "model-b", "unnamed", "unknown"].map {
+            catalog.reference(for: PiModelCatalog.ID(provider: "provider", model: $0))
+        }
+        XCTAssertEqual(
+            names.map(\.id),
+            ["provider/model-a", "provider/model-b", "provider/unnamed", "provider/unknown"]
+        )
+        XCTAssertEqual(names.map(\.name), ["Readable Model A", "Preferred Model B", "unnamed", "unknown"])
     }
 
     func testServiceUsesLoggedCostsModelNamesAndTurnFavorites() async throws {

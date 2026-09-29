@@ -24,18 +24,18 @@ enum UsageSnapshotBuilder {
             }
         }
 
-        func snapshot(piModels: PiModelCatalog) -> ProviderUsageSnapshot.Favorite? {
+        func snapshot() -> ProviderUsageSnapshot.Favorite? {
             guard
                 let (model, usage) = models.max(by: { lhs, rhs in
                     lhs.value.occurrences == rhs.value.occurrences
-                        ? lhs.key.sortKey > rhs.key.sortKey
+                        ? lhs.key.id > rhs.key.id
                         : lhs.value.occurrences < rhs.value.occurrences
                 })
             else {
                 return nil
             }
             return ProviderUsageSnapshot.Favorite(
-                modelName: model.displayName(piModels: piModels),
+                modelName: model.name,
                 reasoningEffort: usage.reasoningEfforts.max { lhs, rhs in
                     lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
                 }?.key
@@ -62,12 +62,9 @@ enum UsageSnapshotBuilder {
             }
         }
 
-        func snapshot(
-            intervals: UsagePeriodIntervals,
-            piModels: PiModelCatalog
-        ) -> ProviderUsageSnapshot {
+        func snapshot(intervals: UsagePeriodIntervals) -> ProviderUsageSnapshot {
             ProviderUsageSnapshot(
-                favorite: favorite.snapshot(piModels: piModels),
+                favorite: favorite.snapshot(),
                 today: today,
                 week: week,
                 month: monthByDay.values.reduce(UsagePeriodSnapshot(), +),
@@ -84,8 +81,7 @@ enum UsageSnapshotBuilder {
     static func build(
         events: some Sequence<UsageEvent>,
         providers: Set<UsageProvider> = Set(UsageProvider.allCases),
-        intervals: UsagePeriodIntervals,
-        piModels: PiModelCatalog = .empty
+        intervals: UsagePeriodIntervals
     ) -> UsageSnapshot {
         var accumulators = Dictionary(uniqueKeysWithValues: providers.map { ($0, ProviderAccumulator()) })
         var previousDay = UsagePeriodSnapshot()
@@ -104,26 +100,9 @@ enum UsageSnapshotBuilder {
         }
 
         return UsageSnapshot(
-            providers: accumulators.mapValues { $0.snapshot(intervals: intervals, piModels: piModels) },
+            providers: accumulators.mapValues { $0.snapshot(intervals: intervals) },
             previousDay: previousDay,
             previousMonth: previousMonth
         )
-    }
-}
-
-private extension UsageModelReference {
-    var sortKey: String {
-        switch self {
-        case .named(let id, _): id
-        case .piAgent(let provider, let id): "\(provider)/\(id)"
-        }
-    }
-
-    func displayName(piModels: PiModelCatalog) -> String {
-        switch self {
-        case .named(_, let name): name
-        case .piAgent(let provider, let id):
-            piModels.displayName(provider: provider, model: id)
-        }
     }
 }

@@ -3,7 +3,7 @@ import Foundation
 /// A top-level Grok session: `updates.jsonl` bills each prompt, and `chat_history.jsonl`, when present,
 /// records the reasoning effort applied to each response of the surviving branch.
 struct GrokSessionLog: UsageLog {
-    private var updates: UsageLogFile<ParsedUsage<GrokLogParser>>
+    private var updates: UsageLogFile<GrokLogParser>
     private var history: UsageLogFile<GrokChatHistory>?
     private let historyURL: URL
     private(set) var events: UsageEventIndex
@@ -16,16 +16,16 @@ struct GrokSessionLog: UsageLog {
             let data = try? Data(contentsOf: sessionURL.appending(path: "summary.json")),
             let summary = try? JSONDecoder().decode(GrokSessionSummary.self, from: data),
             summary.kind?.hasPrefix("subagent") != true,
-            let updates = UsageLogFile(url, lines: ParsedUsage<GrokLogParser>(since: historyStart))
+            let updates = UsageLogFile(url, parser: GrokLogParser(), since: historyStart)
         else {
             return nil
         }
         let historyURL = sessionURL.appending(path: "chat_history.jsonl")
-        let history = UsageLogFile(historyURL, lines: GrokChatHistory())
+        let history = Self.openHistory(historyURL)
         self.updates = updates
         self.history = history
         self.historyURL = historyURL
-        events = Self.join(updates.lines, history: history?.lines)
+        events = Self.join(updates, history: history?.parser)
     }
 
     var malformedLines: Int {
@@ -38,7 +38,7 @@ struct GrokSessionLog: UsageLog {
         guard updatesChanged || historyChanged else {
             return false
         }
-        events = Self.join(updates.lines, history: history?.lines)
+        events = Self.join(updates, history: history?.parser)
         return true
     }
 
@@ -57,20 +57,25 @@ struct GrokSessionLog: UsageLog {
         if let changed = history?.refresh(observed: metadata) {
             return changed
         }
-        history = UsageLogFile(historyURL, lines: GrokChatHistory())
+        history = Self.openHistory(historyURL)
         return history != nil
+    }
+
+    /// History bills nothing, so its window never matters.
+    private static func openHistory(_ url: URL) -> UsageLogFile<GrokChatHistory>? {
+        UsageLogFile(url, parser: GrokChatHistory(), since: .distantPast)
     }
 
     /// Tags each surviving prompt's billed turn with the effort its responses used most on the billed model.
     /// The tagged copy outranks untagged copies of the same turn, here and in forks without history.
-    private static func join(_ updates: ParsedUsage<GrokLogParser>, history: GrokChatHistory?) -> UsageEventIndex {
+    private static func join(_ updates: UsageLogFile<GrokLogParser>, history: GrokChatHistory?) -> UsageEventIndex {
         var events = updates.events
         guard let history else {
             return events
         }
         for (promptIndex, event) in updates.parser.promptTurns {
-            guard let turn = event.usage.modelTurn, case .named(let model, _) = turn.model,
-                let effort = history.effort(promptIndex: promptIndex, model: model)
+            guard let turn = event.usage.modelTurn,
+                let effort = history.effort(promptIndex: promptIndex, model: turn.model.id)
             else {
                 continue
             }
@@ -90,19 +95,19 @@ struct GrokSessionLog: UsageLog {
     }
 }
 
-/// Reasoning effort votes per prompt and model from the responses in `chat_history.jsonl`.
-struct GrokChatHistory: UsageLogLines {
+/// Reasoning effort votes per prompt and model from the responses in `chat_history.jsonl`; bills nothing.
+struct GrokChatHistory: UsageLogParser {
     private var promptIndex: UInt64?
     private var votes: [UInt64: [String: [String: Int]]] = [:]
 
-    mutating func consume(_ line: UnsafeRawBufferPointer) throws {
+    mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         do {
             guard JSONObjectReader(line) != nil else {
-                return
+                return nil
             }
             let record = JSONValue(bytes: line)
             guard let kind = try record.member("type") else {
-                return
+                return nil
             }
             switch kind {
             case "user":
@@ -114,19 +119,16 @@ struct GrokChatHistory: UsageLogLines {
                     let model = try record.member("model_id")?.string(), !model.isEmpty,
                     let effort = try record.member("reasoning_effort")?.string(), !effort.isEmpty
                 else {
-                    return
+                    return nil
                 }
                 votes[promptIndex, default: [:]][model, default: [:]][effort, default: 0] += 1
             default: break
             }
+            return nil
         } catch {
             promptIndex = nil
             throw error
         }
-    }
-
-    func restarted() -> Self {
-        Self()
     }
 
     /// The effort most responses to the prompt used on `model`.

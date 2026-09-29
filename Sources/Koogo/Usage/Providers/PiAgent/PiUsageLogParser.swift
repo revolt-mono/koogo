@@ -1,7 +1,12 @@
 import Foundation
 
 struct PiLogParser: UsageLogParser {
+    private let models: PiModelCatalog
     private var thinkingByEntry: [String: String] = [:]
+
+    init(models: PiModelCatalog) {
+        self.models = models
+    }
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         guard let entry = try PiEntry(line) else {
@@ -24,7 +29,7 @@ struct PiLogParser: UsageLogParser {
                     processedTokens: billed.processedTokens,
                     costUSD: billed.costUSD,
                     modelTurn: billed.model.map {
-                        UsageRecord.ModelTurn(model: $0, reasoningEffort: thinking)
+                        UsageRecord.ModelTurn(model: models.reference(for: $0), reasoningEffort: thinking)
                     }
                 )
             )
@@ -97,11 +102,11 @@ private struct PiEntry {
 private struct PiBilledEntry {
     let processedTokens: UInt64
     let costUSD: Decimal
-    let model: UsageModelReference?
+    let model: PiModelCatalog.ID?
     let timestamp: Date
 
     /// Nil when `usage` is null.
-    init?(usage: JSONValue, model: UsageModelReference?, timestamp: Date?) throws {
+    init?(usage: JSONValue, model: PiModelCatalog.ID?, timestamp: Date?) throws {
         guard var usage = try usage.nonNull?.object() else {
             return nil
         }
@@ -147,13 +152,13 @@ private struct PiBilledEntry {
         guard let usage else {
             return nil
         }
-        let reference: UsageModelReference?
+        let reference: PiModelCatalog.ID?
         switch role {
         case "assistant":
             guard let provider, let model else {
                 throw MalformedUsageRecord()
             }
-            reference = .piAgent(provider: provider, id: model)
+            reference = PiModelCatalog.ID(provider: provider, model: model)
         case "toolResult":
             reference = nil
         default:

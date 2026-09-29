@@ -259,5 +259,5 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     }
 }
 
-private let luna = UsageModelReference.named(id: "gpt-5.6-luna", name: "GPT 5.6 Luna")
-private let sol = UsageModelReference.named(id: "gpt-5.6-sol", name: "GPT 5.6 Sol")
+private let luna = UsageModelReference(id: "gpt-5.6-luna", name: "GPT 5.6 Luna")
+private let sol = UsageModelReference(id: "gpt-5.6-sol", name: "GPT 5.6 Sol")

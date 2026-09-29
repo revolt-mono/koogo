@@ -13,29 +13,18 @@ struct UsageLocations: Sendable {
 
     /// The directory a provider creates when installed, such as `~/.codex`.
     func home(of provider: UsageProvider) -> URL {
-        let path =
-            switch provider {
-            case .codex: ".codex"
-            case .claude: ".claude"
-            case .piAgent: ".pi/agent"
-            case .grok: ".grok"
-            }
-        return home.appending(path: path, directoryHint: .isDirectory)
+        home.appending(path: provider.logSource.homePath, directoryHint: .isDirectory)
     }
 
     /// Every log root, in report order.
     var logRoots: [UsageLogLocation] {
-        [
-            (UsageProvider.codex, "sessions"),
-            (.codex, "archived_sessions"),
-            (.claude, "projects"),
-            (.piAgent, "sessions"),
-            (.grok, "sessions"),
-        ].map { provider, directory in
-            UsageLogLocation(
-                provider: provider,
-                url: home(of: provider).appending(path: directory, directoryHint: .isDirectory)
-            )
+        UsageProvider.allCases.flatMap { provider in
+            provider.logSource.logDirectories.map { directory in
+                UsageLogLocation(
+                    provider: provider,
+                    url: home(of: provider).appending(path: directory, directoryHint: .isDirectory)
+                )
+            }
         }
     }
 

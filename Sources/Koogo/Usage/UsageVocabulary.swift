@@ -18,9 +18,10 @@ extension UsageProvider {
     }
 }
 
-enum UsageModelReference: Hashable, Sendable {
-    case named(id: String, name: String)
-    case piAgent(provider: String, id: String)
+/// A priced model as the snapshot names it; `id` orders ties and `name` is what the UI shows.
+struct UsageModelReference: Hashable, Sendable {
+    let id: String
+    let name: String
 }
 
 struct UsageRecord: Sendable {

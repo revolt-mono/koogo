@@ -178,7 +178,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             ("claude-haiku-4-5-20251001", "Haiku 4.5", standard, "0.485"),
         ] {
             let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: model, usage: usage), model)
-            XCTAssertEqual(quote.model, .named(id: model, name: name))
+            XCTAssertEqual(quote.model, UsageModelReference(id: model, name: name))
             XCTAssertEqual(quote.costUSD, Decimal(string: expectedUSD), model)
         }
     }
@@ -197,7 +197,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(snapshot.costUSD, Decimal(string: "0.00045"))
         XCTAssertEqual(snapshot.costUSD, alias.costUSD)
-        XCTAssertEqual(alias.model, .named(id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5"))
+        XCTAssertEqual(alias.model, UsageModelReference(id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5"))
         for model in ["claude-opus-4-5", "claude-haiku-4-5"] {
             XCTAssertNotNil(
                 ClaudeUsagePricing.quote(

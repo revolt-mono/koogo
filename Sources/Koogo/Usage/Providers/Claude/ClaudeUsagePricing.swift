@@ -210,7 +210,7 @@ enum ClaudeUsagePricing {
             costNanodollars = costNanodollars * 11 / 10
         }
         return UsageQuote(
-            model: .named(id: modelID, name: price.displayName),
+            model: UsageModelReference(id: modelID, name: price.displayName),
             costNanodollars: costNanodollars + Decimal(usage.webSearchRequests) * 10_000_000
         )
     }

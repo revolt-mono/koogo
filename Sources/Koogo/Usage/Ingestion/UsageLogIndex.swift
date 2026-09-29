@@ -2,37 +2,24 @@ import Darwin
 import Foundation
 import Synchronization
 
-/// An admitted log and its provider. Per-path provider rules (admission and the log switch) live only here.
+/// An admitted log and its provider.
 private struct TrackedUsageLog: Sendable {
     let provider: UsageProvider
     var log: any UsageLog
-
-    /// Opens a log seen for the first time; a rejected path is offered again on the next scan.
-    init?(_ location: UsageLogLocation, since historyStart: Date) {
-        let log: (any UsageLog)? =
-            switch location.provider {
-            case .codex: UsageLogFile(location.url, lines: ParsedUsage<CodexLogParser>(since: historyStart))
-            case .claude: UsageLogFile(location.url, lines: ParsedUsage<ClaudeLogParser>(since: historyStart))
-            case .piAgent: UsageLogFile(location.url, lines: ParsedUsage<PiLogParser>(since: historyStart))
-            case .grok: GrokSessionLog(location.url, since: historyStart)
-            }
-        guard let log else {
-            return nil
-        }
-        provider = location.provider
-        self.log = log
-    }
 }
 
 /// Every `.jsonl` file under the requested providers' log roots, tracked across refreshes by `fts` path.
+/// Provider formats enter only through each provider's `UsageLogSource`.
 struct UsageLogIndex {
-    private let roots: [UsageLogLocation]
+    private let locations: UsageLocations
+    private var sources: [UsageProvider: any UsageLogSource]
     private var logRoots: [UsageIngestionStats.LogRoot] = []
     private var trackedFiles: [String: TrackedUsageLog] = [:]
     private var indexedFrom = Date.distantPast
 
-    init(roots: [UsageLogLocation]) {
-        self.roots = roots
+    init(locations: UsageLocations) {
+        self.locations = locations
+        sources = Dictionary(uniqueKeysWithValues: UsageProvider.allCases.map { ($0, $0.logSource) })
     }
 
     /// Events merged across every tracked file, with ingestion stats, as of the last `refresh`.
@@ -53,9 +40,10 @@ struct UsageLogIndex {
         return (events, stats)
     }
 
-    /// Checks which roots exist, updates the tracked files of `providers`, drops all others, and
-    /// reports whether the usage report may need rebuilding.
+    /// Checks which roots exist, refreshes each requested provider's source and tracked files, drops
+    /// all others, and reports whether the usage report may need rebuilding.
     mutating func refresh(since historyStart: Date, providers: Set<UsageProvider>) -> Bool {
+        let roots = locations.logRoots
         let logRoots = roots.map {
             UsageIngestionStats.LogRoot(
                 provider: $0.provider,
@@ -76,6 +64,15 @@ struct UsageLogIndex {
             }
             changed = true
         }
+        for provider in providers {
+            let home = locations.home(of: provider)
+            guard sources[provider]?.refresh(home: home) == true else {
+                continue
+            }
+            // Dropping the provider's logs makes the scan below reopen each with the refreshed source.
+            trackedFiles = trackedFiles.filter { $0.value.provider != provider }
+            changed = true
+        }
         changed = scanLogs(roots.filter { providers.contains($0.provider) }, since: historyStart) || changed
         indexedFrom = historyStart
         return changed
@@ -83,7 +80,7 @@ struct UsageLogIndex {
 
     private mutating func scanLogs(_ roots: [UsageLogLocation], since historyStart: Date) -> Bool {
         var seenPaths = Set<String>()
-        var newFiles: [(path: String, location: UsageLogLocation)] = []
+        var newFiles: [(path: String, provider: UsageProvider)] = []
         var changed = false
 
         for root in roots {
@@ -97,16 +94,12 @@ struct UsageLogIndex {
                 if let fileChanged = trackedFiles[path]?.log.refresh(observed: metadata) {
                     changed = fileChanged || changed
                 } else {
-                    let location = UsageLogLocation(
-                        provider: root.provider,
-                        url: URL(filePath: path, directoryHint: .notDirectory)
-                    )
-                    newFiles.append((path, location))
+                    newFiles.append((path, root.provider))
                 }
             }
         }
 
-        for (path, tracked) in Self.load(newFiles, since: historyStart) {
+        for (path, tracked) in Self.open(newFiles, with: sources, since: historyStart) {
             trackedFiles[path] = tracked
             changed = true
         }
@@ -117,8 +110,9 @@ struct UsageLogIndex {
         return changed
     }
 
-    private static func load(
-        _ files: [(path: String, location: UsageLogLocation)],
+    private static func open(
+        _ files: [(path: String, provider: UsageProvider)],
+        with sources: [UsageProvider: any UsageLogSource],
         since historyStart: Date
     ) -> [String: TrackedUsageLog] {
         let trackedFiles = Mutex<[String: TrackedUsageLog]>([:])
@@ -128,11 +122,12 @@ struct UsageLogIndex {
         DispatchQueue.concurrentPerform(iterations: min(files.count, 8)) { _ in
             // Workers claim files one at a time, so a few large logs cannot leave the rest idle.
             while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
-                let (path, location) = files[index]
-                guard let tracked = TrackedUsageLog(location, since: historyStart) else {
+                let (path, provider) = files[index]
+                let url = URL(filePath: path, directoryHint: .notDirectory)
+                guard let log = sources[provider]?.openLog(at: url, since: historyStart) else {
                     continue
                 }
-                trackedFiles.withLock { $0[path] = tracked }
+                trackedFiles.withLock { $0[path] = TrackedUsageLog(provider: provider, log: log) }
             }
         }
         return trackedFiles.withLock { $0 }

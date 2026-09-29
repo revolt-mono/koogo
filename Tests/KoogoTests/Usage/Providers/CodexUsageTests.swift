@@ -164,7 +164,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         let request = codexUsage(input: 100, output: 20)
         let event = try XCTUnwrap(try parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
 
-        XCTAssertEqual(event.usage.modelTurn?.model, .named(id: "gpt-5.6-sol", name: "GPT 5.6 Sol"))
+        XCTAssertEqual(event.usage.modelTurn?.model, UsageModelReference(id: "gpt-5.6-sol", name: "GPT 5.6 Sol"))
         XCTAssertEqual(event.usage.modelTurn?.reasoningEffort, "high")
     }
 
@@ -247,7 +247,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             ("gpt-5.3-codex", "GPT 5.3 Codex", longWithoutWrites, "0.45850175"),
         ] {
             let quote = try XCTUnwrap(CodexUsagePricing.quote(model: model, tokens: tokens), model)
-            XCTAssertEqual(quote.model, .named(id: model, name: name))
+            XCTAssertEqual(quote.model, UsageModelReference(id: model, name: name))
             XCTAssertEqual(quote.costUSD, Decimal(string: expectedUSD), model)
         }
     }

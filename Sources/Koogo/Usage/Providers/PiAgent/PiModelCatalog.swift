@@ -1,8 +1,9 @@
 import CryptoKit
 import Foundation
 
+/// The display names Pi keeps for its models, keyed by the provider and model ids its logs record.
 struct PiModelCatalog: Sendable {
-    private struct ID: Hashable, Sendable {
+    struct ID: Hashable, Sendable {
         let provider: String
         let model: String
     }
@@ -34,13 +35,12 @@ struct PiModelCatalog: Sendable {
         let providers: [String: CustomProvider]
     }
 
-    static let empty = PiModelCatalog()
-
-    private var names: [ID: String] = [:]
+    private var references: [ID: UsageModelReference] = [:]
     private var sourceDigests: [SHA256.Digest?] = [nil, nil]
 
     /// Reloads the names Pi keeps under its `home`: `models-store.json`, then the JSON5 `models.json`
-    /// entries and overrides on top. Returns whether either file changed.
+    /// entries and overrides on top. Returns whether any name changed; an edit that leaves every
+    /// name as it was, such as a rotated key in `models.json`, does not.
     mutating func refresh(home: URL) -> Bool {
         let store = try? Data(contentsOf: home.appending(path: "models-store.json", directoryHint: .notDirectory))
         let custom = try? Data(contentsOf: home.appending(path: "models.json", directoryHint: .notDirectory))
@@ -50,7 +50,7 @@ struct PiModelCatalog: Sendable {
             return false
         }
         sourceDigests = digests
-        names = [:]
+        var names: [ID: String] = [:]
         for (provider, configuration) in Self.decode([String: StoredProvider].self, from: store) ?? [:] {
             for model in configuration.models {
                 names[ID(provider: provider, model: model.id)] = model.name
@@ -69,11 +69,23 @@ struct PiModelCatalog: Sendable {
                 names[ID(provider: provider, model: model)] = name
             }
         }
+        let references = names.reduce(into: [ID: UsageModelReference]()) { references, entry in
+            references[entry.key] = Self.reference(for: entry.key, name: entry.value)
+        }
+        guard references != self.references else {
+            return false
+        }
+        self.references = references
         return true
     }
 
-    func displayName(provider: String, model: String) -> String {
-        names[ID(provider: provider, model: model)] ?? model
+    /// Names the model as the catalog has it, or by its id when the catalog does not know it.
+    func reference(for id: ID) -> UsageModelReference {
+        references[id] ?? Self.reference(for: id, name: id.model)
+    }
+
+    private static func reference(for id: ID, name: String) -> UsageModelReference {
+        UsageModelReference(id: "\(id.provider)/\(id.model)", name: name)
     }
 
     private static func decode<Value: Decodable>(

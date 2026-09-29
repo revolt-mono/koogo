@@ -20,7 +20,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(event.usage.timestamp, usageTestTimestamp)
         XCTAssertEqual(event.usage.processedTokens, 2_200_000)
         XCTAssertEqual(event.usage.costUSD, 6)
-        XCTAssertEqual(event.usage.modelTurn?.model, .named(id: "grok-4.6-build", name: "Grok 4.6"))
+        XCTAssertEqual(event.usage.modelTurn?.model, UsageModelReference(id: "grok-4.6-build", name: "Grok 4.6"))
         XCTAssertNil(event.usage.modelTurn?.reasoningEffort)
     }
 
@@ -188,7 +188,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
             history: [grokHistoryUser(0), grokAssistant("low")]
         )
         let historyURL = session.appending(path: "chat_history.jsonl")
-        var index = UsageLogIndex(roots: locations.logRoots)
+        var index = UsageLogIndex(locations: locations)
         _ = index.refresh(since: now.addingTimeInterval(-60), providers: [.grok])
         XCTAssertEqual(index.collect().events.first?.usage.modelTurn?.reasoningEffort, "low")
 
@@ -279,10 +279,10 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         let build = try XCTUnwrap(GrokUsagePricing.quote(model: "grok-4.6-build", tokens: tokens))
         let fast = try XCTUnwrap(GrokUsagePricing.quote(model: "grok-4.7-build-fast", tokens: tokens))
 
-        XCTAssertEqual(build.model, .named(id: "grok-4.6-build", name: "Grok 4.6"))
+        XCTAssertEqual(build.model, UsageModelReference(id: "grok-4.6-build", name: "Grok 4.6"))
         XCTAssertEqual(build.costUSD, 2)
         XCTAssertEqual(GrokUsagePricing.quote(model: "grok-4.6", tokens: tokens)?.costUSD, 2)
-        XCTAssertEqual(fast.model, .named(id: "grok-4.7-build-fast", name: "Grok 4.7 Fast"))
+        XCTAssertEqual(fast.model, UsageModelReference(id: "grok-4.7-build-fast", name: "Grok 4.7 Fast"))
         XCTAssertEqual(fast.costUSD, 4)
         XCTAssertEqual(
             GrokUsagePricing.quote(model: "grok-4.5-build", tokens: tokens)?.costUSD,
