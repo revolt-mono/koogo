@@ -2,7 +2,7 @@ import SwiftUI
 
 /// One quota window: title, what is used, a live reset countdown, and a used-share bar.
 struct QuotaWindowRow: View {
-    let scopeTitle: String
+    let provider: Provider
     let window: QuotaWindow
 
     var body: some View {
@@ -27,43 +27,8 @@ struct QuotaWindowRow: View {
 
             ProgressView(value: Double(window.usedPercent), total: 100)
                 .progressViewStyle(QuotaProgressViewStyle())
-                .accessibilityLabel("\(scopeTitle) \(window.title)")
+                .accessibilityLabel("\(provider.title) \(window.title)")
                 .accessibilityValue("\(window.usedPercent) percent used")
-        }
-    }
-}
-
-/// One scope's windows; a model scope is named in a header and in the rows' accessibility labels.
-struct QuotaWindowsView: View {
-    let scopeTitle: String
-    var header: String?
-    let windows: [QuotaWindow]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let header {
-                QuotaScopeHeader(title: header)
-            }
-            ForEach(windows, id: \.title) { window in
-                QuotaWindowRow(scopeTitle: scopeTitle, window: window)
-            }
-        }
-    }
-}
-
-/// Names the model whose windows follow, with a rule filling the rest of the line.
-private struct QuotaScopeHeader: View {
-    let title: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Rectangle()
-                .fill(.quaternary)
-                .frame(height: 1)
         }
     }
 }

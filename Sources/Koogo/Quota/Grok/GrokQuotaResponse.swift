@@ -25,7 +25,7 @@ struct GrokQuotaResponse: Decodable {
             case "USAGE_PERIOD_TYPE_MONTHLY": "Monthly limit"
             default: "Usage limit"
             }
-        return QuotaSnapshot(account: [
+        return QuotaSnapshot(windows: [
             QuotaWindow(title: title, usedPercent: config.creditUsagePercent ?? 0, resetsAt: config.currentPeriod?.end)
         ])
     }

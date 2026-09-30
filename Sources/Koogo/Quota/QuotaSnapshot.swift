@@ -15,23 +15,9 @@ struct QuotaWindow: Equatable, Sendable, Encodable {
     }
 }
 
-/// What one provider reports about its limits: account-wide windows, windows tied to one model, and any
-/// banked resets. At least one of the three is present.
+/// What one provider reports about its limits: its windows, the fixed-period ones first and then any the
+/// provider names, and any banked resets. At least one of the two is present.
 struct QuotaSnapshot: Equatable, Sendable, Encodable {
-    /// Limits that apply to one model instead of the whole account; at least one window.
-    struct ModelLimits: Equatable, Identifiable, Sendable, Encodable {
-        let id: String
-        let title: String
-        let windows: [QuotaWindow]
-
-        init?(id: String, title: String, windows: [QuotaWindow]) {
-            guard !windows.isEmpty else { return nil }
-            self.id = id
-            self.title = title
-            self.windows = windows
-        }
-    }
-
     struct ResetCredits: Equatable, Sendable, Encodable {
         let availableCount: UInt64
         /// Usable credits soonest-expiring first. Nil means the backend returned no details.
@@ -48,14 +34,12 @@ struct QuotaSnapshot: Equatable, Sendable, Encodable {
         }
     }
 
-    let account: [QuotaWindow]
-    let models: [ModelLimits]
+    let windows: [QuotaWindow]
     let resetCredits: ResetCredits?
 
-    init?(account: [QuotaWindow], models: [ModelLimits] = [], resetCredits: ResetCredits? = nil) {
-        guard !account.isEmpty || !models.isEmpty || resetCredits != nil else { return nil }
-        self.account = account
-        self.models = models
+    init?(windows: [QuotaWindow], resetCredits: ResetCredits? = nil) {
+        guard !windows.isEmpty || resetCredits != nil else { return nil }
+        self.windows = windows
         self.resetCredits = resetCredits
     }
 }

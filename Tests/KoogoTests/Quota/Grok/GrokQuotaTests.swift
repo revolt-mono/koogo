@@ -22,10 +22,10 @@ final class GrokQuotaTests: XCTestCase {
 
         let snapshot = try await GrokQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account.map(\.title), ["Weekly"])
-        XCTAssertEqual(snapshot.account["Weekly"]?.usedPercent, 3)
+        XCTAssertEqual(snapshot.windows.map(\.title), ["Weekly"])
+        XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 3)
         XCTAssertEqual(
-            try XCTUnwrap(snapshot.account["Weekly"]?.resetsAt).timeIntervalSince1970,
+            try XCTUnwrap(snapshot.windows["Weekly"]?.resetsAt).timeIntervalSince1970,
             1_790_533_996.478,
             accuracy: 0.001
         )
@@ -63,7 +63,7 @@ final class GrokQuotaTests: XCTestCase {
 
         let result = await GrokQuotaSource(executableCandidates: [executable]).load()
 
-        XCTAssertEqual(try result.get().account, [QuotaWindow(title: "Monthly limit", usedPercent: 0, resetsAt: nil)])
+        XCTAssertEqual(try result.get().windows, [QuotaWindow(title: "Monthly limit", usedPercent: 0, resetsAt: nil)])
     }
 
     func testUnknownPeriodsKeepTheAllowanceAndResetDate() async throws {
@@ -77,13 +77,13 @@ final class GrokQuotaTests: XCTestCase {
 
         let snapshot = try await GrokQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account.map(\.title), ["Usage limit"])
-        XCTAssertEqual(snapshot.account["Usage limit"]?.usedPercent, 100)
-        XCTAssertEqual(snapshot.account["Usage limit"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800))
+        XCTAssertEqual(snapshot.windows.map(\.title), ["Usage limit"])
+        XCTAssertEqual(snapshot.windows["Usage limit"]?.usedPercent, 100)
+        XCTAssertEqual(snapshot.windows["Usage limit"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800))
     }
 
     func testMissingConfigIsUnavailableButAnEmptyConfigIsAnUntouchedAllowance() async throws {
-        let untouched = QuotaSnapshot(account: [QuotaWindow(title: "Usage limit", usedPercent: 0, resetsAt: nil)])
+        let untouched = QuotaSnapshot(windows: [QuotaWindow(title: "Usage limit", usedPercent: 0, resetsAt: nil)])
         let cases: [(String, Result<QuotaSnapshot?, QuotaUnavailability>)] = [
             (#"{"id":2,"result":{}}"#, .failure(.emptyLimits)),
             (GrokQuotaTestWorkspace.response(config: "null"), .failure(.emptyLimits)),

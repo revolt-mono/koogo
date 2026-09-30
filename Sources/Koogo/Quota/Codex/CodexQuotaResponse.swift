@@ -6,21 +6,18 @@ struct CodexQuotaResponse: Decodable, Sendable {
     private let rateLimitResetCredits: CodexRateLimitResetCredits?
 
     var snapshot: QuotaSnapshot? {
-        QuotaSnapshot(
-            account: rateLimits.windows,
-            models: (rateLimitsByLimitID ?? [:]).compactMap { id, rateLimit in
-                guard !id.isEmpty, id != (rateLimits.limitID ?? "codex") else { return nil }
-                let title = rateLimit.limitName.flatMap { $0.isEmpty ? nil : $0 } ?? id
-                return QuotaSnapshot.ModelLimits(
-                    id: id,
-                    title: title.caseInsensitiveCompare("gpt-reserve") == .orderedSame ? "Reserve quota" : title,
-                    windows: rateLimit.windows
-                )
+        let accountID = rateLimits.limitID ?? "codex"
+        let named = (rateLimitsByLimitID ?? [:])
+            .filter { id, _ in !id.isEmpty && id != accountID }
+            .map { id, rateLimit in
+                (id: id, name: rateLimit.limitName.flatMap { $0.isEmpty ? nil : $0 } ?? id, rateLimit: rateLimit)
             }
             .sorted {
-                let order = $0.title.localizedCaseInsensitiveCompare($1.title)
+                let order = $0.name.localizedCaseInsensitiveCompare($1.name)
                 return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
-            },
+            }
+        return QuotaSnapshot(
+            windows: rateLimits.windows(named: nil) + named.flatMap { $0.rateLimit.windows(named: $0.name) },
             resetCredits: rateLimitResetCredits?.snapshot
         )
     }
@@ -38,9 +35,16 @@ private struct CodexRateLimitSnapshot: Decodable {
     let primary: CodexRateLimitWindow?
     let secondary: CodexRateLimitWindow?
 
-    /// The five-hour and weekly windows, whichever slot they arrive in; other durations are unknown.
-    var windows: [QuotaWindow] {
-        [window("Session", around: 300), window("Weekly", around: 10_080)].compactMap { $0 }
+    /// The five-hour and weekly windows, whichever slot they arrive in; other durations are unknown. Unnamed
+    /// windows are titled by period, and named ones by the name, followed by the period when there are both.
+    func windows(named name: String?) -> [QuotaWindow] {
+        let found = [("Session", 300), ("Weekly", 10_080)].compactMap { period, minutes in
+            window(around: minutes).map { (period: period, window: $0) }
+        }
+        return found.map { period, window in
+            let title = if let name { found.count == 1 ? name : "\(name) \(period)" } else { period }
+            return QuotaWindow(title: title, usedPercent: Double(window.usedPercent), resetsAt: window.resetsAt)
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -50,18 +54,11 @@ private struct CodexRateLimitSnapshot: Decodable {
         case secondary
     }
 
-    private func window(_ title: String, around expectedMinutes: Int64) -> QuotaWindow? {
-        guard
-            let window = [primary, secondary].compactMap({ $0 }).first(where: {
-                guard let duration = $0.windowDurationMinutes else {
-                    return false
-                }
-                return (expectedMinutes * 95 / 100)...(expectedMinutes * 105 / 100) ~= duration
-            })
-        else {
-            return nil
+    private func window(around expectedMinutes: Int64) -> CodexRateLimitWindow? {
+        let durations = (expectedMinutes * 95 / 100)...(expectedMinutes * 105 / 100)
+        return [primary, secondary].compactMap { $0 }.first { window in
+            window.windowDurationMinutes.map { durations ~= $0 } ?? false
         }
-        return QuotaWindow(title: title, usedPercent: Double(window.usedPercent), resetsAt: window.resetsAt)
     }
 }
 

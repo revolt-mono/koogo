@@ -4,7 +4,7 @@ import XCTest
 @testable import Koogo
 
 final class CodexQuotaSourceTests: XCTestCase {
-    func testFetchUsesAccountAndModelLimitsAndClassifiesSwappedWindows() async throws {
+    func testFetchUsesAccountAndNamedWindowsAndClassifiesSwappedWindows() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let executable = try workspace.makeAppServer(
             quotaResponse: """
@@ -14,55 +14,36 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.models.map(\.id), ["codex_bengalfox"])
-        XCTAssertEqual(snapshot.models[0].title, "GPT-5.3-Codex-Spark")
-
-        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 45)
         XCTAssertEqual(
-            snapshot.account["Session"]?.resetsAt,
+            snapshot.windows.map(\.title),
+            ["Session", "Weekly", "GPT-5.3-Codex-Spark Session", "GPT-5.3-Codex-Spark Weekly"]
+        )
+        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 45)
+        XCTAssertEqual(
+            snapshot.windows["Session"]?.resetsAt,
             Date(timeIntervalSince1970: 1_700_000_000)
         )
-        XCTAssertEqual(snapshot.account["Weekly"]?.usedPercent, 15)
+        XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 15)
         XCTAssertEqual(
-            snapshot.account["Weekly"]?.resetsAt,
+            snapshot.windows["Weekly"]?.resetsAt,
             Date(timeIntervalSince1970: 1_800_000_000)
         )
-        XCTAssertEqual(snapshot.models[0].windows["Session"]?.usedPercent, 10)
-        XCTAssertEqual(snapshot.models[0].windows["Weekly"]?.usedPercent, 20)
+        XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Session"]?.usedPercent, 10)
+        XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Weekly"]?.usedPercent, 20)
     }
 
-    func testFetchNamesReserveQuotaWithoutChangingItsIdentityOrWindows() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeAppServer(
-            quotaResponse: """
-                {"id":2,"result":{"rateLimits":{"limitId":"codex"},"rateLimitsByLimitId":{"base_model_inference":{"limitName":"gpt-reserve","primary":{"usedPercent":48,"windowDurationMins":10080,"resetsAt":1800000000}}}}}
-                """
-        )
-
-        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
-        let model = try XCTUnwrap(snapshot.models.first)
-
-        XCTAssertEqual(snapshot.models.count, 1)
-        XCTAssertEqual(model.id, "base_model_inference")
-        XCTAssertEqual(model.title, "Reserve quota")
-        XCTAssertNil(model.windows["Session"])
-        XCTAssertEqual(model.windows["Weekly"]?.usedPercent, 48)
-        XCTAssertEqual(model.windows["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_800_000_000))
-    }
-
-    func testFetchDropsEmptyModelIDsAndTitlesUntitledModelsByID() async throws {
+    func testFetchDropsEmptyIDsAndTitlesUnnamedWindowsByID() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let window = #"{"usedPercent":10,"windowDurationMins":300}"#
         let executable = try workspace.makeAppServer(
             quotaResponse: """
-                {"id":2,"result":{"rateLimits":{"limitId":"codex"},"rateLimitsByLimitId":{"":{"limitName":"Nameless","primary":\(window)},"model_x":{"limitName":"","primary":\(window)},"model_y":{"limitName":null,"primary":\(window)}}}}
+                {"id":2,"result":{"rateLimits":{"limitId":"codex"},"rateLimitsByLimitId":{"":{"limitName":"Nameless","primary":\(window)},"id_x":{"limitName":"","primary":\(window)},"id_y":{"limitName":null,"primary":\(window)}}}}
                 """
         )
 
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.models.map(\.id), ["model_x", "model_y"])
-        XCTAssertEqual(snapshot.models.map(\.title), ["model_x", "model_y"])
+        XCTAssertEqual(snapshot.windows.map(\.title), ["id_x", "id_y"])
     }
 
     func testFetchOmitsUnknownWindowsAndPreservesKnownZeroResets() async throws {
@@ -78,10 +59,9 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account, [])
+        XCTAssertEqual(snapshot.windows, [])
         XCTAssertEqual(snapshot.resetCredits?.availableCount, 0)
         XCTAssertEqual(snapshot.resetCredits?.credits, [])
-        XCTAssertTrue(snapshot.models.isEmpty)
     }
 
     func testFetchKeepsLimitsWhenResetCreditsAreInvalid() async throws {
@@ -92,7 +72,7 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 25)
+        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
         XCTAssertNil(snapshot.resetCredits)
     }
 
@@ -137,7 +117,7 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 25)
+        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
     }
 
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
@@ -172,7 +152,7 @@ final class CodexQuotaSourceTests: XCTestCase {
         let started = ContinuousClock.now
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 25)
+        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
     }
 

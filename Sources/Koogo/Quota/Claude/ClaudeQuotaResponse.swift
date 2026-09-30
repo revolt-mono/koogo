@@ -40,19 +40,14 @@ struct ClaudeQuotaResponse: Decodable {
             rateLimits.fiveHour?.quotaWindow("Session"),
             rateLimits.sevenDay?.quotaWindow("Weekly"),
         ].compactMap { $0 }
-        var models: [String: QuotaWindow] = [:]
-        for model in rateLimits.modelScoped ?? [] {
-            guard let title = model.displayName?.trimmingCharacters(in: .whitespaces), !title.isEmpty,
-                let window = try model.quotaWindow("Weekly")
+        var named: [String: QuotaWindow] = [:]
+        for entry in rateLimits.modelScoped ?? [] {
+            guard let name = entry.displayName?.trimmingCharacters(in: .whitespaces), !name.isEmpty,
+                let window = try entry.quotaWindow(name)
             else { continue }
-            models[title] = window
+            named[name] = window
         }
-        return QuotaSnapshot(
-            account: account,
-            models: models.sorted { $0.key < $1.key }.compactMap {
-                QuotaSnapshot.ModelLimits(id: $0.key, title: $0.key, windows: [$0.value])
-            }
-        )
+        return QuotaSnapshot(windows: account + named.sorted { $0.key < $1.key }.map(\.value))
     }
 }
 

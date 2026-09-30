@@ -25,19 +25,12 @@ struct QuotaSection: View {
         case .available(let snapshot):
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
-                    if !snapshot.account.isEmpty {
-                        QuotaWindowsView(scopeTitle: provider.title, windows: snapshot.account)
+                    ForEach(snapshot.windows, id: \.title) { window in
+                        QuotaWindowRow(provider: provider, window: window)
                     }
                     if provider == .codex {
                         CodexQuotaResetView()
                     }
-                }
-                ForEach(snapshot.models) { model in
-                    QuotaWindowsView(
-                        scopeTitle: "\(provider.title) \(model.title)",
-                        header: model.title,
-                        windows: model.windows
-                    )
                 }
                 Divider()
             }

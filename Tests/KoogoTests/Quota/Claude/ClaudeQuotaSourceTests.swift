@@ -9,13 +9,13 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         let executable = try workspace.makeCLI()
         let snapshot = try await ClaudeQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 12)
-        XCTAssertEqual(snapshot.account["Session"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800.125))
-        XCTAssertEqual(snapshot.account["Weekly"]?.usedPercent, 29)
-        XCTAssertEqual(snapshot.account["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_788_393_600))
-        XCTAssertEqual(snapshot.models.map(\.title), ["Fable"])
-        XCTAssertEqual(snapshot.models.first?.windows["Weekly"]?.usedPercent, 63)
-        XCTAssertEqual(snapshot.models.first?.windows["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_788_307_200))
+        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 12)
+        XCTAssertEqual(snapshot.windows["Session"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800.125))
+        XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 29)
+        XCTAssertEqual(snapshot.windows["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_788_393_600))
+        XCTAssertEqual(snapshot.windows.map(\.title), ["Session", "Weekly", "Fable"])
+        XCTAssertEqual(snapshot.windows["Fable"]?.usedPercent, 63)
+        XCTAssertEqual(snapshot.windows["Fable"]?.resetsAt, Date(timeIntervalSince1970: 1_788_307_200))
         let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8)
         XCTAssertEqual(
             arguments.components(separatedBy: "\n"),
@@ -67,23 +67,23 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         XCTAssertEqual(result, .failure(.sessionFailed))
     }
 
-    func testWindowsClampPercentAndUnstartedOrUnnamedModelWindowsAreSkipped() async throws {
+    func testWindowsClampPercentAndUnstartedOrUnnamedWindowsAreSkipped() async throws {
         let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let limits = """
             {"five_hour":{"utilization":-8,"resets_at":null},"seven_day":{"utilization":130},\
             "model_scoped":[\
-            {"display_name":"Other model","utilization":3.9,"resets_at":null},\
+            {"display_name":"Other","utilization":3.9,"resets_at":null},\
             {"display_name":" ","utilization":1,"resets_at":null},\
             {"display_name":"Unstarted","utilization":null,"resets_at":null}]}
             """
         let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
         let snapshot = try await ClaudeQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 0)
-        XCTAssertNil(snapshot.account["Session"]?.resetsAt)
-        XCTAssertEqual(snapshot.account["Weekly"]?.usedPercent, 100)
-        XCTAssertEqual(snapshot.models.map(\.title), ["Other model"])
-        XCTAssertEqual(snapshot.models.first?.windows["Weekly"]?.usedPercent, 3)
+        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 0)
+        XCTAssertNil(snapshot.windows["Session"]?.resetsAt)
+        XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 100)
+        XCTAssertEqual(snapshot.windows.map(\.title), ["Session", "Weekly", "Other"])
+        XCTAssertEqual(snapshot.windows["Other"]?.usedPercent, 3)
     }
 
     func testFetchReportsMissingExecutable() async throws {
