@@ -2,9 +2,10 @@ import Darwin
 import Foundation
 import Synchronization
 
-/// A local command-line tool, launched from the first executable candidate in its own process group with its
-/// directory first on `PATH`, so launcher scripts find their runtime. A timeout or cancellation stops the whole
-/// group, including descendants that keep a pipe open after the tool exits.
+/// A local command-line tool, launched from the first executable candidate in its own process group with a
+/// fixed environment whose `PATH` starts with its directory and the known install directories, so launcher
+/// scripts find their runtime. A timeout or cancellation stops the whole group, including descendants that
+/// keep a pipe open after the tool exits.
 struct CommandLineTool: Sendable {
     enum Failure: Error {
         /// No candidate is an executable file.
@@ -15,6 +16,13 @@ struct CommandLineTool: Sendable {
     }
 
     fileprivate static let outputLimit = 4 * 1_024 * 1_024
+    /// Where tools and their runtimes install outside the system `PATH`: `~/.local/bin`, Homebrew, and
+    /// `/usr/local/bin`.
+    private static let installDirectories = [
+        FileManager.default.homeDirectoryForCurrentUser.appending(path: ".local/bin"),
+        URL(filePath: "/opt/homebrew/bin"),
+        URL(filePath: "/usr/local/bin"),
+    ]
 
     private let candidates: [URL]
     private let timeout: Duration
@@ -24,17 +32,12 @@ struct CommandLineTool: Sendable {
         self.timeout = timeout
     }
 
-    /// `name` in each of `preferred`, then in `~/.local/bin`, Homebrew, `/usr/local/bin`, and every `PATH` entry.
+    /// `name` in each of `preferred`, then in the install directories, then in every `PATH` entry.
     static func candidates(named name: String, preferring preferred: [URL] = []) -> [URL] {
-        let installs = [
-            FileManager.default.homeDirectoryForCurrentUser.appending(path: ".local/bin"),
-            URL(filePath: "/opt/homebrew/bin"),
-            URL(filePath: "/usr/local/bin"),
-        ]
         let path = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map {
             URL(filePath: String($0))
         }
-        return (preferred + installs + path).map { $0.appending(path: name) }
+        return (preferred + installDirectories + path).map { $0.appending(path: name) }
     }
 
     /// Runs the tool to completion in `directory` with standard input closed and returns its standard output.
@@ -84,11 +87,14 @@ struct CommandLineTool: Sendable {
             process.standardInput = input.map { $0 as Any } ?? FileHandle.nullDevice
             process.standardOutput = output
             process.standardError = FileHandle.nullDevice
-            var environment = ProcessInfo.processInfo.environment
-            environment["PATH"] = [executable.deletingLastPathComponent().path, environment["PATH"]]
-                .compactMap { $0 }
-                .joined(separator: ":")
-            process.environment = environment
+            // A fixed environment keeps the launching shell's switches, such as a Claude Code session's
+            // CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, out of the tool. HOME and USER locate its credentials.
+            let searchPath = ([executable.deletingLastPathComponent()] + Self.installDirectories).map(\.path)
+            process.environment = [
+                "HOME": FileManager.default.homeDirectoryForCurrentUser.path,
+                "USER": NSUserName(),
+                "PATH": (searchPath + ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]).joined(separator: ":"),
+            ]
 
             // Terminating first also stops a server that ignores its input closing.
             defer {
