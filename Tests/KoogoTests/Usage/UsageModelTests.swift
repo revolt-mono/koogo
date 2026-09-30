@@ -26,7 +26,6 @@ final class UsageModelTests: UsageWorkspaceTestCase {
         model.refresh()
         XCTAssertEqual(clockReads, 1)
 
-        // The trailing rerun reads the clock again, so the next day's today is empty.
         try await waitUntil { model.snapshot?.providers[.codex]?.today.processedTokens == 0 }
         XCTAssertEqual(clockReads, 2)
         XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.month.processedTokens, 120)

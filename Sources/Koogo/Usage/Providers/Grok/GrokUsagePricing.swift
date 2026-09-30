@@ -1,6 +1,5 @@
 import Foundation
 
-/// One model's share of a Grok turn.
 struct GrokTokenUsage: Sendable {
     /// Full prompt input, cache reads included.
     let input: UInt64

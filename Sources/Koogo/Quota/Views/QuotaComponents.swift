@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// One quota window: title, what is used, a live reset countdown, and a used-share bar.
 struct QuotaWindowRow: View {
     let provider: Provider
     let window: QuotaWindow
@@ -33,7 +32,6 @@ struct QuotaWindowRow: View {
     }
 }
 
-/// The shape of a `QuotaWindowRow` while limits load; callers style it and apply `loadingShimmer()`.
 struct QuotaWindowPlaceholder: View {
     var body: some View {
         VStack(spacing: 4) {
@@ -98,7 +96,6 @@ func quotaTimeRemainingText(until date: Date, now: Date) -> String {
     return "soon"
 }
 
-/// An odd height off the 2-point grid for compact internals, chosen by eye between 4 (too thin) and 6.
 private let quotaBarHeight: CGFloat = 5
 
 private struct QuotaProgressViewStyle: ProgressViewStyle {

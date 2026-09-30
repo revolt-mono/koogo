@@ -1,14 +1,10 @@
 import AppKit
 import SwiftUI
 
-/// Whether the enclosing pager page is the selected one; mounted but unselected pages drop
-/// presentation state such as popovers here.
 extension EnvironmentValues {
     @Entry var isSelectedPanelPage = true
 }
 
-/// Rewrites a multi-click press on a visible anchor in the same window as a single click, so each
-/// press toggles the popover independently.
 @MainActor
 enum PopoverClickBoundary {
     static func independentClick(_ event: NSEvent, in view: NSView) -> NSEvent {
@@ -30,8 +26,6 @@ enum PopoverClickBoundary {
     }
 }
 
-/// A popover anchored in a pager page: independent clicks, Expanded/Collapsed accessibility value,
-/// and dismissal when the page is deselected or the anchor leaves the hierarchy.
 private struct PanelPopover<PopoverContent: View>: ViewModifier {
     @Environment(\.isSelectedPanelPage) private var isSelectedPanelPage
     @Binding var isPresented: Bool

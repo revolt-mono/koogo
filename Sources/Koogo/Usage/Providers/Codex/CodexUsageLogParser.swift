@@ -33,8 +33,6 @@ struct CodexLogParser: UsageLogParser {
 
         defer { previousTotalUsage = totalUsage }
 
-        // `CodexTokenUsage.init` bounds cached + cache-write tokens by input and reasoning tokens by output,
-        // so a request without input or output bills nothing.
         guard lastUsage.input > 0 || lastUsage.output > 0, previousTotalUsage != totalUsage else {
             return nil
         }
@@ -65,12 +63,10 @@ struct CodexLogParser: UsageLogParser {
     }
 }
 
-/// The record kinds that bill: a turn context names the model, and an event message may count tokens.
 private enum CodexRecord {
     case turnContext(payload: JSONValue)
     case eventMessage(payload: JSONValue, timestamp: JSONValue?)
 
-    /// Nil for any other record kind.
     init?(_ line: UnsafeRawBufferPointer) throws {
         guard var record = JSONObjectReader(line) else {
             return nil
@@ -81,7 +77,6 @@ private enum CodexRecord {
         while let member = try record.next() {
             switch member.key {
             case "type":
-                // Codex leads each record with its kind, so the long response and item records end here.
                 switch member.value {
                 case "turn_context": isTurnContext = true
                 case "event_msg": isTurnContext = false
@@ -129,12 +124,10 @@ private struct CodexTurn {
     }
 }
 
-/// The request usage and running total a `token_count` event logs.
 private struct CodexTokenCount {
     let last: CodexTokenUsage
     let total: CodexTokenUsage
 
-    /// Nil for any other event and for a count without info.
     init?(_ payload: JSONValue) throws {
         var payload = try payload.object()
         var isTokenCount = false
@@ -159,7 +152,6 @@ private struct CodexTokenCount {
             switch member.key {
             case "last_token_usage": last = try CodexTokenUsage(member.value)
             case "total_token_usage": total = try CodexTokenUsage(member.value)
-            // Read only so a malformed record cannot move the cumulative baseline.
             case "model_context_window": _ = try member.value.integer(Int64.self)
             default: continue
             }

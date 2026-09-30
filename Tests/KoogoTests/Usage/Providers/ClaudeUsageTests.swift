@@ -95,7 +95,6 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
 
     func testClaudeCopyWithMoreExplicitMetadataWinsAtEqualOutput() throws {
         let tokens = #""input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40"#
-        // One more input token lets the bare copy win any revision tie.
         let bare = claudeAssistant(
             model: "claude-opus-5",
             usage: #""input_tokens":11,"cache_creation_input_tokens":70,"output_tokens":40"#

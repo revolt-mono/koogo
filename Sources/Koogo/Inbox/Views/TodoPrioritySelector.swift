@@ -40,7 +40,6 @@ private extension TodoPriority {
     }
 }
 
-/// A row of dots where the selected priority morphs into a labeled pill.
 struct TodoPrioritySelector: View {
     @Binding var selection: TodoPriority
 
@@ -165,9 +164,6 @@ private struct TodoPriorityOption: View, Animatable {
     }
 }
 
-/// Places surface, glyph, and label, in that subview order, along the
-/// dot → pill morph. Reading the label's ideal width here avoids a
-/// measurement round trip.
 private struct TodoPriorityMorphLayout: Layout {
     static let hitSize: CGFloat = 22
     static let dotDiameter: CGFloat = 6

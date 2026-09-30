@@ -1,10 +1,6 @@
 import Foundation
 
-/// Delegates authentication and quota access to the local Claude CLI, without reading credentials
-/// or making HTTP requests from the app. One `get_usage` control request over the CLI's stream-json
-/// protocol answers without a prompt, a model call, or a scan of local transcripts.
 struct ClaudeQuotaSource: QuotaSource {
-    // Keep quota reads isolated from project settings, hooks, tools, and saved sessions.
     private static let arguments = [
         "--setting-sources", "",
         "--settings", #"{"disableAllHooks":true,"remoteControlAtStartup":false}"#,

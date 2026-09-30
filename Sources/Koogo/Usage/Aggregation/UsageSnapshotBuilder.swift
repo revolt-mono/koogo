@@ -87,7 +87,6 @@ enum UsageSnapshotBuilder {
         var previousDay = UsagePeriodSnapshot()
         var previousMonth = UsagePeriodSnapshot()
 
-        // Previous-period baselines cover the same providers as the current totals.
         for event in events where providers.contains(event.provider) {
             let usage = event.usage
             accumulators[event.provider]?.add(usage, intervals: intervals)

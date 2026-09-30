@@ -53,7 +53,6 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             ].joined(separator: "\n"),
             to: workspace.codexSessions.appending(path: "parent.jsonl")
         )
-        // A fork replays its parent's turn under its own thread, stamped when the fork starts, then runs its own turn.
         try workspace.write(
             [
                 codexMeta(thread: "fork"),
@@ -185,7 +184,6 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let service = UsageService(locations: locations, calendar: usageTestCalendar)
         _ = await service.refresh(at: now)
 
-        // Same inode and a larger size, so only the bytes before the parsed offset reveal the rewrite.
         let handle = try FileHandle(forUpdating: log)
         try handle.write(contentsOf: Data(codexLog(input: 300, output: 40, thread: "rewritten").utf8))
         try handle.close()
@@ -252,7 +250,6 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             ].joined(separator: "\n"),
             to: workspace.codexSessions.appending(path: "session.jsonl")
         )
-        // Older Claude Code versions nest assistant replies, usage included, inside progress records.
         let progress = #"{"type":"progress","data":{"message":{"type":"assistant","message":{"usage":{}}}}}"#
         try workspace.write(
             progress + "\n" + claudeLog(output: 40),

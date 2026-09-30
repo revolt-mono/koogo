@@ -151,7 +151,6 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         )
         let updated = await service.refresh(at: now).snapshot
 
-        // Both writes have the same byte count and modification date.
         XCTAssertEqual(updated.providers[.piAgent]?.favorite?.modelName, "Updated Name")
         let unchanged = await service.refresh(at: now).snapshot
         XCTAssertEqual(unchanged, updated)

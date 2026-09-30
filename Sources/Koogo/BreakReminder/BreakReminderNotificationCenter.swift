@@ -9,7 +9,6 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
 
     override init() {
         super.init()
-        // The process has one notification delegate; this is the only feature that posts notifications.
         center.delegate = self
     }
 

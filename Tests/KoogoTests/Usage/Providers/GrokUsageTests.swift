@@ -60,9 +60,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
     func testServiceCountsEachTopLevelTurnOnce() async throws {
         let turn = grokTurn(eventID: "parent-1")
         let parent = try writeSession("parent", updates: [turn])
-        // A fork copies earlier turns with their original event id and time.
         try writeSession("fork", kind: "fork", updates: [turn, grokTurn(eventID: "fork-1")])
-        // A resumed process can restart the event counter, reusing an id at a later time.
         try writeSession(
             "resumed",
             updates: [
@@ -70,7 +68,6 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
                 grokTurn(eventID: "resumed-0"),
             ]
         )
-        // The parent turn that spawned a subagent already includes its usage.
         try writeSession("child", kind: "subagent", updates: [grokTurn(eventID: "child-1")])
         try workspace.write(turn + "\n", to: parent.appending(path: "chat_history.jsonl"))
         try workspace.write(
@@ -220,7 +217,6 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         let initial = await service.refresh(at: now)
         XCTAssertEqual(initial.snapshot.providers[.grok]?.favorite?.reasoningEffort, "low")
 
-        // History may reach disk before the completion update.
         try workspace.append(grokHistoryUser(1) + "\n" + grokAssistant("high") + "\n", to: historyURL)
         let pending = await service.refresh(at: now)
         XCTAssertEqual(pending.snapshot.providers[.grok]?.favorite?.reasoningEffort, "low")
@@ -272,7 +268,6 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
     }
 
     func testBuildModelsUseFlatStandardRatesAndFastDoublesThem() throws {
-        // One call with a 1M-token prompt still bills at standard rates.
         let tokens = try XCTUnwrap(
             GrokTokenUsage(input: 1_000_000, cachedInput: 400_000, output: 100_000, modelCalls: 1)
         )

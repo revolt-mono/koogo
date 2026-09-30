@@ -1,6 +1,5 @@
 import Foundation
 
-/// Claude Code transcripts: every `.jsonl` under the projects root.
 struct ClaudeUsageSource: UsageLogSource {
     let homePath = ".claude"
     let logDirectories = ["projects"]

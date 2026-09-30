@@ -1,12 +1,10 @@
 import Observation
 
-/// A quick action scans for targets, acts on them when asked, and rescans once the action finishes.
 @MainActor
 @Observable
 final class QuickActionModel<Targets: Sendable> {
     enum Phase {
         case scanning
-        /// The scan found nothing to act on.
         case idle
         case ready(Targets)
         case performing(Targets)
@@ -26,7 +24,6 @@ final class QuickActionModel<Targets: Sendable> {
         self.action = action
     }
 
-    /// Starts a scan, replacing one in flight. Ignored while the action runs, since a rescan follows it anyway.
     func refresh() {
         if case .performing = phase {
             return
@@ -34,12 +31,10 @@ final class QuickActionModel<Targets: Sendable> {
         startScan()
     }
 
-    /// Stops the scan in flight, keeping the phase as it is.
     func cancel() {
         scanTask?.cancel()
     }
 
-    /// Runs the action on the ready targets, then rescans; a no-op in any other phase. The action never cancels.
     func perform() {
         guard case .ready(let targets) = phase else {
             return
@@ -74,7 +69,6 @@ final class QuickActionModel<Targets: Sendable> {
 }
 
 extension QuickActionModel where Targets == Void {
-    /// An action with nothing to scan for, such as a toggle: ready from the start and again once it finishes.
     convenience init(perform action: @escaping @Sendable () async throws -> Void) {
         self.init(scan: { () }, perform: { try await action() })
         phase = .ready(())

@@ -20,7 +20,6 @@ final class UsageEventIndexMemoryTests: XCTestCase {
 
         var after = malloc_statistics_t()
         malloc_zone_statistics(malloc_default_zone(), &after)
-        // Inline ids isolate index storage; storing the key in both slots exceeds this budget.
         XCTAssertLessThan(after.size_in_use - before.size_in_use, 24 * 1_024 * 1_024)
         XCTAssertEqual(index.count, 50_000)
         XCTAssertEqual(index.values.reduce(0) { $0 + $1.usage.processedTokens }, 50_000)

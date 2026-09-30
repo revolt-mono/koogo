@@ -7,7 +7,6 @@ struct CodexQuotaTestWorkspace {
         {"id":"credit-a","resetType":"codexRateLimits","status":"available","grantedAt":1700000000,"expiresAt":4102444800,"title":"Usage reset","description":"Reset eligible usage limits"}
         """
 
-    /// A rate-limits read reply with one account window; reset credits are present only with a count.
     static func rateLimitsResponse(
         usedPercent: Int = 25,
         windowMinutes: Int = 300,
@@ -28,9 +27,6 @@ struct CodexQuotaTestWorkspace {
         try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
     }
 
-    /// A real stdio peer: reads are replaceable between launches and follow an unrelated
-    /// notification, and every request is recorded. Method names are matched loosely because
-    /// JSONEncoder escapes slashes.
     func makeAppServer(
         quotaResponse: String = rateLimitsResponse(resetCount: 1, credits: "[\(resetCredit)]"),
         consumeResponse: String = "{\"id\":2,\"result\":{\"outcome\":\"reset\"}}",

@@ -1,14 +1,11 @@
 import Shimmer
 import SwiftUI
 
-/// The single owner of Reduce Motion for decorative animation, loading shimmer, and numeric transitions.
 extension View {
-    /// Animates changes to `value`, or applies them without animation when Reduce Motion is on.
     func motionAnimation(_ animation: Animation, value: some Equatable) -> some View {
         modifier(MotionAnimation(animation: animation, value: value))
     }
 
-    /// Shimmers a loading placeholder unless Reduce Motion is on.
     func loadingShimmer() -> some View {
         modifier(LoadingShimmer())
     }

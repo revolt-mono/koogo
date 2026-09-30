@@ -2,8 +2,6 @@ import CryptoKit
 import Darwin
 import Foundation
 
-/// `Koogo --benchmark [home]`: reports refresh instructions, time, and memory as JSON.
-/// An unchanged snapshot digest checks that optimizations preserve the output.
 enum UsageBenchmark {
     private struct Phase: Encodable {
         let instructions: UInt64
@@ -14,14 +12,9 @@ enum UsageBenchmark {
     }
 
     private struct Result: Encodable {
-        /// SHA-256 of the cold snapshot's JSON.
         let digest: String
-        /// First panel open after launch: every log in the history window is read.
         let cold: Phase
-        /// Panel reopened with no log changes.
         let unchanged: Phase
-        /// Panel reopened after a change: tracked events are merged and the snapshot rebuilt, here forced by
-        /// moving the refresh one day forward.
         let rebuild: Phase
     }
 

@@ -83,8 +83,6 @@ struct UsageSummarySnapshot: Equatable, Sendable, Encodable {
 
 struct UsageSnapshot: Equatable, Sendable, Encodable {
     let summary: UsageSummarySnapshot
-    /// Exactly the requested providers (active in the app, all in `--report`); the summary totals
-    /// and compares only these.
     let providers: [Provider: ProviderUsageSnapshot]
 
     init(
@@ -107,7 +105,6 @@ struct UsageSnapshot: Equatable, Sendable, Encodable {
 }
 
 private extension UInt64 {
-    /// Token totals saturate, so one absurd logged counter cannot crash aggregation.
     func saturatingAdding(_ other: Self) -> Self {
         let (sum, overflow) = addingReportingOverflow(other)
         return overflow ? .max : sum

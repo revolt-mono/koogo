@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 struct TodoTextInput: NSViewRepresentable {
-    /// Shared by the typed text, which draws in its rounded design, and the composer placeholder.
     static let font = NSFont.systemFont(ofSize: 11, weight: .medium)
     static let textInset = NSSize(width: 5, height: 6)
 

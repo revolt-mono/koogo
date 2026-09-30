@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// One provider's quota inside its usage card: placeholders while loading and the windows once read. Nothing
-/// for a provider that is switched off, has no quota, or whose latest read failed.
 struct QuotaSection: View {
     @Environment(QuotaModel.self) private var quotaModel
     let provider: Provider

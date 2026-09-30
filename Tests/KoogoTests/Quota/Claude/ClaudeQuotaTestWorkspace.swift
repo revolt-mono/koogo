@@ -7,7 +7,6 @@ struct ClaudeQuotaTestWorkspace {
     var argumentsFile: URL { root.appending(path: "arguments") }
     var directoryFile: URL { root.appending(path: "directory") }
 
-    /// A stream-json peer: records the client's first line, answers it with `output`, then exits.
     func makeCLI(
         output: String = response(),
         beforeOutput: String = ""

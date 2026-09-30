@@ -1,7 +1,5 @@
 import Foundation
 
-/// A sequential, newline-delimited JSON-RPC connection. Owns request IDs, skips notifications and
-/// unrelated replies, and accepts exactly one result or error for the current request.
 struct JSONRPCConnection {
     enum Failure: Error {
         case closed
@@ -25,7 +23,6 @@ struct JSONRPCConnection {
         decoder.dateDecodingStrategy = dateDecodingStrategy
     }
 
-    /// Nil parameters are omitted. Invalid replies and EOF fail the request; RPC errors retain their code.
     mutating func request<Value: Decodable, Params: Encodable>(
         _ method: String,
         params: Params? = Optional<Never>.none
@@ -41,7 +38,6 @@ struct JSONRPCConnection {
         throw Failure.closed
     }
 
-    /// A notification has no request ID and expects no reply.
     func notify(_ method: String) throws {
         try send(Notification(method: method))
     }
@@ -78,7 +74,6 @@ extension JSONRPCConnection {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             if container.contains(.method) {
                 _ = try container.decode(String.self, forKey: .method)
-                // Server-initiated requests are outside this connection's response-only contract.
                 guard !container.contains(.id), !container.contains(.result), !container.contains(.error) else {
                     throw Failure.invalidMessage
                 }

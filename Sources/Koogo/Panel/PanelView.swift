@@ -1,8 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Root of the menu bar panel: toolbar, pager, and the panel-open refresh of usage and of the quotas
-/// the usage refresh reports active.
 struct PanelView: View {
     private static let toolbarGap: CGFloat = 8
 

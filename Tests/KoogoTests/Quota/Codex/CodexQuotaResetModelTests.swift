@@ -104,7 +104,6 @@ final class CodexQuotaResetModelTests: XCTestCase {
         XCTAssertEqual(model.state, .unconfirmed(attempt, .sessionFailed))
         XCTAssertEqual(model.resetCredits?.availableCount, 0)
 
-        // View dismissal cannot discard an unresolved intent or replace its key.
         model.cancelReset()
         model.beginReset(creditID: "credit-b")
         model.refresh()
@@ -149,8 +148,6 @@ final class CodexQuotaResetModelTests: XCTestCase {
         guard case .confirming = model.state else { return XCTFail("expected confirmation") }
         try Data().write(to: stalled)
         model.submitReset()
-        // Both the consume and the read after it stall until the timeout kills their process groups; the
-        // failed read leaves no snapshot, so no credit remains to confirm.
         try await waitUntil(timeout: .seconds(10)) { !model.isBusy }
         XCTAssertEqual(model.quota, .unavailable(.timedOut))
         XCTAssertEqual(model.state, .idle)

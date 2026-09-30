@@ -14,8 +14,6 @@ struct KoogoApp: App {
     init() {
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
         let usageModel = UsageModel(usageService: UsageService())
-        // Reading every log in the history window is the slowest step in the app, so it starts at launch
-        // and the first panel open finds a snapshot instead of the parsing placeholder.
         usageModel.refresh()
         _usageModel = State(initialValue: usageModel)
         let quotaModel = QuotaModel()

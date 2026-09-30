@@ -1,9 +1,6 @@
 import AppKit
 import ApplicationServices
 
-// Run with Koogo's menu panel open. Only the two presentation triggers are clicked;
-// reset confirmation and system actions are never activated. This checks input delivery
-// and settled presentation state, not the visual trajectory of the native animation.
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data("\(message)\n".utf8))
     exit(1)

@@ -53,7 +53,6 @@ final class BreakReminderModelTests: XCTestCase {
     func testDeadlineStartsWhenSchedulingReturns() async throws {
         let clock = TestClock()
         let notifications = BreakReminderTestNotifications()
-        // Stands in for an authorization prompt that stays open for 30 seconds.
         notifications.beforeOperation = { clock.now.addTimeInterval(30) }
         let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
 

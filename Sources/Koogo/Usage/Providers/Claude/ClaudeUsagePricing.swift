@@ -48,7 +48,6 @@ struct ClaudeBillableUsage: Sendable {
 }
 
 enum ClaudeUsagePricing {
-    /// Nanodollars per token (USD per million tokens × 1_000).
     private struct Rates: Sendable {
         let input: Decimal
         let cacheRead: Decimal
@@ -200,7 +199,6 @@ enum ClaudeUsagePricing {
             guard price.supportsFastMode else {
                 return nil
             }
-            // Fast mode doubles the standard cost.
             costNanodollars *= 2
         }
         if usage.isUSInference {

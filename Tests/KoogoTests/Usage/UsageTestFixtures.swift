@@ -5,7 +5,6 @@ import XCTest
 
 let usageTestTimestamp = Date(timeIntervalSince1970: 1_787_680_800)
 
-/// UTC with Monday weeks, so periods never depend on the host time zone or locale.
 let usageTestCalendar: Calendar = {
     guard let utc = TimeZone(secondsFromGMT: 0) else {
         preconditionFailure("UTC time zone must exist")
@@ -16,7 +15,6 @@ let usageTestCalendar: Calendar = {
     return calendar
 }()
 
-/// A fake home at `root` with every provider's log directories in their real layout.
 struct UsageTestWorkspace {
     let root: URL
     let locations: UsageLocations
@@ -60,7 +58,6 @@ struct UsageTestWorkspace {
     }
 }
 
-/// Owns a fresh `UsageTestWorkspace` per test and evaluates it at `usageTestTimestamp`.
 class UsageWorkspaceTestCase: XCTestCase {
     private(set) var workspace: UsageTestWorkspace!
     let now = usageTestTimestamp
@@ -133,7 +130,6 @@ func codexTurn(id: String = "turn", model: String = "gpt-5.6-sol", effort: Strin
     """
 }
 
-/// Token amounts for `codexTokenCount`; a `nil` cache write omits the optional wire field.
 func codexUsage(
     input: Int,
     output: Int,
@@ -153,7 +149,6 @@ func codexTokenCount(last: String, total: String, at timestamp: String = "2026-0
     """
 }
 
-/// An assistant record with both stable ids; `usage` holds the members of its usage object.
 func claudeAssistant(model: String, usage: String, effort: String? = nil) -> String {
     let effortField = effort.map { "\"effort\":\"\($0)\"," } ?? ""
     return """
@@ -184,7 +179,6 @@ func piUsage(
     """
 }
 
-/// Priced as `grok-4.6-build`, this row costs $2.00.
 struct GrokModelRow {
     var input = 1_000_000
     var cachedInput = 400_000
@@ -192,7 +186,6 @@ struct GrokModelRow {
     var calls = 10
 }
 
-/// Server cost ticks are present but deliberately wrong; pricing must ignore them.
 func grokTurn(
     eventID: String,
     at date: Date = usageTestTimestamp,
@@ -214,7 +207,6 @@ func grokTurn(
         """
 }
 
-/// Parses one line; `nil` is a line that bills nothing, distinct from an unpriced model, and a malformed record throws.
 func parse(_ line: String, with parser: inout some UsageLogParser) throws -> UsageLineOutcome? {
     try Data(line.utf8).withUnsafeBytes { try parser.parse($0) }
 }

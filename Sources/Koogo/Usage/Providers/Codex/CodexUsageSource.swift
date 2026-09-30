@@ -1,6 +1,5 @@
 import Foundation
 
-/// Codex rollout logs: every `.jsonl` under the live and archived session roots.
 struct CodexUsageSource: UsageLogSource {
     let homePath = ".codex"
     let logDirectories = ["sessions", "archived_sessions"]

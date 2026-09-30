@@ -13,7 +13,6 @@ final class UpdateModel: NSObject {
 
     private(set) var isUpdateAvailable = false
 
-    /// Debug builds always show the indicator so the toolbar can be checked without a pending update.
     var showsUpdateIndicator: Bool {
         #if DEBUG
         true
@@ -22,8 +21,6 @@ final class UpdateModel: NSObject {
         #endif
     }
 
-    /// Starts scheduled update checks. Only the signed app bundle carries the Sparkle feed and key, so
-    /// the app calls this once at launch and tests never do.
     func start() {
         updaterController.startUpdater()
     }

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Grok Build sessions: each session directory under the sessions root is one log.
 struct GrokUsageSource: UsageLogSource {
     let homePath = ".grok"
     let logDirectories = ["sessions"]

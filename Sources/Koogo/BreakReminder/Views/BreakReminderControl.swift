@@ -6,7 +6,6 @@ struct BreakReminderControl: View {
     @State private var issue: BreakReminderIssue?
 
     var body: some View {
-        // A stable container, so appearance tracks the control rather than whichever branch is showing.
         ZStack {
             if isVisible, case .running = reminderModel.countdown.status(at: .now) {
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
@@ -123,7 +122,6 @@ private struct BreakReminderButton: View {
 }
 
 extension BreakReminderStatus {
-    /// The time left as `h:mm:ss`, or `mm:ss` under an hour; an expired reminder shows zero.
     var timeText: String {
         let remaining: TimeInterval =
             switch self {

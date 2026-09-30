@@ -34,7 +34,6 @@ struct CodexTokenUsage: Equatable, Sendable {
 enum CodexUsagePricing {
     private static let longContextThreshold: UInt64 = 272_000
 
-    /// Nanodollars per token (USD per million tokens × 1_000).
     private struct Rates: Sendable {
         let input: Decimal
         let cachedInput: Decimal
@@ -72,7 +71,6 @@ enum CodexUsagePricing {
 
     private enum ContextRates: Sendable {
         case flat(Rates)
-        /// The whole request bills at long-context rates once its input passes the threshold.
         case tiered(Rates)
 
         func costNanodollars(for tokens: CodexTokenUsage) -> Decimal? {

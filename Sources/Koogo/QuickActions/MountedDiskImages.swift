@@ -33,7 +33,6 @@ struct MountedDiskImages: Sendable {
 
     let values: [MountedDiskImage]
 
-    /// Keeps one image per whole disk (the last scanned wins), sorted by name the way Finder sorts; nil when empty.
     init?(_ diskImages: [MountedDiskImage]) {
         let imagesByWholeDisk = Dictionary(diskImages.map { ($0.wholeDiskID, $0) }) { _, last in last }
         guard !imagesByWholeDisk.isEmpty else {
@@ -44,7 +43,6 @@ struct MountedDiskImages: Sendable {
         }
     }
 
-    /// The visible disk images mounted right now; nil when there are none.
     @concurrent
     static func mounted() async throws -> MountedDiskImages? {
         guard

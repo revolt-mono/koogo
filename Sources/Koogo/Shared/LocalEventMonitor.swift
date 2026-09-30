@@ -1,8 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Passes local events of the given types, with the monitor's own view, to `handler`; the handler returns
-/// the event to dispatch, or nil to consume it. The monitor lives exactly as long as the view.
 struct LocalEventMonitor: NSViewRepresentable {
     let events: NSEvent.EventTypeMask
     let handler: @MainActor (NSEvent, NSView) -> NSEvent?

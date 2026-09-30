@@ -1,10 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// One toggle per provider; a disabled provider is left out of every refresh. Rows drag into a new
-/// order, shifting live as the dragged row passes over them; the panel and settings both follow it.
 struct UsageProviderToggles: View {
-    /// A private drag type, so only a row drag from this list enters a row's drop delegate.
     private static let dragType = UTType(exportedAs: "com.revolt.koogo.provider")
 
     @Environment(UsageModel.self) private var usageModel
@@ -45,8 +42,6 @@ struct UsageProviderToggles: View {
     }
 }
 
-/// Moves the dragged provider into the hovered row's slot as soon as the pointer enters it, so the
-/// rows reorder live; the drop itself only ends the drag.
 private struct ProviderReorderDrop: DropDelegate {
     let provider: Provider
     @Binding var dragged: Provider?

@@ -25,7 +25,6 @@ final class InboxModel {
             ?? []
     }
 
-    /// Puts a new open todo at the top of the list.
     func add(_ text: TodoText, priority: TodoPriority) {
         todos.insert(Todo(text: text, priority: priority), at: 0)
     }
@@ -38,7 +37,6 @@ final class InboxModel {
         todos.removeAll(where: \.isCompleted)
     }
 
-    /// Applies `change` to the todo with `id`, or does nothing when that todo is gone.
     func update(_ id: Todo.ID, _ change: (inout Todo) -> Void) {
         guard let index = todos.firstIndex(where: { $0.id == id }) else {
             return

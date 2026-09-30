@@ -51,8 +51,6 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         XCTAssertNil(grok["snapshot"])
     }
 
-    /// The single owner of the `--report` shape: one priced event per provider and all quotas
-    /// available. Change `reportKeyPaths` only with an intended shape change.
     func testReportKeyPathsAreStable() async throws {
         let quotaWorkspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
 
@@ -175,7 +173,6 @@ private let reportKeyPaths = [
     "usage.snapshot.summary.today.current.processedTokens",
 ]
 
-/// Account five-hour and weekly windows, one model limit and one reset credit.
 private let codexQuotaResponse = """
     {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,\
     "windowDurationMins":300,"resetsAt":1787698800},"secondary":{"usedPercent":40,\
@@ -185,8 +182,6 @@ private let codexQuotaResponse = """
     "credits":[\(CodexQuotaTestWorkspace.resetCredit)]}}}
     """
 
-/// Object keys join with `.`, array elements append `[]` and are unioned, and scalars,
-/// null and empty containers end a path.
 private func keyPaths(of value: Any, prefix: String = "") -> Set<String> {
     switch value {
     case let object as [String: Any] where !object.isEmpty:

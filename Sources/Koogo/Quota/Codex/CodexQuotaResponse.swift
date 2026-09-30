@@ -35,8 +35,6 @@ private struct CodexRateLimitSnapshot: Decodable {
     let primary: CodexRateLimitWindow?
     let secondary: CodexRateLimitWindow?
 
-    /// The five-hour and weekly windows, whichever slot they arrive in; other durations are unknown. Unnamed
-    /// windows are titled by period, and named ones by the name, followed by the period when there are both.
     func windows(named name: String?) -> [QuotaWindow] {
         let found = [("Session", 300), ("Weekly", 10_080)].compactMap { period, minutes in
             window(around: minutes).map { (period: period, window: $0) }

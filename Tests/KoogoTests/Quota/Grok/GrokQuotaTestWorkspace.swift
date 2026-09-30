@@ -8,7 +8,6 @@ struct GrokQuotaTestWorkspace {
     var directoryFile: URL { root.appending(path: "directory") }
     var pidFile: URL { root.appending(path: "pid") }
 
-    /// A sequential ACP peer. Records every client message, including unexpected session or prompt requests.
     func makeAgent(
         billingResponse: String = response(),
         initializeResponse: String = #"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"authMethods":[]}}"#,

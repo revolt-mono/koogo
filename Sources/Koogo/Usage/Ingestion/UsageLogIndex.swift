@@ -2,14 +2,11 @@ import Darwin
 import Foundation
 import Synchronization
 
-/// An admitted log and its provider.
 private struct TrackedUsageLog: Sendable {
     let provider: Provider
     var log: any UsageLog
 }
 
-/// Every `.jsonl` file under the requested providers' log roots, tracked across refreshes by `fts` path.
-/// Provider formats enter only through each provider's `UsageLogSource`.
 struct UsageLogIndex {
     private let locations: UsageLocations
     private var sources: [Provider: any UsageLogSource]
@@ -22,7 +19,6 @@ struct UsageLogIndex {
         sources = Dictionary(uniqueKeysWithValues: Provider.allCases.map { ($0, $0.logSource) })
     }
 
-    /// Events merged across every tracked file, with ingestion stats, as of the last `refresh`.
     func collect() -> (events: some Collection<UsageEvent>, stats: UsageIngestionStats) {
         var merged = UsageEventIndex(since: indexedFrom)
         merged.reserveCapacity(trackedFiles.values.reduce(0) { $0 + $1.log.events.count })
@@ -40,8 +36,6 @@ struct UsageLogIndex {
         return (events, stats)
     }
 
-    /// Checks which roots exist, refreshes each requested provider's source and tracked files, drops
-    /// all others, and reports whether the usage report may need rebuilding.
     mutating func refresh(since historyStart: Date, providers: Set<Provider>) -> Bool {
         let roots = locations.logRoots
         let logRoots = roots.map {
@@ -69,7 +63,6 @@ struct UsageLogIndex {
             guard sources[provider]?.refresh(home: home) == true else {
                 continue
             }
-            // Dropping the provider's logs makes the scan below reopen each with the refreshed source.
             trackedFiles = trackedFiles.filter { $0.value.provider != provider }
             changed = true
         }
@@ -85,8 +78,6 @@ struct UsageLogIndex {
 
         for root in roots {
             Self.walkJSONL(in: root.url.path) { path, metadata in
-                // A file's events all predate its last write, so a file last written
-                // before the window cannot contribute and is not worth opening.
                 guard metadata.modificationDate >= historyStart else {
                     return
                 }
@@ -116,11 +107,8 @@ struct UsageLogIndex {
         since historyStart: Date
     ) -> [String: TrackedUsageLog] {
         let trackedFiles = Mutex<[String: TrackedUsageLog]>([:])
-        // Keep refresh synchronous so actor state cannot interleave while workers build files.
-        // Each reader can grow its buffer to a whole log line; bound simultaneous readers.
         let nextFile = Atomic(0)
         DispatchQueue.concurrentPerform(iterations: min(files.count, 8)) { _ in
-            // Workers claim files one at a time, so a few large logs cannot leave the rest idle.
             while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
                 let (path, provider) = files[index]
                 let url = URL(filePath: path, directoryHint: .notDirectory)
@@ -140,9 +128,6 @@ struct UsageLogIndex {
         }
     }
 
-    /// Walks `root` with `fts`, which hands back each entry's `stat` from the same
-    /// directory read, so change detection costs no per-file syscalls or URL objects.
-    /// A symlinked root is followed; symlinks below it are skipped.
     private static func walkJSONL(in root: String, _ body: (String, UsageFileMetadata) -> Void) {
         var paths: [UnsafeMutablePointer<CChar>?] = [strdup(root), nil]
         defer { free(paths[0]) }

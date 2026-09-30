@@ -2,22 +2,14 @@ import Darwin
 import Foundation
 import Synchronization
 
-/// A local command-line tool, launched from the first executable candidate in its own process group with a
-/// fixed environment whose `PATH` starts with its directory and the known install directories, so launcher
-/// scripts find their runtime. A timeout or cancellation stops the whole group, including descendants that
-/// keep a pipe open after the tool exits.
 struct CommandLineTool: Sendable {
     enum Failure: Error {
-        /// No candidate is an executable file.
         case notFound
         case timedOut
-        /// The tool exited unsuccessfully or wrote more output than is read.
         case failed
     }
 
     fileprivate static let outputLimit = 4 * 1_024 * 1_024
-    /// Where tools and their runtimes install outside the system `PATH`: `~/.local/bin`, Homebrew, and
-    /// `/usr/local/bin`.
     private static let installDirectories = [
         FileManager.default.homeDirectoryForCurrentUser.appending(path: ".local/bin"),
         URL(filePath: "/opt/homebrew/bin"),
@@ -32,7 +24,6 @@ struct CommandLineTool: Sendable {
         self.timeout = timeout
     }
 
-    /// `name` in each of `preferred`, then in the install directories, then in every `PATH` entry.
     static func candidates(named name: String, preferring preferred: [URL] = []) -> [URL] {
         let path = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map {
             URL(filePath: String($0))
@@ -40,7 +31,6 @@ struct CommandLineTool: Sendable {
         return (preferred + installDirectories + path).map { $0.appending(path: name) }
     }
 
-    /// Runs the tool to completion in `directory` with standard input closed and returns its standard output.
     func output(of arguments: [String], in directory: URL) async throws -> Data {
         try await run(arguments, in: directory, input: nil) { process, output in
             var data = Data()
@@ -54,8 +44,6 @@ struct CommandLineTool: Sendable {
         }
     }
 
-    /// Starts the tool and runs `session` against its standard input and output; the tool stops when `session`
-    /// returns. Lines longer than the output limit fail the session.
     func session<Value: Sendable>(
         _ arguments: [String],
         in directory: URL? = nil,
@@ -96,7 +84,6 @@ struct CommandLineTool: Sendable {
                 "PATH": (searchPath + ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]).joined(separator: ":"),
             ]
 
-            // Terminating first also stops a server that ignores its input closing.
             defer {
                 processGroup.terminate()
                 try? input?.fileHandleForWriting.close()
@@ -112,7 +99,6 @@ struct CommandLineTool: Sendable {
     }
 }
 
-/// Splits a tool's output into lines, holding at most the output limit of an unfinished line.
 struct LineReader {
     private let fileHandle: FileHandle
     private var buffer = Data()
@@ -121,7 +107,6 @@ struct LineReader {
         self.fileHandle = fileHandle
     }
 
-    /// The next line without its newline; a final unterminated line is returned at end of output.
     mutating func nextLine() throws -> Data? {
         while true {
             if let newline = buffer.firstIndex(of: 0x0A) {
@@ -145,7 +130,6 @@ struct LineReader {
     }
 }
 
-/// Owns a tool's process group across launch, cancellation, and cleanup.
 private final class ProcessGroupLifetime: Sendable {
     private enum State {
         case pending
@@ -156,8 +140,6 @@ private final class ProcessGroupLifetime: Sendable {
 
     private let state = Mutex(State.pending)
 
-    /// Runs blocking pipe I/O off the cooperative executor. Cancellation and `timeout` terminate
-    /// the group so reads unblock through EOF.
     static func run<Value: Sendable>(
         timeout: Duration,
         _ operation: @escaping @Sendable (ProcessGroupLifetime) throws -> Value
@@ -180,7 +162,6 @@ private final class ProcessGroupLifetime: Sendable {
                 throw CommandLineTool.Failure.timedOut
             }
             defer { group.cancelAll() }
-            // Two racing children are in flight, so next() cannot return nil.
             return try await group.next()!
         }
     }

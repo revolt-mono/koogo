@@ -14,9 +14,7 @@ final class UsageModel {
     @ObservationIgnored private var needsRefresh = false
 
     private(set) var snapshot: UsageSnapshot?
-    /// Persisted as the disabled set, so providers added later start enabled.
     private(set) var enabledProviders: Set<Provider>
-    /// The order providers show in the panel and settings; providers added later go last.
     private(set) var providerOrder: [Provider]
 
     init(
@@ -32,11 +30,9 @@ final class UsageModel {
         enabledProviders = Set(Provider.allCases).subtracting(disabled)
         let stored = (defaults.stringArray(forKey: Self.providerOrderKey) ?? [])
             .compactMap(Provider.init(rawValue:))
-        // First occurrence wins, so every provider lands exactly once even if the stored list repeats one.
         providerOrder = (stored + Provider.allCases).reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
     }
 
-    /// Moves `provider` into `destination`'s slot; the rows between shift toward the vacated one.
     func moveProvider(_ provider: Provider, to destination: Provider) {
         guard let source = providerOrder.firstIndex(of: provider),
             let target = providerOrder.firstIndex(of: destination),
@@ -58,8 +54,6 @@ final class UsageModel {
         refresh()
     }
 
-    /// Starts a refresh, or queues exactly one trailing rerun while one is in flight, and returns the
-    /// enabled providers installed right now; only these have logs read.
     @discardableResult
     func refresh() -> Set<Provider> {
         let active = enabledProviders.intersection(usageService.locations.installedProviders())

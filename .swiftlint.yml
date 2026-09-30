@@ -7,7 +7,6 @@ line_length:
   error: 200
   ignores_multiline_strings: true
 
-# Parsers read JSON members through one flat switch per object.
 cyclomatic_complexity:
   ignores_case_statements: true
 

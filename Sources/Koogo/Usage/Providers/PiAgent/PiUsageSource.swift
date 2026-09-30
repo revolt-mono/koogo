@@ -1,7 +1,5 @@
 import Foundation
 
-/// Pi session trees under the sessions root, with model names resolved through the catalog Pi
-/// keeps beside them. A catalog change rereads the logs, since names are fixed at parse time.
 struct PiUsageSource: UsageLogSource {
     let homePath = ".pi/agent"
     let logDirectories = ["sessions"]

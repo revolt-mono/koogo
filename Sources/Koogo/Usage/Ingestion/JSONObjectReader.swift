@@ -1,8 +1,5 @@
 import Foundation
 
-/// A forward-only reader over one JSON object's members. It finds each value's extent by scanning bytes, without
-/// validating what it steps over, so a parser reads only the fields it bills from and a long log line costs little
-/// more than a scan for its quotes.
 struct JSONObjectReader {
     struct Member {
         let key: JSONValue
@@ -13,7 +10,6 @@ struct JSONObjectReader {
     private var offset: Int
     private var hasMember = false
 
-    /// Nil unless `bytes` holds an object, allowing surrounding whitespace.
     init?(_ bytes: UnsafeRawBufferPointer) {
         self.bytes = bytes
         offset = 0
@@ -24,7 +20,6 @@ struct JSONObjectReader {
         offset += 1
     }
 
-    /// The next member, or nil at the closing brace. Throws when the object is cut short or misshapen.
     mutating func next() throws -> Member? {
         skipWhitespace()
         guard offset < bytes.count else {
@@ -32,7 +27,6 @@ struct JSONObjectReader {
         }
         switch bytes[offset] {
         case UInt8(ascii: "}"):
-            // Only whitespace may follow, so a line with trailing data is not billed as a record.
             guard bytes[(offset + 1)...].allSatisfy(Self.isWhitespace) else {
                 throw MalformedUsageRecord()
             }
@@ -66,7 +60,6 @@ struct JSONObjectReader {
         }
     }
 
-    /// The offset just past the value starting at `start`.
     private func valueEnd(at start: Int) throws -> Int {
         guard start < bytes.count else {
             throw MalformedUsageRecord()
@@ -107,7 +100,6 @@ struct JSONObjectReader {
         }
     }
 
-    /// The offset just past the string starting at `start`.
     private func stringEnd(at start: Int) throws -> Int {
         guard start < bytes.count, bytes[start] == UInt8(ascii: "\""), let base = bytes.baseAddress else {
             throw MalformedUsageRecord()
@@ -137,11 +129,9 @@ struct JSONObjectReader {
     }
 }
 
-/// The bytes of one JSON value, read on demand.
 struct JSONValue {
     let bytes: UnsafeRawBufferPointer
 
-    /// Matches a string whose content is `literal`, as in `case "type":`.
     static func ~= (literal: StaticString, value: Self) -> Bool {
         value.isString(literal)
     }
@@ -150,7 +140,6 @@ struct JSONValue {
         bytes.elementsEqual("null".utf8)
     }
 
-    /// Matches known field names and record kinds, whose literals need no JSON escaping.
     func isString(_ literal: StaticString) -> Bool {
         guard let content = unescapedString else {
             return bytes.first == UInt8(ascii: "\"") && (try? string()) == literal.description
@@ -159,7 +148,6 @@ struct JSONValue {
             && memcmp(content.baseAddress, literal.utf8Start, literal.utf8CodeUnitCount) == 0
     }
 
-    /// The string this value holds, or nil for null.
     func string() throws -> String? {
         if isNull {
             return nil
@@ -170,22 +158,17 @@ struct JSONValue {
             }
             return string
         }
-        // Escapes are rare enough to leave to Foundation, which also rejects control characters.
         return try JSONDecoder().decode(String.self, from: Data(bytes))
     }
 
-    /// Nil for null, so an optional member reads like an absent one.
     var nonNull: Self? {
         isNull ? nil : self
     }
 
-    /// The integer this value holds, or nil for null. Throws for a fraction or a value outside `T`.
     func integer<T: FixedWidthInteger & Decodable>(_: T.Type = T.self) throws -> T? {
         guard !isNull else {
             return nil
         }
-        // Plain digits are read here; signs, leading zeros, fractions, exponents, and overflow are rare
-        // enough to leave to Foundation.
         guard bytes.first != UInt8(ascii: "0") || bytes.count == 1 else {
             return try JSONDecoder().decode(T.self, from: Data(bytes))
         }
@@ -201,7 +184,6 @@ struct JSONValue {
         return value
     }
 
-    /// The number this value holds, exactly as written, or nil for null.
     func decimal() throws -> Decimal? {
         guard !isNull else {
             return nil
@@ -212,7 +194,6 @@ struct JSONValue {
         return value
     }
 
-    /// The members of the object this value holds.
     func object() throws -> JSONObjectReader {
         guard let object = JSONObjectReader(bytes) else {
             throw MalformedUsageRecord()
@@ -220,11 +201,9 @@ struct JSONValue {
         return object
     }
 
-    /// The value of the member named `key` in the object this value holds, or nil when it has none.
     func member(_ key: StaticString) throws -> Self? {
         var object = try object()
         var value: Self?
-        // Reads to the closing brace, so the rest of the object is checked too.
         while let member = try object.next() {
             if member.key.isString(key) {
                 value = member.value
@@ -246,7 +225,6 @@ struct JSONValue {
         if index < bytes.count, bytes[index] == UInt8(ascii: "-") {
             index += 1
         }
-        // JSON allows no leading zeros.
         if index < bytes.count, bytes[index] == UInt8(ascii: "0") {
             index += 1
         } else if !skipDigits() {
@@ -274,7 +252,6 @@ struct JSONValue {
         (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte)
     }
 
-    /// The content of a string without escapes; nil for anything else.
     private var unescapedString: UnsafeRawBufferPointer? {
         guard bytes.count >= 2, bytes.first == UInt8(ascii: "\""), let base = bytes.baseAddress,
             memchr(base + 1, Int32(UInt8(ascii: "\\")), bytes.count - 2) == nil

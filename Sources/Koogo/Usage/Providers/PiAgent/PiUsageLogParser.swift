@@ -12,7 +12,6 @@ struct PiLogParser: UsageLogParser {
         guard let entry = try PiEntry(line) else {
             return nil
         }
-        // Every entry inherits its parent's thinking level unless it sets one, so each branch keeps its own.
         let thinking = entry.thinkingLevel ?? entry.parentID.flatMap { thinkingByEntry[$0] }
         if let thinking {
             thinkingByEntry[entry.id] = thinking
@@ -37,14 +36,12 @@ struct PiLogParser: UsageLogParser {
     }
 }
 
-/// One session tree entry: where it hangs, the thinking level it sets, and the usage it logs.
 private struct PiEntry {
     let id: String
     let parentID: String?
     let thinkingLevel: String?
     let billed: PiBilledEntry?
 
-    /// Nil for a line that holds no object.
     init?(_ line: UnsafeRawBufferPointer) throws {
         guard var record = JSONObjectReader(line) else {
             return nil
@@ -98,14 +95,12 @@ private struct PiEntry {
     }
 }
 
-/// Usage an entry logs, with the model when an assistant turn produced it.
 private struct PiBilledEntry {
     let processedTokens: UInt64
     let costUSD: Decimal
     let model: PiModelCatalog.ID?
     let timestamp: Date
 
-    /// Nil when `usage` is null.
     init?(usage: JSONValue, model: PiModelCatalog.ID?, timestamp: Date?) throws {
         guard var usage = try usage.nonNull?.object() else {
             return nil
@@ -128,7 +123,6 @@ private struct PiBilledEntry {
         self.timestamp = timestamp
     }
 
-    /// The usage of an assistant turn or tool result; nil for any other message or one without usage.
     init?(message: JSONValue) throws {
         var message = try message.object()
         var role: JSONValue?

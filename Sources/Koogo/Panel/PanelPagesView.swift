@@ -4,7 +4,6 @@ import SwiftUI
 struct PanelPagesView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Screen space left for the pages; the usage page fits its provider cards into it.
     let maxHeight: CGFloat
 
     @State private var selectedPage = PanelPage.usage
@@ -36,7 +35,6 @@ struct PanelPagesView: View {
             }
             .scrollTargetLayout()
         }
-        // Scoped to the pager's own axis so vertical scrolling inside pages keeps its scroller.
         .scrollIndicators(.never, axes: .horizontal)
         .frame(height: min(usageContentHeight, maxHeight))
         .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
@@ -69,7 +67,6 @@ struct PanelPagesView: View {
                 return nil
             }
         }
-        // Leaving a page drops keyboard focus so an off-screen text field cannot keep receiving keys.
         .onChange(of: selectedPage) {
             NSApp.keyWindow?.makeFirstResponder(nil)
         }

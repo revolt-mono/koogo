@@ -1,8 +1,6 @@
 import Foundation
 import Synchronization
 
-/// Owns the Codex handshake and distinguishes setup failures from requests that may have reached
-/// the server. Each call starts one app-server process and stops it after the reply.
 struct CodexAppServer: Sendable {
     enum Failure: Error, Equatable, Sendable {
         case binaryNotFound
@@ -13,9 +11,7 @@ struct CodexAppServer: Sendable {
     }
 
     enum CallError: Error, Equatable {
-        /// The operation was never sent; a reset attempt can be cancelled.
         case rejected(Failure)
-        /// The operation may have reached the server; a reset retry must keep the same idempotency key.
         case unconfirmed(Failure)
 
         var failure: Failure {
@@ -31,7 +27,6 @@ struct CodexAppServer: Sendable {
         _ method: String,
         params: Params? = Optional<Never>.none
     ) async throws(CallError) -> Value {
-        // The timeout races the blocking session. Only the request write crosses the uncertain-outcome boundary.
         let requestStarted = Mutex(false)
         do {
             return try await tool.session(["app-server", "--stdio"]) { input, output in

@@ -1,13 +1,10 @@
 import SwiftUI
 
-/// The words a quick action row shows in one phase.
 struct QuickActionCopy {
     let title: String
     let detail: String
 }
 
-/// One row of the quick actions popover: an icon or spinner, the phase's copy, and a click that
-/// performs when ready or rescans after a failure.
 struct QuickActionRow<Targets: Sendable>: View {
     let model: QuickActionModel<Targets>
     let systemImage: String
@@ -76,7 +73,6 @@ struct QuickActionRow<Targets: Sendable>: View {
         .opacity(isEnabled ? 1 : 0.58)
         .onHover { isHovered = $0 }
         .onAppear {
-            // Only the first scan starts here; an action with nothing to scan for is already ready.
             if case .scanning = model.phase {
                 model.refresh()
             }

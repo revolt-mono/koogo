@@ -1,8 +1,5 @@
 import Foundation
 
-/// Headless snapshot of the whole system for `Koogo --report`: runs the full
-/// usage pipeline and all quota fetches, then encodes the outcome as JSON. This is
-/// the canonical way to verify behavior end to end without the menu bar UI.
 struct SystemReport: Encodable {
     private struct QuotaOutcome: Encodable {
         let result: Result<QuotaSnapshot, QuotaUnavailability>

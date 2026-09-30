@@ -2,7 +2,6 @@ import Foundation
 import XCTest
 
 extension XCTestCase {
-    /// A fresh directory, removed when the test ends.
     func makeTemporaryDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
@@ -13,8 +12,6 @@ extension XCTestCase {
         return directory
     }
 
-    /// Defaults backed by a fresh suite, so tests never read or write the runner's own defaults;
-    /// the suite is removed when the test ends.
     func makeIsolatedDefaults() throws -> UserDefaults {
         let suiteName = "KoogoTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -25,7 +22,6 @@ extension XCTestCase {
     }
 }
 
-/// An executable fixture in an isolated test directory.
 func makeTestExecutable(in directory: URL, script: String) throws -> URL {
     let executable = directory.appending(path: UUID().uuidString)
     try script.write(to: executable, atomically: true, encoding: .utf8)
@@ -33,8 +29,6 @@ func makeTestExecutable(in directory: URL, script: String) throws -> URL {
     return executable
 }
 
-/// Polls `condition` every 10 ms on the caller's actor until it holds or `timeout` passes,
-/// then asserts it.
 func waitUntil(
     isolation: isolated (any Actor)? = #isolation,
     timeout: Duration = .seconds(5),

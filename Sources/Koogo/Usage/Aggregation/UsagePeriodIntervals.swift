@@ -26,7 +26,6 @@ struct UsagePeriodIntervals: Equatable, Sendable {
     let day: Comparison
     let week: Range<Date>
     let month: Comparison
-    /// The start of each day in the current month, ascending, as the calendar that shaped these periods has it.
     private let currentMonthDays: [Date]
 
     var historyStart: Date {
@@ -53,7 +52,6 @@ struct UsagePeriodIntervals: Equatable, Sendable {
         )
     }
 
-    /// The start of the current-month day holding `date`, or nil for a date outside the current month.
     func currentMonthDay(containing date: Date) -> Date? {
         guard month.current.contains(date) else {
             return nil

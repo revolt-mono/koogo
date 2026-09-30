@@ -1,14 +1,11 @@
 import Foundation
 
-/// The single output of a usage pipeline run: what the UI renders plus how
-/// ingestion went, so health is observable wherever the snapshot is.
 struct UsageReport: Sendable, Encodable {
     let ingestion: UsageIngestionStats
     let snapshot: UsageSnapshot
 }
 
 actor UsageService {
-    /// The last report and the calendar and provider scope it covers.
     private struct LastRefresh {
         let intervals: UsagePeriodIntervals
         let providers: Set<Provider>

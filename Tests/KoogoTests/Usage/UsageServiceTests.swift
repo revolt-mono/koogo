@@ -55,7 +55,6 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
 
         let all = await service.refresh(at: now)
         let codexOnly = await service.refresh(at: now, providers: [.codex])
-        // Enabling a provider without logs changes no files but still adds its card.
         let codexAndGrok = await service.refresh(at: now, providers: [.codex, .grok])
 
         XCTAssertEqual(all.snapshot.summary.today.current.processedTokens, 170)

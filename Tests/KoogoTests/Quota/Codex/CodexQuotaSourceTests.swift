@@ -215,7 +215,6 @@ final class CodexQuotaSourceTests: XCTestCase {
         try await waitForExit(pidWrittenTo: pidMarker)
     }
 
-    /// Reads a pid a stub server wrote to `marker` and asserts that the process is gone within three seconds.
     private func waitForExit(
         pidWrittenTo marker: URL,
         file: StaticString = #filePath,

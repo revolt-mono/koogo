@@ -1,7 +1,6 @@
 import SwiftUI
 
 extension View {
-    /// Presents `issue` until dismissed, such as notifications being turned off.
     func breakReminderIssueAlert(_ issue: Binding<BreakReminderIssue?>) -> some View {
         alert(
             issue.wrappedValue?.title ?? "Break Reminder",

@@ -3,7 +3,6 @@ import XCTest
 
 @testable import Koogo
 
-/// Parsers read a line's members in place, whatever their order, and skip every value they do not bill from.
 final class UsageLineReaderTests: UsageWorkspaceTestCase {
     func testRecordsBesideBilledOnesAreSkipped() async throws {
         let request = codexUsage(input: 100, output: 20)

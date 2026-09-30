@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// One provider's card: header with favorite model, an optional accessory
-/// above the chart, then today/weekly/monthly rows.
 struct ProviderUsageCard<Accessory: View>: View {
     let provider: Provider
     let usage: ProviderUsageSnapshot
@@ -82,7 +80,6 @@ private struct ProviderUsageHeader: View {
                 .lineLimit(1)
             }
         }
-        // A 12-point inset matches the card content geometrically; 6 points aligns the header optically.
         .padding(.horizontal, 6)
     }
 }

@@ -1,7 +1,6 @@
 import Foundation
 import Observation
 
-/// The system notification that mirrors the countdown: pending while it runs, absent while it's paused.
 @MainActor
 protocol BreakReminderNotifications: AnyObject {
     func schedule(after duration: TimeInterval) async throws(BreakReminderIssue)
@@ -9,8 +8,6 @@ protocol BreakReminderNotifications: AnyObject {
     func cancel()
 }
 
-/// Owns the countdown and keeps the system notification in step with it. Every intent returns the
-/// issue that stopped it, if any, so the view that asked can show it.
 @MainActor
 @Observable
 final class BreakReminderModel {
@@ -29,7 +26,6 @@ final class BreakReminderModel {
         }
     }
 
-    /// A notification change is in flight; intents arriving meanwhile are dropped.
     private(set) var isBusy = false
 
     init(
@@ -54,8 +50,6 @@ final class BreakReminderModel {
         }
     }
 
-    /// Reschedules the notification of a running countdown that lost it, such as after a relaunch
-    /// or once notifications were turned off; the latter pauses the countdown with the issue.
     func reconcile() async -> BreakReminderIssue? {
         await whileBusy {
             guard case .running = countdown.status(at: now()),

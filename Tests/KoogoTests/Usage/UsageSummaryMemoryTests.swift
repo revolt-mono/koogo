@@ -33,7 +33,6 @@ final class UsageSummaryMemoryTests: XCTestCase {
 
         for step in 1...32 {
             host.rootView = summaryView(step: step)
-            // Let the real 350 ms transition render before changing the next value.
             try await Task.sleep(for: .milliseconds(400))
         }
         // Font-cache entries are reachable, so a leaks scan misses this growth. Count live

@@ -172,7 +172,6 @@ private final class Counter: Sendable {
     }
 }
 
-/// Suspends waiters until opened, even when their task is cancelled; stays open afterwards.
 private actor Gate {
     private var isOpen = false
     private var waiters: [CheckedContinuation<Void, Never>] = []

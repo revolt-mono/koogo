@@ -1,7 +1,6 @@
 import Darwin
 import Foundation
 
-/// The `stat` fields that tell a rewritten log from an appended one.
 struct UsageFileMetadata: Sendable {
     struct Identity: Equatable, Sendable {
         let device: UInt64

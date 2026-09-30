@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// One toggle per provider with a quota, in the given order; a switched-off provider is neither read
-/// nor shown.
 struct QuotaProviderToggles: View {
     @Environment(QuotaModel.self) private var quotaModel
 

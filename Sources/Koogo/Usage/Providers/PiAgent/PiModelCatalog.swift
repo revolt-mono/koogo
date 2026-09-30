@@ -1,7 +1,6 @@
 import CryptoKit
 import Foundation
 
-/// The display names Pi keeps for its models, keyed by the provider and model ids its logs record.
 struct PiModelCatalog: Sendable {
     struct ID: Hashable, Sendable {
         let provider: String
@@ -38,13 +37,9 @@ struct PiModelCatalog: Sendable {
     private var references: [ID: UsageModelReference] = [:]
     private var sourceDigests: [SHA256.Digest?] = [nil, nil]
 
-    /// Reloads the names Pi keeps under its `home`: `models-store.json`, then the JSON5 `models.json`
-    /// entries and overrides on top. Returns whether any name changed; an edit that leaves every
-    /// name as it was, such as a rotated key in `models.json`, does not.
     mutating func refresh(home: URL) -> Bool {
         let store = try? Data(contentsOf: home.appending(path: "models-store.json", directoryHint: .notDirectory))
         let custom = try? Data(contentsOf: home.appending(path: "models.json", directoryHint: .notDirectory))
-        // Compares content, including same-size rewrites, without retaining configuration secrets.
         let digests = [store, custom].map { $0.map { SHA256.hash(data: $0) } }
         guard digests != sourceDigests else {
             return false
@@ -79,7 +74,6 @@ struct PiModelCatalog: Sendable {
         return true
     }
 
-    /// Names the model as the catalog has it, or by its id when the catalog does not know it.
     func reference(for id: ID) -> UsageModelReference {
         references[id] ?? Self.reference(for: id, name: id.model)
     }

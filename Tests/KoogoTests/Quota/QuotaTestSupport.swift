@@ -16,7 +16,6 @@ extension QuotaSnapshot {
     }
 }
 
-/// Answers each load from a queue, in order, and counts them.
 final class ScriptedQuotaSource: QuotaSource {
     let loads = Mutex(0)
     private let results: Mutex<[Result<QuotaSnapshot, QuotaUnavailability>]>

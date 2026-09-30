@@ -52,8 +52,6 @@ struct ClaudeLogParser: UsageLogParser {
         )
     }
 
-    /// Claude logs partial copies of one request; the copy with more output wins, then the one
-    /// with more explicit metadata: a logged speed, a cache split by duration, a logged effort.
     private static func revision(of usage: ClaudeLoggedUsage, reasoningEffort: String?) -> UsageEvent.Revision {
         let explicitCacheDuration =
             switch usage.tokens.cacheCreation {
@@ -69,7 +67,6 @@ struct ClaudeLogParser: UsageLogParser {
     }
 }
 
-/// The fields of an assistant record that bill, read as logged.
 private struct ClaudeAssistantReply {
     let timestamp: String?
     let requestID: String?
@@ -78,7 +75,6 @@ private struct ClaudeAssistantReply {
     let model: String?
     let usage: ClaudeLoggedUsage
 
-    /// Nil for any other record kind and for a reply without usage.
     init?(_ line: UnsafeRawBufferPointer) throws {
         guard var record = JSONObjectReader(line) else {
             return nil
@@ -91,7 +87,6 @@ private struct ClaudeAssistantReply {
         while let member = try record.next() {
             switch member.key {
             case "type":
-                // Prompts name their kind before their long content, so they end here.
                 guard member.value.isString("assistant") else {
                     return nil
                 }
@@ -129,7 +124,6 @@ private struct ClaudeAssistantReply {
     }
 }
 
-/// The usage object as logged, with token amounts validated; speed and geo stay raw until the parser reads them.
 private struct ClaudeLoggedUsage {
     let tokens: ClaudeTokenUsage
     let speed: String?
@@ -176,7 +170,6 @@ private struct ClaudeLoggedUsage {
         self.webSearchRequests = webSearchRequests ?? 0
     }
 
-    /// The logged cache writes, split by duration when the split adds up to the total.
     private static func cacheCreation(total: UInt64, split: JSONValue?) throws -> ClaudeTokenUsage.CacheCreation {
         guard var split = try split?.object() else {
             return .aggregate(total)

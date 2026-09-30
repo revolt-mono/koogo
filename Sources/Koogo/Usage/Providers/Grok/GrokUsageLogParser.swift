@@ -3,7 +3,6 @@ import Foundation
 /// Reads the `turn_completed` updates that Grok appends to each session's `updates.jsonl`.
 /// Each one sums a whole prompt per model, subagents included.
 struct GrokLogParser: UsageLogParser {
-    /// The prompt the next completed turn bills.
     private var promptIndex: UInt64?
     /// Billed turns of the surviving branch by prompt. A rewind abandons later prompts, which stay billed
     /// but no longer match the rewritten response history.
@@ -44,7 +43,6 @@ struct GrokLogParser: UsageLogParser {
             }
             return nil
         } catch {
-            // An unreadable line may have been the prompt, so the next turn stays unmatched.
             promptIndex = nil
             throw error
         }
@@ -116,7 +114,6 @@ private struct GrokPromptUsage {
         self.modelUsage = modelUsage
     }
 
-    /// The model with the most calls, as Grok itself ranks them.
     var primaryModel: String? {
         modelUsage.max { lhs, rhs in
             (lhs.value.modelCalls, rhs.key) < (rhs.value.modelCalls, lhs.key)

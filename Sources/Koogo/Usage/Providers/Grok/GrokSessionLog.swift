@@ -1,7 +1,5 @@
 import Foundation
 
-/// A top-level Grok session: `updates.jsonl` bills each prompt, and `chat_history.jsonl`, when present,
-/// records the reasoning effort applied to each response of the surviving branch.
 struct GrokSessionLog: UsageLog {
     private var updates: UsageLogFile<GrokLogParser>
     private var history: UsageLogFile<GrokChatHistory>?
@@ -47,7 +45,6 @@ struct GrokSessionLog: UsageLog {
         events.discard(before: historyStart)
     }
 
-    /// History can change while billed updates stay put, so every pass checks it.
     private mutating func refreshHistory() -> Bool {
         guard let metadata = UsageFileMetadata(path: historyURL.path) else {
             let removed = history != nil
@@ -61,13 +58,10 @@ struct GrokSessionLog: UsageLog {
         return history != nil
     }
 
-    /// History bills nothing, so its window never matters.
     private static func openHistory(_ url: URL) -> UsageLogFile<GrokChatHistory>? {
         UsageLogFile(url, parser: GrokChatHistory(), since: .distantPast)
     }
 
-    /// Tags each surviving prompt's billed turn with the effort its responses used most on the billed model.
-    /// The tagged copy outranks untagged copies of the same turn, here and in forks without history.
     private static func join(_ updates: UsageLogFile<GrokLogParser>, history: GrokChatHistory?) -> UsageEventIndex {
         var events = updates.events
         guard let history else {
@@ -95,7 +89,6 @@ struct GrokSessionLog: UsageLog {
     }
 }
 
-/// Reasoning effort votes per prompt and model from the responses in `chat_history.jsonl`; bills nothing.
 struct GrokChatHistory: UsageLogParser {
     private var promptIndex: UInt64?
     private var votes: [UInt64: [String: [String: Int]]] = [:]
@@ -131,7 +124,6 @@ struct GrokChatHistory: UsageLogParser {
         }
     }
 
-    /// The effort most responses to the prompt used on `model`.
     func effort(promptIndex: UInt64, model: String) -> String? {
         votes[promptIndex]?[model]?.max { lhs, rhs in
             lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value

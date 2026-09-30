@@ -104,7 +104,6 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         var parser = codexParserInTurn(effort: "medium")
         let request = codexUsage(input: 100, output: 10)
         _ = try parse(codexTokenCount(last: request, total: request), with: &parser)
-        // A synthetic fill tops the total up to the 1,000-token context window without billable tokens.
         let filled = codexUsage(input: 0, output: 0, total: 1_000)
         XCTAssertNil(
             try parse(
@@ -281,7 +280,6 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     }
 }
 
-/// A parser that has read the session meta and a turn context, so token counts become events.
 private func codexParserInTurn(model: String = "gpt-5.6-sol", effort: String = "high") -> CodexLogParser {
     var parser = CodexLogParser()
     _ = try? parse(codexMeta(), with: &parser)

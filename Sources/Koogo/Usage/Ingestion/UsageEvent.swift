@@ -1,7 +1,5 @@
 import Foundation
 
-/// What parsing one log line produced; drops are first-class so they share
-/// the event index's history-window retention instead of accumulating forever.
 enum UsageLineOutcome: Sendable {
     case event(UsageEvent)
     case unpricedModel(id: String, timestamp: Date)
@@ -14,7 +12,6 @@ enum UsageLineOutcome: Sendable {
     }
 }
 
-/// One billed request. Copies of it in other files or rereads share its key.
 struct UsageEvent: Sendable {
     enum Key: Hashable, Sendable {
         /// A forked thread replays its parent's records under new thread ids, ordinals, and timestamps,
@@ -26,7 +23,6 @@ struct UsageEvent: Sendable {
         case grok(eventID: String, timestamp: Date)
     }
 
-    /// How complete a copy is, for providers that log partial copies of one request.
     struct Revision: Comparable, Sendable {
         let outputTokens: UInt64
         let metadataCompleteness: Int
@@ -36,13 +32,10 @@ struct UsageEvent: Sendable {
         }
     }
 
-    /// Stored apart from the key so an event index holds each identity only once.
     struct Value: Sendable {
         let usage: UsageRecord
         let revision: Revision?
 
-        /// Whether this copy replaces `existing` under the same key. Unless both copies carry a
-        /// revision, the earlier copy wins, since replayed copies are stamped when they are written.
         func supersedes(_ existing: Self) -> Bool {
             guard let revision, let existingRevision = existing.revision else {
                 return usage.timestamp < existing.usage.timestamp

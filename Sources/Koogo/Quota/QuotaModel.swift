@@ -1,9 +1,6 @@
 import Foundation
 import Observation
 
-/// Every provider's quota: which are switched on, what each shows, and one in-flight read or write per
-/// provider. Reads coalesce, and a successful one holds a cooldown; a write blocks reads and is followed by
-/// an authoritative read, so a pre-write read can never overwrite the post-write snapshot.
 @MainActor
 @Observable
 final class QuotaModel {
@@ -15,17 +12,13 @@ final class QuotaModel {
     @ObservationIgnored private var refreshAfter: [Provider: ContinuousClock.Instant] = [:]
     private var busy: Set<Provider> = []
 
-    /// One entry per switched-on provider with a quota source; the entry is the single sign a provider
-    /// shows a quota at all.
     private(set) var states: [Provider: QuotaState]
 
-    /// Providers that can show a quota.
     var providers: [Provider] { Provider.allCases.filter { sources[$0] != nil } }
 
     init(sources: [Provider: any QuotaSource] = Provider.quotaSources, defaults: UserDefaults = .standard) {
         self.sources = sources
         self.defaults = defaults
-        // Persisted as the disabled set, so providers added later start enabled.
         let disabled = (defaults.stringArray(forKey: Self.disabledProvidersKey) ?? [])
             .compactMap(Provider.init(rawValue:))
         states = sources.keys.filter { !disabled.contains($0) }.reduce(into: [:]) { $0[$1] = .loading }
@@ -45,9 +38,6 @@ final class QuotaModel {
         defaults.set(providers.filter { states[$0] == nil }.map(\.rawValue), forKey: Self.disabledProvidersKey)
     }
 
-    /// Reads a switched-on provider once, keeping its current state while the read runs. Skipped while the
-    /// provider is busy, and inside the cooldown unless forced. A failed read ends the cooldown, since it
-    /// leaves nothing to show and the next panel open is the retry.
     func refresh(_ provider: Provider, force: Bool = false) {
         let inCooldown = refreshAfter[provider].map { ContinuousClock.now < $0 } ?? false
         guard let source = sources[provider], states[provider] != nil, !busy.contains(provider), force || !inCooldown
@@ -56,8 +46,6 @@ final class QuotaModel {
         Task { await read(provider, from: source) }
     }
 
-    /// Runs `operation` as a write to `provider`, then re-reads its quota; the returned task finishes only
-    /// once the state is authoritative again. Nil while the provider is busy, so nothing is sent.
     func write<Value: Sendable>(
         to provider: Provider,
         _ operation: @escaping @Sendable () async -> Value
@@ -85,7 +73,6 @@ final class QuotaModel {
             refreshAfter[provider] = nil
             state = .unavailable(reason)
         }
-        // A provider switched off during the read stays off; one switched back on takes the result.
         if states[provider] != nil {
             states[provider] = state
         }

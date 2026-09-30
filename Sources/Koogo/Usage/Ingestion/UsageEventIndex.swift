@@ -1,7 +1,5 @@
 import Foundation
 
-/// Deduplicated events inside one history window. Every insert and merge keeps
-/// one event per key, replacing it only when `UsageEvent.Value.supersedes` says so.
 struct UsageEventIndex: Sendable {
     private(set) var historyStart: Date
     private var events: [UsageEvent.Key: UsageEvent.Value] = [:]

@@ -2,8 +2,6 @@ import XCTest
 
 @testable import Koogo
 
-/// Owns refresh coalescing, the cooldown, failure handling, the provider switches, and write serialization
-/// for every provider.
 final class QuotaModelTests: XCTestCase {
     @MainActor
     func testRefreshesCoalesceAndOnlyForceBypassesTheCooldown() async throws {
@@ -69,7 +67,6 @@ final class QuotaModelTests: XCTestCase {
         XCTAssertNil(model.write(to: .grok) {})
         XCTAssertEqual(defaults.stringArray(forKey: "quota-disabled-providers"), ["codex"])
 
-        // The persisted choice survives relaunch; a provider switched back on starts loading again.
         let relaunched = QuotaModel(sources: [.codex: ScriptedQuotaSource([]), .claude: claude], defaults: defaults)
         XCTAssertEqual(Set(relaunched.states.keys), [.claude])
         relaunched.setEnabled(true, for: .codex)
@@ -109,7 +106,6 @@ final class QuotaModelTests: XCTestCase {
         XCTAssertEqual(model.states[.codex], .available(.stub(2)))
         XCTAssertEqual(source.loads.withLock { $0 }, 2)
 
-        // A read in flight refuses the write, so a pre-write read can never land after the write.
         model.refresh(.codex, force: true)
         XCTAssertNil(model.write(to: .codex) {})
         try await waitUntil { !model.isBusy(.codex) }

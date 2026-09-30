@@ -1,4 +1,3 @@
-/// A coding agent this app tracks. Usage and quota both key on it.
 enum Provider: String, CaseIterable, Sendable, Encodable, CodingKeyRepresentable {
     case codex
     case claude

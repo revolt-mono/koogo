@@ -14,7 +14,6 @@ final class PanelViewTests: XCTestCase {
         let reminder = BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults)
         let inbox = InboxModel(defaults: defaults)
 
-        // Recreate the panel so each open reads the persisted choice, including the default-on case.
         let choices: [Set<Provider>?] = [
             nil, [.claude, .grok], [.codex, .grok], [.codex, .claude], [.codex, .claude, .grok], [],
         ]
