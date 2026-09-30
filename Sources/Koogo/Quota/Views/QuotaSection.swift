@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// One provider's quota inside its usage card: placeholders while loading, the windows once read, and a
-/// stale notice after a failed refresh. Nothing for a provider that is switched off or has no quota.
+/// One provider's quota inside its usage card: placeholders while loading and the windows once read. Nothing
+/// for a provider that is switched off, has no quota, or whose latest read failed.
 struct QuotaSection: View {
     @Environment(QuotaModel.self) private var quotaModel
     let provider: Provider
@@ -22,7 +22,7 @@ struct QuotaSection: View {
                 .accessibilityLabel("Loading \(provider.title) limits")
                 Divider()
             }
-        case .available(let snapshot, let stale):
+        case .available(let snapshot):
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
                     if !snapshot.account.isEmpty {
@@ -38,11 +38,6 @@ struct QuotaSection: View {
                         header: model.title,
                         windows: model.windows
                     )
-                }
-                if stale != nil {
-                    QuotaStaleNotice(isRefreshDisabled: quotaModel.isBusy(provider)) {
-                        quotaModel.refresh(provider, force: true)
-                    }
                 }
                 Divider()
             }

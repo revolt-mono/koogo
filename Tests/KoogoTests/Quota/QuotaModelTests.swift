@@ -2,7 +2,7 @@ import XCTest
 
 @testable import Koogo
 
-/// Owns refresh coalescing, the cooldown, stale handling, the provider switches, and write serialization
+/// Owns refresh coalescing, the cooldown, failure handling, the provider switches, and write serialization
 /// for every provider.
 final class QuotaModelTests: XCTestCase {
     @MainActor
@@ -14,7 +14,7 @@ final class QuotaModelTests: XCTestCase {
         model.refresh(.codex, force: true)
         XCTAssertEqual(model.states[.codex], .loading)
         try await waitUntil { !model.isBusy(.codex) }
-        XCTAssertEqual(model.states[.codex], .available(.stub(1), stale: nil))
+        XCTAssertEqual(model.states[.codex], .available(.stub(1)))
 
         model.refresh(.codex)
         XCTAssertFalse(model.isBusy(.codex))
@@ -22,11 +22,11 @@ final class QuotaModelTests: XCTestCase {
 
         model.refresh(.codex, force: true)
         try await waitUntil { !model.isBusy(.codex) }
-        XCTAssertEqual(model.states[.codex], .available(.stub(2), stale: nil))
+        XCTAssertEqual(model.states[.codex], .available(.stub(2)))
     }
 
     @MainActor
-    func testFailuresKeepTheLastStateWhileInFlightAndMarkASnapshotStale() async throws {
+    func testFailuresKeepTheLastStateWhileInFlightReplaceASnapshotAndEndTheCooldown() async throws {
         let source = ScriptedQuotaSource([
             .failure(.timedOut), .success(.stub(1)), .failure(.sessionFailed), .success(.stub(2)),
         ])
@@ -36,19 +36,19 @@ final class QuotaModelTests: XCTestCase {
         try await waitUntil { !model.isBusy(.grok) }
         XCTAssertEqual(model.states[.grok], .unavailable(.timedOut))
 
-        model.refresh(.grok, force: true)
+        model.refresh(.grok)
         XCTAssertEqual(model.states[.grok], .unavailable(.timedOut))
         try await waitUntil { !model.isBusy(.grok) }
-        XCTAssertEqual(model.states[.grok], .available(.stub(1), stale: nil))
+        XCTAssertEqual(model.states[.grok], .available(.stub(1)))
 
         model.refresh(.grok, force: true)
-        XCTAssertEqual(model.states[.grok], .available(.stub(1), stale: nil))
+        XCTAssertEqual(model.states[.grok], .available(.stub(1)))
         try await waitUntil { !model.isBusy(.grok) }
-        XCTAssertEqual(model.states[.grok], .available(.stub(1), stale: .sessionFailed))
+        XCTAssertEqual(model.states[.grok], .unavailable(.sessionFailed))
 
-        model.refresh(.grok, force: true)
+        model.refresh(.grok)
         try await waitUntil { !model.isBusy(.grok) }
-        XCTAssertEqual(model.states[.grok], .available(.stub(2), stale: nil))
+        XCTAssertEqual(model.states[.grok], .available(.stub(2)))
     }
 
     @MainActor
@@ -77,7 +77,7 @@ final class QuotaModelTests: XCTestCase {
         XCTAssertEqual(defaults.stringArray(forKey: "quota-disabled-providers"), [])
         relaunched.refresh(.claude)
         try await waitUntil { !relaunched.isBusy(.claude) }
-        XCTAssertEqual(relaunched.states[.claude], .available(.stub(), stale: nil))
+        XCTAssertEqual(relaunched.states[.claude], .available(.stub()))
     }
 
     @MainActor
@@ -102,17 +102,17 @@ final class QuotaModelTests: XCTestCase {
         XCTAssertTrue(model.isBusy(.codex))
         XCTAssertNil(model.write(to: .codex) { "again" })
         model.refresh(.codex, force: true)
-        XCTAssertEqual(model.states[.codex], .available(.stub(1), stale: nil))
+        XCTAssertEqual(model.states[.codex], .available(.stub(1)))
 
         let value = await write.value
         XCTAssertEqual(value, "consumed")
-        XCTAssertEqual(model.states[.codex], .available(.stub(2), stale: nil))
+        XCTAssertEqual(model.states[.codex], .available(.stub(2)))
         XCTAssertEqual(source.loads.withLock { $0 }, 2)
 
         // A read in flight refuses the write, so a pre-write read can never land after the write.
         model.refresh(.codex, force: true)
         XCTAssertNil(model.write(to: .codex) {})
         try await waitUntil { !model.isBusy(.codex) }
-        XCTAssertEqual(model.states[.codex], .available(.stub(3), stale: nil))
+        XCTAssertEqual(model.states[.codex], .available(.stub(3)))
     }
 }

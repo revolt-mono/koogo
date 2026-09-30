@@ -2,8 +2,8 @@ import Foundation
 import Observation
 
 /// Every provider's quota: which are switched on, what each shows, and one in-flight read or write per
-/// provider. Reads coalesce and hold a cooldown; a write blocks reads and is followed by an authoritative
-/// read, so a pre-write read can never overwrite the post-write snapshot.
+/// provider. Reads coalesce, and a successful one holds a cooldown; a write blocks reads and is followed by
+/// an authoritative read, so a pre-write read can never overwrite the post-write snapshot.
 @MainActor
 @Observable
 final class QuotaModel {
@@ -46,7 +46,8 @@ final class QuotaModel {
     }
 
     /// Reads a switched-on provider once, keeping its current state while the read runs. Skipped while the
-    /// provider is busy, and inside the cooldown unless forced.
+    /// provider is busy, and inside the cooldown unless forced. A failed read ends the cooldown, since it
+    /// leaves nothing to show and the next panel open is the retry.
     func refresh(_ provider: Provider, force: Bool = false) {
         let inCooldown = refreshAfter[provider].map { ContinuousClock.now < $0 } ?? false
         guard let source = sources[provider], states[provider] != nil, !busy.contains(provider), force || !inCooldown
@@ -71,18 +72,23 @@ final class QuotaModel {
     }
 
     private func read(_ provider: Provider, from source: any QuotaSource) async {
-        let result = await source.load()
-        switch result {
-        case .success:
+        let state: QuotaState
+        switch await source.load() {
+        case .success(let snapshot):
             Telemetry.quota.info("\(provider.rawValue, privacy: .public) fetch available")
+            refreshAfter[provider] = .now + Self.cooldown
+            state = .available(snapshot)
         case .failure(let reason):
             Telemetry.quota.info(
                 "\(provider.rawValue, privacy: .public) fetch unavailable reason=\(reason.rawValue, privacy: .public)"
             )
+            refreshAfter[provider] = nil
+            state = .unavailable(reason)
         }
         // A provider switched off during the read stays off; one switched back on takes the result.
-        states[provider]?.apply(result)
-        refreshAfter[provider] = .now + Self.cooldown
+        if states[provider] != nil {
+            states[provider] = state
+        }
         busy.remove(provider)
     }
 }

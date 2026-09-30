@@ -49,10 +49,6 @@ private struct CodexQuotaResetDetail: View {
                 QuotaRefreshButton(isDisabled: model.isBusy, action: model.refresh)
             }
             CodexQuotaResetStatus()
-            if case .available(_, stale: .some) = model.quota {
-                Text("Quota data may be out of date. Refresh to check the latest limits and resets.")
-                    .foregroundStyle(.orange)
-            }
             if let credits = model.resetCredits?.credits, !credits.isEmpty {
                 VStack(spacing: 8) {
                     ForEach(credits) { credit in

@@ -85,22 +85,6 @@ struct QuotaWindowPlaceholder: View {
     }
 }
 
-/// Footnote under limits whose latest refresh failed.
-struct QuotaStaleNotice: View {
-    let isRefreshDisabled: Bool
-    let refresh: () -> Void
-
-    var body: some View {
-        HStack {
-            Text("Quota data may be out of date")
-                .foregroundStyle(.secondary)
-            Spacer()
-            QuotaRefreshButton(isDisabled: isRefreshDisabled, action: refresh)
-        }
-        .font(.system(size: 9))
-    }
-}
-
 struct QuotaRefreshButton: View {
     let isDisabled: Bool
     let action: () -> Void

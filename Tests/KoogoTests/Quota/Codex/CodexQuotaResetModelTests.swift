@@ -49,7 +49,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         try await waitUntil { !model.isBusy }
 
         XCTAssertEqual(model.state, .completed(.reset))
-        guard case .available(let snapshot, stale: nil) = model.quota else { return XCTFail("expected fresh quota") }
+        guard case .available(let snapshot) = model.quota else { return XCTFail("expected fresh quota") }
         XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 83)
         XCTAssertEqual(snapshot.resetCredits?.availableCount, 0)
         XCTAssertEqual(try workspace.lines(in: workspace.consumeRequestsFile).count, 1)
@@ -63,20 +63,19 @@ final class CodexQuotaResetModelTests: XCTestCase {
             onConsume: "rm '\(workspace.quotaResponseFile.path)'"
         )
         let model = try await loadModel(executable: executable)
-        let original = try XCTUnwrap(model.quota?.snapshot)
         model.beginReset(creditID: "credit-a")
         model.submitReset()
         try await waitUntil { !model.isBusy }
 
         XCTAssertEqual(model.state, .completed(.reset))
-        XCTAssertEqual(model.quota, .available(original, stale: .sessionFailed))
+        XCTAssertEqual(model.quota, .unavailable(.sessionFailed))
         XCTAssertFalse(model.canChooseReset)
 
         try CodexQuotaTestWorkspace.rateLimitsResponse(usedPercent: 0, resetCount: 0, credits: "[]")
             .write(to: workspace.quotaResponseFile, atomically: true, encoding: .utf8)
         model.refresh()
         try await waitUntil { !model.isBusy }
-        guard case .available(let snapshot, stale: nil) = model.quota else { return XCTFail("expected fresh quota") }
+        guard case .available(let snapshot) = model.quota else { return XCTFail("expected fresh quota") }
         XCTAssertEqual(snapshot.resetCredits?.availableCount, 0)
         XCTAssertEqual(model.state, .completed(.reset))
         XCTAssertEqual(try workspace.lines(in: workspace.consumeRequestsFile).count, 1)
@@ -139,7 +138,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
     }
 
     @MainActor
-    func testFailureBeforeTheWriteRemainsCancellable() async throws {
+    func testFailureBeforeTheWriteDropsTheConfirmationWithItsSnapshot() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let stalled = workspace.root.appending(path: "stall")
         let executable = try workspace.makeAppServer(
@@ -147,14 +146,15 @@ final class CodexQuotaResetModelTests: XCTestCase {
         )
         let model = try await loadModel(executable: executable, timeout: .seconds(1))
         model.beginReset(creditID: "credit-a")
-        guard case .confirming(let attempt, _) = model.state else { return XCTFail("expected confirmation") }
+        guard case .confirming = model.state else { return XCTFail("expected confirmation") }
         try Data().write(to: stalled)
         model.submitReset()
-        // Both the consume and the read after it stall until the timeout kills their process groups.
+        // Both the consume and the read after it stall until the timeout kills their process groups; the
+        // failed read leaves no snapshot, so no credit remains to confirm.
         try await waitUntil(timeout: .seconds(10)) { !model.isBusy }
-        XCTAssertEqual(model.state, .confirming(attempt, failure: .timedOut))
-        model.cancelReset()
+        XCTAssertEqual(model.quota, .unavailable(.timedOut))
         XCTAssertEqual(model.state, .idle)
+        XCTAssertFalse(model.canChooseReset)
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.consumeRequestsFile.path))
     }
 

@@ -51,7 +51,7 @@ final class CodexQuotaResetModel {
     var isBusy: Bool { quotaModel.isBusy(.codex) }
 
     var canChooseReset: Bool {
-        guard !isBusy, case .available(_, stale: nil) = quota else { return false }
+        guard !isBusy, case .available = quota else { return false }
         switch state {
         case .idle, .completed: return true
         case .confirming, .submitting, .unconfirmed: return false
