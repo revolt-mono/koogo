@@ -5,7 +5,7 @@ import XCTest
 
 final class UsageFavoritesTests: XCTestCase {
     func testFavoritesCountTurnsInsteadOfTokensOrCost() {
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [
                 favoriteEvent(1, model: luna, effort: "low", tokens: 20_000, costUSD: 0.004),
                 favoriteEvent(2, model: luna, effort: "high", tokens: 20_000, costUSD: 0.004),
@@ -28,7 +28,7 @@ final class UsageFavoritesTests: XCTestCase {
         let firstMidnight = try XCTUnwrap(Date(iso8601: "2026-07-27T00:00:00Z"))
         let lastMillisecond = try XCTUnwrap(Date(iso8601: "2026-08-25T23:59:59.999Z"))
         let nextMidnight = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z"))
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [
                 favoriteEvent(1, model: luna, effort: "high", at: beforeWindow),
                 favoriteEvent(2, model: luna, effort: "high", at: beforeWindow),
@@ -50,7 +50,7 @@ final class UsageFavoritesTests: XCTestCase {
 
     func testFavoriteEffortsUseOnlyRecentTurnsOfTheFavoriteModel() throws {
         let earlierHistory = try XCTUnwrap(Date(iso8601: "2026-07-26T12:00:00Z"))
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [
                 favoriteEvent(1, model: sol, effort: "low", at: earlierHistory),
                 favoriteEvent(2, model: sol, effort: "low", at: earlierHistory),
@@ -69,7 +69,7 @@ final class UsageFavoritesTests: XCTestCase {
     }
 
     func testFavoriteIsAbsentWithoutTurnsInLast30Days() throws {
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [
                 favoriteEvent(
                     1,

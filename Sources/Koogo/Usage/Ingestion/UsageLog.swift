@@ -3,6 +3,7 @@ import Foundation
 protocol UsageLogSource: Sendable {
     var homePath: String { get }
     var logDirectories: [String] { get }
+    var logFileSuffix: String { get }
 
     mutating func refresh(home: URL) -> Bool
 
@@ -10,6 +11,10 @@ protocol UsageLogSource: Sendable {
 }
 
 extension UsageLogSource {
+    var logFileSuffix: String {
+        ".jsonl"
+    }
+
     mutating func refresh(home: URL) -> Bool {
         false
     }

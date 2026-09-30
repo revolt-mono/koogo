@@ -4,7 +4,7 @@ import System
 
 struct UsageLogFile<Parser: UsageLogParser>: UsageLog {
     private static var parsedTailSize: Int { 64 }
-    private static var readSize: Int { 1 << 20 }
+    private static var readSize: Int { 1 << 18 }
 
     private let url: URL
     private let freshParser: Parser

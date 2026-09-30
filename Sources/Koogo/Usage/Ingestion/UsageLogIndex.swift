@@ -19,21 +19,46 @@ struct UsageLogIndex {
         sources = Dictionary(uniqueKeysWithValues: Provider.allCases.map { ($0, $0.logSource) })
     }
 
-    func collect() -> (events: some Collection<UsageEvent>, stats: UsageIngestionStats) {
-        var merged = UsageEventIndex(since: indexedFrom)
-        merged.reserveCapacity(trackedFiles.values.reduce(0) { $0 + $1.log.events.count })
-        for (_, tracked) in trackedFiles.sorted(by: { $0.key < $1.key }) {
-            merged.merge(tracked.log.events)
+    func collect(_ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
+        let logs = trackedFiles.sorted { $0.key < $1.key }.map(\.value.log)
+        var seenHashes = Set<Int>(minimumCapacity: logs.reduce(0) { $0 + $1.events.count })
+        var sharedHashes = Set<Int>()
+        for log in logs {
+            for key in log.events.keys {
+                let hash = key.hashValue
+                if !seenHashes.insert(hash).inserted {
+                    sharedHashes.insert(hash)
+                }
+            }
         }
-        let events = merged.values
-        let stats = UsageIngestionStats(
+
+        let providers = Provider.allCases
+        var eventCounts = [Int](repeating: 0, count: providers.count)
+        func countAndVisit(_ event: UsageEvent) {
+            if let slot = providers.firstIndex(of: event.provider) {
+                eventCounts[slot] += 1
+            }
+            visit(event)
+        }
+        var shared = UsageEventIndex(since: indexedFrom)
+        for log in logs {
+            for event in log.events.values {
+                if sharedHashes.contains(event.key.hashValue) {
+                    shared.insert(.event(event))
+                } else {
+                    countAndVisit(event)
+                }
+            }
+        }
+        shared.values.forEach(countAndVisit)
+
+        return UsageIngestionStats(
             logRoots: logRoots,
             trackedFiles: Self.tally(trackedFiles.values.map { ($0.provider, 1) }),
-            events: Self.tally(events.map { ($0.provider, 1) }),
+            events: Dictionary(uniqueKeysWithValues: zip(providers, eventCounts)),
             malformedLines: Self.tally(trackedFiles.values.map { ($0.provider, $0.log.malformedLines) }),
-            unpricedModels: merged.unpricedModelIDs
+            unpricedModels: Set(logs.flatMap(\.events.unpricedModelIDs)).sorted()
         )
-        return (events, stats)
     }
 
     mutating func refresh(since historyStart: Date, providers: Set<Provider>) -> Bool {
@@ -77,7 +102,10 @@ struct UsageLogIndex {
         var changed = false
 
         for root in roots {
-            Self.walkJSONL(in: root.url.path) { path, metadata in
+            guard let logFileSuffix = sources[root.provider]?.logFileSuffix else {
+                continue
+            }
+            Self.walkLogs(in: root.url.path, matching: logFileSuffix) { path, metadata in
                 guard metadata.modificationDate >= historyStart else {
                     return
                 }
@@ -108,7 +136,7 @@ struct UsageLogIndex {
     ) -> [String: TrackedUsageLog] {
         let trackedFiles = Mutex<[String: TrackedUsageLog]>([:])
         let nextFile = Atomic(0)
-        DispatchQueue.concurrentPerform(iterations: min(files.count, 8)) { _ in
+        DispatchQueue.concurrentPerform(iterations: min(files.count, 4)) { _ in
             while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
                 let (path, provider) = files[index]
                 let url = URL(filePath: path, directoryHint: .notDirectory)
@@ -128,7 +156,11 @@ struct UsageLogIndex {
         }
     }
 
-    private static func walkJSONL(in root: String, _ body: (String, UsageFileMetadata) -> Void) {
+    private static func walkLogs(
+        in root: String,
+        matching logFileSuffix: String,
+        _ body: (String, UsageFileMetadata) -> Void
+    ) {
         var paths: [UnsafeMutablePointer<CChar>?] = [strdup(root), nil]
         defer { free(paths[0]) }
         guard let stream = fts_open(&paths, FTS_PHYSICAL | FTS_COMFOLLOW | FTS_NOCHDIR, nil) else {
@@ -150,7 +182,7 @@ struct UsageLogIndex {
                 continue
             }
             let path = String(cString: entry.pointee.fts_path)
-            if path.hasSuffix(".jsonl") {
+            if path.hasSuffix(logFileSuffix) {
                 body(path, metadata)
             }
         }

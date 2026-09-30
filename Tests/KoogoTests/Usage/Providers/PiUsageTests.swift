@@ -83,7 +83,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             event.usage.modelTurn?.model,
             UsageModelReference(id: "provider/free-model", name: "free-model")
         )
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [event],
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
         )

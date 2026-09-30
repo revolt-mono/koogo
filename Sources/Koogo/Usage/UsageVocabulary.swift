@@ -11,10 +11,23 @@ struct UsageRecord: Sendable {
         let reasoningEffort: String?
     }
 
-    let timestamp: Date
+    /// Held as seconds because `Date` has a resilient layout, which routes every copy of a record
+    /// through runtime value witnesses.
+    private let secondsSinceReferenceDate: TimeInterval
     let processedTokens: UInt64
     let costUSD: Decimal
     let modelTurn: ModelTurn?
+
+    var timestamp: Date {
+        Date(timeIntervalSinceReferenceDate: secondsSinceReferenceDate)
+    }
+
+    init(timestamp: Date, processedTokens: UInt64, costUSD: Decimal, modelTurn: ModelTurn?) {
+        secondsSinceReferenceDate = timestamp.timeIntervalSinceReferenceDate
+        self.processedTokens = processedTokens
+        self.costUSD = costUSD
+        self.modelTurn = modelTurn
+    }
 }
 
 struct UsageQuote: Sendable {

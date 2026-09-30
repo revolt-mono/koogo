@@ -36,7 +36,8 @@ actor UsageService {
         if !logsChanged, let lastRefresh, lastRefresh.intervals == intervals, lastRefresh.providers == providers {
             return lastRefresh.report
         }
-        let (events, ingestion) = logIndex.collect()
+        var builder = UsageSnapshotBuilder(providers: providers, intervals: intervals)
+        let ingestion = logIndex.collect { builder.add($0) }
 
         let files = ingestion.trackedFiles.values.reduce(0, +)
         let eventCount = ingestion.events.values.reduce(0, +)
@@ -58,7 +59,7 @@ actor UsageService {
 
         let report = UsageReport(
             ingestion: ingestion,
-            snapshot: UsageSnapshotBuilder.build(events: events, providers: providers, intervals: intervals)
+            snapshot: builder.snapshot
         )
         lastRefresh = LastRefresh(intervals: intervals, providers: providers, report: report)
         return report

@@ -187,7 +187,9 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         let historyURL = session.appending(path: "chat_history.jsonl")
         var index = UsageLogIndex(locations: locations)
         _ = index.refresh(since: now.addingTimeInterval(-60), providers: [.grok])
-        XCTAssertEqual(index.collect().events.first?.usage.modelTurn?.reasoningEffort, "low")
+        var initial: [UsageEvent] = []
+        _ = index.collect { initial.append($0) }
+        XCTAssertEqual(initial.first?.usage.modelTurn?.reasoningEffort, "low")
 
         try workspace.append(
             [
@@ -198,7 +200,8 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         )
         try workspace.write(grokHistoryUser(0) + "\n" + grokAssistant("high") + "\n", to: historyURL)
         _ = index.refresh(since: now.addingTimeInterval(-60), providers: [.grok])
-        let (events, stats) = index.collect()
+        var events: [UsageEvent] = []
+        let stats = index.collect { events.append($0) }
         let byKey = Dictionary(uniqueKeysWithValues: events.map { ($0.key, $0.usage) })
 
         XCTAssertNil(byKey[.grok(eventID: "old", timestamp: now)]?.modelTurn?.reasoningEffort)

@@ -1,5 +1,4 @@
 import AppKit
-import Darwin
 import SwiftUI
 import XCTest
 
@@ -29,7 +28,7 @@ final class UsageSummaryMemoryTests: XCTestCase {
         defer { window.close() }
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .seconds(1))
-        let before = allocatedBytes()
+        let before = allocatedHeapBytes()
 
         for step in 1...32 {
             host.rootView = summaryView(step: step)
@@ -37,13 +36,7 @@ final class UsageSummaryMemoryTests: XCTestCase {
         }
         // Font-cache entries are reachable, so a leaks scan misses this growth. Count live
         // heap allocations instead of GPU scratch buffers, which are reclaimed after idle.
-        XCTAssertLessThan(allocatedBytes(), before + 16 * 1_024 * 1_024)
-    }
-
-    private func allocatedBytes() -> Int {
-        var statistics = malloc_statistics_t()
-        malloc_zone_statistics(malloc_default_zone(), &statistics)
-        return statistics.size_in_use
+        XCTAssertLessThan(allocatedHeapBytes(), before + 16 * 1_024 * 1_024)
     }
 
     private func summaryView(step: Int) -> some View {

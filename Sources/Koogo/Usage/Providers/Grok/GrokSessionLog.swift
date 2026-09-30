@@ -10,8 +10,7 @@ struct GrokSessionLog: UsageLog {
     /// since the parent turn that spawned it already includes its usage.
     init?(_ url: URL, since historyStart: Date) {
         let sessionURL = url.deletingLastPathComponent()
-        guard url.lastPathComponent == "updates.jsonl",
-            let data = try? Data(contentsOf: sessionURL.appending(path: "summary.json")),
+        guard let data = try? Data(contentsOf: sessionURL.appending(path: "summary.json")),
             let summary = try? JSONDecoder().decode(GrokSessionSummary.self, from: data),
             summary.kind?.hasPrefix("subagent") != true,
             let updates = UsageLogFile(url, parser: GrokLogParser(), since: historyStart)

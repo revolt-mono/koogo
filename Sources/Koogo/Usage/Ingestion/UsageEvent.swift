@@ -13,14 +13,29 @@ enum UsageLineOutcome: Sendable {
 }
 
 struct UsageEvent: Sendable {
-    enum Key: Hashable, Sendable {
+    struct Key: Hashable, Sendable {
+        let provider: Provider
+        private let id: String
+        private let ordinal: UInt64
+
         /// A forked thread replays its parent's records under new thread ids, ordinals, and timestamps,
         /// so only the turn and its running total identify a request.
-        case codex(turnID: String, cumulativeTotal: UInt64)
-        case claude(messageID: String, requestID: String)
-        case piAgent(entryID: String)
+        static func codex(turnID: String, cumulativeTotal: UInt64) -> Self {
+            Self(provider: .codex, id: turnID, ordinal: cumulativeTotal)
+        }
+
+        static func claude(messageID: String, requestID: String) -> Self {
+            Self(provider: .claude, id: "\(messageID.utf8.count):\(messageID)\(requestID)", ordinal: 0)
+        }
+
+        static func piAgent(entryID: String) -> Self {
+            Self(provider: .piAgent, id: entryID, ordinal: 0)
+        }
+
         /// Fork copies keep both fields, while a resumed Grok session can reuse an event id at a new time.
-        case grok(eventID: String, timestamp: Date)
+        static func grok(eventID: String, timestamp: Date) -> Self {
+            Self(provider: .grok, id: eventID, ordinal: timestamp.timeIntervalSinceReferenceDate.bitPattern)
+        }
     }
 
     struct Revision: Comparable, Sendable {
@@ -50,14 +65,7 @@ struct UsageEvent: Sendable {
 
     var usage: UsageRecord { value.usage }
 
-    var provider: Provider {
-        switch key {
-        case .codex: .codex
-        case .claude: .claude
-        case .piAgent: .piAgent
-        case .grok: .grok
-        }
-    }
+    var provider: Provider { key.provider }
 }
 
 extension UsageEvent {

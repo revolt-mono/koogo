@@ -102,6 +102,18 @@ func usageEvent(
     }
 }
 
+func usageSnapshot(
+    events: [UsageEvent],
+    providers: Set<Provider> = Set(Provider.allCases),
+    intervals: UsagePeriodIntervals
+) -> UsageSnapshot {
+    var builder = UsageSnapshotBuilder(providers: providers, intervals: intervals)
+    for event in events {
+        builder.add(event)
+    }
+    return builder.snapshot
+}
+
 func codexLog(
     input: Int,
     output: Int,

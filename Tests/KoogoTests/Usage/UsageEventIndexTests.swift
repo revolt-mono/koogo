@@ -16,15 +16,12 @@ final class UsageEventIndexTests: XCTestCase {
             index.insert(.event(UsageEvent(key: key, usage: record(tokens: 10, at: usageTestTimestamp + 1))))
             index.insert(.event(UsageEvent(key: key, usage: record(tokens: 20))))
             index.insert(.event(UsageEvent(key: key, usage: record(tokens: 30))))
-            var later = UsageEventIndex(since: .distantPast)
-            later.insert(.event(UsageEvent(key: key, usage: record(tokens: 40))))
-            index.merge(later)
 
             XCTAssertEqual(index.values.map(\.usage.processedTokens), [20], "\(key)")
         }
     }
 
-    func testClaudeKeyKeepsTheHighestRevisionAcrossInsertAndMerge() {
+    func testClaudeKeyKeepsTheHighestRevisionInEitherInsertOrder() {
         let ladder = [
             claudeCopy(tokens: 30, outputTokens: 4, metadataCompleteness: 2),
             claudeCopy(tokens: 10, outputTokens: 5, metadataCompleteness: 0),
@@ -39,15 +36,14 @@ final class UsageEventIndexTests: XCTestCase {
         ]
 
         for (partial, complete) in zip(ladder, ladder.dropFirst()) {
-            var inserted = UsageEventIndex(since: .distantPast)
-            inserted.insert(.event(complete))
-            inserted.insert(.event(partial))
-            var merged = UsageEventIndex(since: .distantPast)
-            merged.insert(.event(partial))
-            inserted.merge(merged)
-            merged.merge(inserted)
+            var completeFirst = UsageEventIndex(since: .distantPast)
+            completeFirst.insert(.event(complete))
+            completeFirst.insert(.event(partial))
+            var partialFirst = UsageEventIndex(since: .distantPast)
+            partialFirst.insert(.event(partial))
+            partialFirst.insert(.event(complete))
 
-            for index in [inserted, merged] {
+            for index in [completeFirst, partialFirst] {
                 XCTAssertEqual(index.values.count, 1)
                 XCTAssertEqual(index.values.first?.usage.processedTokens, complete.usage.processedTokens)
                 XCTAssertEqual(index.values.first?.usage.timestamp, complete.usage.timestamp)

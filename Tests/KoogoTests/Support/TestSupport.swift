@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import XCTest
 
@@ -20,6 +21,12 @@ extension XCTestCase {
         }
         return defaults
     }
+}
+
+func allocatedHeapBytes() -> Int {
+    var statistics = malloc_statistics_t()
+    malloc_zone_statistics(malloc_default_zone(), &statistics)
+    return statistics.size_in_use
 }
 
 func makeTestExecutable(in directory: URL, script: String) throws -> URL {

@@ -17,12 +17,12 @@ struct UsageEventIndex: Sendable {
         events.lazy.map { UsageEvent(key: $0.key, value: $0.value) }
     }
 
-    var count: Int {
-        events.count
+    var keys: some Collection<UsageEvent.Key> {
+        events.keys
     }
 
-    mutating func reserveCapacity(_ minimumCapacity: Int) {
-        events.reserveCapacity(minimumCapacity)
+    var count: Int {
+        events.count
     }
 
     mutating func insert(_ outcome: UsageLineOutcome) {
@@ -38,13 +38,6 @@ struct UsageEventIndex: Sendable {
         case .unpricedModel(let id, let timestamp):
             unpricedModels[id] = max(unpricedModels[id] ?? .distantPast, timestamp)
         }
-    }
-
-    mutating func merge(_ other: Self) {
-        events.merge(other.events) { current, candidate in
-            candidate.supersedes(current) ? candidate : current
-        }
-        unpricedModels.merge(other.unpricedModels) { current, candidate in max(current, candidate) }
     }
 
     mutating func discard(before historyStart: Date) {

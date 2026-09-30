@@ -5,7 +5,7 @@ import XCTest
 
 final class UsageSnapshotBuilderTests: XCTestCase {
     func testSnapshotPreservesSubcentProviderCosts() {
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [
                 usageEvent(.codex, id: 1, processedTokens: 1_000, costUSD: 0.005),
                 usageEvent(.codex, id: 2, processedTokens: 1_000, costUSD: 0.004),
@@ -20,7 +20,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     }
 
     func testTokenTotalsSaturateInsteadOfOverflowing() {
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [
                 usageEvent(.piAgent, id: 1, processedTokens: .max, costUSD: 0),
                 usageEvent(.piAgent, id: 2, processedTokens: 1, costUSD: 0),
@@ -44,7 +44,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     }
 
     func testSnapshotComparesCompletePreviousPeriods() throws {
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [
                 usageEvent(
                     .codex,
@@ -83,7 +83,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     func testSummaryComparisonIgnoresProvidersOutsideTheSet() throws {
         let yesterday = try XCTUnwrap(usageTestCalendar.date(byAdding: .day, value: -1, to: usageTestTimestamp))
 
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [
                 usageEvent(.codex, processedTokens: 100, costUSD: 1),
                 usageEvent(.claude, processedTokens: 100, costUSD: 1, at: yesterday),
@@ -99,7 +99,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     func testPrevious30DaysExcludesCurrentWindowBoundary() throws {
         let now = try XCTUnwrap(Date(iso8601: "2026-03-31T12:00:00Z"))
 
-        let snapshot = UsageSnapshotBuilder.build(
+        let snapshot = usageSnapshot(
             events: [
                 usageEvent(
                     .codex,
@@ -148,7 +148,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             )
         }
 
-        let snapshot = UsageSnapshotBuilder.build(events: events, intervals: intervals)
+        let snapshot = usageSnapshot(events: events, intervals: intervals)
         let codex = try XCTUnwrap(snapshot.providers[.codex])
 
         XCTAssertEqual(codex.today.processedTokens, 384)
