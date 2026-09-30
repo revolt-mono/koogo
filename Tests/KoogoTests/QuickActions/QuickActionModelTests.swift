@@ -98,6 +98,7 @@ final class QuickActionModelTests: XCTestCase {
         )
 
         model.refresh()
+        try await waitUntil { scans.value == 1 }
         model.refresh()
         try await waitUntil { model.phase == .ready(2) }
 
