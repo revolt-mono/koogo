@@ -17,7 +17,10 @@ final class CommandLineToolTests: XCTestCase {
         defer { unsetenv("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC") }
 
         let output = try await CommandLineTool(candidates: [executable], timeout: .seconds(3))
-            .output(of: [], in: root)
+            .session([], in: root) { _, output in
+                var output = output
+                return try XCTUnwrap(output.nextLine())
+            }
         let fields = try XCTUnwrap(String(bytes: output, encoding: .utf8)).split(
             separator: "|",
             omittingEmptySubsequences: false

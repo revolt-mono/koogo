@@ -31,48 +31,24 @@ struct CommandLineTool: Sendable {
         return (preferred + installDirectories + path).map { $0.appending(path: name) }
     }
 
-    func output(of arguments: [String], in directory: URL) async throws -> Data {
-        try await run(arguments, in: directory, input: nil) { process, output in
-            var data = Data()
-            while let chunk = try output.read(upToCount: 64 * 1_024), !chunk.isEmpty {
-                data.append(chunk)
-                guard data.count <= Self.outputLimit else { throw Failure.failed }
-            }
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { throw Failure.failed }
-            return data
-        }
-    }
-
     func session<Value: Sendable>(
         _ arguments: [String],
         in directory: URL? = nil,
         _ session: @escaping @Sendable (_ input: FileHandle, _ output: LineReader) throws -> Value
     ) async throws -> Value {
+        guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) })
+        else { throw Failure.notFound }
         let input = Pipe()
         guard fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else {
             throw Failure.failed
         }
-        return try await run(arguments, in: directory, input: input) { _, output in
-            try session(input.fileHandleForWriting, LineReader(fileHandle: output))
-        }
-    }
-
-    private func run<Value: Sendable>(
-        _ arguments: [String],
-        in directory: URL?,
-        input: Pipe?,
-        _ body: @escaping @Sendable (Process, FileHandle) throws -> Value
-    ) async throws -> Value {
-        guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) })
-        else { throw Failure.notFound }
         return try await ProcessGroupLifetime.run(timeout: timeout) { processGroup in
             let process = Process()
             let output = Pipe()
             process.executableURL = executable
             process.arguments = arguments
             process.currentDirectoryURL = directory
-            process.standardInput = input.map { $0 as Any } ?? FileHandle.nullDevice
+            process.standardInput = input
             process.standardOutput = output
             process.standardError = FileHandle.nullDevice
             // A fixed environment keeps the launching shell's switches, such as a Claude Code session's
@@ -86,7 +62,7 @@ struct CommandLineTool: Sendable {
 
             defer {
                 processGroup.terminate()
-                try? input?.fileHandleForWriting.close()
+                try? input.fileHandleForWriting.close()
                 if process.isRunning {
                     process.waitUntilExit()
                 }
@@ -94,7 +70,7 @@ struct CommandLineTool: Sendable {
                 processGroup.finish()
             }
             try processGroup.start(process)
-            return try body(process, output.fileHandleForReading)
+            return try session(input.fileHandleForWriting, LineReader(fileHandle: output.fileHandleForReading))
         }
     }
 }
