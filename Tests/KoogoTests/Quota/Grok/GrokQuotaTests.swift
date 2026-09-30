@@ -23,7 +23,7 @@ final class GrokQuotaTests: XCTestCase {
         let snapshot = try await GrokQuotaSource(executableCandidates: [executable]).load().get()
 
         XCTAssertEqual(snapshot.account.map(\.title), ["Weekly"])
-        XCTAssertEqual(snapshot.account["Weekly"]?.remainingPercent, 97)
+        XCTAssertEqual(snapshot.account["Weekly"]?.usedPercent, 3)
         XCTAssertEqual(
             try XCTUnwrap(snapshot.account["Weekly"]?.resetsAt).timeIntervalSince1970,
             1_790_533_996.478,
@@ -78,7 +78,7 @@ final class GrokQuotaTests: XCTestCase {
         let snapshot = try await GrokQuotaSource(executableCandidates: [executable]).load().get()
 
         XCTAssertEqual(snapshot.account.map(\.title), ["Usage limit"])
-        XCTAssertEqual(snapshot.account["Usage limit"]?.remainingPercent, 0)
+        XCTAssertEqual(snapshot.account["Usage limit"]?.usedPercent, 100)
         XCTAssertEqual(snapshot.account["Usage limit"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800))
     }
 

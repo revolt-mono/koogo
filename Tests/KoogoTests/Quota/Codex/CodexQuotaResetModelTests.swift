@@ -50,7 +50,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
 
         XCTAssertEqual(model.state, .completed(.reset))
         guard case .available(let snapshot) = model.quota else { return XCTFail("expected fresh quota") }
-        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 83)
+        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 17)
         XCTAssertEqual(snapshot.resetCredits?.availableCount, 0)
         XCTAssertEqual(try workspace.lines(in: workspace.consumeRequestsFile).count, 1)
         XCTAssertEqual(try workspace.lines(in: workspace.readRequestsFile).count, 2)

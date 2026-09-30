@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One quota window: title, what is left, a live reset countdown, and a remaining-share bar.
+/// One quota window: title, what is used, a live reset countdown, and a used-share bar.
 struct QuotaWindowRow: View {
     let scopeTitle: String
     let window: QuotaWindow
@@ -13,7 +13,7 @@ struct QuotaWindowRow: View {
 
                 Spacer(minLength: 12)
 
-                Text("\(window.remainingPercent)% left")
+                Text("\(window.usedPercent)% used")
                     .foregroundStyle(.primary)
                     .monospacedDigit()
                     .numericTextTransition()
@@ -25,10 +25,10 @@ struct QuotaWindowRow: View {
             .font(.system(size: 9, weight: .medium))
             .lineLimit(1)
 
-            ProgressView(value: Double(window.remainingPercent), total: 100)
+            ProgressView(value: Double(window.usedPercent), total: 100)
                 .progressViewStyle(QuotaProgressViewStyle())
                 .accessibilityLabel("\(scopeTitle) \(window.title)")
-                .accessibilityValue("\(window.remainingPercent) percent left")
+                .accessibilityValue("\(window.usedPercent) percent used")
         }
     }
 }

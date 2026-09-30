@@ -9,12 +9,12 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         let executable = try workspace.makeCLI()
         let snapshot = try await ClaudeQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 88)
+        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 12)
         XCTAssertEqual(snapshot.account["Session"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800.125))
-        XCTAssertEqual(snapshot.account["Weekly"]?.remainingPercent, 71)
+        XCTAssertEqual(snapshot.account["Weekly"]?.usedPercent, 29)
         XCTAssertEqual(snapshot.account["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_788_393_600))
         XCTAssertEqual(snapshot.models.map(\.title), ["Fable"])
-        XCTAssertEqual(snapshot.models.first?.windows["Weekly"]?.remainingPercent, 37)
+        XCTAssertEqual(snapshot.models.first?.windows["Weekly"]?.usedPercent, 63)
         XCTAssertEqual(snapshot.models.first?.windows["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_788_307_200))
         let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8)
         XCTAssertEqual(
@@ -79,11 +79,11 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
         let snapshot = try await ClaudeQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 100)
+        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 0)
         XCTAssertNil(snapshot.account["Session"]?.resetsAt)
-        XCTAssertEqual(snapshot.account["Weekly"]?.remainingPercent, 0)
+        XCTAssertEqual(snapshot.account["Weekly"]?.usedPercent, 100)
         XCTAssertEqual(snapshot.models.map(\.title), ["Other model"])
-        XCTAssertEqual(snapshot.models.first?.windows["Weekly"]?.remainingPercent, 97)
+        XCTAssertEqual(snapshot.models.first?.windows["Weekly"]?.usedPercent, 3)
     }
 
     func testFetchReportsMissingExecutable() async throws {

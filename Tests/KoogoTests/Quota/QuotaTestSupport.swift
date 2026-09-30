@@ -9,9 +9,9 @@ extension [QuotaWindow] {
 }
 
 extension QuotaSnapshot {
-    static func stub(_ remainingPercent: Int = 50) -> QuotaSnapshot {
+    static func stub(_ usedPercent: Int = 50) -> QuotaSnapshot {
         QuotaSnapshot(account: [
-            QuotaWindow(title: "Session", usedPercent: Double(100 - remainingPercent), resetsAt: nil)
+            QuotaWindow(title: "Session", usedPercent: Double(usedPercent), resetsAt: nil)
         ])!
     }
 }

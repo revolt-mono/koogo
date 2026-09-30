@@ -1,16 +1,16 @@
 import Foundation
 
-/// One rate-limit window as the panel shows it: what it is called, how much is left, and when it refills.
+/// One rate-limit window as the panel shows it: what it is called, how much is used, and when it refills.
 struct QuotaWindow: Equatable, Sendable, Encodable {
     let title: String
-    let remainingPercent: Int
+    let usedPercent: Int
     let resetsAt: Date?
 
     /// Clamps `usedPercent` to 0...100 and floors it, as the providers' own usage screens do, so 3.9% used
-    /// leaves 97%.
+    /// shows 3%.
     init(title: String, usedPercent: Double, resetsAt: Date?) {
         self.title = title
-        remainingPercent = 100 - Int(Double.minimum(Double.maximum(usedPercent, 0), 100).rounded(.down))
+        self.usedPercent = Int(Double.minimum(Double.maximum(usedPercent, 0), 100).rounded(.down))
         self.resetsAt = resetsAt
     }
 }

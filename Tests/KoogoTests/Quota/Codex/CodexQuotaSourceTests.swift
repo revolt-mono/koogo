@@ -17,18 +17,18 @@ final class CodexQuotaSourceTests: XCTestCase {
         XCTAssertEqual(snapshot.models.map(\.id), ["codex_bengalfox"])
         XCTAssertEqual(snapshot.models[0].title, "GPT-5.3-Codex-Spark")
 
-        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 55)
+        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 45)
         XCTAssertEqual(
             snapshot.account["Session"]?.resetsAt,
             Date(timeIntervalSince1970: 1_700_000_000)
         )
-        XCTAssertEqual(snapshot.account["Weekly"]?.remainingPercent, 85)
+        XCTAssertEqual(snapshot.account["Weekly"]?.usedPercent, 15)
         XCTAssertEqual(
             snapshot.account["Weekly"]?.resetsAt,
             Date(timeIntervalSince1970: 1_800_000_000)
         )
-        XCTAssertEqual(snapshot.models[0].windows["Session"]?.remainingPercent, 90)
-        XCTAssertEqual(snapshot.models[0].windows["Weekly"]?.remainingPercent, 80)
+        XCTAssertEqual(snapshot.models[0].windows["Session"]?.usedPercent, 10)
+        XCTAssertEqual(snapshot.models[0].windows["Weekly"]?.usedPercent, 20)
     }
 
     func testFetchNamesReserveQuotaWithoutChangingItsIdentityOrWindows() async throws {
@@ -46,7 +46,7 @@ final class CodexQuotaSourceTests: XCTestCase {
         XCTAssertEqual(model.id, "base_model_inference")
         XCTAssertEqual(model.title, "Reserve quota")
         XCTAssertNil(model.windows["Session"])
-        XCTAssertEqual(model.windows["Weekly"]?.remainingPercent, 52)
+        XCTAssertEqual(model.windows["Weekly"]?.usedPercent, 48)
         XCTAssertEqual(model.windows["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_800_000_000))
     }
 
@@ -92,7 +92,7 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 25)
         XCTAssertNil(snapshot.resetCredits)
     }
 
@@ -137,7 +137,7 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 25)
     }
 
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
@@ -172,7 +172,7 @@ final class CodexQuotaSourceTests: XCTestCase {
         let started = ContinuousClock.now
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
-        XCTAssertEqual(snapshot.account["Session"]?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.account["Session"]?.usedPercent, 25)
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
     }
 
