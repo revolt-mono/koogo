@@ -12,12 +12,12 @@ struct ProviderUsageCard<Accessory: View>: View {
             VStack(spacing: 12) {
                 accessory()
 
-                MonthlyUsageChart(month: usage.dailyMonth)
+                DailyUsageChart(usage: usage.dailyLast30Days)
 
                 VStack(spacing: 6) {
                     ProviderUsageRow(title: "Today", usage: usage.today)
-                    ProviderUsageRow(title: "Weekly", usage: usage.week)
-                    ProviderUsageRow(title: "Monthly", usage: usage.month)
+                    ProviderUsageRow(title: "Last 7 days", usage: usage.last7Days)
+                    ProviderUsageRow(title: "Last 30 days", usage: usage.last30Days)
                 }
             }
             .padding(12)

@@ -72,7 +72,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let snapshot = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 50)
-        XCTAssertEqual(snapshot.providers[.codex]?.month.processedTokens, 170)
+        XCTAssertEqual(snapshot.providers[.codex]?.last30Days.processedTokens, 170)
     }
 
     func testColdScanIgnoresJSONLSymlinks() async throws {
@@ -86,7 +86,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         let snapshot = await service.refresh(at: now).snapshot
 
-        XCTAssertEqual(snapshot.providers[.codex]?.month, UsagePeriodSnapshot())
+        XCTAssertEqual(snapshot.providers[.codex]?.last30Days, UsagePeriodSnapshot())
     }
 
     func testSymlinkedLogRootIsWalked() async throws {
@@ -264,30 +264,30 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
     }
 
     func testHistoryWindowMovingForwardDiscardsOlderEvents() async throws {
-        try writeAugustLog(andOlderLogAt: "2026-07-25T17:00:00.000Z")
+        try writeAugustLog(andOlderLogAt: "2026-06-27T00:00:00Z")
         let service = UsageService(locations: locations, calendar: usageTestCalendar)
         let august = await service.refresh(at: now)
         XCTAssertEqual(august.ingestion.events[.codex], 2)
 
-        let nextMonth = try XCTUnwrap(usageTestCalendar.date(byAdding: .month, value: 1, to: now))
-        let september = await service.refresh(at: nextMonth)
+        let nextDay = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z"))
+        let refreshed = await service.refresh(at: nextDay)
 
-        XCTAssertEqual(september.ingestion.events[.codex], 1)
-        XCTAssertEqual(september.snapshot.providers[.codex]?.month, UsagePeriodSnapshot())
-        XCTAssertEqual(september.snapshot.summary.month.costChange, .decrease(fraction: 1))
+        XCTAssertEqual(refreshed.ingestion.events[.codex], 1)
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.last30Days.processedTokens, 120)
+        XCTAssertEqual(refreshed.snapshot.summary.last30Days.costChange, .increase(fraction: 1))
     }
 
     func testHistoryWindowMovingBackwardRescansOlderEvents() async throws {
-        try writeAugustLog(andOlderLogAt: "2026-06-25T17:00:00.000Z")
+        try writeAugustLog(andOlderLogAt: "2026-06-26T23:59:59.999Z")
         let service = UsageService(locations: locations, calendar: usageTestCalendar)
         let august = await service.refresh(at: now)
         XCTAssertEqual(august.ingestion.events[.codex], 1)
 
-        let july = try XCTUnwrap(usageTestCalendar.date(byAdding: .month, value: -1, to: now))
-        let rescanned = await service.refresh(at: july)
+        let previousDay = try XCTUnwrap(Date(iso8601: "2026-08-24T23:59:59.999Z"))
+        let rescanned = await service.refresh(at: previousDay)
 
         XCTAssertEqual(rescanned.ingestion.events[.codex], 2)
-        XCTAssertEqual(rescanned.snapshot.providers[.codex]?.month, UsagePeriodSnapshot())
+        XCTAssertEqual(rescanned.snapshot.providers[.codex]?.last30Days, UsagePeriodSnapshot())
     }
 
     private func writeAugustLog(andOlderLogAt olderTimestamp: String) throws {

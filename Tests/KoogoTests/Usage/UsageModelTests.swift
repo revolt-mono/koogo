@@ -28,7 +28,7 @@ final class UsageModelTests: UsageWorkspaceTestCase {
 
         try await waitUntil { model.snapshot?.providers[.codex]?.today.processedTokens == 0 }
         XCTAssertEqual(clockReads, 2)
-        XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.month.processedTokens, 120)
+        XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.last30Days.processedTokens, 120)
     }
 
     @MainActor

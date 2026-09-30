@@ -6,7 +6,7 @@ struct UsageSummaryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             UsageSummaryPeriod(title: "Today", usage: summary.today)
-            UsageSummaryPeriod(title: "Monthly", usage: summary.month)
+            UsageSummaryPeriod(title: "Last 30 days", usage: summary.last30Days)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

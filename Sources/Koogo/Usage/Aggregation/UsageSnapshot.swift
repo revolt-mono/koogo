@@ -24,7 +24,7 @@ struct UsageDaySnapshot: Equatable, Identifiable, Sendable, Encodable {
     var id: Date { date }
 }
 
-struct UsageMonthSnapshot: Equatable, Sendable, Encodable {
+struct UsageDailySnapshot: Equatable, Sendable, Encodable {
     let range: Range<Date>
     let days: [UsageDaySnapshot]
 }
@@ -37,9 +37,9 @@ struct ProviderUsageSnapshot: Equatable, Sendable, Encodable {
 
     let favorite: Favorite?
     let today: UsagePeriodSnapshot
-    let week: UsagePeriodSnapshot
-    let month: UsagePeriodSnapshot
-    let dailyMonth: UsageMonthSnapshot
+    let last7Days: UsagePeriodSnapshot
+    let last30Days: UsagePeriodSnapshot
+    let dailyLast30Days: UsageDailySnapshot
 }
 
 enum UsageCostChange: Equatable, Sendable, Encodable {
@@ -78,7 +78,7 @@ struct UsageSummaryPeriodSnapshot: Equatable, Sendable, Encodable {
 
 struct UsageSummarySnapshot: Equatable, Sendable, Encodable {
     let today: UsageSummaryPeriodSnapshot
-    let month: UsageSummaryPeriodSnapshot
+    let last30Days: UsageSummaryPeriodSnapshot
 }
 
 struct UsageSnapshot: Equatable, Sendable, Encodable {
@@ -88,16 +88,16 @@ struct UsageSnapshot: Equatable, Sendable, Encodable {
     init(
         providers: [Provider: ProviderUsageSnapshot],
         previousDay: UsagePeriodSnapshot,
-        previousMonth: UsagePeriodSnapshot
+        previous30Days: UsagePeriodSnapshot
     ) {
         summary = UsageSummarySnapshot(
             today: UsageSummaryPeriodSnapshot(
                 current: providers.values.map(\.today).reduce(UsagePeriodSnapshot(), +),
                 previous: previousDay
             ),
-            month: UsageSummaryPeriodSnapshot(
-                current: providers.values.map(\.month).reduce(UsagePeriodSnapshot(), +),
-                previous: previousMonth
+            last30Days: UsageSummaryPeriodSnapshot(
+                current: providers.values.map(\.last30Days).reduce(UsagePeriodSnapshot(), +),
+                previous: previous30Days
             )
         )
         self.providers = providers

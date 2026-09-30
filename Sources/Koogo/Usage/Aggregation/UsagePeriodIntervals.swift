@@ -1,61 +1,38 @@
 import Foundation
 
 struct UsagePeriodIntervals: Equatable, Sendable {
-    struct Comparison: Equatable, Sendable {
-        let current: Range<Date>
-        let previous: Range<Date>
-
-        fileprivate init(
-            component: Calendar.Component,
-            containing date: Date,
-            calendar: Calendar
-        ) {
-            guard
-                let current = calendar.dateInterval(of: component, for: date),
-                let previousDate = calendar.date(byAdding: component, value: -1, to: current.start),
-                let previous = calendar.dateInterval(of: component, for: previousDate)
-            else {
-                preconditionFailure("calendar must provide current and previous period intervals")
-            }
-
-            self.current = current.start..<current.end
-            self.previous = previous.start..<previous.end
-        }
-    }
-
-    let day: Comparison
-    let week: Range<Date>
-    let month: Comparison
-    private let currentMonthDays: [Date]
+    let today: Date
+    let yesterday: Date
+    let last7DaysStart: Date
+    let last30Days: Range<Date>
+    let previous30Days: Range<Date>
+    private let last30DayStarts: [Date]
 
     var historyStart: Date {
-        month.previous.lowerBound
+        previous30Days.lowerBound
     }
 
     init(containing date: Date, calendar: Calendar) {
-        guard let week = calendar.dateInterval(of: .weekOfYear, for: date) else {
-            preconditionFailure("calendar must provide a week interval")
+        guard let todayInterval = calendar.dateInterval(of: .day, for: date) else {
+            preconditionFailure("calendar must provide day intervals")
         }
-
-        let month = Comparison(component: .month, containing: date, calendar: calendar)
-        day = Comparison(component: .day, containing: date, calendar: calendar)
-        self.week = week.start..<week.end
-        self.month = month
-        currentMonthDays = Array(
-            sequence(first: month.current.lowerBound) { dayStart in
-                guard let nextDay = calendar.dateInterval(of: .day, for: dayStart)?.end else {
-                    preconditionFailure("calendar must provide day intervals")
-                }
-                return nextDay
-            }
-            .prefix { $0 < month.current.upperBound }
+        let dayStartsNewestFirst = Array(
+            sequence(first: todayInterval.start) { calendar.startOfDay(for: $0.addingTimeInterval(-1)) }
+                .prefix(60)
         )
+
+        today = dayStartsNewestFirst[0]
+        yesterday = dayStartsNewestFirst[1]
+        last7DaysStart = dayStartsNewestFirst[6]
+        last30Days = dayStartsNewestFirst[29]..<todayInterval.end
+        previous30Days = dayStartsNewestFirst[59]..<dayStartsNewestFirst[29]
+        last30DayStarts = Array(dayStartsNewestFirst.prefix(30))
     }
 
-    func currentMonthDay(containing date: Date) -> Date? {
-        guard month.current.contains(date) else {
+    func last30Day(containing date: Date) -> Date? {
+        guard last30Days.contains(date) else {
             return nil
         }
-        return currentMonthDays.last { $0 <= date }
+        return last30DayStarts.first { $0 <= date }
     }
 }

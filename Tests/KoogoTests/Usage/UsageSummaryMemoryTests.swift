@@ -54,7 +54,7 @@ final class UsageSummaryMemoryTests: XCTestCase {
             ),
             previous: UsagePeriodSnapshot(processedTokens: 0, costUSD: 105)
         )
-        return UsageSummaryView(summary: UsageSummarySnapshot(today: period, month: period))
+        return UsageSummaryView(summary: UsageSummarySnapshot(today: period, last30Days: period))
             .fontDesign(.rounded)
     }
 }

@@ -2,10 +2,10 @@ import AppKit
 import Charts
 import SwiftUI
 
-struct MonthlyUsageChart: View {
+struct DailyUsageChart: View {
     @Environment(\.calendar) private var calendar
 
-    let month: UsageMonthSnapshot
+    let usage: UsageDailySnapshot
 
     @State private var selectedDate: Date?
 
@@ -13,14 +13,14 @@ struct MonthlyUsageChart: View {
         guard let selectedDate else {
             return nil
         }
-        return month.days.first {
+        return usage.days.first {
             calendar.isDate($0.date, inSameDayAs: selectedDate)
         }
     }
 
     var body: some View {
         Chart {
-            ForEach(month.days) { day in
+            ForEach(usage.days) { day in
                 BarMark(
                     x: .value("Day", day.date, unit: .day),
                     y: .value("Cost", NSDecimalNumber(decimal: day.usage.costUSD).doubleValue)
@@ -30,7 +30,7 @@ struct MonthlyUsageChart: View {
             }
         }
         .chartXScale(
-            domain: month.range.lowerBound...month.range.upperBound
+            domain: usage.range.lowerBound...usage.range.upperBound
         )
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
@@ -51,7 +51,7 @@ struct MonthlyUsageChart: View {
             .allowsHitTesting(false)
         }
         .frame(height: 48)
-        .motionAnimation(.smooth(duration: 0.35), value: month)
+        .motionAnimation(.smooth(duration: 0.35), value: usage)
     }
 }
 

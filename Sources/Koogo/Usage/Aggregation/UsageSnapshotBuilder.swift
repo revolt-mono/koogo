@@ -45,35 +45,27 @@ enum UsageSnapshotBuilder {
 
     private struct ProviderAccumulator {
         var favorite = FavoriteAccumulator()
-        var today = UsagePeriodSnapshot()
-        var week = UsagePeriodSnapshot()
-        var monthByDay: [Date: UsagePeriodSnapshot] = [:]
+        var usageByDay: [Date: UsagePeriodSnapshot] = [:]
 
         mutating func add(_ usage: UsageRecord, intervals: UsagePeriodIntervals) {
+            guard let day = intervals.last30Day(containing: usage.timestamp) else {
+                return
+            }
             favorite.add(usage.modelTurn)
-            if intervals.day.current.contains(usage.timestamp) {
-                today.add(usage)
-            }
-            if intervals.week.contains(usage.timestamp) {
-                week.add(usage)
-            }
-            if let day = intervals.currentMonthDay(containing: usage.timestamp) {
-                monthByDay[day, default: .init()].add(usage)
-            }
+            usageByDay[day, default: .init()].add(usage)
         }
 
         func snapshot(intervals: UsagePeriodIntervals) -> ProviderUsageSnapshot {
-            ProviderUsageSnapshot(
+            let days = usageByDay.sorted { $0.key < $1.key }.map {
+                UsageDaySnapshot(date: $0.key, usage: $0.value)
+            }
+            return ProviderUsageSnapshot(
                 favorite: favorite.snapshot(),
-                today: today,
-                week: week,
-                month: monthByDay.values.reduce(UsagePeriodSnapshot(), +),
-                dailyMonth: UsageMonthSnapshot(
-                    range: intervals.month.current,
-                    days: monthByDay.sorted { $0.key < $1.key }.map {
-                        UsageDaySnapshot(date: $0.key, usage: $0.value)
-                    }
-                )
+                today: usageByDay[intervals.today] ?? .init(),
+                last7Days: days.lazy.filter { $0.date >= intervals.last7DaysStart }
+                    .map(\.usage).reduce(UsagePeriodSnapshot(), +),
+                last30Days: usageByDay.values.reduce(UsagePeriodSnapshot(), +),
+                dailyLast30Days: UsageDailySnapshot(range: intervals.last30Days, days: days)
             )
         }
     }
@@ -84,24 +76,21 @@ enum UsageSnapshotBuilder {
         intervals: UsagePeriodIntervals
     ) -> UsageSnapshot {
         var accumulators = Dictionary(uniqueKeysWithValues: providers.map { ($0, ProviderAccumulator()) })
-        var previousDay = UsagePeriodSnapshot()
-        var previousMonth = UsagePeriodSnapshot()
+        var previous30Days = UsagePeriodSnapshot()
 
         for event in events where providers.contains(event.provider) {
             let usage = event.usage
             accumulators[event.provider]?.add(usage, intervals: intervals)
-            if intervals.day.previous.contains(usage.timestamp) {
-                previousDay.add(usage)
-            }
-            if intervals.month.previous.contains(usage.timestamp) {
-                previousMonth.add(usage)
+            if intervals.previous30Days.contains(usage.timestamp) {
+                previous30Days.add(usage)
             }
         }
 
         return UsageSnapshot(
             providers: accumulators.mapValues { $0.snapshot(intervals: intervals) },
-            previousDay: previousDay,
-            previousMonth: previousMonth
+            previousDay: accumulators.values.map { $0.usageByDay[intervals.yesterday] ?? .init() }
+                .reduce(UsagePeriodSnapshot(), +),
+            previous30Days: previous30Days
         )
     }
 }

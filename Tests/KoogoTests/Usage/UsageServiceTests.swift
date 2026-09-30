@@ -64,20 +64,66 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
         XCTAssertEqual(Set(codexAndGrok.snapshot.providers.keys), [.codex, .grok])
     }
 
-    func testRefreshRebuildsSnapshotForNewDay() async throws {
+    func testRefreshMovesRollingWindowsOnlyAtMidnight() async throws {
+        for (index, timestamp) in [
+            "2026-06-27T00:00:00Z",
+            "2026-07-27T00:00:00Z",
+            "2026-08-19T00:00:00Z",
+            "2026-08-25T00:00:00Z",
+        ].enumerated() {
+            try workspace.write(
+                codexLog(input: 1 << index, output: 0, usageTimestamp: timestamp),
+                to: workspace.codexSessions.appending(path: "boundary-\(index).jsonl")
+            )
+        }
+        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let current = await service.refresh(at: now)
+        let lastMillisecond = try XCTUnwrap(Date(iso8601: "2026-08-25T23:59:59.999Z"))
+        let evening = await service.refresh(at: lastMillisecond)
+        let midnight = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z"))
+        let refreshed = await service.refresh(at: midnight)
+
+        XCTAssertEqual(current.ingestion.events[.codex], 4)
+        XCTAssertEqual(current.snapshot.providers[.codex]?.today.processedTokens, 8)
+        XCTAssertEqual(current.snapshot.providers[.codex]?.last7Days.processedTokens, 12)
+        XCTAssertEqual(current.snapshot.providers[.codex]?.last30Days.processedTokens, 14)
+        XCTAssertEqual(evening.snapshot, current.snapshot)
+        XCTAssertEqual(refreshed.ingestion.events[.codex], 3)
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.today, UsagePeriodSnapshot())
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.last7Days.processedTokens, 8)
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.last30Days.processedTokens, 12)
+        XCTAssertEqual(refreshed.snapshot.summary.last30Days.costChange, .increase(fraction: 5))
+    }
+
+    func testFavoritesChangeAtMidnightWhileOlderTurnsStayIndexed() async throws {
+        for input in 1...2 {
+            try workspace.write(
+                codexLog(
+                    input: input,
+                    output: 0,
+                    model: "gpt-5.6-luna",
+                    usageTimestamp: "2026-07-27T00:00:00Z"
+                ),
+                to: workspace.codexSessions.appending(path: "first-day-\(input).jsonl")
+            )
+        }
         try workspace.write(
-            codexLog(input: 100, output: 20),
-            to: workspace.codexSessions.appending(path: "session.jsonl")
+            codexLog(input: 4, output: 0, model: "gpt-5.6-sol"),
+            to: workspace.codexSessions.appending(path: "recent.jsonl")
         )
         let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        let current = await service.refresh(at: now).snapshot
+        let current = await service.refresh(at: now)
+        let lastMillisecond = try XCTUnwrap(Date(iso8601: "2026-08-25T23:59:59.999Z"))
+        let evening = await service.refresh(at: lastMillisecond)
+        let nextMidnight = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z"))
+        let refreshed = await service.refresh(at: nextMidnight)
 
-        let nextDay = try XCTUnwrap(usageTestCalendar.date(byAdding: .day, value: 1, to: now))
-        let refreshed = await service.refresh(at: nextDay).snapshot
-
-        XCTAssertEqual(current.providers[.codex]?.today.processedTokens, 120)
-        XCTAssertEqual(refreshed.providers[.codex]?.today, UsagePeriodSnapshot())
-        XCTAssertEqual(refreshed.providers[.codex]?.week.processedTokens, 120)
+        XCTAssertEqual(current.ingestion.events[.codex], 3)
+        XCTAssertEqual(current.snapshot.providers[.codex]?.favorite?.modelName, "GPT 5.6 Luna")
+        XCTAssertEqual(evening.snapshot, current.snapshot)
+        XCTAssertEqual(refreshed.ingestion.events[.codex], 3)
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.favorite?.modelName, "GPT 5.6 Sol")
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.last30Days.processedTokens, 4)
     }
 
     func testUnpricedModelIsExcludedFromTotalsAndReported() async throws {
@@ -87,7 +133,7 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
 
         let report = await service.refresh(at: now)
 
-        XCTAssertEqual(report.snapshot.providers[.codex]?.month, UsagePeriodSnapshot())
+        XCTAssertEqual(report.snapshot.providers[.codex]?.last30Days, UsagePeriodSnapshot())
         XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.events, [.codex: 0, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.unpricedModels, ["unknown-model"])
@@ -107,10 +153,10 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
             codexLog(
                 input: 200,
                 output: 40,
-                thread: "previous-month",
+                thread: "previous-30-days",
                 usageTimestamp: "2026-07-25T17:00:00.000Z"
             ),
-            to: workspace.codexSessions.appending(path: "previous-month.jsonl")
+            to: workspace.codexSessions.appending(path: "previous-30-days.jsonl")
         )
         for index in 1...3 {
             try workspace.write(
@@ -119,7 +165,7 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
                     output: 0,
                     thread: "older-\(index)",
                     model: "gpt-5.6-luna",
-                    usageTimestamp: "2026-06-30T17:00:00.000Z"
+                    usageTimestamp: "2026-06-26T23:59:59.999Z"
                 ),
                 to: workspace.codexSessions.appending(path: "older-\(index).jsonl")
             )
@@ -129,7 +175,7 @@ final class UsageServiceTests: UsageWorkspaceTestCase {
         let snapshot = await service.refresh(at: now).snapshot
 
         XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
-        XCTAssertEqual(snapshot.summary.month.costChange, .decrease(fraction: Decimal(1) / 2))
+        XCTAssertEqual(snapshot.summary.last30Days.costChange, .decrease(fraction: Decimal(1) / 2))
         XCTAssertEqual(snapshot.providers[.codex]?.favorite?.modelName, "GPT 5.6 Sol")
     }
 }

@@ -87,7 +87,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             events: [event],
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
         )
-        XCTAssertEqual(snapshot.providers[.piAgent]?.month, UsagePeriodSnapshot())
+        XCTAssertEqual(snapshot.providers[.piAgent]?.last30Days, UsagePeriodSnapshot())
         XCTAssertEqual(
             snapshot.providers[.piAgent]?.favorite,
             ProviderUsageSnapshot.Favorite(modelName: "free-model", reasoningEffort: nil)
