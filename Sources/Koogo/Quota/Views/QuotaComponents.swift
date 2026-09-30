@@ -80,7 +80,7 @@ struct QuotaWindowPlaceholder: View {
                     .frame(width: 104, height: 8)
             }
             RoundedRectangle(cornerRadius: 2)
-                .frame(height: 6)
+                .frame(height: quotaBarHeight)
         }
     }
 }
@@ -133,29 +133,19 @@ func quotaTimeRemainingText(until date: Date, now: Date) -> String {
     return "soon"
 }
 
+/// An odd height off the 2-point grid for compact internals, chosen by eye between 4 (too thin) and 6.
+private let quotaBarHeight: CGFloat = 5
+
 private struct QuotaProgressViewStyle: ProgressViewStyle {
     func makeBody(configuration: Configuration) -> some View {
         GeometryReader { geometry in
-            let fraction = configuration.fractionCompleted ?? 0
-
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.primary.opacity(0.10))
-
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.primary.opacity(0.42),
-                                Color.primary,
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: geometry.size.width * fraction)
-            }
+            Color.primary
+                .frame(width: geometry.size.width * (configuration.fractionCompleted ?? 0))
         }
-        .frame(height: 6)
+        .frame(height: quotaBarHeight)
+        .background(Color.primary.opacity(0.10))
+        .clipShape(Capsule())
+        // Flattened so the panel's Liquid Glass vibrancy cannot dim the fill to gray.
+        .drawingGroup()
     }
 }
