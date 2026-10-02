@@ -18,6 +18,7 @@ struct CodexQuotaResponse: Decodable, Sendable {
             }
         return QuotaSnapshot(
             windows: rateLimits.windows(named: nil) + named.flatMap { $0.rateLimit.windows(named: $0.name) },
+            credits: rateLimits.credits?.snapshot,
             resetCredits: rateLimitResetCredits?.snapshot
         )
     }
@@ -34,6 +35,7 @@ private struct CodexRateLimitSnapshot: Decodable {
     let limitName: String?
     let primary: CodexRateLimitWindow?
     let secondary: CodexRateLimitWindow?
+    let credits: CodexCredits?
 
     func windows(named name: String?) -> [QuotaWindow] {
         let found = [("Session", 300), ("Weekly", 10_080)].compactMap { period, minutes in
@@ -50,6 +52,7 @@ private struct CodexRateLimitSnapshot: Decodable {
         case limitName
         case primary
         case secondary
+        case credits
     }
 
     private func window(around expectedMinutes: Int64) -> CodexRateLimitWindow? {
@@ -57,6 +60,20 @@ private struct CodexRateLimitSnapshot: Decodable {
         return [primary, secondary].compactMap { $0 }.first { window in
             window.windowDurationMinutes.map { durations ~= $0 } ?? false
         }
+    }
+}
+
+private struct CodexCredits: Decodable {
+    let hasCredits: Bool
+    let unlimited: Bool
+    let balance: String?
+
+    var snapshot: QuotaSnapshot.Credits? {
+        if unlimited { return .unlimited }
+        guard hasCredits else { return nil }
+        guard let balance, let amount = Double(balance.trimmingCharacters(in: .whitespacesAndNewlines)), amount.isFinite
+        else { return .available }
+        return .balance(amount: amount)
     }
 }
 

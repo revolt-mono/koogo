@@ -13,6 +13,12 @@ struct QuotaWindow: Equatable, Sendable, Encodable {
 }
 
 struct QuotaSnapshot: Equatable, Sendable, Encodable {
+    enum Credits: Equatable, Sendable, Encodable {
+        case balance(amount: Double)
+        case available
+        case unlimited
+    }
+
     struct ResetCredits: Equatable, Sendable, Encodable {
         let availableCount: UInt64
         let credits: [ResetCredit]?
@@ -29,11 +35,13 @@ struct QuotaSnapshot: Equatable, Sendable, Encodable {
     }
 
     let windows: [QuotaWindow]
+    let credits: Credits?
     let resetCredits: ResetCredits?
 
-    init?(windows: [QuotaWindow], resetCredits: ResetCredits? = nil) {
-        guard !windows.isEmpty || resetCredits != nil else { return nil }
+    init?(windows: [QuotaWindow], credits: Credits? = nil, resetCredits: ResetCredits? = nil) {
+        guard !windows.isEmpty || credits != nil || resetCredits != nil else { return nil }
         self.windows = windows
+        self.credits = credits
         self.resetCredits = resetCredits
     }
 }

@@ -93,6 +93,7 @@ private let reportKeyPaths =
         "quota.claude.snapshot.windows[].title",
         "quota.claude.snapshot.windows[].usedPercent",
         "quota.claude.state",
+        "quota.codex.snapshot.credits.balance.amount",
         "quota.codex.snapshot.resetCredits.availableCount",
         "quota.codex.snapshot.resetCredits.credits[].expiresAt",
         "quota.codex.snapshot.resetCredits.credits[].id",
@@ -148,7 +149,8 @@ private let reportKeyPaths =
 private let codexQuotaResponse = """
     {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,\
     "windowDurationMins":300,"resetsAt":1787698800},"secondary":{"usedPercent":40,\
-    "windowDurationMins":10080,"resetsAt":1788134400}},"rateLimitsByLimitId":{"codex_spark":{\
+    "windowDurationMins":10080,"resetsAt":1788134400},"credits":{"hasCredits":true,"unlimited":false,\
+    "balance":"1234.5"}},"rateLimitsByLimitId":{"codex_spark":{\
     "limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,\
     "resetsAt":1787698800}}},"rateLimitResetCredits":{"availableCount":1,\
     "credits":[\(CodexQuotaTestWorkspace.resetCredit)]}}}

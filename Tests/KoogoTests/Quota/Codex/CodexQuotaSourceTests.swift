@@ -76,6 +76,45 @@ final class CodexQuotaSourceTests: XCTestCase {
         XCTAssertNil(snapshot.resetCredits)
     }
 
+    func testCreditsAvailabilityAndHiddenBalance() throws {
+        let cases: [(String, QuotaSnapshot.Credits?)] = [
+            (#"{"hasCredits":true,"unlimited":false,"balance":" 42.25 "}"#, .balance(amount: 42.25)),
+            (#"{"hasCredits":true,"unlimited":false,"balance":"0"}"#, .balance(amount: 0)),
+            (#"{"hasCredits":true,"unlimited":false,"balance":null}"#, .available),
+            (#"{"hasCredits":true,"unlimited":false,"balance":"unavailable"}"#, .available),
+            (#"{"hasCredits":true,"unlimited":false,"balance":"nan"}"#, .available),
+            (#"{"hasCredits":false,"unlimited":true,"balance":"12"}"#, .unlimited),
+            (#"{"hasCredits":false,"unlimited":false,"balance":"12"}"#, nil),
+            ("null", nil),
+        ]
+        for (credits, expected) in cases {
+            let response = try JSONDecoder().decode(
+                CodexQuotaResponse.self,
+                from: Data(
+                    """
+                    {"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300},"credits":\(credits)}}
+                    """.utf8
+                )
+            )
+            let snapshot = try XCTUnwrap(response.snapshot)
+
+            XCTAssertEqual(snapshot.credits, expected, credits)
+            XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
+        }
+    }
+
+    func testCreditsWithoutWindowsOrBankedResets() throws {
+        let response = try JSONDecoder().decode(
+            CodexQuotaResponse.self,
+            from: Data(#"{"rateLimits":{"credits":{"hasCredits":true,"unlimited":false,"balance":"50"}}}"#.utf8)
+        )
+        let snapshot = try XCTUnwrap(response.snapshot)
+
+        XCTAssertEqual(snapshot.credits, .balance(amount: 50))
+        XCTAssertEqual(snapshot.windows, [])
+        XCTAssertNil(snapshot.resetCredits)
+    }
+
     func testFetchReportsEmptyLimitsWhenNoWindowOrCreditSurvives() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let executable = try workspace.makeAppServer(

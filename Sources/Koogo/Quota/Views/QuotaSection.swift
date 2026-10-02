@@ -26,6 +26,24 @@ struct QuotaSection: View {
                     ForEach(snapshot.windows, id: \.title) { window in
                         QuotaWindowRow(provider: provider, window: window)
                     }
+                    if let credits = snapshot.credits {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text("Credits")
+                                .fontWeight(.semibold)
+                            Spacer(minLength: 12)
+                            switch credits {
+                            case .balance(let balance):
+                                Text(balance, format: .number.precision(.fractionLength(0...2)))
+                            case .available:
+                                Text("Available")
+                            case .unlimited:
+                                Text("Unlimited")
+                            }
+                        }
+                        .font(.system(size: 9, weight: .medium))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                    }
                     if provider == .codex {
                         CodexQuotaResetView()
                     }
