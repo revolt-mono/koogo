@@ -142,11 +142,16 @@ private struct UsageCostChangeCapsule: View {
 }
 
 private struct AnimatedNumericText: View {
+    @State private var isShown = false
+
     let text: String
 
     var body: some View {
+        // ViewThatFits keeps updating unselected candidates, and an animation started there never settles.
         Text(text)
             .numericTextTransition()
-            .motionAnimation(.smooth(duration: 0.35), value: text)
+            .motionAnimation(isShown ? .smooth(duration: 0.35) : nil, value: text)
+            .onAppear { isShown = true }
+            .onDisappear { isShown = false }
     }
 }
