@@ -11,19 +11,12 @@ protocol BreakReminderNotifications: AnyObject {
 @MainActor
 @Observable
 final class BreakReminderModel {
-    private static let defaultsKey = "break-reminder-state"
-
     private let notifications: any BreakReminderNotifications
-    private let defaults: UserDefaults
+    private let storage: PersistedValue<BreakReminderCountdown>
     private let now: @MainActor () -> Date
 
     private(set) var countdown: BreakReminderCountdown {
-        didSet {
-            guard let data = try? PropertyListEncoder().encode(countdown) else {
-                return
-            }
-            defaults.set(data, forKey: Self.defaultsKey)
-        }
+        didSet { storage.save(countdown) }
     }
 
     private(set) var isBusy = false
@@ -34,10 +27,9 @@ final class BreakReminderModel {
         now: @escaping @MainActor () -> Date = { .now }
     ) {
         self.notifications = notifications
-        self.defaults = defaults
+        storage = PersistedValue(key: "break-reminder-state", defaults: defaults)
         self.now = now
-        let stored = defaults.data(forKey: Self.defaultsKey)
-            .flatMap { try? PropertyListDecoder().decode(BreakReminderCountdown.self, from: $0) }
+        let stored = storage.load()
         countdown = if let stored, stored.isValid { stored } else { .initial }
     }
 

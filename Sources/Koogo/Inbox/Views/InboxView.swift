@@ -80,7 +80,7 @@ private struct TodoRow: View {
             } else {
                 HStack(alignment: .center, spacing: 8) {
                     Button {
-                        inboxModel.update(todo.id) { $0.isCompleted.toggle() }
+                        inboxModel.toggleCompleted(todo.id)
                     } label: {
                         Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 12, weight: .medium))
@@ -120,7 +120,7 @@ private struct TodoRow: View {
                 "Priority",
                 selection: Binding(
                     get: { todo.priority },
-                    set: { new in inboxModel.update(todo.id) { $0.priority = new } }
+                    set: { inboxModel.setPriority($0, of: todo.id) }
                 )
             ) {
                 ForEach(TodoPriority.allCases, id: \.self) { priority in
@@ -141,7 +141,7 @@ private struct TodoRow: View {
         case .discarded:
             break
         case .saved(let text):
-            inboxModel.update(todo.id) { $0.text = text }
+            inboxModel.setText(text, of: todo.id)
         }
         isEditing = false
     }

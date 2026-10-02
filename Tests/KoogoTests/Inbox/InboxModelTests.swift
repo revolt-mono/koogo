@@ -21,7 +21,7 @@ final class InboxModelTests: XCTestCase {
         model.add(try XCTUnwrap(TodoText("done")), priority: .normal)
         model.add(try XCTUnwrap(TodoText("open")), priority: .normal)
         let done = try XCTUnwrap(model.todos.last)
-        model.update(done.id) { $0.isCompleted = true }
+        model.toggleCompleted(done.id)
 
         model.clearCompleted()
 
@@ -38,15 +38,15 @@ final class InboxModelTests: XCTestCase {
         XCTAssertEqual(model.todos.map(\.text.value), ["keep"])
     }
 
-    func testUpdateChangesOneTodoAndIgnoresAMissingID() throws {
+    func testIntentsChangeOneTodoAndIgnoreAMissingID() throws {
         let model = InboxModel(defaults: try makeIsolatedDefaults())
         model.add(try XCTUnwrap(TodoText("untouched")), priority: .normal)
         model.add(try XCTUnwrap(TodoText("target")), priority: .normal)
         let target = try XCTUnwrap(model.todos.first)
         let untouched = try XCTUnwrap(model.todos.last)
 
-        model.update(target.id) { $0.priority = .urgent }
-        model.update(UUID()) { $0.priority = .backlog }
+        model.setPriority(.urgent, of: target.id)
+        model.setPriority(.backlog, of: UUID())
 
         XCTAssertEqual(model.todos.first?.priority, .urgent)
         XCTAssertEqual(model.todos.last, untouched)
@@ -60,11 +60,9 @@ final class InboxModelTests: XCTestCase {
         model.add(try XCTUnwrap(TodoText("second")), priority: .backlog)
         let first = try XCTUnwrap(model.todos.last)
         let updatedText = try XCTUnwrap(TodoText("updated"))
-        model.update(first.id) {
-            $0.isCompleted = true
-            $0.priority = .urgent
-            $0.text = updatedText
-        }
+        model.toggleCompleted(first.id)
+        model.setPriority(.urgent, of: first.id)
+        model.setText(updatedText, of: first.id)
         model.delete(try XCTUnwrap(model.todos.first).id)
 
         XCTAssertEqual(InboxModel(defaults: defaults).todos, model.todos)
