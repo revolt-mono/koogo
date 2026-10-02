@@ -2,8 +2,8 @@ import XCTest
 
 @testable import Koogo
 
-final class UsageLogIndexMemoryTests: UsageWorkspaceTestCase {
-    func testCollectStreamsEventsWithoutCopyingTheIndex() throws {
+final class LogStoreMemoryTests: UsageWorkspaceTestCase {
+    func testVisitingEventsDoesNotCopyTheStore() throws {
         guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
             throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to measure retained heap.")
         }
@@ -13,13 +13,16 @@ final class UsageLogIndexMemoryTests: UsageWorkspaceTestCase {
             return codexTurn(id: "turn-\(turn)") + "\n" + codexTokenCount(last: last, total: total) + "\n"
         }
         try workspace.write(turns.joined(), to: workspace.codexSessions.appending(path: "session.jsonl"))
-        var index = UsageLogIndex(locations: locations)
-        _ = index.refresh(since: now.addingTimeInterval(-86_400), providers: [.codex])
+        var store = LogStore()
+        _ = store.sync(
+            roots: Provider.codex.usageLogRoots(home: workspace.root),
+            since: now.addingTimeInterval(-86_400)
+        )
 
         let before = allocatedHeapBytes()
         var peak = before
         var visited = 0
-        let stats = index.collect { _ in
+        let stats = store.collect(logRoots: []) { _ in
             visited += 1
             if visited.isMultiple(of: 1_000) {
                 peak = max(peak, allocatedHeapBytes())

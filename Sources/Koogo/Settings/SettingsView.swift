@@ -3,7 +3,9 @@ import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(ProviderPreferences.self) private var preferences
     @Environment(UsageModel.self) private var usageModel
+    @Environment(QuotaModel.self) private var quotaModel
     @Environment(UpdateModel.self) private var updateModel
 
     var body: some View {
@@ -13,11 +15,11 @@ struct SettingsView: View {
             }
 
             Section("Providers") {
-                UsageProviderToggles()
+                ProviderUsageToggles()
             }
 
             Section("Fetch Quota") {
-                QuotaProviderToggles(order: usageModel.providerOrder)
+                ProviderQuotaToggles()
             }
 
             Section("System") {
@@ -35,6 +37,12 @@ struct SettingsView: View {
         .frame(width: 440)
         .fixedSize(horizontal: false, vertical: true)
         .background { SettingsWindowStyle() }
+        .onChange(of: preferences.usageProviders) {
+            usageModel.refresh(providers: preferences.usageProviders)
+        }
+        .onChange(of: preferences.quotaProviders) {
+            quotaModel.refresh(preferences.quotaProviders)
+        }
         .onAppear {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate()

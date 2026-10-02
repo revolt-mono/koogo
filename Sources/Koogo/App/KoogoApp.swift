@@ -2,9 +2,9 @@ import AppKit
 import SwiftUI
 
 struct KoogoApp: App {
+    @State private var preferences: ProviderPreferences
     @State private var usageModel: UsageModel
-    @State private var quotaModel: QuotaModel
-    @State private var codexQuotaResetModel: CodexQuotaResetModel
+    @State private var quotaModel = QuotaModel()
     @State private var updateModel: UpdateModel
     @State private var breakReminderModel = BreakReminderModel(
         notifications: BreakReminderNotificationCenter()
@@ -13,14 +13,11 @@ struct KoogoApp: App {
 
     init() {
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
-        let usageModel = UsageModel(usageService: UsageService())
-        usageModel.refresh()
+        let preferences = ProviderPreferences()
+        let usageModel = UsageModel(pipeline: UsagePipeline())
+        usageModel.refresh(providers: preferences.usageProviders)
+        _preferences = State(initialValue: preferences)
         _usageModel = State(initialValue: usageModel)
-        let quotaModel = QuotaModel()
-        _quotaModel = State(initialValue: quotaModel)
-        _codexQuotaResetModel = State(
-            initialValue: CodexQuotaResetModel(quotaModel: quotaModel, source: CodexQuotaSource())
-        )
         let updateModel = UpdateModel()
         updateModel.start()
         _updateModel = State(initialValue: updateModel)
@@ -42,9 +39,9 @@ struct KoogoApp: App {
             }
             .windowResizability(.contentSize)
         }
+        .environment(preferences)
         .environment(usageModel)
         .environment(quotaModel)
-        .environment(codexQuotaResetModel)
         .environment(updateModel)
         .environment(breakReminderModel)
         .environment(inboxModel)

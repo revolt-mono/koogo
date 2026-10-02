@@ -17,20 +17,31 @@ let usageTestCalendar: Calendar = {
 
 struct UsageTestWorkspace {
     let root: URL
-    let locations: UsageLocations
 
-    var codexSessions: URL { root.appending(path: ".codex/sessions", directoryHint: .isDirectory) }
-    var codexArchivedSessions: URL { root.appending(path: ".codex/archived_sessions", directoryHint: .isDirectory) }
-    var claudeProjects: URL { root.appending(path: ".claude/projects", directoryHint: .isDirectory) }
-    var piSessions: URL { root.appending(path: ".pi/agent/sessions", directoryHint: .isDirectory) }
-    var grokSessions: URL { root.appending(path: ".grok/sessions", directoryHint: .isDirectory) }
+    var codexSessions: URL { logDirectory(.codex, "sessions") }
+    var codexArchivedSessions: URL { logDirectory(.codex, "archived_sessions") }
+    var claudeProjects: URL { logDirectory(.claude, "projects") }
+    var piSessions: URL { logDirectory(.piAgent, "sessions") }
+    var grokSessions: URL { logDirectory(.grok, "sessions") }
 
     init(root: URL) throws {
         self.root = root
-        locations = UsageLocations(home: root)
-        for directory in [codexSessions, codexArchivedSessions, claudeProjects, piSessions, grokSessions] {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for provider in Provider.allCases {
+            for directory in provider.usageLogDirectories {
+                try FileManager.default.createDirectory(
+                    at: logDirectory(provider, directory),
+                    withIntermediateDirectories: true
+                )
+            }
         }
+    }
+
+    func home(of provider: Provider) -> URL {
+        provider.home(under: root)
+    }
+
+    private func logDirectory(_ provider: Provider, _ directory: String) -> URL {
+        home(of: provider).appending(path: directory, directoryHint: .isDirectory)
     }
 
     func write(
@@ -62,44 +73,42 @@ class UsageWorkspaceTestCase: XCTestCase {
     private(set) var workspace: UsageTestWorkspace!
     let now = usageTestTimestamp
 
-    var locations: UsageLocations { workspace.locations }
-
     override func setUpWithError() throws {
         workspace = try UsageTestWorkspace(root: try makeTemporaryDirectory())
+    }
+
+    func makePipeline() -> UsagePipeline {
+        UsagePipeline(home: workspace.root, calendar: usageTestCalendar)
     }
 }
 
 func usageEvent(
     _ provider: Provider,
     id: Int = 0,
-    model: UsageModelReference? = nil,
+    model: String? = nil,
     effort: String? = nil,
     processedTokens: UInt64,
     costUSD: Decimal,
     at eventDate: Date = usageTestTimestamp
 ) -> UsageEvent {
-    let usage = UsageRecord(
+    let record = UsageRecord(
         timestamp: eventDate,
         processedTokens: processedTokens,
         costUSD: costUSD,
-        modelTurn: model.map {
-            UsageRecord.ModelTurn(model: $0, reasoningEffort: effort)
-        }
+        modelTurn: model.map { UsageRecord.ModelTurn(model: ModelID($0), reasoningEffort: effort) }
     )
-    switch provider {
-    case .codex:
-        return UsageEvent(key: .codex(turnID: "turn-\(id)", cumulativeTotal: processedTokens), usage: usage)
-    case .claude:
-        return UsageEvent(
-            key: .claude(messageID: "message-\(id)", requestID: "request-\(id)"),
-            usage: usage,
-            revision: UsageEvent.Revision(outputTokens: processedTokens, metadataCompleteness: 0)
-        )
-    case .piAgent:
-        return UsageEvent(key: .piAgent(entryID: "entry-\(id)"), usage: usage)
-    case .grok:
-        return UsageEvent(key: .grok(eventID: "event-\(id)", timestamp: eventDate), usage: usage)
-    }
+    let eventID: UsageEventID =
+        switch provider {
+        case .codex: .codex(turnID: "turn-\(id)", cumulativeTotal: processedTokens)
+        case .claude: .claude(messageID: "message-\(id)", requestID: "request-\(id)")
+        case .piAgent: .piAgent(entryID: "entry-\(id)")
+        case .grok: .grok(eventID: "event-\(id)", timestampMilliseconds: grokMilliseconds(eventDate))
+        }
+    return UsageEvent(id: eventID, record: record)
+}
+
+func grokMilliseconds(_ date: Date) -> UInt64 {
+    UInt64(date.timeIntervalSince1970 * 1_000)
 }
 
 func usageSnapshot(
@@ -111,7 +120,7 @@ func usageSnapshot(
     for event in events {
         builder.add(event)
     }
-    return builder.snapshot
+    return builder.snapshot(modelName: ModelNames().name)
 }
 
 func codexLog(

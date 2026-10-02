@@ -6,8 +6,8 @@ struct UsageIngestionStats: Sendable, Encodable {
     }
 
     let logRoots: [LogRoot]
-    let trackedFiles: [Provider: Int]
-    let events: [Provider: Int]
-    let malformedLines: [Provider: Int]
+    let trackedFiles: EnumMap<Provider, Int>
+    let events: EnumMap<Provider, Int>
+    let malformedLines: EnumMap<Provider, Int>
     let unpricedModels: [String]
 }

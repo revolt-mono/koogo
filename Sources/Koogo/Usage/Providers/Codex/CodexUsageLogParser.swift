@@ -48,8 +48,8 @@ struct CodexLogParser: UsageLogParser {
 
         return .event(
             UsageEvent(
-                key: .codex(turnID: turn.id, cumulativeTotal: totalUsage.processed),
-                usage: UsageRecord(
+                id: .codex(turnID: turn.id, cumulativeTotal: totalUsage.processed),
+                record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: lastUsage.processed,
                     costUSD: quote.costUSD,

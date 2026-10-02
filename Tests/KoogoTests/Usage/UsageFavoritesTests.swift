@@ -92,7 +92,7 @@ final class UsageFavoritesTests: XCTestCase {
 
     private func favoriteEvent(
         _ id: Int,
-        model: UsageModelReference,
+        model: String,
         effort: String,
         tokens: UInt64 = 1,
         costUSD: Decimal = 0,
@@ -110,5 +110,5 @@ final class UsageFavoritesTests: XCTestCase {
     }
 }
 
-private let luna = UsageModelReference(id: "gpt-5.6-luna", name: "GPT 5.6 Luna")
-private let sol = UsageModelReference(id: "gpt-5.6-sol", name: "GPT 5.6 Sol")
+private let luna = "gpt-5.6-luna"
+private let sol = "gpt-5.6-sol"

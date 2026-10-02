@@ -14,28 +14,26 @@ struct UsageSnapshotBuilder {
     }
 
     private struct FavoriteAccumulator {
-        var models: [UsageModelReference: ModelUsage] = [:]
+        var models: [ModelID: ModelUsage] = [:]
 
         mutating func add(_ turn: UsageRecord.ModelTurn?) {
             if let turn {
-                models[turn.model, default: ModelUsage()].add(
-                    reasoningEffort: turn.reasoningEffort
-                )
+                models[turn.model, default: ModelUsage()].add(reasoningEffort: turn.reasoningEffort)
             }
         }
 
-        func snapshot() -> ProviderUsageSnapshot.Favorite? {
+        func snapshot(modelName: (ModelID) -> String) -> ProviderUsageSnapshot.Favorite? {
             guard
                 let (model, usage) = models.max(by: { lhs, rhs in
                     lhs.value.occurrences == rhs.value.occurrences
-                        ? lhs.key.id > rhs.key.id
+                        ? lhs.key.rawValue > rhs.key.rawValue
                         : lhs.value.occurrences < rhs.value.occurrences
                 })
             else {
                 return nil
             }
             return ProviderUsageSnapshot.Favorite(
-                modelName: model.name,
+                modelName: modelName(model),
                 reasoningEffort: usage.reasoningEfforts.max { lhs, rhs in
                     lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
                 }?.key
@@ -54,12 +52,12 @@ struct UsageSnapshotBuilder {
             usageByDay[day] = dayUsage
         }
 
-        func snapshot(intervals: UsagePeriodIntervals) -> ProviderUsageSnapshot {
+        func snapshot(intervals: UsagePeriodIntervals, modelName: (ModelID) -> String) -> ProviderUsageSnapshot {
             let days = zip(intervals.last30DayStarts, usageByDay).reversed().compactMap { date, usage in
                 usage.map { UsageDaySnapshot(date: date, usage: $0) }
             }
             return ProviderUsageSnapshot(
-                favorite: favorite.snapshot(),
+                favorite: favorite.snapshot(modelName: modelName),
                 today: usageByDay[0] ?? .init(),
                 last7Days: usageByDay.prefix(7).compactMap(\.self).reduce(UsagePeriodSnapshot(), +),
                 last30Days: usageByDay.compactMap(\.self).reduce(UsagePeriodSnapshot(), +),
@@ -68,36 +66,38 @@ struct UsageSnapshotBuilder {
         }
     }
 
-    private static let order = Provider.allCases
-
     private let intervals: UsagePeriodIntervals
-    private var accumulators: [ProviderAccumulator?]
+    private var accumulators: EnumMap<Provider, ProviderAccumulator?>
     private var previous30Days = UsagePeriodSnapshot()
 
     init(providers: Set<Provider>, intervals: UsagePeriodIntervals) {
         self.intervals = intervals
         let days = [UsagePeriodSnapshot?](repeating: nil, count: intervals.last30DayStarts.count)
-        accumulators = Self.order.map { providers.contains($0) ? ProviderAccumulator(usageByDay: days) : nil }
+        accumulators = EnumMap { providers.contains($0) ? ProviderAccumulator(usageByDay: days) : nil }
     }
 
     mutating func add(_ event: UsageEvent) {
-        guard let slot = Self.order.firstIndex(of: event.provider), accumulators[slot] != nil else {
+        guard accumulators[event.provider] != nil else {
             return
         }
-        let usage = event.usage
+        let usage = event.record
         if let day = intervals.last30DayIndex(containing: usage.timestamp) {
-            accumulators[slot]?.add(usage, day: day)
+            accumulators[event.provider]?.add(usage, day: day)
         } else if intervals.previous30Days.contains(usage.timestamp) {
             previous30Days.add(usage)
         }
     }
 
-    var snapshot: UsageSnapshot {
-        let included = zip(Self.order, accumulators).compactMap { provider, accumulator in
+    func snapshot(modelName: (Provider, ModelID) -> String) -> UsageSnapshot {
+        let included = accumulators.entries.compactMap { provider, accumulator in
             accumulator.map { (provider, $0) }
         }
         return UsageSnapshot(
-            providers: Dictionary(uniqueKeysWithValues: included.map { ($0, $1.snapshot(intervals: intervals)) }),
+            providers: Dictionary(
+                uniqueKeysWithValues: included.map { provider, accumulator in
+                    (provider, accumulator.snapshot(intervals: intervals) { modelName(provider, $0) })
+                }
+            ),
             previousDay: included.map { $1.usageByDay[1] ?? .init() }.reduce(UsagePeriodSnapshot(), +),
             previous30Days: previous30Days
         )

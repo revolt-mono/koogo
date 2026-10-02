@@ -29,24 +29,13 @@ struct ProviderUsageCard<Accessory: View>: View {
     }
 }
 
-private extension Provider {
-    var imageAssetName: String {
-        switch self {
-        case .codex: "OpenAISymbol"
-        case .claude: "ClaudeSymbol"
-        case .piAgent: "PiSymbol"
-        case .grok: "GrokSymbol"
-        }
-    }
-}
-
 private struct ProviderUsageHeader: View {
     let provider: Provider
     let favorite: ProviderUsageSnapshot.Favorite?
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(provider.imageAssetName, bundle: .module)
+            Image(provider.symbolAsset, bundle: .module)
                 .resizable()
                 .renderingMode(.template)
                 .scaledToFit()

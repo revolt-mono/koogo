@@ -5,110 +5,62 @@ import XCTest
 final class QuotaModelTests: XCTestCase {
     @MainActor
     func testRefreshesCoalesceAndOnlyForceBypassesTheCooldown() async throws {
-        let source = ScriptedQuotaSource([.success(.stub(1)), .success(.stub(2))])
-        let model = QuotaModel(sources: [.codex: source], defaults: try makeIsolatedDefaults())
+        let source = ScriptedQuotaSource([.available(.stub(1)), .available(.stub(2))])
+        let model = makeQuotaModel(grok: source)
 
-        model.refresh(.codex)
-        model.refresh(.codex, force: true)
-        XCTAssertEqual(model.states[.codex], .loading)
-        try await waitUntil { !model.isBusy(.codex) }
-        XCTAssertEqual(model.states[.codex], .available(.stub(1)))
+        model.refresh([.grok])
+        model.refresh([.grok], force: true)
+        XCTAssertEqual(model.statuses[.grok], .reading(last: nil))
+        try await waitUntil { !model.isBusy(.grok) }
+        XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(1)))
 
-        model.refresh(.codex)
-        XCTAssertFalse(model.isBusy(.codex))
+        model.refresh([.grok])
+        XCTAssertFalse(model.isBusy(.grok))
         XCTAssertEqual(source.loads.withLock { $0 }, 1)
 
-        model.refresh(.codex, force: true)
-        try await waitUntil { !model.isBusy(.codex) }
-        XCTAssertEqual(model.states[.codex], .available(.stub(2)))
+        model.refresh([.grok], force: true)
+        XCTAssertEqual(model.statuses[.grok], .reading(last: .available(.stub(1))))
+        try await waitUntil { !model.isBusy(.grok) }
+        XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(2)))
     }
 
     @MainActor
-    func testFailuresKeepTheLastStateWhileInFlightReplaceASnapshotAndEndTheCooldown() async throws {
+    func testFailuresKeepTheLastReadingWhileInFlightReplaceASnapshotAndEndTheCooldown() async throws {
         let source = ScriptedQuotaSource([
-            .failure(.timedOut), .success(.stub(1)), .failure(.sessionFailed), .success(.stub(2)),
+            .unavailable(.timedOut), .available(.stub(1)), .unavailable(.sessionFailed), .available(.stub(2)),
         ])
-        let model = QuotaModel(sources: [.grok: source], defaults: try makeIsolatedDefaults())
+        let model = makeQuotaModel(grok: source)
 
-        model.refresh(.grok)
+        model.refresh([.grok])
         try await waitUntil { !model.isBusy(.grok) }
-        XCTAssertEqual(model.states[.grok], .unavailable(.timedOut))
+        XCTAssertEqual(model.statuses[.grok].latest, .unavailable(.timedOut))
 
-        model.refresh(.grok)
-        XCTAssertEqual(model.states[.grok], .unavailable(.timedOut))
+        model.refresh([.grok])
+        XCTAssertEqual(model.statuses[.grok].latest, .unavailable(.timedOut))
         try await waitUntil { !model.isBusy(.grok) }
-        XCTAssertEqual(model.states[.grok], .available(.stub(1)))
+        XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(1)))
 
-        model.refresh(.grok, force: true)
-        XCTAssertEqual(model.states[.grok], .available(.stub(1)))
+        model.refresh([.grok], force: true)
+        XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(1)))
         try await waitUntil { !model.isBusy(.grok) }
-        XCTAssertEqual(model.states[.grok], .unavailable(.sessionFailed))
+        XCTAssertEqual(model.statuses[.grok].latest, .unavailable(.sessionFailed))
 
-        model.refresh(.grok)
+        model.refresh([.grok])
         try await waitUntil { !model.isBusy(.grok) }
-        XCTAssertEqual(model.states[.grok], .available(.stub(2)))
+        XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(2)))
     }
 
     @MainActor
-    func testProvidersWithoutASourceOrSwitchedOffHaveNoStateAndAreNeverRead() async throws {
-        let defaults = try makeIsolatedDefaults()
-        let claude = ScriptedQuotaSource([.success(.stub())])
-        let model = QuotaModel(sources: [.codex: ScriptedQuotaSource([]), .claude: claude], defaults: defaults)
-        XCTAssertEqual(model.providers, [.codex, .claude])
-        XCTAssertEqual(Set(model.states.keys), [.codex, .claude])
+    func testOnlyTheRequestedProvidersAreRead() async throws {
+        let claude = ScriptedQuotaSource([.available(.stub())])
+        let grok = ScriptedQuotaSource([])
+        let model = makeQuotaModel(claude: claude, grok: grok)
 
-        model.setEnabled(false, for: .codex)
-        model.setEnabled(false, for: .grok)
-        model.refresh(.codex, force: true)
-        model.refresh(.grok, force: true)
-        XCTAssertNil(model.states[.codex])
-        XCTAssertFalse(model.isEnabled(.codex))
-        XCTAssertFalse(model.isBusy(.codex))
-        XCTAssertNil(model.write(to: .grok) {})
-        XCTAssertEqual(defaults.stringArray(forKey: "quota-disabled-providers"), ["codex"])
+        model.refresh([.claude])
+        try await waitUntil { !model.isBusy(.claude) }
 
-        let relaunched = QuotaModel(sources: [.codex: ScriptedQuotaSource([]), .claude: claude], defaults: defaults)
-        XCTAssertEqual(Set(relaunched.states.keys), [.claude])
-        relaunched.setEnabled(true, for: .codex)
-        XCTAssertEqual(relaunched.states[.codex], .loading)
-        XCTAssertEqual(defaults.stringArray(forKey: "quota-disabled-providers"), [])
-        relaunched.refresh(.claude)
-        try await waitUntil { !relaunched.isBusy(.claude) }
-        XCTAssertEqual(relaunched.states[.claude], .available(.stub()))
-    }
-
-    @MainActor
-    func testSwitchingOffDuringAReadDropsItsResult() async throws {
-        let source = ScriptedQuotaSource([.success(.stub())])
-        let model = QuotaModel(sources: [.codex: source], defaults: try makeIsolatedDefaults())
-        model.refresh(.codex)
-        model.setEnabled(false, for: .codex)
-        try await waitUntil { !model.isBusy(.codex) }
-        XCTAssertNil(model.states[.codex])
-        XCTAssertEqual(source.loads.withLock { $0 }, 1)
-    }
-
-    @MainActor
-    func testWriteBlocksReadsAndFinishesAfterTheAuthoritativeReread() async throws {
-        let source = ScriptedQuotaSource([.success(.stub(1)), .success(.stub(2)), .success(.stub(3))])
-        let model = QuotaModel(sources: [.codex: source], defaults: try makeIsolatedDefaults())
-        model.refresh(.codex)
-        try await waitUntil { !model.isBusy(.codex) }
-
-        let write = try XCTUnwrap(model.write(to: .codex) { "consumed" })
-        XCTAssertTrue(model.isBusy(.codex))
-        XCTAssertNil(model.write(to: .codex) { "again" })
-        model.refresh(.codex, force: true)
-        XCTAssertEqual(model.states[.codex], .available(.stub(1)))
-
-        let value = await write.value
-        XCTAssertEqual(value, "consumed")
-        XCTAssertEqual(model.states[.codex], .available(.stub(2)))
-        XCTAssertEqual(source.loads.withLock { $0 }, 2)
-
-        model.refresh(.codex, force: true)
-        XCTAssertNil(model.write(to: .codex) {})
-        try await waitUntil { !model.isBusy(.codex) }
-        XCTAssertEqual(model.states[.codex], .available(.stub(3)))
+        XCTAssertEqual(model.statuses[.claude].latest, .available(.stub()))
+        XCTAssertEqual(model.statuses[.grok], .unread)
+        XCTAssertEqual(grok.loads.withLock { $0 }, 0)
     }
 }

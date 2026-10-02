@@ -208,8 +208,12 @@ enum ClaudeUsagePricing {
             costNanodollars = costNanodollars * 11 / 10
         }
         return UsageQuote(
-            model: UsageModelReference(id: modelID, name: price.displayName),
+            model: ModelID(modelID),
             costNanodollars: costNanodollars + Decimal(usage.webSearchRequests) * 10_000_000
         )
+    }
+
+    static func displayName(of model: ModelID) -> String? {
+        prices[model.rawValue]?.displayName
     }
 }

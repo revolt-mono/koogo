@@ -15,7 +15,7 @@ struct GrokQuotaSource: QuotaSource {
         tool = CommandLineTool(candidates: executableCandidates, timeout: timeout)
     }
 
-    func load() async -> Result<QuotaSnapshot, QuotaUnavailability> {
+    func load() async -> QuotaReading {
         do {
             let response: GrokQuotaResponse = try await tool.session(
                 ["--no-auto-update", "agent", "--no-leader", "stdio"],
@@ -26,9 +26,9 @@ struct GrokQuotaSource: QuotaSource {
                 guard initialized.protocolVersion == 1 else { throw JSONRPCConnection.Failure.invalidMessage }
                 return try connection.request("_x.ai/billing", params: [String: String]())
             }
-            return response.snapshot.map(Result.success) ?? .failure(.emptyLimits)
+            return response.snapshot.map(QuotaReading.available) ?? .unavailable(.emptyLimits)
         } catch {
-            return .failure(QuotaUnavailability(error))
+            return .unavailable(QuotaUnavailability(error))
         }
     }
 }

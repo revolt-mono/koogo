@@ -17,15 +17,15 @@ struct CodexQuotaSource: QuotaSource {
         appServer = CodexAppServer(tool: CommandLineTool(candidates: executableCandidates, timeout: timeout))
     }
 
-    func load() async -> Result<QuotaSnapshot, QuotaUnavailability> {
+    func load() async -> QuotaReading {
         do {
             let response: CodexQuotaResponse = try await appServer.call("account/rateLimits/read")
-            return response.snapshot.map(Result.success) ?? .failure(.emptyLimits)
+            return response.snapshot.map(QuotaReading.available) ?? .unavailable(.emptyLimits)
         } catch {
             return switch error.failure {
-            case .binaryNotFound: .failure(.binaryNotFound)
-            case .timedOut: .failure(.timedOut)
-            case .sessionFailed, .methodNotFound, .rpc: .failure(.sessionFailed)
+            case .binaryNotFound: .unavailable(.binaryNotFound)
+            case .timedOut: .unavailable(.timedOut)
+            case .sessionFailed, .methodNotFound, .rpc: .unavailable(.sessionFailed)
             }
         }
     }

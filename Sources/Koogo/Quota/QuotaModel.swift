@@ -4,78 +4,112 @@ import Observation
 @MainActor
 @Observable
 final class QuotaModel {
-    private static let disabledProvidersKey = "quota-disabled-providers"
     private static let cooldown: Duration = .seconds(60)
 
-    private let sources: [Provider: any QuotaSource]
-    private let defaults: UserDefaults
-    @ObservationIgnored private var refreshAfter: [Provider: ContinuousClock.Instant] = [:]
-    private var busy: Set<Provider> = []
+    private let sources: EnumMap<QuotaProvider, any QuotaSource>
+    private let codex: CodexQuotaSource
+    private let now: @MainActor () -> Date
+    private var pendingCodexReset = CodexQuotaResetFlow.idle
 
-    private(set) var states: [Provider: QuotaState]
+    private(set) var statuses = EnumMap<QuotaProvider, QuotaStatus> { _ in .unread }
 
-    var providers: [Provider] { Provider.allCases.filter { sources[$0] != nil } }
-
-    init(sources: [Provider: any QuotaSource] = Provider.quotaSources, defaults: UserDefaults = .standard) {
-        self.sources = sources
-        self.defaults = defaults
-        let disabled = (defaults.stringArray(forKey: Self.disabledProvidersKey) ?? [])
-            .compactMap(Provider.init(rawValue:))
-        states = sources.keys.filter { !disabled.contains($0) }.reduce(into: [:]) { $0[$1] = .loading }
+    init(
+        codex: CodexQuotaSource = CodexQuotaSource(),
+        claude: any QuotaSource = ClaudeQuotaSource(),
+        grok: any QuotaSource = GrokQuotaSource(),
+        now: @escaping @MainActor () -> Date = { .now }
+    ) {
+        sources = EnumMap(codex: codex, claude: claude, grok: grok)
+        self.codex = codex
+        self.now = now
     }
 
-    func isEnabled(_ provider: Provider) -> Bool {
-        states[provider] != nil
+    func isBusy(_ provider: QuotaProvider) -> Bool {
+        statuses[provider].isBusy
     }
 
-    func isBusy(_ provider: Provider) -> Bool {
-        busy.contains(provider)
-    }
-
-    func setEnabled(_ isEnabled: Bool, for provider: Provider) {
-        guard sources[provider] != nil else { return }
-        states[provider] = isEnabled ? states[provider] ?? .loading : nil
-        defaults.set(providers.filter { states[$0] == nil }.map(\.rawValue), forKey: Self.disabledProvidersKey)
-    }
-
-    func refresh(_ provider: Provider, force: Bool = false) {
-        let inCooldown = refreshAfter[provider].map { ContinuousClock.now < $0 } ?? false
-        guard let source = sources[provider], states[provider] != nil, !busy.contains(provider), force || !inCooldown
-        else { return }
-        busy.insert(provider)
-        Task { await read(provider, from: source) }
-    }
-
-    func write<Value: Sendable>(
-        to provider: Provider,
-        _ operation: @escaping @Sendable () async -> Value
-    ) -> Task<Value, Never>? {
-        guard let source = sources[provider], !busy.contains(provider) else { return nil }
-        busy.insert(provider)
-        return Task {
-            let value = await operation()
-            await read(provider, from: source)
-            return value
+    func refresh(_ providers: some Sequence<QuotaProvider>, force: Bool = false) {
+        for provider in providers {
+            let status = statuses[provider]
+            guard !status.isBusy, force || !status.isFresh(at: .now, within: Self.cooldown) else { continue }
+            statuses[provider] = .reading(last: status.latest)
+            Task { settle(provider, with: await sources[provider].load()) }
         }
     }
 
-    private func read(_ provider: Provider, from source: any QuotaSource) async {
-        let state: QuotaState
-        switch await source.load() {
-        case .success(let snapshot):
+    private func settle(_ provider: QuotaProvider, with reading: QuotaReading) {
+        switch reading {
+        case .available:
             Telemetry.quota.info("\(provider.rawValue, privacy: .public) fetch available")
-            refreshAfter[provider] = .now + Self.cooldown
-            state = .available(snapshot)
-        case .failure(let reason):
+        case .unavailable(let reason):
             Telemetry.quota.info(
                 "\(provider.rawValue, privacy: .public) fetch unavailable reason=\(reason.rawValue, privacy: .public)"
             )
-            refreshAfter[provider] = nil
-            state = .unavailable(reason)
         }
-        if states[provider] != nil {
-            states[provider] = state
+        statuses[provider] = .read(reading, since: .now)
+    }
+
+    // MARK: Codex banked resets
+
+    var codexResetCredits: QuotaSnapshot.ResetCredits? {
+        statuses[.codex].latest?.snapshot?.resetCredits
+    }
+
+    /// A confirmation outlives its credit only until the next reading drops that credit.
+    var codexReset: CodexQuotaResetFlow {
+        if case .confirming(let attempt, _) = pendingCodexReset, usableCodexCredit(id: attempt.credit.id) == nil {
+            return .idle
         }
-        busy.remove(provider)
+        return pendingCodexReset
+    }
+
+    var canChooseCodexReset: Bool {
+        guard !isBusy(.codex), case .available = statuses[.codex].latest else { return false }
+        switch codexReset {
+        case .idle, .completed: return true
+        case .confirming, .submitting, .unconfirmed: return false
+        }
+    }
+
+    func beginCodexReset(creditID: String) {
+        guard canChooseCodexReset, let credit = usableCodexCredit(id: creditID) else { return }
+        pendingCodexReset = .confirming(CodexQuotaResetAttempt(credit: credit))
+    }
+
+    func cancelCodexReset() {
+        guard case .confirming = codexReset else { return }
+        pendingCodexReset = .idle
+    }
+
+    /// Consumes the confirmed credit, then rereads the account so the shown limits are authoritative.
+    func submitCodexReset() {
+        let attempt: CodexQuotaResetAttempt
+        let retryingUnconfirmed: Bool
+        switch codexReset {
+        case .confirming(let pending, _):
+            (attempt, retryingUnconfirmed) = (pending, false)
+        case .unconfirmed(let pending, _):
+            (attempt, retryingUnconfirmed) = (pending, true)
+        case .idle, .submitting, .completed:
+            return
+        }
+        guard !isBusy(.codex) else { return }
+        pendingCodexReset = .submitting(attempt, retryingUnconfirmed: retryingUnconfirmed)
+        statuses[.codex] = .reading(last: statuses[.codex].latest)
+        Task {
+            let result = await codex.consume(attempt)
+            settle(.codex, with: await codex.load())
+            pendingCodexReset =
+                switch result {
+                case .success(let outcome): .completed(outcome)
+                case .failure(.unconfirmed(let failure)): .unconfirmed(attempt, failure)
+                case .failure(.rejected(let failure)) where retryingUnconfirmed: .unconfirmed(attempt, failure)
+                case .failure(.rejected(let failure)): .confirming(attempt, rejection: failure)
+                }
+        }
+    }
+
+    private func usableCodexCredit(id: String) -> QuotaSnapshot.ResetCredit? {
+        codexResetCredits?.credits?.first { $0.id == id && $0.canUse(at: now()) }
     }
 }

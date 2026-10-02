@@ -49,7 +49,7 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
             to: workspace.piSessions.appending(path: "session.jsonl")
         )
 
-        let report = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now)
+        let report = await makePipeline().run(at: now, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.malformedLines, [.codex: 0, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.events, [.codex: 1, .claude: 1, .piAgent: 1, .grok: 0])
@@ -75,8 +75,8 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
             )?.event
         )
 
-        XCTAssertEqual(event.usage.processedTokens, 120)
-        XCTAssertEqual(event.usage.modelTurn?.reasoningEffort, "high")
+        XCTAssertEqual(event.record.processedTokens, 120)
+        XCTAssertEqual(event.record.modelTurn?.reasoningEffort, "high")
     }
 
     func testSkippedValuesMayHoldEscapesAndBrackets() throws {
@@ -90,7 +90,7 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
             "timestamp":"2026-08-25T12:00:00.000Z"}
             """#
 
-        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).usage.processedTokens, 15)
+        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).record.processedTokens, 15)
     }
 
     func testEscapedKeysAndRecordKindsMatchDecodedText() throws {
@@ -99,7 +99,7 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
             .replacingOccurrences(of: #""type":"assistant""#, with: #""ty\u0070e":"ass\u0069stant""#)
             .replacingOccurrences(of: #""input_tokens""#, with: #""input_\u0074okens""#)
 
-        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).usage.processedTokens, 15)
+        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).record.processedTokens, 15)
     }
 
     func testSimilarAndNonStringRecordKindsAreSkipped() throws {
@@ -118,22 +118,22 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
             usage: #""input_tokens":1e1,"output_tokens":5.0,"cache_read_input_tokens":0e0"#
         )
 
-        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).usage.processedTokens, 15)
+        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).record.processedTokens, 15)
     }
 
     func testIntegersInUnusualFormsAreReadAsJSON() throws {
-        var parser = PiLogParser(models: PiModelCatalog())
+        var parser = PiLogParser()
         for (usage, tokens) in [
             (#"{"totalTokens":-0,"cost":{"total":0.01}}"#, UInt64(0)),
             (#"{"totalTokens":100000000000000000000e-20,"cost":{"total":0.01}}"#, 1),
         ] {
             let line = piAssistant(id: "reply", parentID: nil, model: "model-a", usage: usage)
-            XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event, usage).usage.processedTokens, tokens)
+            XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event, usage).record.processedTokens, tokens)
         }
     }
 
     func testMalformedReadValuesMakeARecordMalformed() {
-        var parser = PiLogParser(models: PiModelCatalog())
+        var parser = PiLogParser()
         for usage in [
             #"{"totalTokens":01,"cost":{"total":0.01}}"#,
             #"{"totalTokens":1,"cost":{"total":00.01}}"#,
@@ -161,7 +161,7 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
     }
 
     func testPiThinkingPassesThroughRecordsInAnyLayout() throws {
-        var parser = PiLogParser(models: PiModelCatalog())
+        var parser = PiLogParser()
         let records = [
             piHighThinking,
             #"{"type":"model_change","id":"model","parentId":"high","timestamp":"2026-08-25T11:40:00.000Z"}"#,
@@ -181,7 +181,7 @@ final class UsageLineReaderTests: UsageWorkspaceTestCase {
             )?.event
         )
 
-        XCTAssertEqual(event.usage.modelTurn?.reasoningEffort, "high")
+        XCTAssertEqual(event.record.modelTurn?.reasoningEffort, "high")
     }
 }
 

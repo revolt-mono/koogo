@@ -16,9 +16,9 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         let event = try XCTUnwrap(try parse(line, with: &parser)?.event)
 
         XCTAssertEqual(event.provider, .claude)
-        XCTAssertEqual(event.usage.processedTokens, 140)
-        XCTAssertEqual(event.usage.costUSD, Decimal(string: "0.0236245"))
-        XCTAssertNil(event.usage.modelTurn?.reasoningEffort)
+        XCTAssertEqual(event.record.processedTokens, 140)
+        XCTAssertEqual(event.record.costUSD, Decimal(string: "0.0236245"))
+        XCTAssertNil(event.record.modelTurn?.reasoningEffort)
     }
 
     func testClaudePreservesAggregateCacheCreationWithoutInventingDuration() throws {
@@ -30,8 +30,8 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
 
         let event = try XCTUnwrap(try parse(line, with: &parser)?.event)
 
-        XCTAssertEqual(event.usage.processedTokens, 120)
-        XCTAssertEqual(event.usage.costUSD, Decimal(string: "0.0014875"))
+        XCTAssertEqual(event.record.processedTokens, 120)
+        XCTAssertEqual(event.record.costUSD, Decimal(string: "0.0014875"))
     }
 
     func testClaudeRejectsInconsistentCacheSplit() {
@@ -113,11 +113,11 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             let detailedCopy = try XCTUnwrap(try parse(detailed, with: &parser)?.event)
 
             for copies in [[bareCopy, detailedCopy], [detailedCopy, bareCopy]] {
-                var index = UsageEventIndex(since: .distantPast)
+                var index = UsageEventIndex()
                 for copy in copies {
-                    index.insert(.event(copy))
+                    index.insert(copy, since: .distantPast)
                 }
-                XCTAssertEqual(index.values.map(\.usage.processedTokens), [120], detailed)
+                XCTAssertEqual(index.values.map(\.record.processedTokens), [120], detailed)
             }
         }
     }
@@ -129,7 +129,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             to: workspace.claudeProjects.appending(path: "project/agent/copy.jsonl")
         )
 
-        let snapshot = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now).snapshot
+        let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.providers[.claude]?.today.processedTokens, 50)
         XCTAssertEqual(
@@ -177,7 +177,8 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             ("claude-haiku-4-5-20251001", "Haiku 4.5", standard, "0.485"),
         ] {
             let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: model, usage: usage), model)
-            XCTAssertEqual(quote.model, UsageModelReference(id: model, name: name))
+            XCTAssertEqual(quote.model, ModelID(model))
+            XCTAssertEqual(ClaudeUsagePricing.displayName(of: quote.model), name)
             XCTAssertEqual(quote.costUSD, Decimal(string: expectedUSD), model)
         }
     }
@@ -196,7 +197,8 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(snapshot.costUSD, Decimal(string: "0.00045"))
         XCTAssertEqual(snapshot.costUSD, alias.costUSD)
-        XCTAssertEqual(alias.model, UsageModelReference(id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5"))
+        XCTAssertEqual(alias.model, ModelID("claude-sonnet-4-5-20250929"))
+        XCTAssertEqual(ClaudeUsagePricing.displayName(of: alias.model), "Sonnet 4.5")
         for model in ["claude-opus-4-5", "claude-haiku-4-5"] {
             XCTAssertNotNil(
                 ClaudeUsagePricing.quote(

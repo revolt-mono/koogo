@@ -123,7 +123,7 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         let result = await CodexQuotaSource(executableCandidates: [executable]).load()
 
-        XCTAssertEqual(result, .failure(.emptyLimits))
+        XCTAssertEqual(result, .unavailable(.emptyLimits))
     }
 
     func testFetchRejectsResponseContainingResultAndError() async throws {
@@ -136,7 +136,7 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         let result = await CodexQuotaSource(executableCandidates: [executable]).load()
 
-        XCTAssertEqual(result, .failure(.sessionFailed))
+        XCTAssertEqual(result, .unavailable(.sessionFailed))
     }
 
     func testFetchAddsLauncherDirectoryToChildPath() async throws {
@@ -169,7 +169,7 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         let result = await CodexQuotaSource(executableCandidates: [executable]).load()
 
-        XCTAssertEqual(result, .failure(.sessionFailed))
+        XCTAssertEqual(result, .unavailable(.sessionFailed))
     }
 
     func testFetchReturnsSnapshotWhenServerDoesNotExitAfterResponse() async throws {
@@ -249,7 +249,7 @@ final class CodexQuotaSourceTests: XCTestCase {
         let result = await CodexQuotaSource(executableCandidates: [executable], timeout: .milliseconds(500))
             .load()
 
-        XCTAssertEqual(result, .failure(.timedOut))
+        XCTAssertEqual(result, .unavailable(.timedOut))
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
         try await waitForExit(pidWrittenTo: pidMarker)
     }

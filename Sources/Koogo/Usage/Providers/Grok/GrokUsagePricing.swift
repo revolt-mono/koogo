@@ -40,9 +40,7 @@ enum GrokUsagePricing {
     ]
 
     static func quote(model: String, tokens: GrokTokenUsage) -> UsageQuote? {
-        // Grok Build logs `<model>-build` at the rates of `<model>`, and `<model>-build-fast` at twice them.
-        let isFast = model.hasSuffix("-build-fast")
-        guard let price = prices[model.replacing(/-build(-fast)?$/, with: "")] else {
+        guard let (price, isFast) = price(of: model) else {
             return nil
         }
         let costNanodollars =
@@ -50,9 +48,15 @@ enum GrokUsagePricing {
             + Decimal(tokens.cachedInput) * price.cachedInput
             + Decimal(tokens.output) * price.output
 
-        return UsageQuote(
-            model: UsageModelReference(id: model, name: isFast ? "\(price.displayName) Fast" : price.displayName),
-            costNanodollars: costNanodollars * (isFast ? 2 : 1)
-        )
+        return UsageQuote(model: ModelID(model), costNanodollars: costNanodollars * (isFast ? 2 : 1))
+    }
+
+    static func displayName(of model: ModelID) -> String? {
+        price(of: model.rawValue).map { price, isFast in isFast ? "\(price.displayName) Fast" : price.displayName }
+    }
+
+    /// Grok Build logs `<model>-build` at the rates of `<model>`, and `<model>-build-fast` at twice them.
+    private static func price(of model: String) -> (price: ModelPrice, isFast: Bool)? {
+        prices[model.replacing(/-build(-fast)?$/, with: "")].map { ($0, model.hasSuffix("-build-fast")) }
     }
 }

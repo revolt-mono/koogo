@@ -1,5 +1,4 @@
 import Foundation
-import Observation
 
 /// One user-confirmed reset. A retry reuses the same credit and key so the server can dedupe it.
 struct CodexQuotaResetAttempt: Equatable, Sendable {
@@ -16,87 +15,10 @@ enum CodexQuotaResetOutcome: String, Decodable, Sendable {
 
 typealias CodexQuotaResetResult = Result<CodexQuotaResetOutcome, CodexAppServer.CallError>
 
-@MainActor
-@Observable
-final class CodexQuotaResetModel {
-    enum State: Equatable {
-        case idle
-        case confirming(CodexQuotaResetAttempt, failure: CodexAppServer.Failure? = nil)
-        case submitting
-        case completed(CodexQuotaResetOutcome)
-        case unconfirmed(CodexQuotaResetAttempt, CodexAppServer.Failure)
-    }
-
-    private let quotaModel: QuotaModel
-    private let source: CodexQuotaSource
-    private let now: @MainActor () -> Date
-    private var pending = State.idle
-
-    var state: State {
-        if case .confirming(let attempt, _) = pending, usableCredit(id: attempt.credit.id) == nil {
-            return .idle
-        }
-        return pending
-    }
-
-    var quota: QuotaState? { quotaModel.states[.codex] }
-    var resetCredits: QuotaSnapshot.ResetCredits? { quota?.snapshot?.resetCredits }
-
-    var isBusy: Bool { quotaModel.isBusy(.codex) }
-
-    var canChooseReset: Bool {
-        guard !isBusy, case .available = quota else { return false }
-        switch state {
-        case .idle, .completed: return true
-        case .confirming, .submitting, .unconfirmed: return false
-        }
-    }
-
-    init(quotaModel: QuotaModel, source: CodexQuotaSource, now: @escaping @MainActor () -> Date = { .now }) {
-        self.quotaModel = quotaModel
-        self.source = source
-        self.now = now
-    }
-
-    func refresh() {
-        quotaModel.refresh(.codex, force: true)
-    }
-
-    func beginReset(creditID: String) {
-        guard canChooseReset, let credit = usableCredit(id: creditID) else { return }
-        pending = .confirming(CodexQuotaResetAttempt(credit: credit))
-    }
-
-    func cancelReset() {
-        guard case .confirming = state else { return }
-        pending = .idle
-    }
-
-    func submitReset() {
-        let attempt: CodexQuotaResetAttempt
-        switch state {
-        case .confirming(let pending, _), .unconfirmed(let pending, _):
-            attempt = pending
-        case .idle, .submitting, .completed:
-            return
-        }
-        let source = source
-        guard let consume = quotaModel.write(to: .codex, { await source.consume(attempt) }) else { return }
-        let wasUnconfirmed = if case .unconfirmed = state { true } else { false }
-        pending = .submitting
-        Task {
-            switch await consume.value {
-            case .success(let outcome):
-                pending = .completed(outcome)
-            case .failure(.unconfirmed(let failure)):
-                pending = .unconfirmed(attempt, failure)
-            case .failure(.rejected(let failure)):
-                pending = wasUnconfirmed ? .unconfirmed(attempt, failure) : .confirming(attempt, failure: failure)
-            }
-        }
-    }
-
-    private func usableCredit(id: String) -> QuotaSnapshot.ResetCredit? {
-        resetCredits?.credits?.first { $0.id == id && $0.canUse(at: now()) }
-    }
+enum CodexQuotaResetFlow: Equatable {
+    case idle
+    case confirming(CodexQuotaResetAttempt, rejection: CodexAppServer.Failure? = nil)
+    case submitting(CodexQuotaResetAttempt, retryingUnconfirmed: Bool)
+    case completed(CodexQuotaResetOutcome)
+    case unconfirmed(CodexQuotaResetAttempt, CodexAppServer.Failure)
 }

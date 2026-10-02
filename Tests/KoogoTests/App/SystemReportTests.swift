@@ -13,12 +13,12 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         )
 
         let data = try await SystemReport.generate(
-            usageService: UsageService(locations: locations, calendar: usageTestCalendar),
-            quotaSources: [
-                .codex: CodexQuotaSource(executableCandidates: [try quotaWorkspace.makeAppServer()]),
-                .claude: ClaudeQuotaSource(executableCandidates: []),
-                .grok: GrokQuotaSource(executableCandidates: []),
-            ],
+            pipeline: makePipeline(),
+            quotaSources: EnumMap(
+                codex: CodexQuotaSource(executableCandidates: [try quotaWorkspace.makeAppServer()]),
+                claude: ClaudeQuotaSource(executableCandidates: []),
+                grok: GrokQuotaSource(executableCandidates: [])
+            ),
             at: now
         )
         let report = try XCTUnwrap(
@@ -73,12 +73,12 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         let grokExecutable = try GrokQuotaTestWorkspace(root: try makeTemporaryDirectory()).makeAgent()
 
         let data = try await SystemReport.generate(
-            usageService: UsageService(locations: locations, calendar: usageTestCalendar),
-            quotaSources: [
-                .codex: CodexQuotaSource(executableCandidates: [codexExecutable]),
-                .claude: ClaudeQuotaSource(executableCandidates: [claudeExecutable]),
-                .grok: GrokQuotaSource(executableCandidates: [grokExecutable]),
-            ],
+            pipeline: makePipeline(),
+            quotaSources: EnumMap(
+                codex: CodexQuotaSource(executableCandidates: [codexExecutable]),
+                claude: ClaudeQuotaSource(executableCandidates: [claudeExecutable]),
+                grok: GrokQuotaSource(executableCandidates: [grokExecutable])
+            ),
             at: now
         )
 

@@ -6,7 +6,7 @@ struct GrokLogParser: UsageLogParser {
     private var promptIndex: UInt64?
     /// Billed turns of the surviving branch by prompt. A rewind abandons later prompts, which stay billed
     /// but no longer match the rewritten response history.
-    private(set) var promptTurns: [UInt64: UsageEvent] = [:]
+    private(set) var promptTurns: [UInt64: UsageEventID] = [:]
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         do {
@@ -36,7 +36,7 @@ struct GrokLogParser: UsageLogParser {
                 }
                 let outcome = try Self.completedTurn(GrokPromptUsage(usage), params: params)
                 if case .event(let event) = outcome, let promptIndex {
-                    promptTurns[promptIndex] = event
+                    promptTurns[promptIndex] = event.id
                 }
                 return outcome
             default: break
@@ -56,6 +56,11 @@ struct GrokLogParser: UsageLogParser {
             throw MalformedUsageRecord()
         }
         let timestamp = Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
+        guard let primaryModel = usage.primaryModel else {
+            // A cancelled prompt completes with no model rows and nothing billed.
+            guard usage.totalTokens == 0 else { throw MalformedUsageRecord() }
+            return nil
+        }
         var quotes: [String: UsageQuote] = [:]
         for (model, tokens) in usage.modelUsage.sorted(by: { $0.key < $1.key }) {
             guard let quote = GrokUsagePricing.quote(model: model, tokens: tokens) else {
@@ -63,20 +68,16 @@ struct GrokLogParser: UsageLogParser {
             }
             quotes[model] = quote
         }
-        guard let primaryModel = usage.primaryModel, let primaryQuote = quotes[primaryModel] else {
-            return nil
-        }
 
         return .event(
             UsageEvent(
-                key: .grok(eventID: eventID, timestamp: timestamp),
-                usage: UsageRecord(
+                id: .grok(eventID: eventID, timestampMilliseconds: milliseconds),
+                record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: usage.totalTokens,
                     costUSD: quotes.values.map(\.costUSD).reduce(0, +),
-                    modelTurn: .init(model: primaryQuote.model, reasoningEffort: nil)
-                ),
-                revision: .init(outputTokens: 0, metadataCompleteness: 0)
+                    modelTurn: .init(model: ModelID(primaryModel), reasoningEffort: nil)
+                )
             )
         )
     }

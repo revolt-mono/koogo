@@ -1,23 +1,19 @@
 import Foundation
 
+/// The surviving copy of every request id seen in one log, or across logs.
 struct UsageEventIndex: Sendable {
-    private(set) var historyStart: Date
-    private var events: [UsageEvent.Key: UsageEvent.Value] = [:]
-    private var unpricedModels: [String: Date] = [:]
-
-    init(since historyStart: Date) {
-        self.historyStart = historyStart
+    private struct Stored: Sendable {
+        let record: UsageRecord
+        let revision: UsageEvent.Revision
     }
 
-    var unpricedModelIDs: [String] {
-        unpricedModels.keys.sorted()
-    }
+    private var events: [UsageEventID: Stored] = [:]
 
     var values: some Collection<UsageEvent> {
-        events.lazy.map { UsageEvent(key: $0.key, value: $0.value) }
+        events.lazy.map { UsageEvent(id: $0.key, record: $0.value.record, revision: $0.value.revision) }
     }
 
-    var keys: some Collection<UsageEvent.Key> {
+    var keys: some Collection<UsageEventID> {
         events.keys
     }
 
@@ -25,24 +21,51 @@ struct UsageEventIndex: Sendable {
         events.count
     }
 
-    mutating func insert(_ outcome: UsageLineOutcome) {
-        guard outcome.timestamp >= historyStart else {
-            return
-        }
-        switch outcome {
-        case .event(let event):
-            if let existing = events[event.key], !event.value.supersedes(existing) {
-                return
-            }
-            events[event.key] = event.value
-        case .unpricedModel(let id, let timestamp):
-            unpricedModels[id] = max(unpricedModels[id] ?? .distantPast, timestamp)
-        }
+    subscript(id: UsageEventID) -> UsageEvent? {
+        events[id].map { UsageEvent(id: id, record: $0.record, revision: $0.revision) }
     }
 
-    mutating func discard(before historyStart: Date) {
-        self.historyStart = historyStart
-        events = events.filter { $0.value.usage.timestamp >= historyStart }
-        unpricedModels = unpricedModels.filter { $0.value >= historyStart }
+    /// Keeps the event unless an existing copy of its id supersedes it or it predates the window.
+    mutating func insert(_ event: UsageEvent, since windowStart: Date) {
+        guard event.record.timestamp >= windowStart else {
+            return
+        }
+        if let existing = events[event.id], !event.supersedes(record: existing.record, revision: existing.revision) {
+            return
+        }
+        replace(event)
+    }
+
+    mutating func replace(_ event: UsageEvent) {
+        events[event.id] = Stored(record: event.record, revision: event.revision)
+    }
+
+    mutating func discard(before windowStart: Date) {
+        events = events.filter { $0.value.record.timestamp >= windowStart }
+    }
+}
+
+/// Lines a log dropped: malformed ones by count, unpriced ones by model and latest timestamp.
+struct LogTally: Sendable {
+    private(set) var malformedLines = 0
+    private var unpricedModels: [String: Date] = [:]
+
+    var unpricedModelIDs: some Collection<String> {
+        unpricedModels.keys
+    }
+
+    mutating func countMalformedLines(_ count: Int) {
+        malformedLines += count
+    }
+
+    mutating func noteUnpricedModel(_ id: String, at timestamp: Date, since windowStart: Date) {
+        guard timestamp >= windowStart else {
+            return
+        }
+        unpricedModels[id] = max(unpricedModels[id] ?? .distantPast, timestamp)
+    }
+
+    mutating func discard(before windowStart: Date) {
+        unpricedModels = unpricedModels.filter { $0.value >= windowStart }
     }
 }

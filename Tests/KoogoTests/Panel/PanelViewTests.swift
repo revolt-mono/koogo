@@ -6,7 +6,7 @@ import XCTest
 
 final class PanelViewTests: XCTestCase {
     @MainActor
-    func testQuotaPreferencesGateProvidersIndependentlyWithoutDisablingUsage() async throws {
+    func testOpeningThePanelRefreshesUsageAndQuotaForEveryShownProviderWithQuotaOn() async throws {
         let workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
         try workspace.write(codexLog(input: 700, output: 300), to: workspace.codexSessions.appending(path: "log.jsonl"))
         let defaults = try makeIsolatedDefaults()
@@ -14,44 +14,43 @@ final class PanelViewTests: XCTestCase {
         let reminder = BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults)
         let inbox = InboxModel(defaults: defaults)
 
-        let choices: [Set<Provider>?] = [
-            nil, [.claude, .grok], [.codex, .grok], [.codex, .claude], [.codex, .claude, .grok], [],
+        let choices: [Set<QuotaProvider>] = [
+            [], [.codex], [.claude], [.grok], [.claude, .grok], [.codex, .claude, .grok],
         ]
         for disabled in choices {
-            defaults.set(disabled.map { $0.map(\.rawValue).sorted() }, forKey: "quota-disabled-providers")
+            let preferences = ProviderPreferences(defaults: try makeIsolatedDefaults())
+            for provider in disabled {
+                preferences.setQuota(false, for: provider)
+            }
+            preferences.setUsage(false, for: .codex)
             let usage = UsageModel(
-                usageService: UsageService(locations: workspace.locations, calendar: usageTestCalendar),
-                defaults: defaults,
+                pipeline: UsagePipeline(home: workspace.root, calendar: usageTestCalendar),
                 now: { usageTestTimestamp }
             )
-            let codexSource = CodexQuotaSource(executableCandidates: [])
             let quota = QuotaModel(
-                sources: [
-                    .codex: codexSource,
-                    .claude: ClaudeQuotaSource(executableCandidates: []),
-                    .grok: GrokQuotaSource(executableCandidates: []),
-                ],
-                defaults: defaults
+                codex: CodexQuotaSource(executableCandidates: []),
+                claude: ClaudeQuotaSource(executableCandidates: []),
+                grok: GrokQuotaSource(executableCandidates: [])
             )
-            let codexReset = CodexQuotaResetModel(quotaModel: quota, source: codexSource)
             let host = NSHostingView(
                 rootView: PanelView()
-                    .defaultAppStorage(defaults)
+                    .environment(preferences)
                     .environment(usage)
                     .environment(quota)
-                    .environment(codexReset)
                     .environment(update)
                     .environment(reminder)
                     .environment(inbox)
             )
             host.layoutSubtreeIfNeeded()
             try await waitUntil { usage.snapshot != nil }
-            XCTAssertEqual(usage.snapshot?.providers[.codex]?.today.processedTokens, 1_000)
+            XCTAssertNil(usage.snapshot?.providers[.codex])
+            XCTAssertEqual(usage.snapshot?.providers[.claude]?.today.processedTokens, 0)
 
-            try await waitUntil { quota.providers.allSatisfy { !quota.isBusy($0) } }
-            for provider in quota.providers {
-                let isEnabled = !(disabled ?? []).contains(provider)
-                XCTAssertEqual(quota.states[provider], isEnabled ? .unavailable(.binaryNotFound) : nil, "\(provider)")
+            try await waitUntil { QuotaProvider.allCases.allSatisfy { !quota.isBusy($0) } }
+            for provider in QuotaProvider.allCases {
+                let isShown = provider != .codex && !disabled.contains(provider)
+                let expected: QuotaReading? = isShown ? .unavailable(.binaryNotFound) : nil
+                XCTAssertEqual(quota.statuses[provider].latest, expected, "\(provider)")
             }
             withExtendedLifetime(host) {}
         }

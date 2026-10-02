@@ -37,8 +37,8 @@ struct ClaudeLogParser: UsageLogParser {
         let reasoningEffort = nonEmpty(reply.effort)
         return .event(
             UsageEvent(
-                key: .claude(messageID: messageID, requestID: requestID),
-                usage: UsageRecord(
+                id: .claude(messageID: messageID, requestID: requestID),
+                record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: usage.tokens.processed,
                     costUSD: quote.costUSD,

@@ -1,12 +1,7 @@
 import Foundation
 
 struct PiLogParser: UsageLogParser {
-    private let models: PiModelCatalog
     private var thinkingByEntry: [String: String] = [:]
-
-    init(models: PiModelCatalog) {
-        self.models = models
-    }
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         guard let entry = try PiEntry(line) else {
@@ -22,14 +17,12 @@ struct PiLogParser: UsageLogParser {
         }
         return .event(
             UsageEvent(
-                key: .piAgent(entryID: entry.id),
-                usage: UsageRecord(
+                id: .piAgent(entryID: entry.id),
+                record: UsageRecord(
                     timestamp: billed.timestamp,
                     processedTokens: billed.processedTokens,
                     costUSD: billed.costUSD,
-                    modelTurn: billed.model.map {
-                        UsageRecord.ModelTurn(model: models.reference(for: $0), reasoningEffort: thinking)
-                    }
+                    modelTurn: billed.model.map { UsageRecord.ModelTurn(model: $0, reasoningEffort: thinking) }
                 )
             )
         )
@@ -98,10 +91,10 @@ private struct PiEntry {
 private struct PiBilledEntry {
     let processedTokens: UInt64
     let costUSD: Decimal
-    let model: PiModelCatalog.ID?
+    let model: ModelID?
     let timestamp: Date
 
-    init?(usage: JSONValue, model: PiModelCatalog.ID?, timestamp: Date?) throws {
+    init?(usage: JSONValue, model: ModelID?, timestamp: Date?) throws {
         guard var usage = try usage.nonNull?.object() else {
             return nil
         }
@@ -146,13 +139,13 @@ private struct PiBilledEntry {
         guard let usage else {
             return nil
         }
-        let reference: PiModelCatalog.ID?
+        let reference: ModelID?
         switch role {
         case "assistant":
             guard let provider, let model else {
                 throw MalformedUsageRecord()
             }
-            reference = PiModelCatalog.ID(provider: provider, model: model)
+            reference = PiModelCatalog.modelID(provider: provider, model: model)
         case "toolResult":
             reference = nil
         default:

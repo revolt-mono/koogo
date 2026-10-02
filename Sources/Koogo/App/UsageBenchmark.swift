@@ -19,16 +19,18 @@ enum UsageBenchmark {
     }
 
     static func run(home: URL) async throws -> Data {
-        let service = UsageService(locations: UsageLocations(home: home))
+        let pipeline = UsagePipeline(home: home)
         let date = Date.now
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let (cold, report) = await measure { await service.refresh(at: date) }
+        let (cold, report) = await measure { await pipeline.run(at: date, providers: Provider.allCases) }
         let result = Result(
             digest: SHA256.hash(data: try encoder.encode(report.snapshot)).map { String(format: "%02x", $0) }.joined(),
             cold: cold,
-            unchanged: await measure { await service.refresh(at: date) }.phase,
-            rebuild: await measure { await service.refresh(at: date.addingTimeInterval(86_400)) }.phase
+            unchanged: await measure { await pipeline.run(at: date, providers: Provider.allCases) }.phase,
+            rebuild: await measure {
+                await pipeline.run(at: date.addingTimeInterval(86_400), providers: Provider.allCases)
+            }.phase
         )
         return try encoder.encode(result)
     }

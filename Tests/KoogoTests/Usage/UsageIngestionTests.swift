@@ -7,8 +7,8 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
     func testRefreshReadsOnlyCompleteAppendedLines() async throws {
         let log = workspace.codexSessions.appending(path: "session.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: log)
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        _ = await service.refresh(at: now).snapshot
+        let service = makePipeline()
+        _ = await service.run(at: now, providers: Provider.allCases).snapshot
 
         let appended = codexTokenCount(
             last: codexUsage(input: 50, output: 10),
@@ -16,11 +16,11 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             at: "2026-08-25T13:00:00.000Z"
         )
         try workspace.append(appended, to: log)
-        let beforeNewline = await service.refresh(at: now).snapshot
+        let beforeNewline = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(beforeNewline.providers[.codex]?.today.processedTokens, 120)
 
         try workspace.append("\n", to: log)
-        let afterNewline = await service.refresh(at: now).snapshot
+        let afterNewline = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(afterNewline.providers[.codex]?.today.processedTokens, 180)
     }
 
@@ -28,17 +28,17 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let active = workspace.codexSessions.appending(path: "session.jsonl")
         let contents = codexLog(input: 100, output: 20)
         try workspace.write(contents, to: active)
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        _ = await service.refresh(at: now).snapshot
+        let service = makePipeline()
+        _ = await service.run(at: now, providers: Provider.allCases).snapshot
 
         let archived = workspace.codexArchivedSessions.appending(path: "session.jsonl")
         try workspace.write(contents, to: archived)
-        let copied = await service.refresh(at: now).snapshot
+        let copied = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(copied.providers[.codex]?.today.processedTokens, 120)
 
         try workspace.write(codexLog(input: 40, output: 10, thread: "replacement"), to: active)
         try FileManager.default.removeItem(at: archived)
-        let replaced = await service.refresh(at: now).snapshot
+        let replaced = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(replaced.providers[.codex]?.today.processedTokens, 50)
     }
 
@@ -69,7 +69,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             to: workspace.codexSessions.appending(path: "fork.jsonl")
         )
 
-        let snapshot = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now).snapshot
+        let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 50)
         XCTAssertEqual(snapshot.providers[.codex]?.last30Days.processedTokens, 170)
@@ -82,9 +82,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             at: workspace.codexSessions.appending(path: "session.jsonl"),
             withDestinationURL: target
         )
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let service = makePipeline()
 
-        let snapshot = await service.refresh(at: now).snapshot
+        let snapshot = await service.run(at: now, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.providers[.codex]?.last30Days, UsagePeriodSnapshot())
     }
@@ -94,9 +94,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         try workspace.write(codexLog(input: 100, output: 20), to: target.appending(path: "session.jsonl"))
         try FileManager.default.removeItem(at: workspace.codexSessions)
         try FileManager.default.createSymbolicLink(at: workspace.codexSessions, withDestinationURL: target)
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let service = makePipeline()
 
-        let report = await service.refresh(at: now)
+        let report = await service.run(at: now, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 1)
         XCTAssertEqual(report.snapshot.providers[.codex]?.today.processedTokens, 120)
@@ -107,12 +107,12 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
     func testAppearingLogRootRefreshesTheReport() async throws {
         let archived = workspace.codexArchivedSessions
         try FileManager.default.removeItem(at: archived)
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        let missing = await service.refresh(at: now)
+        let service = makePipeline()
+        let missing = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(missing.ingestion.logRoots.first { $0.path == archived.path }?.exists, false)
 
         try FileManager.default.createDirectory(at: archived, withIntermediateDirectories: true)
-        let appeared = await service.refresh(at: now)
+        let appeared = await service.run(at: now, providers: Provider.allCases)
 
         XCTAssertEqual(appeared.ingestion.logRoots.first { $0.path == archived.path }?.exists, true)
     }
@@ -126,9 +126,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             codexLog(input: 100, output: 20, thread: "hidden"),
             to: workspace.codexSessions.appending(path: ".b.jsonl")
         )
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let service = makePipeline()
 
-        let report = await service.refresh(at: now)
+        let report = await service.run(at: now, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 0)
     }
@@ -140,9 +140,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             + String(repeating: "x", count: 4_194_304)
             + "\"}\n"
         try workspace.write(ignored + codexLog(input: 100, output: 20), to: log)
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let service = makePipeline()
 
-        let snapshot = await service.refresh(at: now).snapshot
+        let snapshot = await service.run(at: now, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 120)
     }
@@ -150,30 +150,30 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
     func testShrunkFileIsRereadAndDeletedFileDropsItsEvents() async throws {
         let log = workspace.codexSessions.appending(path: "session.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: log)
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        _ = await service.refresh(at: now).snapshot
+        let service = makePipeline()
+        _ = await service.run(at: now, providers: Provider.allCases).snapshot
 
         try workspace.write(codexLog(input: 40, output: 10, thread: "t"), to: log)
-        let shrunk = await service.refresh(at: now).snapshot
+        let shrunk = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(shrunk.providers[.codex]?.today.processedTokens, 50)
 
         try FileManager.default.removeItem(at: log)
-        let deleted = await service.refresh(at: now).snapshot
+        let deleted = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(deleted.providers[.codex]?.today, UsagePeriodSnapshot())
     }
 
     func testSameSizeRewriteWithNewModificationDateIsReread() async throws {
         let log = workspace.codexSessions.appending(path: "session.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: log)
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        _ = await service.refresh(at: now).snapshot
+        let service = makePipeline()
+        _ = await service.run(at: now, providers: Provider.allCases).snapshot
 
         try workspace.write(
             codexLog(input: 300, output: 40),
             to: log,
             modificationDate: now.addingTimeInterval(1)
         )
-        let rewritten = await service.refresh(at: now).snapshot
+        let rewritten = await service.run(at: now, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(rewritten.providers[.codex]?.today.processedTokens, 340)
     }
@@ -181,13 +181,13 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
     func testInPlaceRewriteBeforeParsedOffsetIsReread() async throws {
         let log = workspace.codexSessions.appending(path: "session.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: log)
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        _ = await service.refresh(at: now)
+        let service = makePipeline()
+        _ = await service.run(at: now, providers: Provider.allCases)
 
         let handle = try FileHandle(forUpdating: log)
         try handle.write(contentsOf: Data(codexLog(input: 300, output: 40, thread: "rewritten").utf8))
         try handle.close()
-        let rewritten = await service.refresh(at: now).snapshot
+        let rewritten = await service.run(at: now, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(rewritten.providers[.codex]?.today.processedTokens, 340)
     }
@@ -199,9 +199,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             [.modificationDate: Date(timeIntervalSince1970: 0)],
             ofItemAtPath: log.path
         )
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let service = makePipeline()
 
-        let skipped = await service.refresh(at: now)
+        let skipped = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(skipped.ingestion.trackedFiles[.codex], 0)
         XCTAssertEqual(skipped.snapshot.providers[.codex]?.today, UsagePeriodSnapshot())
 
@@ -213,7 +213,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             ) + "\n",
             to: log
         )
-        let appended = await service.refresh(at: now)
+        let appended = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(appended.ingestion.trackedFiles[.codex], 1)
         XCTAssertEqual(appended.snapshot.providers[.codex]?.today.processedTokens, 180)
     }
@@ -229,9 +229,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             ),
             to: log
         )
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let service = makePipeline()
 
-        let report = await service.refresh(at: now)
+        let report = await service.run(at: now, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.unpricedModels, [])
@@ -256,7 +256,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             to: workspace.claudeProjects.appending(path: "project/session.jsonl")
         )
 
-        let report = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now)
+        let report = await makePipeline().run(at: now, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.malformedLines, [.codex: 1, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.snapshot.providers[.codex]?.today.processedTokens, 120)
@@ -265,12 +265,12 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
     func testHistoryWindowMovingForwardDiscardsOlderEvents() async throws {
         try writeAugustLog(andOlderLogAt: "2026-06-27T00:00:00Z")
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        let august = await service.refresh(at: now)
+        let service = makePipeline()
+        let august = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(august.ingestion.events[.codex], 2)
 
         let nextDay = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z"))
-        let refreshed = await service.refresh(at: nextDay)
+        let refreshed = await service.run(at: nextDay, providers: Provider.allCases)
 
         XCTAssertEqual(refreshed.ingestion.events[.codex], 1)
         XCTAssertEqual(refreshed.snapshot.providers[.codex]?.last30Days.processedTokens, 120)
@@ -279,12 +279,12 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
     func testHistoryWindowMovingBackwardRescansOlderEvents() async throws {
         try writeAugustLog(andOlderLogAt: "2026-06-26T23:59:59.999Z")
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        let august = await service.refresh(at: now)
+        let service = makePipeline()
+        let august = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(august.ingestion.events[.codex], 1)
 
         let previousDay = try XCTUnwrap(Date(iso8601: "2026-08-24T23:59:59.999Z"))
-        let rescanned = await service.refresh(at: previousDay)
+        let rescanned = await service.run(at: previousDay, providers: Provider.allCases)
 
         XCTAssertEqual(rescanned.ingestion.events[.codex], 2)
         XCTAssertEqual(rescanned.snapshot.providers[.codex]?.last30Days, UsagePeriodSnapshot())

@@ -1,14 +1,14 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct UsageProviderToggles: View {
+struct ProviderUsageToggles: View {
     private static let dragType = UTType(exportedAs: "com.revolt.koogo.provider")
 
-    @Environment(UsageModel.self) private var usageModel
+    @Environment(ProviderPreferences.self) private var preferences
     @State private var dragged: Provider?
 
     var body: some View {
-        ForEach(usageModel.providerOrder, id: \.self) { provider in
+        ForEach(preferences.order, id: \.self) { provider in
             HStack(spacing: 10) {
                 Image(systemName: "square.grid.4x3.fill")
                     .font(.system(size: 9))
@@ -18,8 +18,8 @@ struct UsageProviderToggles: View {
                 Toggle(
                     provider.title,
                     isOn: Binding(
-                        get: { usageModel.enabledProviders.contains(provider) },
-                        set: { usageModel.setEnabled($0, for: provider) }
+                        get: { preferences.usageEnabled.contains(provider) },
+                        set: { preferences.setUsage($0, for: provider) }
                     )
                 )
             }
@@ -35,9 +35,9 @@ struct UsageProviderToggles: View {
             }
             .onDrop(
                 of: [Self.dragType],
-                delegate: ProviderReorderDrop(provider: provider, dragged: $dragged, usageModel: usageModel)
+                delegate: ProviderReorderDrop(provider: provider, dragged: $dragged, preferences: preferences)
             )
-            .motionAnimation(.smooth(duration: 0.25), value: usageModel.providerOrder)
+            .motionAnimation(.smooth(duration: 0.25), value: preferences.order)
         }
     }
 }
@@ -45,11 +45,11 @@ struct UsageProviderToggles: View {
 private struct ProviderReorderDrop: DropDelegate {
     let provider: Provider
     @Binding var dragged: Provider?
-    let usageModel: UsageModel
+    let preferences: ProviderPreferences
 
     func dropEntered(info: DropInfo) {
         guard let dragged else { return }
-        usageModel.moveProvider(dragged, to: provider)
+        preferences.move(dragged, to: provider)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {

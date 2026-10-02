@@ -23,7 +23,7 @@ struct ClaudeQuotaSource: QuotaSource {
         tool = CommandLineTool(candidates: executableCandidates, timeout: timeout)
     }
 
-    func load() async -> Result<QuotaSnapshot, QuotaUnavailability> {
+    func load() async -> QuotaReading {
         do {
             let response = try await tool.session(
                 Self.arguments,
@@ -42,9 +42,9 @@ struct ClaudeQuotaSource: QuotaSource {
                 }
                 throw ClaudeQuotaResponse.Invalid()
             }
-            return try response.snapshot().map(Result.success) ?? .failure(.emptyLimits)
+            return try response.snapshot().map(QuotaReading.available) ?? .unavailable(.emptyLimits)
         } catch {
-            return .failure(QuotaUnavailability(error))
+            return .unavailable(QuotaUnavailability(error))
         }
     }
 }

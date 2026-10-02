@@ -5,7 +5,7 @@ import XCTest
 
 final class PiUsageTests: UsageWorkspaceTestCase {
     func testParserUsesBranchLocalThinkingAndLoggedUsage() throws {
-        var parser = PiLogParser(models: PiModelCatalog())
+        var parser = PiLogParser()
         for record in [piSessionHeader, piThinking(id: "high", parentID: nil, level: "high"), piUser] {
             XCTAssertNil(try parse(record, with: &parser))
         }
@@ -30,16 +30,16 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             )?.event
         )
 
-        XCTAssertEqual(first.usage.timestamp, usageTestTimestamp)
-        XCTAssertEqual(first.usage.processedTokens, 100)
-        XCTAssertEqual(first.usage.costUSD, Decimal(string: "0.125"))
-        XCTAssertEqual(first.usage.modelTurn?.reasoningEffort, "high")
-        XCTAssertEqual(lowBranch.usage.modelTurn?.reasoningEffort, "low")
-        XCTAssertEqual(highBranch.usage.modelTurn?.reasoningEffort, "high")
+        XCTAssertEqual(first.record.timestamp, usageTestTimestamp)
+        XCTAssertEqual(first.record.processedTokens, 100)
+        XCTAssertEqual(first.record.costUSD, Decimal(string: "0.125"))
+        XCTAssertEqual(first.record.modelTurn?.reasoningEffort, "high")
+        XCTAssertEqual(lowBranch.record.modelTurn?.reasoningEffort, "low")
+        XCTAssertEqual(highBranch.record.modelTurn?.reasoningEffort, "high")
     }
 
     func testParserIncludesAuxiliaryUsageWithoutFavoriteMetadata() throws {
-        var parser = PiLogParser(models: PiModelCatalog())
+        var parser = PiLogParser()
         _ = try parse(piSessionHeader, with: &parser)
         let records = [
             """
@@ -54,22 +54,22 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         ]
         let events = try records.map { try XCTUnwrap(try parse($0, with: &parser)?.event) }
 
-        XCTAssertEqual(events.map(\.usage.processedTokens), [10, 20, 30])
-        XCTAssertTrue(events.allSatisfy { $0.usage.modelTurn == nil })
-        XCTAssertEqual(events.map(\.usage.costUSD).reduce(0, +), Decimal(string: "0.06"))
+        XCTAssertEqual(events.map(\.record.processedTokens), [10, 20, 30])
+        XCTAssertTrue(events.allSatisfy { $0.record.modelTurn == nil })
+        XCTAssertEqual(events.map(\.record.costUSD).reduce(0, +), Decimal(string: "0.06"))
     }
 
     func testParserUsesProviderTotalTokens() throws {
-        var parser = PiLogParser(models: PiModelCatalog())
+        var parser = PiLogParser()
         let log = """
             {"type":"compaction","id":"compaction","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","usage":{"input":10,"output":20,"cacheRead":30,"cacheWrite":40,"totalTokens":125,"cost":{"total":1}}}
             """
 
-        XCTAssertEqual(try XCTUnwrap(try parse(log, with: &parser)?.event).usage.processedTokens, 125)
+        XCTAssertEqual(try XCTUnwrap(try parse(log, with: &parser)?.event).record.processedTokens, 125)
     }
 
     func testParserKeepsZeroUsageAssistantTurnsForFavorites() throws {
-        var parser = PiLogParser(models: PiModelCatalog())
+        var parser = PiLogParser()
 
         let event = try XCTUnwrap(
             try parse(
@@ -78,10 +78,10 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             )?.event
         )
 
-        XCTAssertEqual(event.usage.processedTokens, 0)
+        XCTAssertEqual(event.record.processedTokens, 0)
         XCTAssertEqual(
-            event.usage.modelTurn?.model,
-            UsageModelReference(id: "provider/free-model", name: "free-model")
+            event.record.modelTurn?.model,
+            ModelID("provider/free-model")
         )
         let snapshot = usageSnapshot(
             events: [event],
@@ -98,16 +98,12 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         try writeModelCatalog()
 
         var catalog = PiModelCatalog()
-        XCTAssertTrue(catalog.refresh(home: locations.home(of: .piAgent)))
+        XCTAssertTrue(catalog.refresh(home: workspace.home(of: .piAgent)))
 
         let names = ["model-a", "model-b", "unnamed", "unknown"].map {
-            catalog.reference(for: PiModelCatalog.ID(provider: "provider", model: $0))
+            catalog.name(of: PiModelCatalog.modelID(provider: "provider", model: $0))
         }
-        XCTAssertEqual(
-            names.map(\.id),
-            ["provider/model-a", "provider/model-b", "provider/unnamed", "provider/unknown"]
-        )
-        XCTAssertEqual(names.map(\.name), ["Readable Model A", "Preferred Model B", "unnamed", "unknown"])
+        XCTAssertEqual(names, ["Readable Model A", "Preferred Model B", "unnamed", "unknown"])
     }
 
     func testServiceUsesLoggedCostsModelNamesAndTurnFavorites() async throws {
@@ -115,7 +111,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let contents = piSessionLog
         try workspace.write(contents, to: workspace.piSessions.appending(path: "project/session.jsonl"))
         try workspace.write(contents, to: workspace.piSessions.appending(path: "copy/session.jsonl"))
-        let snapshot = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now).snapshot
+        let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.providers[.piAgent]?.today.processedTokens, 210)
         XCTAssertEqual(snapshot.providers[.piAgent]?.today.costUSD, Decimal(string: "0.21"))
@@ -137,54 +133,54 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             """
             {"provider":{"models":[{"id":"model-a","name":"Initial Name"}]}}
             """,
-            to: locations.home(of: .piAgent).appending(path: "models-store.json")
+            to: workspace.home(of: .piAgent).appending(path: "models-store.json")
         )
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        let initial = await service.refresh(at: now).snapshot
+        let service = makePipeline()
+        let initial = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(initial.providers[.piAgent]?.favorite?.modelName, "Initial Name")
 
         try workspace.write(
             """
             {"provider":{"models":[{"id":"model-a","name":"Updated Name"}]}}
             """,
-            to: locations.home(of: .piAgent).appending(path: "models-store.json")
+            to: workspace.home(of: .piAgent).appending(path: "models-store.json")
         )
-        let updated = await service.refresh(at: now).snapshot
+        let updated = await service.run(at: now, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(updated.providers[.piAgent]?.favorite?.modelName, "Updated Name")
-        let unchanged = await service.refresh(at: now).snapshot
+        let unchanged = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(unchanged, updated)
     }
 
     func testCachedCatalogReflectsMalformedDeletedAndRecreatedFiles() async throws {
         try writeModelCatalog()
         try workspace.write(piSessionLog, to: workspace.piSessions.appending(path: "session.jsonl"))
-        let home = locations.home(of: .piAgent)
+        let home = workspace.home(of: .piAgent)
         let custom = home.appending(path: "models.json")
         let store = home.appending(path: "models-store.json")
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
-        let initial = await service.refresh(at: now).snapshot
+        let service = makePipeline()
+        let initial = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(initial.providers[.piAgent]?.favorite?.modelName, "Readable Model A")
 
         try workspace.write("{invalid", to: custom)
-        let malformed = await service.refresh(at: now).snapshot
+        let malformed = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(malformed.providers[.piAgent]?.favorite?.modelName, "Cached Model A")
 
         try FileManager.default.removeItem(at: custom)
         try FileManager.default.removeItem(at: store)
-        let deleted = await service.refresh(at: now).snapshot
+        let deleted = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(deleted.providers[.piAgent]?.favorite?.modelName, "model-a")
 
         try writeModelCatalog()
-        let restored = await service.refresh(at: now).snapshot
+        let restored = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(restored, initial)
     }
 
     func testServiceDeduplicatesForkHistoryDuringColdAndIncrementalScans() async throws {
         try workspace.write(piSessionLog, to: workspace.piSessions.appending(path: "original.jsonl"))
-        let service = UsageService(locations: locations, calendar: usageTestCalendar)
+        let service = makePipeline()
 
-        let original = await service.refresh(at: now).snapshot
+        let original = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(original.providers[.piAgent]?.today.processedTokens, 210)
 
         let forkHeader = piSessionHeader.replacingOccurrences(
@@ -202,8 +198,8 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             + "\n"
         try workspace.write(fork, to: workspace.piSessions.appending(path: "fork.jsonl"))
 
-        let incremental = await service.refresh(at: now).snapshot
-        let cold = await UsageService(locations: locations, calendar: usageTestCalendar).refresh(at: now).snapshot
+        let incremental = await service.run(at: now, providers: Provider.allCases).snapshot
+        let cold = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
         for snapshot in [incremental, cold] {
             XCTAssertEqual(snapshot.providers[.piAgent]?.today.processedTokens, 280)
             XCTAssertEqual(snapshot.providers[.piAgent]?.today.costUSD, Decimal(string: "0.28"))
@@ -211,7 +207,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     }
 
     private func writeModelCatalog() throws {
-        let piHome = locations.home(of: .piAgent)
+        let piHome = workspace.home(of: .piAgent)
         try workspace.write(piModelStore, to: piHome.appending(path: "models-store.json"))
         try workspace.write(piCustomModels, to: piHome.appending(path: "models.json"))
     }

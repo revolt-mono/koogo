@@ -48,7 +48,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         ] {
             let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
             let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result, .failure(.emptyLimits), limits)
+            XCTAssertEqual(result, .unavailable(.emptyLimits), limits)
         }
         for output in [
             "not json",
@@ -60,11 +60,11 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         ] {
             let executable = try workspace.makeCLI(output: output)
             let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result, .failure(.sessionFailed), output)
+            XCTAssertEqual(result, .unavailable(.sessionFailed), output)
         }
         let executable = try workspace.makeCLI(beforeOutput: "exit 1")
         let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
-        XCTAssertEqual(result, .failure(.sessionFailed))
+        XCTAssertEqual(result, .unavailable(.sessionFailed))
     }
 
     func testWindowsClampPercentAndUnstartedOrUnnamedWindowsAreSkipped() async throws {
@@ -92,7 +92,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         try Data().write(to: notExecutable)
         let result = await ClaudeQuotaSource(executableCandidates: [root.appending(path: "missing"), notExecutable])
             .load()
-        XCTAssertEqual(result, .failure(.binaryNotFound))
+        XCTAssertEqual(result, .unavailable(.binaryNotFound))
     }
 
     func testTimeoutAndCancellationStopCLIAndDescendants() async throws {
@@ -119,7 +119,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
             try await waitUntil { FileManager.default.fileExists(atPath: childMarker.path) }
             if cancel { fetch.cancel() }
             let result = await fetch.value
-            XCTAssertEqual(result, .failure(cancel ? .sessionFailed : .timedOut))
+            XCTAssertEqual(result, .unavailable(cancel ? .sessionFailed : .timedOut))
             for marker in [parentMarker, childMarker] {
                 let processID = try XCTUnwrap(Int32(String(contentsOf: marker, encoding: .utf8)))
                 try await waitUntil { kill(processID, 0) == -1 && errno == ESRCH }

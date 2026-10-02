@@ -83,17 +83,19 @@ final class GrokQuotaTests: XCTestCase {
     }
 
     func testMissingConfigIsUnavailableButAnEmptyConfigIsAnUntouchedAllowance() async throws {
-        let untouched = QuotaSnapshot(windows: [QuotaWindow(title: "Usage limit", usedPercent: 0, resetsAt: nil)])
-        let cases: [(String, Result<QuotaSnapshot?, QuotaUnavailability>)] = [
-            (#"{"id":2,"result":{}}"#, .failure(.emptyLimits)),
-            (GrokQuotaTestWorkspace.response(config: "null"), .failure(.emptyLimits)),
-            (GrokQuotaTestWorkspace.response(config: "{}"), .success(untouched)),
+        let untouched = try XCTUnwrap(
+            QuotaSnapshot(windows: [QuotaWindow(title: "Usage limit", usedPercent: 0, resetsAt: nil)])
+        )
+        let cases: [(String, QuotaReading)] = [
+            (#"{"id":2,"result":{}}"#, .unavailable(.emptyLimits)),
+            (GrokQuotaTestWorkspace.response(config: "null"), .unavailable(.emptyLimits)),
+            (GrokQuotaTestWorkspace.response(config: "{}"), .available(untouched)),
         ]
         for (response, expected) in cases {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(billingResponse: response)
             let result = await GrokQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result.map(Optional.some), expected)
+            XCTAssertEqual(result, expected)
         }
     }
 
@@ -109,7 +111,7 @@ final class GrokQuotaTests: XCTestCase {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(billingResponse: response)
             let result = await GrokQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result, .failure(.sessionFailed))
+            XCTAssertEqual(result, .unavailable(.sessionFailed))
         }
     }
 
@@ -123,7 +125,7 @@ final class GrokQuotaTests: XCTestCase {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(initializeResponse: response)
             let result = await GrokQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result, .failure(.sessionFailed))
+            XCTAssertEqual(result, .unavailable(.sessionFailed))
             let requests = try String(contentsOf: workspace.requestsFile, encoding: .utf8).split(separator: "\n")
             XCTAssertEqual(requests.count, 1)
         }
@@ -131,7 +133,7 @@ final class GrokQuotaTests: XCTestCase {
 
     func testMissingBinaryIsUnavailable() async {
         let result = await GrokQuotaSource(executableCandidates: []).load()
-        XCTAssertEqual(result, .failure(.binaryNotFound))
+        XCTAssertEqual(result, .unavailable(.binaryNotFound))
     }
 
     func testTimeoutCoversInitializationAndBillingAndStopsTheAgent() async throws {
@@ -142,7 +144,7 @@ final class GrokQuotaTests: XCTestCase {
                 beforeBilling: stallsDuringInitialize ? "" : "while :; do :; done"
             )
             let result = await GrokQuotaSource(executableCandidates: [executable], timeout: .milliseconds(500)).load()
-            XCTAssertEqual(result, .failure(.timedOut))
+            XCTAssertEqual(result, .unavailable(.timedOut))
             let text = try String(contentsOf: workspace.pidFile, encoding: .utf8).trimmingCharacters(in: .newlines)
             let pid = try XCTUnwrap(pid_t(text))
             try await waitUntil(timeout: .seconds(3)) { kill(pid, 0) == -1 && errno == ESRCH }

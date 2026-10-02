@@ -1,12 +1,8 @@
 import CryptoKit
 import Foundation
 
+/// Display names from Pi's model store and the user's custom model file.
 struct PiModelCatalog: Sendable {
-    struct ID: Hashable, Sendable {
-        let provider: String
-        let model: String
-    }
-
     private struct StoredModel: Decodable {
         let id: String
         let name: String
@@ -34,9 +30,14 @@ struct PiModelCatalog: Sendable {
         let providers: [String: CustomProvider]
     }
 
-    private var references: [ID: UsageModelReference] = [:]
+    private var names: [ModelID: String] = [:]
     private var sourceDigests: [SHA256.Digest?] = [nil, nil]
 
+    static func modelID(provider: String, model: String) -> ModelID {
+        ModelID("\(provider)/\(model)")
+    }
+
+    /// Rereads both files when their bytes changed. Returns true when any name changed.
     mutating func refresh(home: URL) -> Bool {
         let store = try? Data(contentsOf: home.appending(path: "models-store.json", directoryHint: .notDirectory))
         let custom = try? Data(contentsOf: home.appending(path: "models.json", directoryHint: .notDirectory))
@@ -45,41 +46,35 @@ struct PiModelCatalog: Sendable {
             return false
         }
         sourceDigests = digests
-        var names: [ID: String] = [:]
+        var names: [ModelID: String] = [:]
         for (provider, configuration) in Self.decode([String: StoredProvider].self, from: store) ?? [:] {
             for model in configuration.models {
-                names[ID(provider: provider, model: model.id)] = model.name
+                names[Self.modelID(provider: provider, model: model.id)] = model.name
             }
         }
         for (provider, configuration) in Self.decode(CustomModels.self, from: custom, allowsJSON5: true)?
             .providers ?? [:]
         {
             for model in configuration.models ?? [] {
-                names[ID(provider: provider, model: model.id)] = model.name ?? model.id
+                names[Self.modelID(provider: provider, model: model.id)] = model.name ?? model.id
             }
             for (model, override) in configuration.modelOverrides ?? [:] {
                 guard let name = override.name else {
                     continue
                 }
-                names[ID(provider: provider, model: model)] = name
+                names[Self.modelID(provider: provider, model: model)] = name
             }
         }
-        let references = names.reduce(into: [ID: UsageModelReference]()) { references, entry in
-            references[entry.key] = Self.reference(for: entry.key, name: entry.value)
-        }
-        guard references != self.references else {
+        guard names != self.names else {
             return false
         }
-        self.references = references
+        self.names = names
         return true
     }
 
-    func reference(for id: ID) -> UsageModelReference {
-        references[id] ?? Self.reference(for: id, name: id.model)
-    }
-
-    private static func reference(for id: ID, name: String) -> UsageModelReference {
-        UsageModelReference(id: "\(id.provider)/\(id.model)", name: name)
+    /// The catalog name, or the bare model id for models the catalog does not list.
+    func name(of model: ModelID) -> String? {
+        names[model] ?? model.rawValue.split(separator: "/", maxSplits: 1).last.map(String.init)
     }
 
     private static func decode<Value: Decodable>(

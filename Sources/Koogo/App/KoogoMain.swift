@@ -10,7 +10,7 @@ enum KoogoMain {
         } else if let flag = arguments.firstIndex(of: "--benchmark") {
             let home =
                 arguments.dropFirst(flag + 1).first.map { URL(filePath: $0, directoryHint: .isDirectory) }
-                ?? UsageLocations.standard.home
+                ?? FileManager.default.homeDirectoryForCurrentUser
             command = { try await UsageBenchmark.run(home: home) }
         } else {
             KoogoApp.main()

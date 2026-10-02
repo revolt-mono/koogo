@@ -157,9 +157,10 @@ enum CodexUsagePricing {
         }
 
         // Codex rollout logs do not reliably record service tiers, so usage uses standard rates.
-        return UsageQuote(
-            model: UsageModelReference(id: modelID, name: price.displayName),
-            costNanodollars: costNanodollars
-        )
+        return UsageQuote(model: ModelID(modelID), costNanodollars: costNanodollars)
+    }
+
+    static func displayName(of model: ModelID) -> String? {
+        prices[model.rawValue]?.displayName
     }
 }

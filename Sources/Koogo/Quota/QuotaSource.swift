@@ -1,27 +1,15 @@
-enum QuotaUnavailability: String, Error, Encodable, Sendable {
-    case binaryNotFound
-    case timedOut
-    case sessionFailed
-    case emptyLimits
-
-    init(_ error: any Error) {
-        self =
-            switch error {
-            case CommandLineTool.Failure.notFound: .binaryNotFound
-            case CommandLineTool.Failure.timedOut: .timedOut
-            default: .sessionFailed
-            }
-    }
-}
-
 protocol QuotaSource: Sendable {
-    func load() async -> Result<QuotaSnapshot, QuotaUnavailability>
+    func load() async -> QuotaReading
 }
 
-extension Provider {
-    static let quotaSources: [Provider: any QuotaSource] = [
-        .codex: CodexQuotaSource(),
-        .claude: ClaudeQuotaSource(),
-        .grok: GrokQuotaSource(),
-    ]
+extension EnumMap where Key == QuotaProvider, Value == any QuotaSource {
+    init(codex: CodexQuotaSource, claude: any QuotaSource, grok: any QuotaSource) {
+        self.init { provider in
+            switch provider {
+            case .codex: codex
+            case .claude: claude
+            case .grok: grok
+            }
+        }
+    }
 }

@@ -2,13 +2,13 @@ import SwiftUI
 
 struct QuotaSection: View {
     @Environment(QuotaModel.self) private var quotaModel
-    let provider: Provider
+    let provider: QuotaProvider
 
     var body: some View {
-        switch quotaModel.states[provider] {
-        case nil, .unavailable:
+        switch quotaModel.statuses[provider].latest {
+        case .unavailable:
             EmptyView()
-        case .loading:
+        case nil:
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
                     ForEach(0..<2, id: \.self) { _ in
@@ -17,14 +17,14 @@ struct QuotaSection: View {
                 }
                 .foregroundStyle(.secondary.opacity(0.24))
                 .loadingShimmer()
-                .accessibilityLabel("Loading \(provider.title) limits")
+                .accessibilityLabel("Loading \(provider.provider.title) limits")
                 Divider()
             }
         case .available(let snapshot):
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
                     ForEach(snapshot.windows, id: \.title) { window in
-                        QuotaWindowRow(provider: provider, window: window)
+                        QuotaWindowRow(provider: provider.provider, window: window)
                     }
                     if let credits = snapshot.credits {
                         HStack(alignment: .firstTextBaseline, spacing: 4) {

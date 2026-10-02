@@ -2,20 +2,32 @@ import Darwin
 import Foundation
 import System
 
-struct UsageLogFile<Parser: UsageLogParser>: UsageLog {
+enum FileRead {
+    case nothingNew
+    case readLines
+    case unreadable
+}
+
+/// Receives the complete lines of one file in order.
+protocol LineConsumer {
+    /// The file no longer continues the bytes consumed so far; drop everything derived from them.
+    mutating func restart()
+    mutating func consume(_ line: UnsafeRawBufferPointer)
+}
+
+/// Incremental reader of a newline-delimited file. Complete lines are handed out once; a partial
+/// trailing line waits for its newline. A replaced or truncated file restarts from its first byte.
+struct AppendOnlyFile: Sendable {
     private static var parsedTailSize: Int { 64 }
     private static var readSize: Int { 1 << 18 }
 
     private let url: URL
-    private let freshParser: Parser
-    private(set) var parser: Parser
-    private(set) var events: UsageEventIndex
-    private(set) var malformedLines = 0
     private var metadata: UsageFileMetadata
-    private var parsedOffset: UInt64
-    private var parsedTail: Data
+    private var parsedOffset: UInt64 = 0
+    private var parsedTail = Data()
+    private var needsRestart = false
 
-    init?(_ url: URL, parser: Parser, since historyStart: Date) {
+    init?(_ url: URL) {
         guard let file = try? FileDescriptor.open(FilePath(url.path), .readOnly) else {
             return nil
         }
@@ -23,68 +35,59 @@ struct UsageLogFile<Parser: UsageLogParser>: UsageLog {
         guard let metadata = UsageFileMetadata(fileDescriptor: file.rawValue) else {
             return nil
         }
-
         self.url = url
-        freshParser = parser
-        self.parser = parser
-        events = UsageEventIndex(since: historyStart)
         self.metadata = metadata
-        parsedOffset = 0
-        parsedTail = Data()
-        guard readLines(file, in: 0..<metadata.size) else {
-            return nil
-        }
     }
 
-    mutating func refresh(observed metadata: UsageFileMetadata) -> Bool {
+    /// Records a directory walk's view of the file and reports whether a read is due.
+    mutating func observe(_ observed: UsageFileMetadata) -> Bool {
         let wasReplaced =
-            self.metadata.identity != metadata.identity
-            || metadata.size < self.metadata.size
-            || (metadata.size == self.metadata.size
-                && metadata.modificationDate != self.metadata.modificationDate)
+            metadata.identity != observed.identity
+            || observed.size < metadata.size
+            || (observed.size == metadata.size && observed.modificationDate != metadata.modificationDate)
         if wasReplaced {
-            reread()
-        } else if metadata.size > self.metadata.size {
-            readAppendedLines()
-        } else {
-            return false
+            needsRestart = true
+            return true
         }
-        return true
+        return observed.size > metadata.size
     }
 
-    mutating func discard(before historyStart: Date) {
-        events.discard(before: historyStart)
-    }
-
-    private mutating func reread() {
-        if let replacement = Self(url, parser: freshParser, since: events.historyStart) {
-            self = replacement
-        }
-    }
-
-    private mutating func readAppendedLines() {
+    /// Hands every complete line not yet consumed to the consumer, restarting it first when the file
+    /// no longer continues the bytes read so far.
+    mutating func read(into consumer: inout some LineConsumer) -> FileRead {
         guard let file = try? FileDescriptor.open(FilePath(url.path), .readOnly) else {
-            return
+            return .unreadable
         }
         defer { try? file.close() }
-        guard let metadata = UsageFileMetadata(fileDescriptor: file.rawValue) else {
-            return
+        guard let current = UsageFileMetadata(fileDescriptor: file.rawValue) else {
+            return .unreadable
         }
 
-        guard self.metadata.identity == metadata.identity,
-            metadata.size >= self.metadata.size,
-            parsedTailMatches(file)
-        else {
-            reread()
-            return
+        let restarted =
+            needsRestart || current.identity != metadata.identity || current.size < parsedOffset
+            || !parsedTailMatches(file)
+        if restarted {
+            consumer.restart()
+            parsedOffset = 0
+            parsedTail = Data()
+            needsRestart = false
         }
-
-        if readLines(file, in: parsedOffset..<metadata.size) {
-            self.metadata = metadata
+        var linesRead = 0
+        if parsedOffset < current.size {
+            guard readLines(file, in: parsedOffset..<current.size, into: &consumer, count: &linesRead) else {
+                return .unreadable
+            }
         }
+        metadata = current
+        return restarted || linesRead > 0 ? .readLines : .nothingNew
     }
 
-    private mutating func readLines(_ file: FileDescriptor, in offsets: Range<UInt64>) -> Bool {
+    private mutating func readLines(
+        _ file: FileDescriptor,
+        in offsets: Range<UInt64>,
+        into consumer: inout some LineConsumer,
+        count linesRead: inout Int
+    ) -> Bool {
         var buffer = UnsafeMutableRawBufferPointer.allocate(
             byteCount: min(offsets.count, Self.readSize),
             alignment: 1
@@ -111,7 +114,11 @@ struct UsageLogFile<Parser: UsageLogParser>: UsageLog {
             }
             readOffset += UInt64(count)
             pending += count
-            let parsed = parseCompleteLines(UnsafeRawBufferPointer(rebasing: buffer[..<pending]))
+            let parsed = handOutCompleteLines(
+                UnsafeRawBufferPointer(rebasing: buffer[..<pending]),
+                into: &consumer,
+                count: &linesRead
+            )
             parsedOffset += UInt64(parsed)
             pending -= parsed
             if let base = buffer.baseAddress, parsed > 0 {
@@ -121,20 +128,19 @@ struct UsageLogFile<Parser: UsageLogParser>: UsageLog {
         return true
     }
 
-    private mutating func parseCompleteLines(_ bytes: UnsafeRawBufferPointer) -> Int {
+    private mutating func handOutCompleteLines(
+        _ bytes: UnsafeRawBufferPointer,
+        into consumer: inout some LineConsumer,
+        count linesRead: inout Int
+    ) -> Int {
         guard let base = bytes.baseAddress else {
             return 0
         }
         var lineStart = 0
         while let newline = memchr(base + lineStart, 0x0A, bytes.count - lineStart) {
             let lineEnd = base.distance(to: newline)
-            do {
-                if let outcome = try parser.parse(UnsafeRawBufferPointer(rebasing: bytes[lineStart..<lineEnd])) {
-                    events.insert(outcome)
-                }
-            } catch {
-                malformedLines += 1
-            }
+            consumer.consume(UnsafeRawBufferPointer(rebasing: bytes[lineStart..<lineEnd]))
+            linesRead += 1
             lineStart = lineEnd + 1
         }
         if lineStart > 0 {
@@ -145,6 +151,9 @@ struct UsageLogFile<Parser: UsageLogParser>: UsageLog {
     }
 
     private func parsedTailMatches(_ file: FileDescriptor) -> Bool {
+        guard !parsedTail.isEmpty else {
+            return true
+        }
         var tail = Data(count: parsedTail.count)
         let count = try? tail.withUnsafeMutableBytes {
             try file.read(fromAbsoluteOffset: Int64(parsedOffset) - Int64(parsedTail.count), into: $0)

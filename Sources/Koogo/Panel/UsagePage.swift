@@ -4,6 +4,7 @@ struct UsagePage: View {
     private static let headerGap: CGFloat = 20 - ProviderCards.spacing
     private static let bottomInset: CGFloat = 32 - ProviderCards.spacing
 
+    @Environment(ProviderPreferences.self) private var preferences
     @Environment(UsageModel.self) private var usageModel
     @State private var headerHeight: CGFloat = 0
 
@@ -26,8 +27,9 @@ struct UsagePage: View {
                     }
 
                     ProviderCards(
-                        order: usageModel.providerOrder,
-                        providers: snapshot.providers,
+                        cards: preferences.usageProviders.compactMap { provider in
+                            snapshot.providers[provider].map { (provider: provider, usage: $0) }
+                        },
                         heightLimit: max(maxHeight - headerHeight - Self.headerGap - Self.bottomInset, 0)
                     )
                 }
@@ -51,38 +53,38 @@ struct UsagePage: View {
 private struct ProviderCards: View {
     fileprivate static let spacing: CGFloat = 12
     private static let inset: CGFloat = 20
+    private static let visibleCards = 3
 
+    @Environment(ProviderPreferences.self) private var preferences
     @Environment(QuotaModel.self) private var quotaModel
     @State private var cardHeights: [Provider: CGFloat] = [:]
 
-    let order: [Provider]
-    let providers: [Provider: ProviderUsageSnapshot]
+    let cards: [(provider: Provider, usage: ProviderUsageSnapshot)]
     let heightLimit: CGFloat
 
     var body: some View {
-        let shown = order.filter { providers[$0] != nil }
-        let leading = shown.prefix(3)
+        let leading = cards.prefix(Self.visibleCards)
         let visibleHeight =
-            leading.compactMap { cardHeights[$0] }.reduce(0, +)
+            leading.compactMap { cardHeights[$0.provider] }.reduce(0, +)
             + Self.spacing * CGFloat(max(leading.count - 1, 0) + 2)
 
         ScrollView {
             VStack(spacing: Self.spacing) {
-                ForEach(shown, id: \.self) { provider in
-                    if let usage = providers[provider] {
-                        ProviderUsageCard(provider: provider, usage: usage) {
-                            QuotaSection(provider: provider)
+                ForEach(cards, id: \.provider) { card in
+                    ProviderUsageCard(provider: card.provider, usage: card.usage) {
+                        if let quota = card.provider.quota, preferences.quotaProviders.contains(quota) {
+                            QuotaSection(provider: quota)
                         }
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.height
-                        } action: { height in
-                            cardHeights[provider] = height
-                        }
+                    }
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { height in
+                        cardHeights[card.provider] = height
                     }
                 }
             }
             .padding(.horizontal, Self.inset)
-            .motionAnimation(.smooth(duration: 0.25), value: quotaModel.states)
+            .motionAnimation(.smooth(duration: 0.25), value: quotaModel.statuses)
         }
         .contentMargins(.vertical, Self.spacing, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)

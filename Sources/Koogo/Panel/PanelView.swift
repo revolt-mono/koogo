@@ -4,6 +4,7 @@ import SwiftUI
 struct PanelView: View {
     private static let toolbarGap: CGFloat = 8
 
+    @Environment(ProviderPreferences.self) private var preferences
     @Environment(UsageModel.self) private var usageModel
     @Environment(QuotaModel.self) private var quotaModel
     @State private var toolbarHeight: CGFloat = 0
@@ -43,9 +44,8 @@ struct PanelView: View {
             )
         }
         .onAppear {
-            for provider in usageModel.refresh() {
-                quotaModel.refresh(provider)
-            }
+            usageModel.refresh(providers: preferences.usageProviders)
+            quotaModel.refresh(preferences.quotaProviders)
         }
     }
 }
