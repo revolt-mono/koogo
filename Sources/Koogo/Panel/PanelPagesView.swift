@@ -1,6 +1,18 @@
 import AppKit
 import SwiftUI
 
+private enum PanelPage: Int, CaseIterable {
+    case usage
+    case inbox
+
+    var accessibilityLabel: String {
+        switch self {
+        case .usage: "Usage"
+        case .inbox: "Inbox"
+        }
+    }
+}
+
 struct PanelPagesView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -79,18 +91,6 @@ struct PanelPagesView: View {
         selectedPage = page
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
             scrollTarget = page
-        }
-    }
-}
-
-private enum PanelPage: Int, CaseIterable {
-    case usage
-    case inbox
-
-    var accessibilityLabel: String {
-        switch self {
-        case .usage: "Usage"
-        case .inbox: "Inbox"
         }
     }
 }

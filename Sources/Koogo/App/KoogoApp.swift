@@ -45,5 +45,11 @@ struct KoogoApp: App {
         .environment(updateModel)
         .environment(breakReminderModel)
         .environment(inboxModel)
+        .onChange(of: preferences.usageProviders) {
+            usageModel.refresh(providers: preferences.usageProviders)
+        }
+        .onChange(of: preferences.quotaProviders) {
+            quotaModel.refresh(preferences.quotaProviders)
+        }
     }
 }
