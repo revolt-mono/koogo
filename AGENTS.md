@@ -31,32 +31,32 @@
 
 ## Repo structure
 
-Each feature is a vertical slice that owns its rules, state, services, views, and tests; only `App`, `Panel`, and `Settings` compose across features, every slice may use `Shared` and `Providers`, and `Usage` and `Quota` are engines that take their provider set from the caller.
+Each feature is a vertical slice that owns its rules, state, services, views, and tests; only `App`, `Panel`, and `Settings` compose across features, every slice may use `Shared` and `Providers`, and `Usage` and `Quota` are engines that take their provider set from the caller. Inside a slice each folder depends only on the folders listed before it, so a reader can follow one direction: `Usage` runs `Events` <- `Ingestion` <- `Providers` <- pipeline <- `Views` (with `Aggregation` on `Events` alone), and `Quota` runs reading, snapshot, and source <- `Transport` <- `Codex`/`Claude`/`Grok` <- model <- `Views`.
 
 ```
 ├── Sources/Koogo          menu bar application
-│   ├── App                entry point, model lifetimes and scene wiring, headless report and benchmark
+│   ├── App                entry point, model lifetimes, scene wiring, preference-change refresh, headless report
 │   ├── Shared             leaf primitives: total enum map, persisted value, telemetry, ISO 8601 dates, pager popover, local event monitor, Reduce Motion helpers, optional presence binding
-│   ├── Providers          provider identity (title, symbol, home path, quota capability) and the one owner of order and usage/quota switches, with their settings toggles
+│   ├── Providers          provider identity (title, symbol, home, quota capability) and the one owner of order and usage/quota switches, with their settings toggles
 │   ├── Panel              menu bar panel shell: toolbar, pager, usage page composition, panel-open refresh of usage and quota
-│   ├── Settings           settings window shell hosting slice-owned controls; refreshes models when provider switches change
-│   ├── Usage              pipeline actor (discover, read, parse, dedup, aggregate, name) and the observable snapshot model
-│   │   ├── Model          event identity per provider, record, revision and the one dedup rule, parser contract
-│   │   ├── Ingestion      append-only file reads, parsed logs, event index, discovery walk, log store with cross-file dedup, ingestion stats
-│   │   ├── Providers      per-provider log layout and parsers: Codex, Claude, Grok (session with history join), and Pi Agent (catalog), plus pricing tables
-│   │   ├── Aggregation    calendar periods, snapshot builder, snapshot types, model display names
+│   ├── Settings           settings window shell hosting slice-owned controls
+│   ├── Usage              observable snapshot model, pipeline actor (discover, read, parse, dedup, aggregate, name), period intervals, benchmark
+│   │   ├── Events         event identity per provider, record, revision and the one dedup rule, parser contract and quote
+│   │   ├── Ingestion      log roots with their open rule, append-only file reads, parsed logs, event index, tally, store with discovery walk and cross-file dedup, ingestion stats
+│   │   ├── Providers      the one registry of provider log layouts and model names, the JSON reader the parsers share, and per-provider parsers with their token shapes and pricing: Codex, Claude, Grok (session with history join), Pi Agent (catalog)
+│   │   ├── Aggregation    snapshot builder and snapshot types
 │   │   └── Views          summary, provider cards, chart, formatting
-│   ├── Quota              reading and status vocabulary, source contract, one model for fetch state and the Codex banked reset flow, section views
-│   │   ├── Transport      command-line tool runner and JSON-RPC connection
-│   │   ├── Codex          app-server client, quota source and response decoding, reset attempt and outcome types, reset views
+│   ├── Quota              reading and snapshot vocabulary, source contract, one model for fetch status and the Codex banked reset flow, section view
+│   │   ├── Transport      command-line tool runner with the error classification, line reader, process group lifetime, JSON-RPC connection
+│   │   ├── Codex          app-server client, response decoding, quota source with consume, reset flow types, reset views
 │   │   ├── Claude         local CLI stream-json usage request as a quota source
 │   │   └── Grok           local CLI ACP billing as a quota source
 │   ├── QuickActions       scan-then-act model, system adapters (appearance, disk images, orphaned agents), and views
 │   ├── BreakReminder      countdown state, notifications, controls, and issue alert
-│   ├── Inbox              todo rules, persistence, and editors
+│   ├── Inbox              todo rules, persistence with the open summary, and editors
 │   ├── Update             Sparkle bridge and update indicator
 │   └── Resources          bundled image assets
-├── Tests/KoogoTests       slice-aligned behavior tests; Support holds shared test helpers
+├── Tests/KoogoTests       mirrors the source tree folder for folder and file for file; a fixture lives with the slice that owns its source, and Support holds only slice-free helpers
 └── script                 signing, app bundle assembly, launch, and verification
 ```
 

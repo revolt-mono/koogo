@@ -74,4 +74,28 @@ final class InboxModelTests: XCTestCase {
 
         XCTAssertTrue(InboxModel(defaults: defaults).todos.isEmpty)
     }
+
+    func testOpenSummaryListsUrgentThenNormalThenBacklog() throws {
+        let model = InboxModel(defaults: try makeIsolatedDefaults())
+        model.add(try XCTUnwrap(TodoText("later")), priority: .backlog)
+        model.add(try XCTUnwrap(TodoText("soon")), priority: .normal)
+        model.add(try XCTUnwrap(TodoText("now")), priority: .urgent)
+        model.add(try XCTUnwrap(TodoText("also soon")), priority: .normal)
+
+        XCTAssertEqual(model.openSummary, "1 urgent, 2 normal, 1 backlog")
+    }
+
+    func testOpenSummarySkipsCompletedTodosAndZeroCounts() throws {
+        let model = InboxModel(defaults: try makeIsolatedDefaults())
+        model.add(try XCTUnwrap(TodoText("shipped")), priority: .urgent)
+        model.add(try XCTUnwrap(TodoText("later")), priority: .backlog)
+        model.add(try XCTUnwrap(TodoText("someday")), priority: .backlog)
+        model.toggleCompleted(try XCTUnwrap(model.todos.first { $0.priority == .urgent }).id)
+
+        XCTAssertEqual(model.openSummary, "2 backlog")
+    }
+
+    func testOpenSummaryOfAnEmptyInboxSaysNoOpenTodos() throws {
+        XCTAssertEqual(InboxModel(defaults: try makeIsolatedDefaults()).openSummary, "no open todos")
+    }
 }

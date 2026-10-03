@@ -178,4 +178,58 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         XCTAssertEqual(snapshot.summary.last30Days.costChange, .decrease(fraction: Decimal(1) / 2))
         XCTAssertEqual(snapshot.providers[.codex]?.favorite?.modelName, "GPT 5.6 Sol")
     }
+
+    func testRecordsBesideBilledOnesAreSkipped() async throws {
+        let request = codexUsage(input: 100, output: 20)
+        try workspace.write(
+            [
+                codexMeta(),
+                """
+                {"timestamp":"2026-08-25T11:31:00.000Z","ordinal":2,"type":"response_item","payload":{"type":"function_call","name":"token_count"}}
+                """,
+                """
+                {"timestamp":"2026-08-25T11:32:00.000Z","ordinal":3,"type":"event_msg","payload":{"type":"item_completed","item":{}}}
+                """,
+                codexTurn(),
+                codexTokenCount(last: request, total: request),
+                "",
+            ].joined(separator: "\n"),
+            to: workspace.codexSessions.appending(path: "session.jsonl")
+        )
+        try workspace.write(
+            [
+                """
+                {"parentUuid":null,"isSidechain":false,"promptId":"p","type":"user","message":{"role":"user","content":"assistant usage"}}
+                """,
+                #"{"parentUuid":"u","isSidechain":false,"attachment":{"type":"file"},"type":"attachment"}"#,
+                claudeAssistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":40"#),
+                "",
+            ].joined(separator: "\n"),
+            to: workspace.claudeProjects.appending(path: "project/session.jsonl")
+        )
+        try workspace.write(
+            [
+                #"{"type":"session","version":3,"id":"session","timestamp":"2026-08-25T11:00:00.000Z"}"#,
+                """
+                {"type":"thinking_level_change","id":"high","parentId":null,"timestamp":"2026-08-25T11:30:00.000Z","thinkingLevel":"high"}
+                """,
+                #"{"type":"model_change","id":"model","parentId":"high","timestamp":"2026-08-25T11:31:00.000Z"}"#,
+                """
+                {"type":"message","id":"user","parentId":"model","timestamp":"2026-08-25T11:32:00.000Z","message":{"role":"user","content":[]}}
+                """,
+                """
+                {"type":"message","id":"tool","parentId":"user","timestamp":"2026-08-25T11:33:00.000Z","message":{"role":"toolResult","content":[]}}
+                """,
+                piAssistant(id: "reply", parentID: "tool", model: "model-a", usage: piUsage(input: 10, cost: "0.01")),
+                "",
+            ].joined(separator: "\n"),
+            to: workspace.piSessions.appending(path: "session.jsonl")
+        )
+
+        let report = await makePipeline().run(at: now, providers: Provider.allCases)
+
+        XCTAssertEqual(report.ingestion.malformedLines, [.codex: 0, .claude: 0, .piAgent: 0, .grok: 0])
+        XCTAssertEqual(report.ingestion.events, [.codex: 1, .claude: 1, .piAgent: 1, .grok: 0])
+        XCTAssertEqual(report.snapshot.providers[.piAgent]?.favorite?.reasoningEffort, "high")
+    }
 }

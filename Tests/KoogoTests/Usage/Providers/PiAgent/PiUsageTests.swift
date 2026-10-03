@@ -211,6 +211,30 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         try workspace.write(piModelStore, to: piHome.appending(path: "models-store.json"))
         try workspace.write(piCustomModels, to: piHome.appending(path: "models.json"))
     }
+
+    func testPiThinkingPassesThroughRecordsInAnyLayout() throws {
+        var parser = PiLogParser()
+        let records = [
+            piThinking(id: "high", parentID: nil, level: "high"),
+            #"{"type":"model_change","id":"model","parentId":"high","timestamp":"2026-08-25T11:40:00.000Z"}"#,
+            #"{"id":"reordered","parentId":"model","type":"custom","timestamp":"2026-08-25T11:41:00.000Z"}"#,
+            """
+            {"type":"message","id":"us\\u0065r","parentId":"reordered","timestamp":"2026-08-25T11:45:00.000Z","message":{"role":"user","content":[]}}
+            """,
+        ]
+        for record in records {
+            XCTAssertNil(try parse(record, with: &parser))
+        }
+
+        let event = try XCTUnwrap(
+            try parse(
+                piAssistant(id: "reply", parentID: "user", model: "model-a", usage: piUsage(input: 10, cost: "0.01")),
+                with: &parser
+            )?.event
+        )
+
+        XCTAssertEqual(event.record.modelTurn?.reasoningEffort, "high")
+    }
 }
 
 private let piSessionHeader = """

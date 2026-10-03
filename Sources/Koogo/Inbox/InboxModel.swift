@@ -10,6 +10,15 @@ final class InboxModel {
         didSet { storage.save(todos) }
     }
 
+    var openSummary: String {
+        let open = todos.filter { !$0.isCompleted }
+        let counts = TodoPriority.allCases.reversed().compactMap { priority in
+            let count = open.count { $0.priority == priority }
+            return count > 0 ? "\(count) \(priority.title)" : nil
+        }
+        return counts.isEmpty ? "no open todos" : counts.joined(separator: ", ")
+    }
+
     init(defaults: UserDefaults = .standard) {
         storage = PersistedValue(key: "inbox-todo-items", defaults: defaults)
         todos = storage.load() ?? []

@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import XCTest
 
@@ -246,4 +247,10 @@ extension UsageLineOutcome {
         }
         return id
     }
+}
+
+func allocatedHeapBytes() -> Int {
+    var statistics = malloc_statistics_t()
+    malloc_zone_statistics(malloc_default_zone(), &statistics)
+    return statistics.size_in_use
 }

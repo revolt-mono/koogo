@@ -3,7 +3,7 @@ import XCTest
 
 @testable import Koogo
 
-final class QuotaFormattingTests: XCTestCase {
+final class QuotaSectionTests: XCTestCase {
     func testTimeRemainingIncludesTheNextSmallerUnit() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let cases: [(TimeInterval, String)] = [

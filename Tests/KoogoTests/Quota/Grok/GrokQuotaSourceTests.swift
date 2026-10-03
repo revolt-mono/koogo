@@ -3,7 +3,7 @@ import XCTest
 
 @testable import Koogo
 
-final class GrokQuotaTests: XCTestCase {
+final class GrokQuotaSourceTests: XCTestCase {
     func testFetchInitializesACPAndReadsBillingWithoutAuthenticatingOrCreatingASession() async throws {
         let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let executable = try workspace.makeAgent(

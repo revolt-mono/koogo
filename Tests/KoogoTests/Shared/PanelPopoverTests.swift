@@ -3,7 +3,7 @@ import XCTest
 
 @testable import Koogo
 
-final class PopoverClickBoundaryTests: XCTestCase {
+final class PanelPopoverTests: XCTestCase {
     @MainActor
     func testEachTriggerPressIsIndependentAndPreservesEventMetadata() throws {
         let fixture = Fixture()

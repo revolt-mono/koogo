@@ -4,6 +4,10 @@ enum TodoPriority: String, CaseIterable, Codable {
     case backlog
     case normal
     case urgent
+
+    var title: String {
+        rawValue
+    }
 }
 
 struct TodoText: Codable, Equatable {

@@ -8,7 +8,7 @@ struct InboxView: View {
             TodoEditor { inboxModel.add($0, priority: $1) }
 
             HStack(spacing: 8) {
-                Text(inboxOpenSummary(inboxModel.todos))
+                Text(inboxModel.openSummary)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -39,15 +39,6 @@ struct InboxView: View {
         .padding(.bottom, 32)
         .frame(maxHeight: .infinity, alignment: .top)
     }
-}
-
-func inboxOpenSummary(_ todos: [Todo]) -> String {
-    let open = todos.filter { !$0.isCompleted }
-    let counts = TodoPriority.allCases.reversed().compactMap { priority in
-        let count = open.count { $0.priority == priority }
-        return count > 0 ? "\(count) \(priority.title)" : nil
-    }
-    return counts.isEmpty ? "no open todos" : counts.joined(separator: ", ")
 }
 
 private struct DashedDivider: View {

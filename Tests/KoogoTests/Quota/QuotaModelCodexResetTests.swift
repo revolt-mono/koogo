@@ -3,7 +3,7 @@ import XCTest
 
 @testable import Koogo
 
-final class CodexQuotaResetFlowTests: XCTestCase {
+final class QuotaModelCodexResetTests: XCTestCase {
     @MainActor
     func testConfirmationAndCancellationNeverSendAConsume() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
