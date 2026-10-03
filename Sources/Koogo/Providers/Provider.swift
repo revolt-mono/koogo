@@ -1,3 +1,5 @@
+import Foundation
+
 enum Provider: String, CaseIterable, Sendable, Codable, CodingKeyRepresentable {
     case codex
     case claude
@@ -22,14 +24,16 @@ enum Provider: String, CaseIterable, Sendable, Codable, CodingKeyRepresentable {
         }
     }
 
-    /// The tool's configuration directory, relative to the user's home.
-    var homePath: String {
-        switch self {
-        case .codex: ".codex"
-        case .claude: ".claude"
-        case .piAgent: ".pi/agent"
-        case .grok: ".grok"
-        }
+    /// The tool's configuration directory under the given user home.
+    func home(under root: URL) -> URL {
+        let path =
+            switch self {
+            case .codex: ".codex"
+            case .claude: ".claude"
+            case .piAgent: ".pi/agent"
+            case .grok: ".grok"
+            }
+        return root.appending(path: path, directoryHint: .isDirectory)
     }
 
     var quota: QuotaProvider? {

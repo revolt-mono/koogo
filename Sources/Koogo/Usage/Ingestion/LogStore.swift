@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Synchronization
 
@@ -9,6 +10,7 @@ struct LogStore {
     }
 
     private var entries: [String: Entry] = [:]
+    private var logRoots: [UsageIngestionStats.LogRoot] = []
     private var windowStart = Date.distantPast
 
     /// Brings the store in line with the files under the roots. Returns true when events may have changed.
@@ -27,10 +29,22 @@ struct LogStore {
         }
         self.windowStart = windowStart
 
+        let logRoots = roots.map {
+            UsageIngestionStats.LogRoot(
+                provider: $0.provider,
+                path: $0.url.path,
+                exists: FileManager.default.fileExists(atPath: $0.url.path)
+            )
+        }
+        if logRoots != self.logRoots {
+            self.logRoots = logRoots
+            changed = true
+        }
+
         var seenPaths = Set<String>()
-        var newFiles: [(path: String, provider: Provider)] = []
+        var newFiles: [(path: String, root: UsageLogRoot)] = []
         for root in roots {
-            LogDiscovery.walk(root) { path, metadata in
+            Self.walk(root) { path, metadata in
                 guard metadata.modificationDate >= windowStart else {
                     return
                 }
@@ -38,7 +52,7 @@ struct LogStore {
                 if let fileChanged = entries[path]?.log.sync(observed: metadata) {
                     changed = fileChanged || changed
                 } else {
-                    newFiles.append((path, root.provider))
+                    newFiles.append((path, root))
                 }
             }
         }
@@ -56,7 +70,7 @@ struct LogStore {
 
     /// Visits each request once and reports what every tracked log contributed. A request id logged in
     /// several files keeps its most complete copy.
-    func collect(logRoots: [UsageIngestionStats.LogRoot], _ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
+    func collect(_ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
         var trackedFiles = EnumMap<Provider, Int> { _ in 0 }
         var malformedLines = EnumMap<Provider, Int> { _ in 0 }
         var unpricedModels = Set<String>()
@@ -100,20 +114,49 @@ struct LogStore {
         )
     }
 
+    /// Visits every matching regular file under the root, skipping hidden entries below it.
+    private static func walk(_ root: UsageLogRoot, _ body: (String, UsageFileMetadata) -> Void) {
+        var paths: [UnsafeMutablePointer<CChar>?] = [strdup(root.url.path), nil]
+        defer { free(paths[0]) }
+        guard let stream = fts_open(&paths, FTS_PHYSICAL | FTS_COMFOLLOW | FTS_NOCHDIR, nil) else {
+            return
+        }
+        defer { fts_close(stream) }
+        while let entry = fts_read(stream) {
+            let info = Int32(entry.pointee.fts_info)
+            let status = entry.pointee.fts_statp.pointee
+            let isHidden =
+                entry.pointee.fts_name == CChar(UInt8(ascii: ".")) || status.st_flags & UInt32(UF_HIDDEN) != 0
+            if entry.pointee.fts_level > 0, isHidden {
+                if info == FTS_D {
+                    fts_set(stream, entry, FTS_SKIP)
+                }
+                continue
+            }
+            guard info == FTS_F, let metadata = UsageFileMetadata(status: status) else {
+                continue
+            }
+            let path = String(cString: entry.pointee.fts_path)
+            if root.match.matches(path: path) {
+                body(path, metadata)
+            }
+        }
+    }
+
     private static func open(
-        _ files: [(path: String, provider: Provider)],
+        _ files: [(path: String, root: UsageLogRoot)],
         since windowStart: Date
     ) -> [String: Entry] {
         let opened = Mutex<[String: Entry]>([:])
         let nextFile = Atomic(0)
         DispatchQueue.concurrentPerform(iterations: min(files.count, 4)) { _ in
             while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
-                let (path, provider) = files[index]
+                let (path, root) = files[index]
                 let url = URL(filePath: path, directoryHint: .notDirectory)
-                guard let log = provider.openUsageLog(at: url, since: windowStart) else {
+                guard let log = root.open(url, windowStart) else {
                     continue
                 }
-                opened.withLock { $0[path] = Entry(provider: provider, log: log) }
+                opened.withLock { $0[path] = Entry(provider: root.provider, log: log) }
             }
         }
         return opened.withLock { $0 }

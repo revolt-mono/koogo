@@ -22,7 +22,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
         let before = allocatedHeapBytes()
         var peak = before
         var visited = 0
-        let stats = store.collect(logRoots: []) { _ in
+        let stats = store.collect { _ in
             visited += 1
             if visited.isMultiple(of: 1_000) {
                 peak = max(peak, allocatedHeapBytes())

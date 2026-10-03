@@ -35,24 +35,14 @@ actor UsagePipeline {
             requested.contains($0) && FileManager.default.fileExists(atPath: $0.home(under: home).path)
         }
         let roots = providers.flatMap { $0.usageLogRoots(home: home) }
-        let logRoots = roots.map {
-            UsageIngestionStats.LogRoot(
-                provider: $0.provider,
-                path: $0.url.path,
-                exists: FileManager.default.fileExists(atPath: $0.url.path)
-            )
-        }
         let logsChanged = store.sync(roots: roots, since: intervals.historyStart)
-        let namesChanged =
-            providers.contains(.piAgent) && names.piCatalog.refresh(home: Provider.piAgent.home(under: home))
-        if !logsChanged, !namesChanged, let lastRun, lastRun.intervals == intervals, lastRun.providers == providers,
-            lastRun.report.ingestion.logRoots == logRoots
-        {
+        let namesChanged = names.refresh(home: home, providers: providers)
+        if !logsChanged, !namesChanged, let lastRun, lastRun.intervals == intervals, lastRun.providers == providers {
             return lastRun.report
         }
 
         var builder = UsageSnapshotBuilder(providers: Set(providers), intervals: intervals)
-        let ingestion = store.collect(logRoots: logRoots) { builder.add($0) }
+        let ingestion = store.collect { builder.add($0) }
         log(ingestion, duration: ContinuousClock.now - started)
 
         let report = UsageReport(ingestion: ingestion, snapshot: builder.snapshot(modelName: names.name))

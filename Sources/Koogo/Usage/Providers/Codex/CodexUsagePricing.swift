@@ -1,36 +1,5 @@
 import Foundation
 
-struct CodexTokenUsage: Equatable, Sendable {
-    let input: UInt64
-    let cachedInput: UInt64
-    let cacheWrite: UInt64
-    let output: UInt64
-    let processed: UInt64
-
-    init?(
-        input: UInt64,
-        cachedInput: UInt64,
-        cacheWrite: UInt64,
-        output: UInt64,
-        reasoningOutput: UInt64,
-        processed: UInt64
-    ) {
-        let (cachedAndWritten, overflow) = cachedInput.addingReportingOverflow(cacheWrite)
-        guard !overflow, cachedAndWritten <= input, reasoningOutput <= output else {
-            return nil
-        }
-        self.input = input
-        self.cachedInput = cachedInput
-        self.cacheWrite = cacheWrite
-        self.output = output
-        self.processed = processed
-    }
-
-    var uncachedInput: UInt64 {
-        input - cachedInput - cacheWrite
-    }
-}
-
 enum CodexUsagePricing {
     private static let longContextThreshold: UInt64 = 272_000
 

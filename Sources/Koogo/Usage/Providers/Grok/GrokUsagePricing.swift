@@ -1,27 +1,5 @@
 import Foundation
 
-struct GrokTokenUsage: Sendable {
-    /// Full prompt input, cache reads included.
-    let input: UInt64
-    let cachedInput: UInt64
-    let output: UInt64
-    let modelCalls: UInt64
-
-    init?(input: UInt64, cachedInput: UInt64, output: UInt64, modelCalls: UInt64) {
-        guard cachedInput <= input else {
-            return nil
-        }
-        self.input = input
-        self.cachedInput = cachedInput
-        self.output = output
-        self.modelCalls = modelCalls
-    }
-
-    var uncachedInput: UInt64 {
-        input - cachedInput
-    }
-}
-
 enum GrokUsagePricing {
     private struct ModelPrice: Sendable {
         let displayName: String
