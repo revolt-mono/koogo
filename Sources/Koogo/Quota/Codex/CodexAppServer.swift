@@ -8,6 +8,14 @@ struct CodexAppServer: Sendable {
         case sessionFailed
         case methodNotFound
         case rpc(code: Int)
+
+        var unavailability: QuotaUnavailability {
+            switch self {
+            case .binaryNotFound: .binaryNotFound
+            case .timedOut: .timedOut
+            case .sessionFailed, .methodNotFound, .rpc: .sessionFailed
+            }
+        }
     }
 
     enum CallError: Error, Equatable {

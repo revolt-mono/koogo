@@ -22,11 +22,7 @@ struct CodexQuotaSource: QuotaSource {
             let response: CodexQuotaResponse = try await appServer.call("account/rateLimits/read")
             return response.snapshot.map(QuotaReading.available) ?? .unavailable(.emptyLimits)
         } catch {
-            return switch error.failure {
-            case .binaryNotFound: .unavailable(.binaryNotFound)
-            case .timedOut: .unavailable(.timedOut)
-            case .sessionFailed, .methodNotFound, .rpc: .unavailable(.sessionFailed)
-            }
+            return .unavailable(error.failure.unavailability)
         }
     }
 

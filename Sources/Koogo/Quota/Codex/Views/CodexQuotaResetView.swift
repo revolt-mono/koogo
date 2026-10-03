@@ -175,3 +175,21 @@ private struct CodexQuotaResetCreditRow: View {
         }
     }
 }
+
+private struct QuotaRefreshButton: View {
+    let isDisabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 11, weight: .medium))
+                .frame(width: 16, height: 16)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .accessibilityLabel("Refresh")
+        .disabled(isDisabled)
+    }
+}

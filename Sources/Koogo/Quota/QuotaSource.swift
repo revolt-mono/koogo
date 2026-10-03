@@ -3,7 +3,7 @@ protocol QuotaSource: Sendable {
 }
 
 extension EnumMap where Key == QuotaProvider, Value == any QuotaSource {
-    init(codex: CodexQuotaSource, claude: any QuotaSource, grok: any QuotaSource) {
+    init(codex: any QuotaSource, claude: any QuotaSource, grok: any QuotaSource) {
         self.init { provider in
             switch provider {
             case .codex: codex
