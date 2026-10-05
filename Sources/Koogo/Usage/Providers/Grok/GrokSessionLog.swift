@@ -1,7 +1,6 @@
 import Foundation
 
-/// One Grok session directory: `updates.jsonl` bills each prompt, and `chat_history.jsonl` records
-/// the reasoning effort the surviving branch ran with.
+/// One Grok session directory: `updates.jsonl` bills each prompt, and `chat_history.jsonl` records the reasoning effort the surviving branch ran with.
 struct GrokSessionLog: TrackedLog {
     private var updates: AppendOnlyFile
     private var turns: ParsedLines<GrokLogParser>
@@ -17,8 +16,7 @@ struct GrokSessionLog: TrackedLog {
         return tally
     }
 
-    /// Admits `updates.jsonl` once its session has a readable summary. A subagent session is skipped,
-    /// since the parent turn that spawned it already includes its usage.
+    /// Admits `updates.jsonl` once its session has a readable summary. A subagent session is skipped, since the parent turn that spawned it already includes its usage.
     init?(_ url: URL, since windowStart: Date) {
         let sessionURL = url.deletingLastPathComponent()
         guard let data = try? Data(contentsOf: sessionURL.appending(path: "summary.json")),
@@ -71,8 +69,7 @@ struct GrokSessionLog: TrackedLog {
         return read != .nothingNew
     }
 
-    /// Attaches each surviving prompt's voted effort to its billed turn, or detaches it once the history no
-    /// longer names one.
+    /// Attaches each surviving prompt's voted effort to its billed turn, or detaches it once the history no longer names one.
     private mutating func joinEfforts() {
         for (promptIndex, id) in turns.parser.promptTurns {
             guard let event = turns.events[id], let turn = event.record.modelTurn else {

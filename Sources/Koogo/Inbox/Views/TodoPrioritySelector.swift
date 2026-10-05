@@ -1,23 +1,5 @@
 import SwiftUI
 
-private extension TodoPriority {
-    var previous: Self {
-        switch self {
-        case .backlog: .urgent
-        case .normal: .backlog
-        case .urgent: .normal
-        }
-    }
-
-    var next: Self {
-        switch self {
-        case .backlog: .normal
-        case .normal: .urgent
-        case .urgent: .backlog
-        }
-    }
-}
-
 struct TodoPrioritySelector: View {
     @Binding var selection: TodoPriority
 
@@ -36,8 +18,7 @@ struct TodoPrioritySelector: View {
                         isSelected: isSelected,
                         progress: isSelected ? 1 : 0
                     )
-                    // Inside the label so the morph animates even when the
-                    // pressed button re-renders in its gesture's transaction.
+                    // Inside the label so the morph animates even when the pressed button re-renders in its gesture's transaction.
                     .motionAnimation(.spring(response: 0.42, dampingFraction: 0.86), value: isSelected)
                 }
                 .buttonStyle(TodoPriorityButtonStyle())
@@ -71,6 +52,24 @@ struct TodoPrioritySelector: View {
         selection = destination
         focusedPriority = destination
         return .handled
+    }
+}
+
+private extension TodoPriority {
+    var previous: Self {
+        switch self {
+        case .backlog: .urgent
+        case .normal: .backlog
+        case .urgent: .normal
+        }
+    }
+
+    var next: Self {
+        switch self {
+        case .backlog: .normal
+        case .normal: .urgent
+        case .urgent: .backlog
+        }
     }
 }
 

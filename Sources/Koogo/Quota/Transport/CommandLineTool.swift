@@ -50,8 +50,7 @@ struct CommandLineTool: Sendable {
             process.standardInput = input
             process.standardOutput = output
             process.standardError = FileHandle.nullDevice
-            // A fixed environment keeps the launching shell's switches, such as a Claude Code session's
-            // CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, out of the tool. HOME and USER locate its credentials.
+            // A fixed environment keeps the launching shell's switches, such as a Claude Code session's CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, out of the tool. HOME and USER locate its credentials.
             let searchPath = ([executable.deletingLastPathComponent()] + Self.installDirectories).map(\.path)
             process.environment = [
                 "HOME": FileManager.default.homeDirectoryForCurrentUser.path,

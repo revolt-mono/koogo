@@ -15,8 +15,7 @@ struct UsageRecord: Sendable {
         let reasoningEffort: String?
     }
 
-    /// Held as seconds because `Date` has a resilient layout, which routes every copy of a record
-    /// through runtime value witnesses.
+    /// Held as seconds because `Date` has a resilient layout, which routes every copy of a record through runtime value witnesses.
     private let secondsSinceReferenceDate: TimeInterval
     let processedTokens: UInt64
     let costUSD: Decimal
@@ -36,8 +35,7 @@ struct UsageRecord: Sendable {
 
 /// What identifies one billed request across log copies. Each provider has one rule.
 enum UsageEventID: Hashable, Sendable {
-    /// A forked thread replays its parent's records under new thread ids, ordinals, and timestamps,
-    /// so only the turn and its running total identify a request.
+    /// A forked thread replays its parent's records under new thread ids, ordinals, and timestamps, so only the turn and its running total identify a request.
     case codex(turnID: String, cumulativeTotal: UInt64)
     case claude(messageID: String, requestID: String)
     case piAgent(entryID: String)
@@ -55,8 +53,7 @@ enum UsageEventID: Hashable, Sendable {
 }
 
 struct UsageEvent: Sendable {
-    /// How complete one copy of a request is. A streamed reply grows its output, and a rewritten line
-    /// can add metadata such as speed, cache split, or reasoning effort.
+    /// How complete one copy of a request is. A streamed reply grows its output, and a rewritten line can add metadata such as speed, cache split, or reasoning effort.
     struct Revision: Comparable, Sendable {
         let outputTokens: UInt64
         let metadataCompleteness: Int

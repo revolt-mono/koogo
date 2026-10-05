@@ -22,8 +22,7 @@ final class ProviderPreferences {
         order.filter(usageEnabled.contains)
     }
 
-    /// Providers that fetch quota, in display order. Quota renders inside a provider's usage card, so a
-    /// provider hidden from usage fetches none.
+    /// Providers that fetch quota, in display order. Quota renders inside a provider's usage card, so a provider hidden from usage fetches none.
     var quotaProviders: [QuotaProvider] {
         usageProviders.compactMap(\.quota).filter(quotaEnabled.contains)
     }

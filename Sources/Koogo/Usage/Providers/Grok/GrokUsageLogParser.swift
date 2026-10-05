@@ -1,11 +1,9 @@
 import Foundation
 
-/// Reads the `turn_completed` updates that Grok appends to each session's `updates.jsonl`.
-/// Each one sums a whole prompt per model, subagents included.
+/// Reads the `turn_completed` updates that Grok appends to each session's `updates.jsonl`. Each one sums a whole prompt per model, subagents included.
 struct GrokLogParser: UsageLogParser {
     private var promptIndex: UInt64?
-    /// Billed turns of the surviving branch by prompt. A rewind abandons later prompts, which stay billed
-    /// but no longer match the rewritten response history.
+    /// Billed turns of the surviving branch by prompt. A rewind abandons later prompts, which stay billed but no longer match the rewritten response history.
     private(set) var promptTurns: [UInt64: UsageEventID] = [:]
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {

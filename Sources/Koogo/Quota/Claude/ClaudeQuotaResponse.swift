@@ -1,7 +1,6 @@
 import Foundation
 
-/// The `get_usage` control reply of the Claude CLI's stream-json protocol. The plan windows are the fields
-/// the CLI keeps even when it answers from its own cached snapshot; the raw server rows are dropped then.
+/// The `get_usage` control reply of the Claude CLI's stream-json protocol. The plan windows are the fields the CLI keeps even when it answers from its own cached snapshot; the raw server rows are dropped then.
 struct ClaudeQuotaResponse: Decodable {
     struct Invalid: Error {}
 

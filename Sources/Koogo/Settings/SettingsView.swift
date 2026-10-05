@@ -28,8 +28,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        // The window already fits the form's ideal height; disabling scrolling keeps a sub-point
-        // rounding overflow from showing a scroller.
+        // The window already fits the form's ideal height; disabling scrolling keeps a sub-point rounding overflow from showing a scroller.
         .scrollDisabled(true)
         .frame(width: 440)
         .fixedSize(horizontal: false, vertical: true)
@@ -44,8 +43,7 @@ struct SettingsView: View {
     }
 }
 
-/// Drops the full-size content view style from the hosting window. With that style, a switch's glass
-/// press interaction on macOS 26 leaves the title bar unable to start a window drag.
+/// Drops the full-size content view style from the hosting window. With that style, a switch's glass press interaction on macOS 26 leaves the title bar unable to start a window drag.
 private struct SettingsWindowStyle: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowStyleView {
         WindowStyleView()

@@ -15,8 +15,7 @@ protocol LineConsumer {
     mutating func consume(_ line: UnsafeRawBufferPointer)
 }
 
-/// Incremental reader of a newline-delimited file. Complete lines are handed out once; a partial
-/// trailing line waits for its newline. A replaced or truncated file restarts from its first byte.
+/// Incremental reader of a newline-delimited file. Complete lines are handed out once; a partial trailing line waits for its newline. A replaced or truncated file restarts from its first byte.
 struct AppendOnlyFile: Sendable {
     private static var parsedTailSize: Int { 64 }
     private static var readSize: Int { 1 << 18 }
@@ -52,8 +51,7 @@ struct AppendOnlyFile: Sendable {
         return observed.size > metadata.size
     }
 
-    /// Hands every complete line not yet consumed to the consumer, restarting it first when the file
-    /// no longer continues the bytes read so far.
+    /// Hands every complete line not yet consumed to the consumer, restarting it first when the file no longer continues the bytes read so far.
     mutating func read(into consumer: inout some LineConsumer) -> FileRead {
         guard let file = try? FileDescriptor.open(FilePath(url.path), .readOnly) else {
             return .unreadable

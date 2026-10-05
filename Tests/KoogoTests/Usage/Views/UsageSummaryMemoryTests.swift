@@ -34,8 +34,7 @@ final class UsageSummaryMemoryTests: XCTestCase {
             host.rootView = summaryView(step: step)
             try await Task.sleep(for: .milliseconds(400))
         }
-        // Font-cache entries are reachable, so a leaks scan misses this growth. Count live
-        // heap allocations instead of GPU scratch buffers, which are reclaimed after idle.
+        // Font-cache entries are reachable, so a leaks scan misses this growth. Count live heap allocations instead of GPU scratch buffers, which are reclaimed after idle.
         XCTAssertLessThan(allocatedHeapBytes(), before + 16 * 1_024 * 1_024)
     }
 

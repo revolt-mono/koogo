@@ -1,7 +1,6 @@
 import Foundation
 
-/// Delegates credentials and billing to Grok's ACP server. Initialization performs the CLI's
-/// unattended authentication refresh; billing needs neither a session nor a model prompt.
+/// Delegates credentials and billing to Grok's ACP server. Initialization performs the CLI's unattended authentication refresh; billing needs neither a session nor a model prompt.
 struct GrokQuotaSource: QuotaSource {
     private let tool: CommandLineTool
 

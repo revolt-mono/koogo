@@ -68,8 +68,7 @@ struct LogStore {
         return changed
     }
 
-    /// Visits each request once and reports what every tracked log contributed. A request id logged in
-    /// several files keeps its most complete copy.
+    /// Visits each request once and reports what every tracked log contributed. A request id logged in several files keeps its most complete copy.
     func collect(_ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
         var trackedFiles = EnumMap<Provider, Int> { _ in 0 }
         var malformedLines = EnumMap<Provider, Int> { _ in 0 }

@@ -10,8 +10,7 @@ extension View {
         modifier(LoadingShimmer())
     }
 
-    /// Rolls changed digits in place. The transition is rasterized so each animation scale does not enter
-    /// the system font cache.
+    /// Rolls changed digits in place. The transition is rasterized so each animation scale does not enter the system font cache.
     func numericTextTransition() -> some View {
         contentTransition(.numericText())
             .environment(\.contentTransitionAddsDrawingGroup, true)

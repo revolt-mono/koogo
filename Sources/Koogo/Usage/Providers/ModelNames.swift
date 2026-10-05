@@ -1,7 +1,6 @@
 import Foundation
 
-/// Display names for logged model ids: the price tables name Codex, Claude, and Grok models, and Pi's
-/// catalog names Pi models. An unknown model shows its id.
+/// Display names for logged model ids: the price tables name Codex, Claude, and Grok models, and Pi's catalog names Pi models. An unknown model shows its id.
 struct ModelNames: Sendable {
     private var piCatalog = PiModelCatalog()
 

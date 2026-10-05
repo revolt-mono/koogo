@@ -29,8 +29,7 @@ struct ClaudeQuotaSource: QuotaSource {
                 Self.arguments,
                 in: URL(filePath: "/tmp", directoryHint: .isDirectory)
             ) { input, output in
-                // The CLI shuts down and skips network reads once its input closes, so the request must
-                // stay open until the reply arrives.
+                // The CLI shuts down and skips network reads once its input closes, so the request must stay open until the reply arrives.
                 try input.write(contentsOf: Self.request)
                 let decoder = JSONDecoder()
                 decoder.keyDecodingStrategy = .convertFromSnakeCase
