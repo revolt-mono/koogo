@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import XCTest
 
@@ -41,4 +42,10 @@ func waitUntil(
         try await Task.sleep(for: .milliseconds(10))
     }
     XCTAssertTrue(condition(), "condition not met within timeout", file: file, line: line)
+}
+
+func allocatedHeapBytes() -> Int {
+    var statistics = malloc_statistics_t()
+    malloc_zone_statistics(malloc_default_zone(), &statistics)
+    return statistics.size_in_use
 }
