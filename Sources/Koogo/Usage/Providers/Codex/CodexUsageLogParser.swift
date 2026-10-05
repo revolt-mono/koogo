@@ -1,6 +1,6 @@
 import Foundation
 
-struct CodexLogParser: UsageLogParser {
+struct CodexUsageLogParser: UsageLogParser {
     private var turn: CodexTurn?
     private var previousTotalUsage: CodexTokenUsage?
 

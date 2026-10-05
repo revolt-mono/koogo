@@ -5,7 +5,7 @@ import XCTest
 
 final class GrokUsageTests: UsageWorkspaceTestCase {
     func testParserPricesEveryModelAndFavorsTheMostCalledOne() throws {
-        var parser = GrokLogParser()
+        var parser = GrokUsageLogParser()
 
         let event = try XCTUnwrap(
             try parse(
@@ -26,7 +26,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
     }
 
     func testParserIgnoresUpdatesWithoutUsage() {
-        var parser = GrokLogParser()
+        var parser = GrokUsageLogParser()
         let lines = [
             """
             {"timestamp":1,"method":"_x.ai/session/update","params":{"sessionId":"session","update":{"sessionUpdate":"turn_completed","prompt_id":"prompt","stop_reason":"cancelled"},"_meta":{"eventId":"session-1","agentTimestampMs":1787680800000}}}

@@ -1,7 +1,6 @@
 import Foundation
 
 extension Provider {
-    /// Directories under the provider's home that hold usage logs.
     var usageLogDirectories: [String] {
         switch self {
         case .codex: ["sessions", "archived_sessions"]
@@ -19,9 +18,9 @@ extension Provider {
             }
         let open: @Sendable (URL, Date) -> (any TrackedLog)? =
             switch self {
-            case .codex: { ParsedLog<CodexLogParser>($0, since: $1) }
-            case .claude: { ParsedLog<ClaudeLogParser>($0, since: $1) }
-            case .piAgent: { ParsedLog<PiLogParser>($0, since: $1) }
+            case .codex: { ParsedLog<CodexUsageLogParser>($0, since: $1) }
+            case .claude: { ParsedLog<ClaudeUsageLogParser>($0, since: $1) }
+            case .piAgent: { ParsedLog<PiUsageLogParser>($0, since: $1) }
             case .grok: { GrokSessionLog($0, since: $1) }
             }
         return usageLogDirectories.map {

@@ -5,7 +5,7 @@ import XCTest
 
 final class ClaudeUsageTests: UsageWorkspaceTestCase {
     func testClaudeParsesCacheDurationsSpeedGeoSearchAndMissingEffort() throws {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let line = claudeAssistant(
             model: "claude-opus-5",
             usage: """
@@ -22,7 +22,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     }
 
     func testClaudePreservesAggregateCacheCreationWithoutInventingDuration() throws {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let line = claudeAssistant(
             model: "claude-opus-5",
             usage: #""input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40"#
@@ -35,7 +35,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     }
 
     func testClaudeRejectsInconsistentCacheSplit() {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let line = claudeAssistant(
             model: "claude-opus-5",
             usage: """
@@ -47,7 +47,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     }
 
     func testClaudeRejectsRecordsWithoutBothStableIDs() {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let line = """
             {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"output_tokens":40}}}
             """
@@ -56,7 +56,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     }
 
     func testClaudeSkipsZeroUsageSyntheticReplies() throws {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let reply = claudeAssistant(
             model: "<synthetic>",
             usage: #""input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0"#
@@ -68,7 +68,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     }
 
     func testClaudeRejectsOverflowingTokenFields() {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let line = claudeAssistant(
             model: "claude-opus-5",
             usage: """
@@ -86,7 +86,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             ("claude-haiku-4-5", #""input_tokens":10,"output_tokens":40,"inference_geo":"us""#),
             ("claude-opus-5", #""input_tokens":10,"output_tokens":40,"speed":"turbo""#),
         ] {
-            var parser = ClaudeLogParser()
+            var parser = ClaudeUsageLogParser()
             let outcome = try parse(claudeAssistant(model: model, usage: usage), with: &parser)
 
             XCTAssertEqual(outcome?.unpricedModelID, model)
@@ -108,7 +108,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             ),
             claudeAssistant(model: "claude-opus-5", usage: tokens, effort: "high"),
         ] {
-            var parser = ClaudeLogParser()
+            var parser = ClaudeUsageLogParser()
             let bareCopy = try XCTUnwrap(try parse(bare, with: &parser)?.event)
             let detailedCopy = try XCTUnwrap(try parse(detailed, with: &parser)?.event)
 

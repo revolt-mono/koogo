@@ -1,6 +1,6 @@
 import Foundation
 
-struct PiLogParser: UsageLogParser {
+struct PiUsageLogParser: UsageLogParser {
     private var thinkingByEntry: [String: String] = [:]
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {

@@ -1,6 +1,6 @@
 import Foundation
 
-struct ClaudeLogParser: UsageLogParser {
+struct ClaudeUsageLogParser: UsageLogParser {
     func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         guard let reply = try ClaudeAssistantReply(line) else {
             return nil

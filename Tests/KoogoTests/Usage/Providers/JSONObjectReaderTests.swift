@@ -5,7 +5,7 @@ import XCTest
 
 final class JSONObjectReaderTests: XCTestCase {
     func testCodexReadsRecordsWhoseKindDoesNotLeadTheLine() throws {
-        var parser = CodexLogParser()
+        var parser = CodexUsageLogParser()
         let request = codexUsage(input: 100, output: 20)
         XCTAssertNil(
             try parse(
@@ -28,7 +28,7 @@ final class JSONObjectReaderTests: XCTestCase {
     }
 
     func testSkippedValuesMayHoldEscapesAndBrackets() throws {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let content = #"""
             [{"type":"text","text":"a \"quoted\" } ] { [ path\\\\"},{"type":"tool_use","input":{"k":[1,{"v":"\\\""}]}}]
             """#
@@ -42,7 +42,7 @@ final class JSONObjectReaderTests: XCTestCase {
     }
 
     func testEscapedKeysAndRecordKindsMatchDecodedText() throws {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let line = claudeAssistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":5"#)
             .replacingOccurrences(of: #""type":"assistant""#, with: #""ty\u0070e":"ass\u0069stant""#)
             .replacingOccurrences(of: #""input_tokens""#, with: #""input_\u0074okens""#)
@@ -53,14 +53,14 @@ final class JSONObjectReaderTests: XCTestCase {
     func testSimilarAndNonStringRecordKindsAreSkipped() throws {
         let line = claudeAssistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":5"#)
         for kind in [#""assistant-extra""#, #""assistanx""#, #""assistant\t""#, "null", "1", #"["assistant"]"#] {
-            var parser = ClaudeLogParser()
+            var parser = ClaudeUsageLogParser()
             let changed = line.replacingOccurrences(of: #""type":"assistant""#, with: "\"type\":\(kind)")
             XCTAssertNil(try parse(changed, with: &parser), kind)
         }
     }
 
     func testWholeNumbersInAnyJSONFormAreRead() throws {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let line = claudeAssistant(
             model: "claude-opus-5",
             usage: #""input_tokens":1e1,"output_tokens":5.0,"cache_read_input_tokens":0e0"#
@@ -70,7 +70,7 @@ final class JSONObjectReaderTests: XCTestCase {
     }
 
     func testIntegersInUnusualFormsAreReadAsJSON() throws {
-        var parser = PiLogParser()
+        var parser = PiUsageLogParser()
         for (usage, tokens) in [
             (#"{"totalTokens":-0,"cost":{"total":0.01}}"#, UInt64(0)),
             (#"{"totalTokens":100000000000000000000e-20,"cost":{"total":0.01}}"#, 1),
@@ -81,7 +81,7 @@ final class JSONObjectReaderTests: XCTestCase {
     }
 
     func testMalformedReadValuesMakeARecordMalformed() {
-        var parser = PiLogParser()
+        var parser = PiUsageLogParser()
         for usage in [
             #"{"totalTokens":01,"cost":{"total":0.01}}"#,
             #"{"totalTokens":1,"cost":{"total":00.01}}"#,
@@ -101,7 +101,7 @@ final class JSONObjectReaderTests: XCTestCase {
     }
 
     func testTrailingDataMakesARecordMalformed() {
-        var parser = ClaudeLogParser()
+        var parser = ClaudeUsageLogParser()
         let line = claudeAssistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":5"#)
 
         XCTAssertThrowsError(try parse(line + " garbage", with: &parser))

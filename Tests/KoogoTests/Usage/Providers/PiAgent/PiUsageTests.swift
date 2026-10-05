@@ -5,7 +5,7 @@ import XCTest
 
 final class PiUsageTests: UsageWorkspaceTestCase {
     func testParserUsesBranchLocalThinkingAndLoggedUsage() throws {
-        var parser = PiLogParser()
+        var parser = PiUsageLogParser()
         for record in [piSessionHeader, piThinking(id: "high", parentID: nil, level: "high"), piUser] {
             XCTAssertNil(try parse(record, with: &parser))
         }
@@ -39,7 +39,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     }
 
     func testParserIncludesAuxiliaryUsageWithoutFavoriteMetadata() throws {
-        var parser = PiLogParser()
+        var parser = PiUsageLogParser()
         _ = try parse(piSessionHeader, with: &parser)
         let records = [
             """
@@ -60,7 +60,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     }
 
     func testParserUsesProviderTotalTokens() throws {
-        var parser = PiLogParser()
+        var parser = PiUsageLogParser()
         let log = """
             {"type":"compaction","id":"compaction","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","usage":{"input":10,"output":20,"cacheRead":30,"cacheWrite":40,"totalTokens":125,"cost":{"total":1}}}
             """
@@ -69,7 +69,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     }
 
     func testParserKeepsZeroUsageAssistantTurnsForFavorites() throws {
-        var parser = PiLogParser()
+        var parser = PiUsageLogParser()
 
         let event = try XCTUnwrap(
             try parse(
@@ -213,7 +213,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     }
 
     func testPiThinkingPassesThroughRecordsInAnyLayout() throws {
-        var parser = PiLogParser()
+        var parser = PiUsageLogParser()
         let records = [
             piThinking(id: "high", parentID: nil, level: "high"),
             #"{"type":"model_change","id":"model","parentId":"high","timestamp":"2026-08-25T11:40:00.000Z"}"#,

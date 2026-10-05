@@ -5,7 +5,7 @@ import XCTest
 
 final class CodexUsageTests: UsageWorkspaceTestCase {
     func testCodexUsesRequestUsageAndSkipsRepeatedSnapshots() throws {
-        var parser = CodexLogParser()
+        var parser = CodexUsageLogParser()
         XCTAssertNil(try parse(codexMeta(), with: &parser))
         XCTAssertNil(try parse(codexTurn(), with: &parser))
 
@@ -47,7 +47,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     }
 
     func testCodexTracksCumulativeBaselineBeforeTheFirstTurnContext() throws {
-        var parser = CodexLogParser()
+        var parser = CodexUsageLogParser()
         let baseline = codexUsage(input: 100, output: 20)
         XCTAssertNil(try parse(codexMeta(), with: &parser))
         XCTAssertNil(try parse(codexTokenCount(last: baseline, total: baseline), with: &parser))
@@ -281,8 +281,8 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     }
 }
 
-private func codexParserInTurn(model: String = "gpt-5.6-sol", effort: String = "high") -> CodexLogParser {
-    var parser = CodexLogParser()
+private func codexParserInTurn(model: String = "gpt-5.6-sol", effort: String = "high") -> CodexUsageLogParser {
+    var parser = CodexUsageLogParser()
     _ = try? parse(codexMeta(), with: &parser)
     _ = try? parse(codexTurn(model: model, effort: effort), with: &parser)
     return parser

@@ -3,7 +3,7 @@ import Foundation
 /// One Grok session directory: `updates.jsonl` bills each prompt, and `chat_history.jsonl` records the reasoning effort the surviving branch ran with.
 struct GrokSessionLog: TrackedLog {
     private var updates: AppendOnlyFile
-    private var turns: ParsedLines<GrokLogParser>
+    private var turns: ParsedLines<GrokUsageLogParser>
     private var history: AppendOnlyFile?
     private let historyURL: URL
     private var efforts = GrokChatHistory()
