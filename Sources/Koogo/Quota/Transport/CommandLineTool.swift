@@ -72,14 +72,3 @@ struct CommandLineTool: Sendable {
         }
     }
 }
-
-extension QuotaUnavailability {
-    init(_ error: any Error) {
-        self =
-            switch error {
-            case CommandLineTool.Failure.notFound: .binaryNotFound
-            case CommandLineTool.Failure.timedOut: .timedOut
-            default: .sessionFailed
-            }
-    }
-}
