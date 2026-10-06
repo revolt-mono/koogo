@@ -88,19 +88,7 @@ private struct ProviderCards: View {
         }
         .contentMargins(.vertical, Self.spacing, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)
-        .mask {
-            HStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                        .frame(height: Self.spacing)
-                    Rectangle()
-                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                        .frame(height: Self.spacing)
-                }
-                Rectangle()
-                    .frame(width: Self.inset)
-            }
-        }
+        .scrollEdgeFade(height: Self.spacing, trailingInset: Self.inset)
         .frame(height: min(visibleHeight.rounded(.up), heightLimit))
     }
 }

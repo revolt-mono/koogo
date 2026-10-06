@@ -87,7 +87,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             events: [event],
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
         )
-        XCTAssertEqual(snapshot.providers[.piAgent]?.last30Days, UsagePeriodSnapshot())
+        XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.last30Days].total, UsagePeriodSnapshot())
         XCTAssertEqual(
             snapshot.providers[.piAgent]?.favorite,
             ProviderUsageSnapshot.Favorite(modelName: "free-model", reasoningEffort: nil)
@@ -113,8 +113,16 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         try workspace.write(contents, to: workspace.piSessions.appending(path: "copy/session.jsonl"))
         let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
-        XCTAssertEqual(snapshot.providers[.piAgent]?.today.processedTokens, 210)
-        XCTAssertEqual(snapshot.providers[.piAgent]?.today.costUSD, Decimal(string: "0.21"))
+        XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.processedTokens, 210)
+        XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.costUSD, Decimal(string: "0.21"))
+        let models = try XCTUnwrap(snapshot.providers[.piAgent]?.periods[.today].models)
+        XCTAssertEqual(models.map(\.id), [nil, ModelID("provider/model-a"), ModelID("provider/model-b")])
+        XCTAssertEqual(models.map(\.modelName), ["Unattributed", "Readable Model A", "Preferred Model B"])
+        XCTAssertEqual(models.map(\.usage.processedTokens), [150, 30, 30])
+        XCTAssertEqual(
+            models.map(\.usage.costUSD),
+            [Decimal(string: "0.15"), Decimal(string: "0.03"), Decimal(string: "0.03")]
+        )
         XCTAssertEqual(
             snapshot.providers[.piAgent]?.favorite,
             ProviderUsageSnapshot.Favorite(
@@ -181,7 +189,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let service = makePipeline()
 
         let original = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(original.providers[.piAgent]?.today.processedTokens, 210)
+        XCTAssertEqual(original.providers[.piAgent]?.periods[.today].total.processedTokens, 210)
 
         let forkHeader = piSessionHeader.replacingOccurrences(
             of: "\"id\":\"session\"",
@@ -201,8 +209,8 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let incremental = await service.run(at: now, providers: Provider.allCases).snapshot
         let cold = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
         for snapshot in [incremental, cold] {
-            XCTAssertEqual(snapshot.providers[.piAgent]?.today.processedTokens, 280)
-            XCTAssertEqual(snapshot.providers[.piAgent]?.today.costUSD, Decimal(string: "0.28"))
+            XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.processedTokens, 280)
+            XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.costUSD, Decimal(string: "0.28"))
         }
     }
 

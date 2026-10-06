@@ -29,6 +29,17 @@ struct UsageDailySnapshot: Equatable, Sendable, Encodable {
     let days: [UsageDaySnapshot]
 }
 
+struct ProviderUsagePeriodSnapshot: Equatable, Sendable, Encodable {
+    let total: UsagePeriodSnapshot
+    let models: [ModelUsageSnapshot]?
+}
+
+struct ModelUsageSnapshot: Equatable, Identifiable, Sendable, Encodable {
+    let id: ModelID?
+    let modelName: String
+    let usage: UsagePeriodSnapshot
+}
+
 struct ProviderUsageSnapshot: Equatable, Sendable, Encodable {
     struct Favorite: Equatable, Sendable, Encodable {
         let modelName: String
@@ -36,9 +47,7 @@ struct ProviderUsageSnapshot: Equatable, Sendable, Encodable {
     }
 
     let favorite: Favorite?
-    let today: UsagePeriodSnapshot
-    let last7Days: UsagePeriodSnapshot
-    let last30Days: UsagePeriodSnapshot
+    let periods: EnumMap<UsagePeriod, ProviderUsagePeriodSnapshot>
     let dailyLast30Days: UsageDailySnapshot
 }
 
@@ -92,11 +101,11 @@ struct UsageSnapshot: Equatable, Sendable, Encodable {
     ) {
         summary = UsageSummarySnapshot(
             today: UsageSummaryPeriodSnapshot(
-                current: providers.values.map(\.today).reduce(UsagePeriodSnapshot(), +),
+                current: providers.values.map { $0.periods[.today].total }.reduce(UsagePeriodSnapshot(), +),
                 previous: previousDay
             ),
             last30Days: UsageSummaryPeriodSnapshot(
-                current: providers.values.map(\.last30Days).reduce(UsagePeriodSnapshot(), +),
+                current: providers.values.map { $0.periods[.last30Days].total }.reduce(UsagePeriodSnapshot(), +),
                 previous: previous30Days
             )
         )

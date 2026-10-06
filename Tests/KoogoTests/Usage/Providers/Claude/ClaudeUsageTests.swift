@@ -131,7 +131,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
 
         let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
-        XCTAssertEqual(snapshot.providers[.claude]?.today.processedTokens, 50)
+        XCTAssertEqual(snapshot.providers[.claude]?.periods[.today].total.processedTokens, 50)
         XCTAssertEqual(
             snapshot.providers[.claude]?.favorite,
             ProviderUsageSnapshot.Favorite(modelName: "Opus 5", reasoningEffort: nil)

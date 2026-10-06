@@ -81,8 +81,8 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(report.ingestion.trackedFiles[.grok], 3)
         XCTAssertEqual(report.ingestion.events[.grok], 4)
         let grok = try XCTUnwrap(report.snapshot.providers[.grok])
-        XCTAssertEqual(grok.today.processedTokens, 4_400_000)
-        XCTAssertEqual(grok.today.costUSD, 8)
+        XCTAssertEqual(grok.periods[.today].total.processedTokens, 4_400_000)
+        XCTAssertEqual(grok.periods[.today].total.costUSD, 8)
         XCTAssertEqual(grok.favorite, ProviderUsageSnapshot.Favorite(modelName: "Grok 4.6", reasoningEffort: nil))
     }
 
@@ -121,16 +121,16 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(report.snapshot.providers[.grok]?.favorite?.reasoningEffort, "low")
         XCTAssertEqual(report.ingestion.events[.grok], 3)
         XCTAssertEqual(report.ingestion.malformedLines[.grok], 0)
-        XCTAssertEqual(report.snapshot.providers[.grok]?.today.processedTokens, 3_300_000)
-        XCTAssertEqual(report.snapshot.providers[.grok]?.today.costUSD, 6)
+        XCTAssertEqual(report.snapshot.providers[.grok]?.periods[.today].total.processedTokens, 3_300_000)
+        XCTAssertEqual(report.snapshot.providers[.grok]?.periods[.today].total.costUSD, 6)
     }
 
     func testHistoryChangesRefreshUnchangedUsage() async throws {
         let session = try writeSession("late-history", updates: [grokUser(0), grokTurn(eventID: "event")])
         let historyURL = session.appending(path: "chat_history.jsonl")
         let service = makePipeline()
-        let before = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertNil(before.snapshot.providers[.grok]?.favorite?.reasoningEffort)
+        let before = await service.run(at: now, providers: Provider.allCases).snapshot.providers[.grok]
+        XCTAssertNil(before?.favorite?.reasoningEffort)
 
         try workspace.write(grokHistoryUser(0) + "\n" + grokAssistant("low"), to: historyURL)
         let partial = await service.run(at: now, providers: Provider.allCases)
@@ -147,12 +147,12 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         let replaced = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(replaced.snapshot.providers[.grok]?.favorite?.reasoningEffort, "max")
         XCTAssertEqual(replaced.ingestion.events[.grok], 1)
-        XCTAssertEqual(replaced.snapshot.providers[.grok]?.today, before.snapshot.providers[.grok]?.today)
+        XCTAssertEqual(replaced.snapshot.providers[.grok]?.periods[.today].total, before?.periods[.today].total)
 
         try FileManager.default.removeItem(at: historyURL)
         let removed = await service.run(at: now, providers: Provider.allCases)
         XCTAssertNil(removed.snapshot.providers[.grok]?.favorite?.reasoningEffort)
-        XCTAssertEqual(removed.snapshot.providers[.grok]?.today, before.snapshot.providers[.grok]?.today)
+        XCTAssertEqual(removed.snapshot.providers[.grok]?.periods[.today].total, before?.periods[.today].total)
     }
 
     func testHistoryRequiresMatchingPromptAndPrimaryModel() async throws {
@@ -176,7 +176,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(report.snapshot.providers[.grok]?.favorite?.modelName, "Grok 4.7 Fast")
         XCTAssertNil(report.snapshot.providers[.grok]?.favorite?.reasoningEffort)
-        XCTAssertEqual(report.snapshot.providers[.grok]?.today.costUSD, 6)
+        XCTAssertEqual(report.snapshot.providers[.grok]?.periods[.today].total.costUSD, 6)
     }
 
     func testRewindKeepsAbandonedTurnsAtTheirOwnEffort() async throws {
@@ -230,7 +230,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         let completed = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(completed.snapshot.providers[.grok]?.favorite?.reasoningEffort, "high")
         XCTAssertEqual(completed.ingestion.events[.grok], 2)
-        XCTAssertEqual(completed.snapshot.providers[.grok]?.today.costUSD, 4)
+        XCTAssertEqual(completed.snapshot.providers[.grok]?.periods[.today].total.costUSD, 4)
     }
 
     func testMalformedContextAndHistoryAreReportedWithoutDroppingUsage() async throws {
@@ -267,7 +267,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(report.snapshot.providers[.grok]?.favorite?.reasoningEffort, "high")
         XCTAssertEqual(report.ingestion.events[.grok], 1)
-        XCTAssertEqual(report.snapshot.providers[.grok]?.today.costUSD, 2)
+        XCTAssertEqual(report.snapshot.providers[.grok]?.periods[.today].total.costUSD, 2)
     }
 
     func testBuildModelsUseFlatStandardRatesAndFastDoublesThem() throws {

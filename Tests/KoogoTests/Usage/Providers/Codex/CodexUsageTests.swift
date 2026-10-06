@@ -218,7 +218,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
 
         let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
-        XCTAssertEqual(snapshot.providers[.codex]?.today.processedTokens, 120)
+        XCTAssertEqual(snapshot.providers[.codex]?.periods[.today].total.processedTokens, 120)
     }
 
     func testCodexQuotesMatchPublishedRates() throws {

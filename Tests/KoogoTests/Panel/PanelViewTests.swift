@@ -44,7 +44,7 @@ final class PanelViewTests: XCTestCase {
             host.layoutSubtreeIfNeeded()
             try await waitUntil { usage.snapshot != nil }
             XCTAssertNil(usage.snapshot?.providers[.codex])
-            XCTAssertEqual(usage.snapshot?.providers[.claude]?.today.processedTokens, 0)
+            XCTAssertEqual(usage.snapshot?.providers[.claude]?.periods[.today].total.processedTokens, 0)
 
             try await waitUntil { QuotaProvider.allCases.allSatisfy { !quota.isBusy($0) } }
             for provider in QuotaProvider.allCases {

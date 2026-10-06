@@ -10,6 +10,14 @@ extension Provider {
         }
     }
 
+    /// Grok bills every model a prompt used under its primary model.
+    var splitsUsageByModel: Bool {
+        switch self {
+        case .codex, .claude, .piAgent: true
+        case .grok: false
+        }
+    }
+
     func usageLogRoots(home root: URL) -> [UsageLogRoot] {
         let match: UsageLogRoot.Match =
             switch self {

@@ -13,9 +13,9 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             ],
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
         )
-        XCTAssertEqual(snapshot.providers[.codex]?.today.costUSD, Decimal(string: "0.009"))
-        XCTAssertEqual(snapshot.providers[.codex]?.last30Days.costUSD, Decimal(string: "0.009"))
-        XCTAssertEqual(snapshot.providers[.claude]?.today.costUSD, Decimal(string: "0.005"))
+        XCTAssertEqual(snapshot.providers[.codex]?.periods[.today].total.costUSD, Decimal(string: "0.009"))
+        XCTAssertEqual(snapshot.providers[.codex]?.periods[.last30Days].total.costUSD, Decimal(string: "0.009"))
+        XCTAssertEqual(snapshot.providers[.claude]?.periods[.today].total.costUSD, Decimal(string: "0.005"))
         XCTAssertEqual(snapshot.summary.today.current.costUSD, Decimal(string: "0.014"))
     }
 
@@ -151,14 +151,17 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         let snapshot = usageSnapshot(events: events, intervals: intervals)
         let codex = try XCTUnwrap(snapshot.providers[.codex])
 
-        XCTAssertEqual(codex.today.processedTokens, 384)
-        XCTAssertEqual(codex.last7Days.processedTokens, 480)
-        XCTAssertEqual(codex.last30Days.processedTokens, 504)
+        XCTAssertEqual(codex.periods[.today].total.processedTokens, 384)
+        XCTAssertEqual(codex.periods[.last7Days].total.processedTokens, 480)
+        XCTAssertEqual(codex.periods[.last30Days].total.processedTokens, 504)
         XCTAssertEqual(codex.dailyLast30Days.days.map(\.usage.processedTokens), [8, 16, 32, 64, 384])
-        XCTAssertEqual(codex.dailyLast30Days.days.map(\.usage).reduce(UsagePeriodSnapshot(), +), codex.last30Days)
+        XCTAssertEqual(
+            codex.dailyLast30Days.days.map(\.usage).reduce(UsagePeriodSnapshot(), +),
+            codex.periods[.last30Days].total
+        )
         XCTAssertEqual(codex.dailyLast30Days.range.lowerBound, Date(iso8601: "2026-08-03T00:00:00Z"))
         XCTAssertEqual(codex.dailyLast30Days.range.upperBound, Date(iso8601: "2026-09-02T00:00:00Z"))
-        XCTAssertEqual(snapshot.summary.last30Days.current, codex.last30Days)
+        XCTAssertEqual(snapshot.summary.last30Days.current, codex.periods[.last30Days].total)
         XCTAssertEqual(snapshot.summary.last30Days.costChange, .increase(fraction: 83))
         XCTAssertEqual(snapshot.summary.today.costChange, .increase(fraction: 5))
     }
@@ -266,6 +269,100 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             costUSD: costUSD,
             at: date
         )
+    }
+}
+
+extension UsageSnapshotBuilderTests {
+    func testModelBreakdownsPartitionCalendarPeriodsForSupportedProviders() throws {
+        let rows: [(String, String, UInt64)] = [
+            ("2026-08-25T12:00:00Z", "model-a", 10),
+            ("2026-08-25T12:00:00Z", "model-b", 20),
+            ("2026-08-24T12:00:00Z", "model-a", 30),
+            ("2026-08-19T00:00:00Z", "model-b", 40),
+            ("2026-08-18T23:59:59.999Z", "model-a", 50),
+            ("2026-07-27T00:00:00Z", "model-b", 60),
+            ("2026-07-26T23:59:59.999Z", "model-c", 70),
+            ("2026-08-26T00:00:00Z", "model-c", 80),
+        ]
+        let expected: [(UsagePeriod, [UInt64])] = [
+            (.today, [20, 10]), (.last7Days, [60, 40]), (.last30Days, [120, 90]),
+        ]
+        for provider in [Provider.codex, .claude, .piAgent] {
+            let events = try rows.enumerated().map { index, row in
+                usageEvent(
+                    provider,
+                    id: index,
+                    model: row.1,
+                    processedTokens: row.2,
+                    costUSD: Decimal(row.2) / 100,
+                    at: try XCTUnwrap(Date(iso8601: row.0))
+                )
+            }
+            let snapshot = usageSnapshot(
+                events: events,
+                intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
+            )
+            let usage = try XCTUnwrap(snapshot.providers[provider])
+            for (period, tokens) in expected {
+                let models = try XCTUnwrap(usage.periods[period].models)
+                XCTAssertEqual(models.map(\.id), [ModelID("model-b"), ModelID("model-a")])
+                XCTAssertEqual(models.map(\.usage.processedTokens), tokens)
+                XCTAssertEqual(models.map(\.usage.costUSD), tokens.map { Decimal($0) / 100 })
+                XCTAssertEqual(models.map(\.usage).reduce(UsagePeriodSnapshot(), +), usage.periods[period].total)
+            }
+        }
+    }
+
+    func testEmptyModelBreakdownsRemainAvailableExceptForGrok() throws {
+        let snapshot = usageSnapshot(
+            events: [],
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
+        )
+        for provider in Provider.allCases {
+            let usage = try XCTUnwrap(snapshot.providers[provider])
+            for period in UsagePeriod.allCases {
+                if provider == .grok {
+                    XCTAssertNil(usage.periods[period].models)
+                } else {
+                    XCTAssertEqual(usage.periods[period].models, [])
+                }
+            }
+        }
+    }
+
+    func testModelBreakdownsSortByCostThenIdentityInsteadOfDisplayName() throws {
+        let events = [
+            usageEvent(.codex, id: 1, model: "b", processedTokens: 30, costUSD: 1),
+            usageEvent(.codex, id: 2, model: "a", processedTokens: 10, costUSD: 1),
+            usageEvent(.codex, id: 3, model: "c", processedTokens: 20, costUSD: 2),
+        ]
+        for ordered in [events, events.reversed()] {
+            var builder = UsageSnapshotBuilder(
+                providers: [.codex],
+                intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
+            )
+            ordered.forEach { builder.add($0) }
+            let snapshot = builder.snapshot { _, _ in "Same name" }
+            let models = try XCTUnwrap(snapshot.providers[.codex]?.periods[.today].models)
+            XCTAssertEqual(models.map(\.id), [ModelID("c"), ModelID("a"), ModelID("b")])
+            XCTAssertEqual(models.map(\.modelName), ["Same name", "Same name", "Same name"])
+        }
+    }
+
+    func testModelBreakdownsKeepCostOnlyUsageButExcludeFreeTurns() throws {
+        let snapshot = usageSnapshot(
+            events: [
+                usageEvent(.claude, id: 1, model: "search", processedTokens: 0, costUSD: 0.01),
+                usageEvent(.piAgent, id: 2, model: "free", processedTokens: 0, costUSD: 0),
+            ],
+            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
+        )
+        let models = try XCTUnwrap(snapshot.providers[.claude]?.periods[.today].models)
+        XCTAssertEqual(models.map(\.id), [ModelID("search")])
+        XCTAssertEqual(models.map(\.usage.costUSD), [Decimal(string: "0.01")])
+        XCTAssertEqual(models.map(\.usage.processedTokens), [0])
+        XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].models, [])
+        XCTAssertEqual(snapshot.providers[.piAgent]?.favorite?.modelName, "free")
     }
 }
 

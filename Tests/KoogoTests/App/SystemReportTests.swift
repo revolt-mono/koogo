@@ -137,13 +137,20 @@ private let reportKeyPaths =
             "dailyLast30Days.days[].usage.processedTokens",
             "dailyLast30Days.range[]",
             "favorite.modelName",
-            "last30Days.costUSD",
-            "last30Days.processedTokens",
-            "last7Days.costUSD",
-            "last7Days.processedTokens",
-            "today.costUSD",
-            "today.processedTokens",
+            "periods.last30Days.total.costUSD",
+            "periods.last30Days.total.processedTokens",
+            "periods.last7Days.total.costUSD",
+            "periods.last7Days.total.processedTokens",
+            "periods.today.total.costUSD",
+            "periods.today.total.processedTokens",
         ].map { "usage.snapshot.providers.\(provider).\($0)" }
+    }
+    + ["claude", "codex", "piAgent"].flatMap { provider in
+        ["today", "last7Days", "last30Days"].flatMap { period in
+            ["id.rawValue", "modelName", "usage.costUSD", "usage.processedTokens"].map {
+                "usage.snapshot.providers.\(provider).periods.\(period).models[].\($0)"
+            }
+        }
     }
 
 private let codexQuotaResponse = """

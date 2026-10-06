@@ -43,24 +43,44 @@ struct UsageSnapshotBuilder {
 
     private struct ProviderAccumulator {
         var favorite = FavoriteAccumulator()
-        var usageByDay: [UsagePeriodSnapshot?]
+        var usageByDay: [[ModelID?: UsagePeriodSnapshot]]
 
         mutating func add(_ usage: UsageRecord, day: Int) {
             favorite.add(usage.modelTurn)
-            var dayUsage = usageByDay[day] ?? UsagePeriodSnapshot()
-            dayUsage.add(usage)
-            usageByDay[day] = dayUsage
+            usageByDay[day][usage.modelTurn?.model, default: UsagePeriodSnapshot()].add(usage)
         }
 
-        func snapshot(intervals: UsagePeriodIntervals, modelName: (ModelID) -> String) -> ProviderUsageSnapshot {
-            let days = zip(intervals.last30DayStarts, usageByDay).reversed().compactMap { date, usage in
-                usage.map { UsageDaySnapshot(date: date, usage: $0) }
+        func total(day: Int) -> UsagePeriodSnapshot {
+            usageByDay[day].values.reduce(UsagePeriodSnapshot(), +)
+        }
+
+        func snapshot(
+            intervals: UsagePeriodIntervals,
+            splitsByModel: Bool,
+            modelName: (ModelID) -> String
+        ) -> ProviderUsageSnapshot {
+            let days = intervals.last30DayStarts.indices.reversed().compactMap { day in
+                usageByDay[day].isEmpty
+                    ? nil : UsageDaySnapshot(date: intervals.last30DayStarts[day], usage: total(day: day))
             }
             return ProviderUsageSnapshot(
                 favorite: favorite.snapshot(modelName: modelName),
-                today: usageByDay[0] ?? .init(),
-                last7Days: usageByDay.prefix(7).compactMap(\.self).reduce(UsagePeriodSnapshot(), +),
-                last30Days: usageByDay.compactMap(\.self).reduce(UsagePeriodSnapshot(), +),
+                periods: EnumMap { period in
+                    let usageByModel = usageByDay.prefix(period.dayCount).reduce(into: [:]) {
+                        $0.merge($1, uniquingKeysWith: +)
+                    }
+                    let models = usageByModel.filter { $0.value != UsagePeriodSnapshot() }.map { model, usage in
+                        ModelUsageSnapshot(id: model, modelName: model.map(modelName) ?? "Unattributed", usage: usage)
+                    }.sorted { lhs, rhs in
+                        lhs.usage.costUSD == rhs.usage.costUSD
+                            ? (lhs.id?.rawValue ?? "") < (rhs.id?.rawValue ?? "")
+                            : lhs.usage.costUSD > rhs.usage.costUSD
+                    }
+                    return ProviderUsagePeriodSnapshot(
+                        total: usageByModel.values.reduce(UsagePeriodSnapshot(), +),
+                        models: splitsByModel ? models : nil
+                    )
+                },
                 dailyLast30Days: UsageDailySnapshot(range: intervals.last30Days, days: days)
             )
         }
@@ -72,7 +92,7 @@ struct UsageSnapshotBuilder {
 
     init(providers: Set<Provider>, intervals: UsagePeriodIntervals) {
         self.intervals = intervals
-        let days = [UsagePeriodSnapshot?](repeating: nil, count: intervals.last30DayStarts.count)
+        let days = [[ModelID?: UsagePeriodSnapshot]](repeating: [:], count: intervals.last30DayStarts.count)
         accumulators = EnumMap { providers.contains($0) ? ProviderAccumulator(usageByDay: days) : nil }
     }
 
@@ -95,10 +115,15 @@ struct UsageSnapshotBuilder {
         return UsageSnapshot(
             providers: Dictionary(
                 uniqueKeysWithValues: included.map { provider, accumulator in
-                    (provider, accumulator.snapshot(intervals: intervals) { modelName(provider, $0) })
+                    (
+                        provider,
+                        accumulator.snapshot(intervals: intervals, splitsByModel: provider.splitsUsageByModel) {
+                            modelName(provider, $0)
+                        }
+                    )
                 }
             ),
-            previousDay: included.map { $1.usageByDay[1] ?? .init() }.reduce(UsagePeriodSnapshot(), +),
+            previousDay: included.map { $1.total(day: 1) }.reduce(UsagePeriodSnapshot(), +),
             previous30Days: previous30Days
         )
     }

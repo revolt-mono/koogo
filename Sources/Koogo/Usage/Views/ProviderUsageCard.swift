@@ -15,16 +15,106 @@ struct ProviderUsageCard<Accessory: View>: View {
                 DailyUsageChart(usage: usage.dailyLast30Days)
 
                 VStack(spacing: 6) {
-                    ProviderUsageRow(title: "Today", usage: usage.today)
-                    ProviderUsageRow(title: "Last 7 days", usage: usage.last7Days)
-                    ProviderUsageRow(title: "Last 30 days", usage: usage.last30Days)
+                    ForEach(UsagePeriod.allCases, id: \.self) { period in
+                        ProviderUsagePeriodRow(
+                            provider: provider,
+                            period: period,
+                            usage: usage.periods[period]
+                        )
+                    }
                 }
+                .font(.system(size: 9, weight: .medium))
             }
             .padding(12)
             .background(
                 Color.black.opacity(0.07),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
+        }
+    }
+}
+
+private struct ProviderUsagePeriodRow: View {
+    @State private var isPresented = false
+
+    let provider: Provider
+    let period: UsagePeriod
+    let usage: ProviderUsagePeriodSnapshot
+
+    var body: some View {
+        if let models = usage.models {
+            Button {
+                isPresented.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    ProviderUsageRow(title: period.title, usage: usage.total)
+
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(provider.title) \(period.title) model usage")
+            .panelPopover(isPresented: $isPresented) {
+                ProviderUsageModelsView(title: period.title, models: models)
+            }
+        } else {
+            ProviderUsageRow(title: period.title, usage: usage.total)
+        }
+    }
+}
+
+private struct ProviderUsageModelsView: View {
+    let title: String
+    let models: [ModelUsageSnapshot]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .fontWeight(.semibold)
+
+            if models.isEmpty {
+                Text("No usage during this period")
+                    .foregroundStyle(.secondary)
+            } else {
+                let rowHeight: CGFloat = 16
+                let rowSpacing: CGFloat = 8
+                let contentHeight = CGFloat(models.count) * (rowHeight + rowSpacing) - rowSpacing
+                let visibleHeight = min(contentHeight, 256)
+                let scrollInsets =
+                    contentHeight > visibleHeight
+                    ? EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 16)
+                    : EdgeInsets()
+
+                ScrollView {
+                    VStack(spacing: rowSpacing) {
+                        ForEach(models) { model in
+                            ProviderUsageRow(title: model.modelName, usage: model.usage)
+                                .help(model.modelName)
+                                .frame(height: rowHeight)
+                        }
+                    }
+                }
+                .contentMargins(.all, scrollInsets, for: .scrollContent)
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollEdgeFade(height: scrollInsets.top, trailingInset: scrollInsets.trailing)
+                .frame(height: visibleHeight)
+            }
+        }
+        .font(.system(size: 11, weight: .medium))
+        .padding(16)
+        .frame(width: 296)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private extension UsagePeriod {
+    var title: String {
+        switch self {
+        case .today: "Today"
+        case .last7Days: "Last 7 days"
+        case .last30Days: "Last 30 days"
         }
     }
 }
@@ -81,6 +171,7 @@ private struct ProviderUsageRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(title)
                 .fontWeight(.semibold)
+                .lineLimit(1)
 
             Spacer(minLength: 12)
 
@@ -92,8 +183,8 @@ private struct ProviderUsageRow: View {
                     .foregroundStyle(.primary)
             }
             .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
         }
-        .font(.system(size: 9, weight: .medium))
         .frame(maxWidth: .infinity)
     }
 }

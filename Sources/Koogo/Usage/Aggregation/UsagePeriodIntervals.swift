@@ -1,5 +1,19 @@
 import Foundation
 
+enum UsagePeriod: String, CaseIterable, Sendable, Encodable, CodingKeyRepresentable {
+    case today
+    case last7Days
+    case last30Days
+
+    var dayCount: Int {
+        switch self {
+        case .today: 1
+        case .last7Days: 7
+        case .last30Days: 30
+        }
+    }
+}
+
 struct UsagePeriodIntervals: Equatable, Sendable {
     let last30Days: Range<Date>
     let previous30Days: Range<Date>

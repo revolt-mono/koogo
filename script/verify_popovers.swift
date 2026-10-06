@@ -49,7 +49,9 @@ func windowCount() -> Int {
     }.count
 }
 
-for name in ["Banked reset details", "Quick Actions"] {
+let requestedTriggers = Array(CommandLine.arguments.dropFirst())
+let triggers = requestedTriggers.isEmpty ? ["Banked reset details", "Quick Actions"] : requestedTriggers
+for name in triggers {
     guard let trigger = button(in: root, named: name),
         let position = attribute(trigger, kAXPositionAttribute), CFGetTypeID(position) == AXValueGetTypeID(),
         let size = attribute(trigger, kAXSizeAttribute), CFGetTypeID(size) == AXValueGetTypeID()
@@ -108,8 +110,7 @@ for name in ["Banked reset details", "Quick Actions"] {
     if isPresented() { click(count: 1) }
     assertPresentation(false)
     var expected = false
-    // AXPress and clickCount=1 alone miss the native multi-click regression.
-    // Do not move the pointer anywhere within these sequences.
+    // Verify native multi-clicks without pointer movement; AXPress and clickCount=1 miss this regression.
     for count in 1...6 {
         click(count: count)
         expected.toggle()

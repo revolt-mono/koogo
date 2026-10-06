@@ -1,7 +1,7 @@
 import Foundation
 
 /// A provider's model identifier as logged, or for Pi `provider/model`.
-struct ModelID: Hashable, Sendable {
+struct ModelID: Hashable, Sendable, Encodable {
     let rawValue: String
 
     init(_ rawValue: String) {
@@ -33,7 +33,6 @@ struct UsageRecord: Sendable {
     }
 }
 
-/// What identifies one billed request across log copies. Each provider has one rule.
 enum UsageEventID: Hashable, Sendable {
     /// A forked thread replays its parent's records under new thread ids, ordinals, and timestamps, so only the turn and its running total identify a request.
     case codex(turnID: String, cumulativeTotal: UInt64)
@@ -53,7 +52,7 @@ enum UsageEventID: Hashable, Sendable {
 }
 
 struct UsageEvent: Sendable {
-    /// How complete one copy of a request is. A streamed reply grows its output, and a rewritten line can add metadata such as speed, cache split, or reasoning effort.
+    /// Streamed replies grow their output, and rewritten lines can add speed, cache split, or reasoning effort.
     struct Revision: Comparable, Sendable {
         let outputTokens: UInt64
         let metadataCompleteness: Int
@@ -77,7 +76,6 @@ struct UsageEvent: Sendable {
 
     var provider: Provider { id.provider }
 
-    /// The more complete copy wins; identical copies keep the one logged first.
     func supersedes(record existing: UsageRecord, revision existingRevision: Revision) -> Bool {
         let rank = (revision, record.processedTokens)
         let existingRank = (existingRevision, existing.processedTokens)

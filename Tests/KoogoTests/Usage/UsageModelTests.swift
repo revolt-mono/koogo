@@ -22,9 +22,9 @@ final class UsageModelTests: UsageWorkspaceTestCase {
         model.refresh(providers: Provider.allCases)
         XCTAssertEqual(clockReads, 1)
 
-        try await waitUntil { model.snapshot?.providers[.codex]?.today.processedTokens == 0 }
+        try await waitUntil { model.snapshot?.providers[.codex]?.periods[.today].total.processedTokens == 0 }
         XCTAssertEqual(clockReads, 2)
-        XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.last30Days.processedTokens, 120)
+        XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.periods[.last30Days].total.processedTokens, 120)
     }
 
     @MainActor

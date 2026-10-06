@@ -22,7 +22,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 19)
         XCTAssertEqual(report.ingestion.events[.codex], 19)
-        XCTAssertEqual(report.snapshot.providers[.codex]?.today.processedTokens, 2_280)
+        XCTAssertEqual(report.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 2_280)
     }
 
     func testUnicodeAndReservedCharactersInLogPaths() async throws {
@@ -31,7 +31,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         let service = makePipeline()
         let initial = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(initial.ingestion.trackedFiles[.codex], 1)
-        XCTAssertEqual(initial.snapshot.providers[.codex]?.today.processedTokens, 120)
+        XCTAssertEqual(initial.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 120)
 
         try workspace.append(
             codexTokenCount(
@@ -42,7 +42,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         )
         let appended = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(appended.ingestion.trackedFiles[.codex], 1)
-        XCTAssertEqual(appended.snapshot.providers[.codex]?.today.processedTokens, 180)
+        XCTAssertEqual(appended.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 180)
     }
 
     func testDisabledProvidersAreNeitherScannedNorSummarized() async throws {
@@ -84,14 +84,14 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         let refreshed = await service.run(at: midnight, providers: Provider.allCases)
 
         XCTAssertEqual(current.ingestion.events[.codex], 4)
-        XCTAssertEqual(current.snapshot.providers[.codex]?.today.processedTokens, 8)
-        XCTAssertEqual(current.snapshot.providers[.codex]?.last7Days.processedTokens, 12)
-        XCTAssertEqual(current.snapshot.providers[.codex]?.last30Days.processedTokens, 14)
+        XCTAssertEqual(current.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 8)
+        XCTAssertEqual(current.snapshot.providers[.codex]?.periods[.last7Days].total.processedTokens, 12)
+        XCTAssertEqual(current.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 14)
         XCTAssertEqual(evening.snapshot, current.snapshot)
         XCTAssertEqual(refreshed.ingestion.events[.codex], 3)
-        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.today, UsagePeriodSnapshot())
-        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.last7Days.processedTokens, 8)
-        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.last30Days.processedTokens, 12)
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.today].total, UsagePeriodSnapshot())
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.last7Days].total.processedTokens, 8)
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 12)
         XCTAssertEqual(refreshed.snapshot.summary.last30Days.costChange, .increase(fraction: 5))
     }
 
@@ -123,7 +123,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         XCTAssertEqual(evening.snapshot, current.snapshot)
         XCTAssertEqual(refreshed.ingestion.events[.codex], 3)
         XCTAssertEqual(refreshed.snapshot.providers[.codex]?.favorite?.modelName, "GPT 5.6 Sol")
-        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.last30Days.processedTokens, 4)
+        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 4)
     }
 
     func testUnpricedModelIsExcludedFromTotalsAndReported() async throws {
@@ -133,7 +133,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
 
         let report = await service.run(at: now, providers: Provider.allCases)
 
-        XCTAssertEqual(report.snapshot.providers[.codex]?.last30Days, UsagePeriodSnapshot())
+        XCTAssertEqual(report.snapshot.providers[.codex]?.periods[.last30Days].total, UsagePeriodSnapshot())
         XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.events, [.codex: 0, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.unpricedModels, ["unknown-model"])
