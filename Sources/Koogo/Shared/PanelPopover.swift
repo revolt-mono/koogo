@@ -41,6 +41,11 @@ private struct PanelPopover<PopoverContent: View>: ViewModifier {
                 .allowsHitTesting(false)
             }
             .popover(isPresented: $isPresented, arrowEdge: .trailing, content: popoverContent)
+            .onScrollVisibilityChange(threshold: 0.1) { isVisible in
+                if !isVisible {
+                    isPresented = false
+                }
+            }
             .onChange(of: isSelectedPanelPage) {
                 if !isSelectedPanelPage {
                     isPresented = false
