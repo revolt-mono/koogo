@@ -36,13 +36,7 @@ struct UsagePage: View {
                 .padding(.bottom, Self.bottomInset)
                 .transition(.blurReplace)
             } else {
-                Text("Parsing logs…")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .loadingShimmer()
-                    .frame(maxWidth: .infinity, minHeight: 96)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 24)
+                PanelLoadingText("Parsing logs…")
                     .transition(.blurReplace)
             }
         }

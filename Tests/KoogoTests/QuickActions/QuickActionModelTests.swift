@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 import XCTest
 
 @testable import Koogo
@@ -155,20 +154,6 @@ private func isReady(_ phase: QuickActionModel<Void>.Phase) -> Bool {
         true
     } else {
         false
-    }
-}
-
-private final class Counter: Sendable {
-    private let count = Mutex(0)
-
-    var value: Int { count.withLock { $0 } }
-
-    @discardableResult
-    func increment() -> Int {
-        count.withLock {
-            $0 += 1
-            return $0
-        }
     }
 }
 

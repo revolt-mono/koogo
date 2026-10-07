@@ -11,6 +11,7 @@ struct KoogoApp: App {
         notifications: BreakReminderNotificationCenter()
     )
     @State private var inboxModel = InboxModel()
+    @State private var activityModel: ActivityModel
 
     init() {
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
@@ -25,6 +26,8 @@ struct KoogoApp: App {
         let updateModel = UpdateModel()
         updateModel.start()
         _updateModel = State(initialValue: updateModel)
+        let sampler = ActivitySampler()
+        _activityModel = State(initialValue: ActivityModel { try await sampler.sample() })
     }
 
     var body: some Scene {
@@ -50,6 +53,7 @@ struct KoogoApp: App {
         .environment(updateModel)
         .environment(breakReminderModel)
         .environment(inboxModel)
+        .environment(activityModel)
         .onChange(of: preferences.usageProviders) {
             usageModel.refresh(providers: preferences.usageProviders)
         }

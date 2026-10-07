@@ -13,11 +13,11 @@ final class PanelViewTests: XCTestCase {
         let update = UpdateModel()
         let reminder = BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults)
         let inbox = InboxModel(defaults: defaults)
+        let activity = ActivityModel { activitySample() }
 
-        let choices: [Set<QuotaProvider>] = [
+        for disabled: Set<QuotaProvider> in [
             [], [.codex], [.claude], [.grok], [.claude, .grok], [.codex, .claude, .grok],
-        ]
-        for disabled in choices {
+        ] {
             let preferences = ProviderPreferences(defaults: try makeIsolatedDefaults())
             for provider in disabled {
                 preferences.setQuota(false, for: provider)
@@ -34,19 +34,19 @@ final class PanelViewTests: XCTestCase {
                     grok: GrokQuotaSource(executableCandidates: [])
                 )
             )
-            let codexReset = CodexQuotaResetModel(quota: quota)
             let host = NSHostingView(
                 rootView: PanelView()
                     .environment(preferences)
                     .environment(usage)
                     .environment(quota)
-                    .environment(codexReset)
+                    .environment(CodexQuotaResetModel(quota: quota))
                     .environment(update)
                     .environment(reminder)
                     .environment(inbox)
+                    .environment(activity)
             )
             host.layoutSubtreeIfNeeded()
-            try await waitUntil { usage.snapshot != nil }
+            try await waitUntil { usage.snapshot != nil && activity.latest != nil }
             XCTAssertNil(usage.snapshot?.providers[.codex])
             XCTAssertEqual(usage.snapshot?.providers[.claude]?.periods[.today].total.processedTokens, 0)
 

@@ -3,11 +3,13 @@ import SwiftUI
 
 private enum PanelPage: Int, CaseIterable {
     case usage
+    case activity
     case inbox
 
     var accessibilityLabel: String {
         switch self {
         case .usage: "Usage"
+        case .activity: "Activity"
         case .inbox: "Inbox"
         }
     }
@@ -36,6 +38,8 @@ struct PanelPagesView: View {
                                 } action: { height in
                                     usageContentHeight = height
                                 }
+                        case .activity:
+                            ActivityPage()
                         case .inbox:
                             InboxView()
                         }

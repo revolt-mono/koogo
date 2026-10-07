@@ -27,7 +27,7 @@
 - verify pipeline behavior with `report` rather than screenshots; its json covers log roots, ingestion counts, the usage snapshot, and typed quota outcomes.
 - measure pipeline changes with `benchmark` on the same logs and day: compare retired instructions, which stay stable across runs, and memory across repeated release runs without allocation tracing. the digest stays fixed unless the snapshot is meant to change.
 - dropped input stays out of the ui: known-kind lines with unusable fields count in `malformedLines`, events with an unpriced model or billed option list their model in `unpricedModels`, and both log telemetry warnings.
-- stream telemetry (subsystem `com.revolt.koogo`, categories `app`, `usage`, `quota`) with `script/build_and_run.sh telemetry`.
+- stream telemetry (subsystem `com.revolt.koogo`, categories `app`, `usage`, `quota`, `activity`) with `script/build_and_run.sh telemetry`.
 
 ## repo structure
 
@@ -49,6 +49,7 @@
 │   │   ├── Providers      per-provider quota sources: codex (app-server client, response decoding, banked reset flow and model), claude (cli stream-json usage request), grok (cli acp billing)
 │   │   └── Views          quota section and the codex reset views
 │   ├── QuickActions       scan-then-act model, system adapters (appearance, disk images, orphaned agents), and views
+│   ├── Activity           machine load for the activity page: cpu ticks, memory split, gpu statistics, processes grouped by responsible app, a sampler that reads them, and a model whose `monitor` loop runs only while the panel is open
 │   ├── BreakReminder      countdown state, notifications, controls, and issue alert
 │   ├── Inbox              todo rules, persistence with the open summary, and editors
 │   ├── Update             sparkle bridge and update indicator

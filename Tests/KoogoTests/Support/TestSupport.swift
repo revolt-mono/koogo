@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Synchronization
 import XCTest
 
 extension XCTestCase {
@@ -48,4 +49,18 @@ func allocatedHeapBytes() -> Int {
     var statistics = malloc_statistics_t()
     malloc_zone_statistics(malloc_default_zone(), &statistics)
     return statistics.size_in_use
+}
+
+final class Counter: Sendable {
+    private let count = Mutex(0)
+
+    var value: Int { count.withLock { $0 } }
+
+    @discardableResult
+    func increment() -> Int {
+        count.withLock {
+            $0 += 1
+            return $0
+        }
+    }
 }
