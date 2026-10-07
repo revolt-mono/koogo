@@ -1,28 +1,16 @@
 import Darwin
 import Foundation
 
+/// An agent process whose launching terminal is gone, so launchd now parents it.
 struct OrphanedAgentProcess: Sendable {
-    enum Agent: String, CaseIterable {
-        case claude, codex, grok
-    }
-
     fileprivate let pid: pid_t
-    let agent: Agent
+    let provider: Provider
 
     init?(pid: pid_t, parentPID: pid_t, executablePath: String) {
-        guard parentPID == 1 else { return nil }
-        let executable = URL(filePath: executablePath)
-        let name = executable.lastPathComponent
-        if name == "codex" {
-            agent = .codex
-        } else if name.hasPrefix("grok") {
-            agent = .grok
-        } else if name.wholeMatch(of: /\d+\.\d+\.\d+/) != nil, executable.pathComponents.contains("claude") {
-            agent = .claude
-        } else {
-            return nil
-        }
+        guard parentPID == 1, let provider = Provider.allCases.first(where: { $0.ownsProcess(at: executablePath) })
+        else { return nil }
         self.pid = pid
+        self.provider = provider
     }
 }
 
@@ -36,7 +24,7 @@ struct OrphanedAgentProcesses: Sendable {
             case .scan:
                 "Could not list running processes."
             case .termination(let process):
-                "Could not stop \(process.agent.rawValue) process \(process.pid)."
+                "Could not stop \(process.provider.rawValue) process \(process.pid)."
             }
         }
     }
@@ -51,9 +39,9 @@ struct OrphanedAgentProcesses: Sendable {
     }
 
     var summary: String {
-        OrphanedAgentProcess.Agent.allCases.compactMap { agent in
-            let count = values.count { $0.agent == agent }
-            return count > 0 ? "\(count) \(agent.rawValue)" : nil
+        Provider.allCases.compactMap { provider in
+            let count = values.count { $0.provider == provider }
+            return count > 0 ? "\(count) \(provider.rawValue)" : nil
         }
         .joined(separator: ", ")
     }

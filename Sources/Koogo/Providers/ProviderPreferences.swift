@@ -22,9 +22,17 @@ final class ProviderPreferences {
         order.filter(usageEnabled.contains)
     }
 
-    /// Providers that fetch quota, in display order. Quota renders inside a provider's usage card, so a provider hidden from usage fetches none.
+    /// Providers that fetch quota, in display order.
     var quotaProviders: [QuotaProvider] {
-        usageProviders.compactMap(\.quota).filter(quotaEnabled.contains)
+        order.compactMap(quotaProvider(for:))
+    }
+
+    /// The quota a provider's usage card shows. Quota renders inside that card, so a provider hidden from usage fetches none.
+    func quotaProvider(for provider: Provider) -> QuotaProvider? {
+        guard usageEnabled.contains(provider), let quota = provider.quota, quotaEnabled.contains(quota) else {
+            return nil
+        }
+        return quota
     }
 
     init(defaults: UserDefaults = .standard) {

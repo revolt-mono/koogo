@@ -9,7 +9,7 @@ final class OrphanedAgentProcessesTests: XCTestCase {
             "/Users/me/.local/share/claude/versions/2.1.284",
             "/Users/me/.codex/packages/standalone/releases/0.158.0-aarch64-apple-darwin/bin/codex",
             "/Users/me/.grok/downloads/grok-1.0.45-macos-aarch64",
-        ].map { OrphanedAgentProcess(pid: 42, parentPID: 1, executablePath: $0)?.agent }
+        ].map { OrphanedAgentProcess(pid: 42, parentPID: 1, executablePath: $0)?.provider }
 
         XCTAssertEqual(orphans, [.claude, .codex, .grok])
         XCTAssertNil(
@@ -27,14 +27,14 @@ final class OrphanedAgentProcessesTests: XCTestCase {
         XCTAssertNil(OrphanedAgentProcesses([]))
     }
 
-    func testOrphanedAgentProcessesSummarizesCountsPerAgentInOrder() throws {
+    func testOrphanedAgentProcessesSummarizesCountsPerProviderInOrder() throws {
         let processes = OrphanedAgentProcesses([
             try orphan(pid: 7, executablePath: "/Users/me/.codex/bin/codex"),
             try orphan(pid: 5, executablePath: "/Users/me/.local/share/claude/versions/2.1.284"),
             try orphan(pid: 3, executablePath: "/Users/me/.codex/bin/codex"),
         ])
 
-        XCTAssertEqual(processes?.summary, "1 claude, 2 codex")
+        XCTAssertEqual(processes?.summary, "2 codex, 1 claude")
     }
 
     private func orphan(pid: pid_t, executablePath: String) throws -> OrphanedAgentProcess {

@@ -12,6 +12,7 @@ struct ProviderQuotaToggles: View {
                     set: { preferences.setQuota($0, for: provider) }
                 )
             )
+            .disabled(!preferences.usageEnabled.contains(provider.provider))
         }
     }
 }

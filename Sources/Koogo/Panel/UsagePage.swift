@@ -72,7 +72,7 @@ private struct ProviderCards: View {
             VStack(spacing: Self.spacing) {
                 ForEach(cards, id: \.provider) { card in
                     ProviderUsageCard(provider: card.provider, usage: card.usage) {
-                        if let quota = card.provider.quota, preferences.quotaProviders.contains(quota) {
+                        if let quota = preferences.quotaProvider(for: card.provider) {
                             QuotaSection(provider: quota)
                         }
                     }

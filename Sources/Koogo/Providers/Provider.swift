@@ -36,6 +36,17 @@ enum Provider: String, CaseIterable, Sendable, Codable, CodingKeyRepresentable {
         return root.appending(path: path, directoryHint: .isDirectory)
     }
 
+    func ownsProcess(at executablePath: String) -> Bool {
+        let executable = URL(filePath: executablePath)
+        let name = executable.lastPathComponent
+        return switch self {
+        case .codex: name == "codex"
+        case .claude: name.wholeMatch(of: /\d+\.\d+\.\d+/) != nil && executable.pathComponents.contains("claude")
+        case .piAgent: false
+        case .grok: name.hasPrefix("grok")
+        }
+    }
+
     var quota: QuotaProvider? {
         switch self {
         case .codex: .codex
