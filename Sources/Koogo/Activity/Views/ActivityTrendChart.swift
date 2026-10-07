@@ -1,26 +1,22 @@
-import Charts
 import SwiftUI
 
-/// The recent samples as bars that fill in from the left, on a fixed scale so a new sample never rescales the rest.
+/// The recent samples as bars that fill in from the left on a fixed scale. Plain shapes, because a Swift Charts redraw inside the panel allocates about 86 MB of graphics memory per sample, and `Color.primary` fills turn gray under the glass vibrancy.
 struct ActivityTrendChart: View {
+    private static let height: CGFloat = 48
+
     let trend: ActivityTrend
 
     var body: some View {
-        Chart(Array(trend.values.enumerated()), id: \.offset) { sample in
-            BarMark(
-                x: .value("Sample", sample.offset),
-                y: .value("Load", sample.element),
-                width: .fixed(3)
-            )
-            .foregroundStyle(Color.primary)
-            .cornerRadius(1)
+        HStack(alignment: .bottom, spacing: 0) {
+            ForEach(0..<ActivityModel.historyLength, id: \.self) { index in
+                let value = index < trend.values.count ? trend.values[index] : 0
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Color(nsColor: .labelColor))
+                    .frame(width: 3, height: Self.height * value)
+                    .frame(maxWidth: .infinity)
+            }
         }
-        .chartXScale(domain: -1...ActivityModel.historyLength)
-        .chartYScale(domain: 0...1)
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .chartLegend(.hidden)
-        .frame(height: 48)
+        .frame(height: Self.height)
         .accessibilityHidden(true)
     }
 }
