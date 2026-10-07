@@ -11,36 +11,29 @@ struct UsagePage: View {
     let maxHeight: CGFloat
 
     var body: some View {
-        ZStack(alignment: .top) {
-            if let snapshot = usageModel.snapshot {
-                VStack(spacing: Self.headerGap) {
-                    VStack(spacing: 20) {
-                        UsageSummaryView(summary: snapshot.summary)
+        PanelPageContent(usageModel.snapshot, loading: "Parsing logs…") { snapshot in
+            VStack(spacing: Self.headerGap) {
+                VStack(spacing: 20) {
+                    UsageSummaryView(summary: snapshot.summary)
 
-                        QuickActionsControl()
-                    }
-                    .padding(.horizontal, 20)
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.height
-                    } action: { height in
-                        headerHeight = height
-                    }
-
-                    ProviderCards(
-                        cards: preferences.usageProviders.compactMap { provider in
-                            snapshot.providers[provider].map { (provider: provider, usage: $0) }
-                        },
-                        heightLimit: max(maxHeight - headerHeight - Self.headerGap - Self.bottomInset, 0)
-                    )
+                    QuickActionsControl()
                 }
-                .padding(.bottom, Self.bottomInset)
-                .transition(.blurReplace)
-            } else {
-                PanelLoadingText("Parsing logs…")
-                    .transition(.blurReplace)
+                .padding(.horizontal, 20)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    headerHeight = height
+                }
+
+                ProviderCards(
+                    cards: preferences.usageProviders.compactMap { provider in
+                        snapshot.providers[provider].map { (provider: provider, usage: $0) }
+                    },
+                    heightLimit: max(maxHeight - headerHeight - Self.headerGap - Self.bottomInset, 0)
+                )
             }
+            .padding(.bottom, Self.bottomInset)
         }
-        .motionAnimation(.smooth(duration: 0.35), value: usageModel.snapshot != nil)
     }
 }
 
@@ -80,9 +73,7 @@ private struct ProviderCards: View {
             .padding(.horizontal, Self.inset)
             .motionAnimation(.smooth(duration: 0.25), value: quotaModel.statuses)
         }
-        .contentMargins(.vertical, Self.spacing, for: .scrollContent)
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollEdgeFade(height: Self.spacing, trailingInset: Self.inset)
+        .panelScroll(edgeFade: Self.spacing, trailingInset: Self.inset)
         .frame(height: min(visibleHeight.rounded(.up), heightLimit))
     }
 }

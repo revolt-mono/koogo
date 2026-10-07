@@ -15,16 +15,11 @@ struct QuickActionRow<Targets: Sendable>: View {
     var body: some View {
         let phase = model.phase
         let words = copy(phase)
-        let click: (@MainActor () -> Void)? =
-            switch phase {
-            case .ready: model.perform
-            case .scanFailed, .performFailed: model.refresh
-            case .scanning, .idle, .performing: nil
-            }
-        let isEnabled = click != nil
+        let activate = model.activate
+        let isEnabled = activate != nil
 
         Button {
-            click?()
+            activate?()
         } label: {
             HStack(spacing: 8) {
                 Group {
@@ -42,10 +37,7 @@ struct QuickActionRow<Targets: Sendable>: View {
                 }
                 .frame(width: 22, height: 22)
                 .foregroundStyle(.secondary)
-                .background(
-                    Color.white.opacity(0.06),
-                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-                )
+                .background(.panelRaised, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(words.title)
@@ -64,7 +56,7 @@ struct QuickActionRow<Targets: Sendable>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
             .background(
-                Color.white.opacity(isHovered && isEnabled ? 0.1 : 0.06),
+                isHovered && isEnabled ? Color.white.opacity(0.1) : .panelRaised,
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
         }

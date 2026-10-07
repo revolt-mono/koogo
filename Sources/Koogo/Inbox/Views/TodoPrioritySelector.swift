@@ -39,9 +39,9 @@ struct TodoPrioritySelector: View {
         let destination: TodoPriority
         switch keyPress.key {
         case .leftArrow, .upArrow:
-            destination = selection.previous
+            destination = selection.cycled(by: -1)
         case .rightArrow, .downArrow:
-            destination = selection.next
+            destination = selection.cycled(by: 1)
         case .home:
             destination = .backlog
         case .end:
@@ -56,20 +56,10 @@ struct TodoPrioritySelector: View {
 }
 
 private extension TodoPriority {
-    var previous: Self {
-        switch self {
-        case .backlog: .urgent
-        case .normal: .backlog
-        case .urgent: .normal
-        }
-    }
-
-    var next: Self {
-        switch self {
-        case .backlog: .normal
-        case .normal: .urgent
-        case .urgent: .backlog
-        }
+    func cycled(by offset: Int) -> Self {
+        let cases = Self.allCases
+        let index = cases.firstIndex(of: self) ?? cases.startIndex
+        return cases[(index + offset + cases.count) % cases.count]
     }
 }
 

@@ -57,6 +57,36 @@ private struct PanelPopover<PopoverContent: View>: ViewModifier {
     }
 }
 
+struct PanelDisclosure<Label: View, Content: View>: View {
+    @State private var isPresented = false
+
+    @ViewBuilder let label: (_ isPresented: Bool) -> Label
+    @ViewBuilder let content: () -> Content
+
+    init(
+        @ViewBuilder label: @escaping (_ isPresented: Bool) -> Label,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.label = label
+        self.content = content
+    }
+
+    init(@ViewBuilder label: @escaping () -> Label, @ViewBuilder content: @escaping () -> Content) {
+        self.init(label: { _ in label() }, content: content)
+    }
+
+    var body: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            label(isPresented)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .panelPopover(isPresented: $isPresented, content: content)
+    }
+}
+
 extension View {
     func panelPopover<PopoverContent: View>(
         isPresented: Binding<Bool>,

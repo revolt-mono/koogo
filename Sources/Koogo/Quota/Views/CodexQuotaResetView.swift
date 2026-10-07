@@ -2,13 +2,10 @@ import SwiftUI
 
 struct CodexQuotaResetView: View {
     @Environment(CodexQuotaResetModel.self) private var model
-    @State private var isPresented = false
 
     var body: some View {
         if model.isShown {
-            Button {
-                isPresented.toggle()
-            } label: {
+            PanelDisclosure {
                 HStack(spacing: 4) {
                     if let credits = model.credits {
                         let noun = credits.availableCount == 1 ? "banked reset" : "banked resets"
@@ -23,13 +20,10 @@ struct CodexQuotaResetView: View {
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Banked reset details")
-            .panelPopover(isPresented: $isPresented) {
+            } content: {
                 CodexQuotaResetDetail()
             }
+            .accessibilityLabel("Banked reset details")
         }
     }
 }

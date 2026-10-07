@@ -117,21 +117,17 @@ private struct QuotaDeadlineLabel: View {
 }
 
 func quotaTimeRemainingText(until date: Date, now: Date) -> String {
-    let seconds = max(Int(date.timeIntervalSince(now)), 0)
-    if seconds >= 86_400 {
-        let days = seconds / 86_400
-        let hours = seconds % 86_400 / 3_600
-        return hours > 0 ? "in \(days)d \(hours)h" : "in \(days)d"
+    let remaining = Duration.seconds(date.timeIntervalSince(now))
+    guard remaining >= .seconds(60) else {
+        return "soon"
     }
-    if seconds >= 3_600 {
-        let hours = seconds / 3_600
-        let minutes = seconds % 3_600 / 60
-        return minutes > 0 ? "in \(hours)h \(minutes)m" : "in \(hours)h"
-    }
-    if seconds >= 60 {
-        return "in \(seconds / 60)m"
-    }
-    return "soon"
+    let style = Duration.UnitsFormatStyle(
+        allowedUnits: [.days, .hours, .minutes],
+        width: .narrow,
+        maximumUnitCount: 2,
+        fractionalPart: .hide(rounded: .towardZero)
+    )
+    return "in \(remaining.formatted(style.locale(Locale(identifier: "en_US"))))"
 }
 
 private struct QuotaProgressViewStyle: ProgressViewStyle {

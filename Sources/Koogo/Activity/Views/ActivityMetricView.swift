@@ -13,29 +13,20 @@ struct ActivityMetricView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text(title)
-                        .font(.system(size: 10, weight: .semibold))
+                        .panelSectionTitle()
 
                     Spacer(minLength: 12)
 
                     Text(subtitle)
                         .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                .foregroundStyle(.secondary)
 
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(headline.value)
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [
-                                    Color.primary.opacity(0.98),
-                                    Color.primary.opacity(0.72),
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                        .foregroundStyle(.panelHeadline)
 
                     Text(headline.unit)
                         .font(.system(size: 10, weight: .medium))
@@ -65,11 +56,7 @@ struct ActivityMetricView: View {
 
                 ActivityTrendChart(trend: trend)
             }
-            .padding(12)
-            .background(
-                Color.black.opacity(0.07),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
+            .panelCard()
         }
     }
 }

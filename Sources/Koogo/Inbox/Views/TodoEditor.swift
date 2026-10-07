@@ -32,10 +32,7 @@ struct TodoEditor: View {
             }
         }
         .padding(12)
-        .background(
-            Color.white.opacity(0.06),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-        )
+        .background(.panelRaised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func submit() {

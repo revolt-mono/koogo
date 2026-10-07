@@ -1,12 +1,8 @@
 import SwiftUI
 
 struct QuickActionsControl: View {
-    @State private var isPresented = false
-
     var body: some View {
-        Button {
-            isPresented.toggle()
-        } label: {
+        PanelDisclosure { isPresented in
             HStack(spacing: 6) {
                 Text("Quick Actions")
                     .font(.system(size: 10, weight: .semibold))
@@ -20,14 +16,11 @@ struct QuickActionsControl: View {
             }
             .padding(.horizontal, 6)
             .frame(maxWidth: .infinity, minHeight: 32)
-            .contentShape(.rect)
             .background(
-                Color.white.opacity(isPresented ? 0.06 : 0),
+                isPresented ? Color.panelRaised : .clear,
                 in: RoundedRectangle(cornerRadius: 6, style: .continuous)
             )
-        }
-        .buttonStyle(.plain)
-        .panelPopover(isPresented: $isPresented) {
+        } content: {
             QuickActionsPopoverContent()
         }
     }

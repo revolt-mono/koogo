@@ -25,40 +25,29 @@ struct ProviderUsageCard<Accessory: View>: View {
                 }
                 .font(.system(size: 9, weight: .medium))
             }
-            .padding(12)
-            .background(
-                Color.black.opacity(0.07),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
+            .panelCard()
         }
     }
 }
 
 private struct ProviderUsagePeriodRow: View {
-    @State private var isPresented = false
-
     let provider: Provider
     let period: UsagePeriod
     let usage: ProviderUsagePeriodSnapshot
 
     var body: some View {
         if let models = usage.models {
-            Button {
-                isPresented.toggle()
-            } label: {
+            PanelDisclosure {
                 HStack(spacing: 4) {
                     ProviderUsageRow(title: period.title, usage: usage.total)
 
                     Image(systemName: "chevron.right")
                         .foregroundStyle(.secondary)
                 }
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(provider.title) \(period.title) model usage")
-            .panelPopover(isPresented: $isPresented) {
+            } content: {
                 ProviderUsageModelsView(title: period.title, models: models)
             }
+            .accessibilityLabel("\(provider.title) \(period.title) model usage")
         } else {
             ProviderUsageRow(title: period.title, usage: usage.total)
         }
@@ -82,10 +71,9 @@ private struct ProviderUsageModelsView: View {
                 let rowSpacing: CGFloat = 8
                 let contentHeight = CGFloat(models.count) * (rowHeight + rowSpacing) - rowSpacing
                 let visibleHeight = min(contentHeight, 256)
-                let scrollInsets =
-                    contentHeight > visibleHeight
-                    ? EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 16)
-                    : EdgeInsets()
+                let scrolls = contentHeight > visibleHeight
+                let edgeFade: CGFloat = scrolls ? 12 : 0
+                let scrollerInset: CGFloat = scrolls ? 16 : 0
 
                 ScrollView {
                     VStack(spacing: rowSpacing) {
@@ -96,9 +84,8 @@ private struct ProviderUsageModelsView: View {
                         }
                     }
                 }
-                .contentMargins(.all, scrollInsets, for: .scrollContent)
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollEdgeFade(height: scrollInsets.top, trailingInset: scrollInsets.trailing)
+                .contentMargins(.trailing, scrollerInset, for: .scrollContent)
+                .panelScroll(edgeFade: edgeFade, trailingInset: scrollerInset)
                 .frame(height: visibleHeight)
             }
         }

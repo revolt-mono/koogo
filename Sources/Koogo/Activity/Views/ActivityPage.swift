@@ -8,34 +8,24 @@ struct ActivityPage: View {
     @Environment(ActivityModel.self) private var activityModel
 
     var body: some View {
-        ZStack(alignment: .top) {
-            if let sample = activityModel.latest {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        MemoryMetric(usage: sample.memory, trend: activityModel.memoryTrend)
+        PanelPageContent(activityModel.latest, loading: "Sampling…") { sample in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    MemoryMetric(usage: sample.memory, trend: activityModel.memoryTrend)
 
-                        CPUMetric(load: sample.cpu, trend: activityModel.cpuTrend)
+                    CPUMetric(load: sample.cpu, trend: activityModel.cpuTrend)
 
-                        if let gpu = sample.gpu {
-                            GPUMetric(load: gpu, trend: activityModel.gpuTrend)
-                        }
-
-                        AppProcessList(groups: sample.processes)
+                    if let gpu = sample.gpu {
+                        GPUMetric(load: gpu, trend: activityModel.gpuTrend)
                     }
-                    .padding(.horizontal, Self.inset)
+
+                    AppProcessList(groups: sample.processes)
                 }
-                .contentMargins(.top, Self.edgeFade, for: .scrollContent)
-                .contentMargins(.bottom, 32, for: .scrollContent)
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollEdgeFade(height: Self.edgeFade, trailingInset: Self.inset)
-                .transition(.blurReplace)
-            } else {
-                PanelLoadingText("Sampling…")
-                    .transition(.blurReplace)
+                .padding(.horizontal, Self.inset)
             }
+            .panelScroll(edgeFade: Self.edgeFade, bottomInset: 32, trailingInset: Self.inset)
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .motionAnimation(.smooth(duration: 0.35), value: activityModel.latest != nil)
         .task {
             await activityModel.monitor()
         }

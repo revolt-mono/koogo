@@ -16,12 +16,17 @@ final class QuickActionModelTests: XCTestCase {
         try await waitUntil { ready.phase == .ready(["a", "b"]) && idle.phase == .idle }
     }
 
-    func testScanFailureCarriesTheMessage() async throws {
-        let model = QuickActionModel<Int>(scan: { throw TestFailure() }, perform: { _ in })
+    func testScanFailureCarriesTheMessageAndActivatingRescans() async throws {
+        let scans = Counter()
+        let model = QuickActionModel<Int>(
+            scan: { if scans.increment() == 1 { throw TestFailure() } else { return 3 } },
+            perform: { _ in }
+        )
 
         model.refresh()
-
         try await waitUntil { model.phase == .scanFailed("scan broke") }
+        model.activate?()
+        try await waitUntil { model.phase == .ready(3) }
     }
 
     func testPerformRunsTheActionThenRescans() async throws {

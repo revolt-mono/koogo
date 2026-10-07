@@ -19,8 +19,7 @@ private struct UsageSummaryPeriod: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .panelSectionTitle()
 
             ViewThatFits(in: .horizontal) {
                 UsageSummaryLine(usage: usage, fontSize: 18)
@@ -32,16 +31,7 @@ private struct UsageSummaryPeriod: View {
                 }
                 .font(.system(size: 15, weight: .bold))
             }
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [
-                        Color.primary.opacity(0.98),
-                        Color.primary.opacity(0.72),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+            .foregroundStyle(.panelHeadline)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .monospacedDigit()

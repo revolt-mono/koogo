@@ -7,8 +7,7 @@ struct AppProcessList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Processes")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .panelSectionTitle()
                 .padding(.horizontal, 6)
 
             VStack(spacing: 8) {
@@ -16,11 +15,7 @@ struct AppProcessList: View {
                     AppProcessRow(group: group)
                 }
             }
-            .padding(12)
-            .background(
-                Color.black.opacity(0.07),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
+            .panelCard()
         }
     }
 }

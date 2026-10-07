@@ -41,56 +41,47 @@ private struct BreakReminderButton: View {
     let isBusy: Bool
     let perform: (BreakReminderCountdown.Action) -> Void
 
-    private var systemImage: String {
-        switch status {
-        case .running:
-            "pause.fill"
-        case .paused:
-            "play.fill"
-        case .expired:
-            "figure.walk"
-        }
+    private struct Appearance {
+        let systemImage: String
+        let color: Color
+        let label: String
+        let help: String
     }
 
-    private var accessibilityLabel: String {
+    private var appearance: Appearance {
         switch status {
         case .running:
-            "Break reminder running"
+            Appearance(
+                systemImage: "pause.fill",
+                color: .primary,
+                label: "Break reminder running",
+                help: "Click to pause. Right-click to restart."
+            )
         case .paused:
-            "Break reminder paused"
+            Appearance(
+                systemImage: "play.fill",
+                color: .secondary,
+                label: "Break reminder paused",
+                help: "Click to resume. Right-click to restart."
+            )
         case .expired:
-            "Break reminder finished"
-        }
-    }
-
-    private var help: String {
-        switch status {
-        case .running:
-            "Click to pause. Right-click to restart."
-        case .paused:
-            "Click to resume. Right-click to restart."
-        case .expired:
-            "Click to start a new reminder."
-        }
-    }
-
-    private var foregroundColor: Color {
-        switch status {
-        case .running:
-            .primary
-        case .paused:
-            .secondary
-        case .expired:
-            .orange
+            Appearance(
+                systemImage: "figure.walk",
+                color: .orange,
+                label: "Break reminder finished",
+                help: "Click to start a new reminder."
+            )
         }
     }
 
     var body: some View {
+        let appearance = appearance
+
         Button {
             perform(.toggle)
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: systemImage)
+                Image(systemName: appearance.systemImage)
                     .font(.system(size: 7, weight: .semibold))
                     .frame(width: 6)
 
@@ -103,12 +94,12 @@ private struct BreakReminderButton: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(foregroundColor)
+        .foregroundStyle(appearance.color)
         .disabled(isBusy)
-        .help(help)
-        .accessibilityLabel(accessibilityLabel)
+        .help(appearance.help)
+        .accessibilityLabel(appearance.label)
         .accessibilityValue(status.timeText)
-        .accessibilityHint(help)
+        .accessibilityHint(appearance.help)
         .accessibilityAction(named: "Restart Timer") {
             perform(.restart)
         }
