@@ -16,7 +16,7 @@ actor UsagePipeline {
     private let home: URL
     private let calendar: Calendar
     private var store = LogStore()
-    private var names = ModelNames()
+    private var sources = EnumMap<Provider, any UsageSource> { $0.usageSource }
     private var lastRun: LastRun?
 
     init(
@@ -34,9 +34,12 @@ actor UsagePipeline {
         let providers = Provider.allCases.filter {
             requested.contains($0) && FileManager.default.fileExists(atPath: $0.home(under: home).path)
         }
-        let roots = providers.flatMap { $0.usageLogRoots(home: home) }
+        let roots = providers.flatMap { sources[$0].logRoots(of: $0, home: home) }
         let logsChanged = store.sync(roots: roots, since: intervals.historyStart)
-        let namesChanged = names.refresh(home: home, providers: providers)
+        var namesChanged = false
+        for provider in providers {
+            namesChanged = sources[provider].refresh(home: provider.home(under: home)) || namesChanged
+        }
         if !logsChanged, !namesChanged, let lastRun, lastRun.intervals == intervals, lastRun.providers == providers {
             return lastRun.report
         }
@@ -45,7 +48,7 @@ actor UsagePipeline {
         let ingestion = store.collect { builder.add($0) }
         log(ingestion, duration: ContinuousClock.now - started)
 
-        let report = UsageReport(ingestion: ingestion, snapshot: builder.snapshot(modelName: names.name))
+        let report = UsageReport(ingestion: ingestion, snapshot: builder.snapshot(sources: sources))
         lastRun = LastRun(intervals: intervals, providers: providers, report: report)
         return report
     }

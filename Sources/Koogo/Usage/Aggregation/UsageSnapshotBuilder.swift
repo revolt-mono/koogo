@@ -108,17 +108,19 @@ struct UsageSnapshotBuilder {
         }
     }
 
-    func snapshot(modelName: (Provider, ModelID) -> String) -> UsageSnapshot {
+    /// Names each model through its provider's source; a model the source does not know shows its id.
+    func snapshot(sources: EnumMap<Provider, any UsageSource>) -> UsageSnapshot {
         let included = accumulators.entries.compactMap { provider, accumulator in
             accumulator.map { (provider, $0) }
         }
         return UsageSnapshot(
             providers: Dictionary(
                 uniqueKeysWithValues: included.map { provider, accumulator in
-                    (
+                    let source = sources[provider]
+                    return (
                         provider,
-                        accumulator.snapshot(intervals: intervals, splitsByModel: provider.splitsUsageByModel) {
-                            modelName(provider, $0)
+                        accumulator.snapshot(intervals: intervals, splitsByModel: source.splitsUsageByModel) {
+                            source.modelName($0) ?? $0.rawValue
                         }
                     )
                 }

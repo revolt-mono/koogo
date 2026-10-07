@@ -136,7 +136,7 @@ struct LogStore {
                 continue
             }
             let path = String(cString: entry.pointee.fts_path)
-            if root.match.matches(path: path) {
+            if root.format.match.matches(path: path) {
                 body(path, metadata)
             }
         }
@@ -152,7 +152,7 @@ struct LogStore {
             while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
                 let (path, root) = files[index]
                 let url = URL(filePath: path, directoryHint: .notDirectory)
-                guard let log = root.open(url, windowStart) else {
+                guard let log = root.format.open(url, windowStart) else {
                     continue
                 }
                 opened.withLock { $0[path] = Entry(provider: root.provider, log: log) }

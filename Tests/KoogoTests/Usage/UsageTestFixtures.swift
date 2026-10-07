@@ -27,7 +27,7 @@ struct UsageTestWorkspace {
     init(root: URL) throws {
         self.root = root
         for provider in Provider.allCases {
-            for directory in provider.usageLogDirectories {
+            for directory in provider.usageSource.logDirectories {
                 try FileManager.default.createDirectory(
                     at: logDirectory(provider, directory),
                     withIntermediateDirectories: true
@@ -120,5 +120,5 @@ func usageSnapshot(
     for event in events {
         builder.add(event)
     }
-    return builder.snapshot(modelName: ModelNames().name)
+    return builder.snapshot(sources: EnumMap { $0.usageSource })
 }

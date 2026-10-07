@@ -342,7 +342,7 @@ extension UsageSnapshotBuilderTests {
                 intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
             )
             ordered.forEach { builder.add($0) }
-            let snapshot = builder.snapshot { _, _ in "Same name" }
+            let snapshot = builder.snapshot(sources: EnumMap { _ in SameNameUsageSource() })
             let models = try XCTUnwrap(snapshot.providers[.codex]?.periods[.today].models)
             XCTAssertEqual(models.map(\.id), [ModelID("c"), ModelID("a"), ModelID("b")])
             XCTAssertEqual(models.map(\.modelName), ["Same name", "Same name", "Same name"])
@@ -363,6 +363,16 @@ extension UsageSnapshotBuilderTests {
         XCTAssertEqual(models.map(\.usage.processedTokens), [0])
         XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].models, [])
         XCTAssertEqual(snapshot.providers[.piAgent]?.favorite?.modelName, "free")
+    }
+}
+
+/// A source that names every model alike, so sorting cannot lean on names.
+private struct SameNameUsageSource: UsageSource {
+    let logDirectories: [String] = []
+    let logFormat = UsageLogFormat(match: .fileExtension(".jsonl")) { _, _ in nil }
+
+    func modelName(_ model: ModelID) -> String? {
+        "Same name"
     }
 }
 

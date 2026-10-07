@@ -15,7 +15,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
         try workspace.write(turns.joined(), to: workspace.codexSessions.appending(path: "session.jsonl"))
         var store = LogStore()
         _ = store.sync(
-            roots: Provider.codex.usageLogRoots(home: workspace.root),
+            roots: CodexUsageSource().logRoots(of: .codex, home: workspace.root),
             since: now.addingTimeInterval(-86_400)
         )
 
