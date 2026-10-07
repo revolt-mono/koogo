@@ -7,8 +7,8 @@ struct GrokSessionLog: TrackedLog {
     private var history: AppendOnlyFile?
     private let historyURL: URL
     private var efforts = GrokChatHistory()
-
-    var events: UsageEventIndex { turns.events }
+    /// The billed turns, each carrying the effort its surviving prompt ran with.
+    private(set) var events = UsageEventIndex()
 
     var tally: LogTally {
         var tally = turns.tally
@@ -48,6 +48,7 @@ struct GrokSessionLog: TrackedLog {
 
     mutating func discard(before windowStart: Date) {
         turns.discard(before: windowStart)
+        joinEfforts()
     }
 
     private mutating func readHistory() -> Bool {
@@ -69,25 +70,28 @@ struct GrokSessionLog: TrackedLog {
         return read != .nothingNew
     }
 
-    /// Attaches each surviving prompt's voted effort to its billed turn, or detaches it once the history no longer names one.
+    /// Attaches each surviving prompt's voted effort to its billed turn; a turn the history no longer names keeps none.
     private mutating func joinEfforts() {
-        for (promptIndex, id) in turns.parser.promptTurns {
-            guard let event = turns.events[id], let turn = event.record.modelTurn else {
-                continue
+        let promptIndices = Dictionary(turns.parser.promptTurns.map { ($0.value, $0.key) }) { first, _ in first }
+        events = UsageEventIndex(
+            distinct: turns.events.values.map { event in
+                guard let promptIndex = promptIndices[event.id], let turn = event.record.modelTurn,
+                    let effort = efforts.effort(promptIndex: promptIndex, model: turn.model.rawValue)
+                else {
+                    return event
+                }
+                return UsageEvent(
+                    id: event.id,
+                    record: UsageRecord(
+                        timestamp: event.record.timestamp,
+                        processedTokens: event.record.processedTokens,
+                        costUSD: event.record.costUSD,
+                        modelTurn: .init(model: turn.model, reasoningEffort: effort)
+                    ),
+                    revision: UsageEvent.Revision(outputTokens: 0, metadataCompleteness: 1)
+                )
             }
-            let effort = efforts.effort(promptIndex: promptIndex, model: turn.model.rawValue)
-            guard effort != turn.reasoningEffort else {
-                continue
-            }
-            let record = UsageRecord(
-                timestamp: event.record.timestamp,
-                processedTokens: event.record.processedTokens,
-                costUSD: event.record.costUSD,
-                modelTurn: .init(model: turn.model, reasoningEffort: effort)
-            )
-            let revision = UsageEvent.Revision(outputTokens: 0, metadataCompleteness: effort == nil ? 0 : 1)
-            turns.events.replace(UsageEvent(id: id, record: record, revision: revision))
-        }
+        )
     }
 }
 

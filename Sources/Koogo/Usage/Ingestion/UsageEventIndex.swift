@@ -9,6 +9,15 @@ struct UsageEventIndex: Sendable {
 
     private var events: [UsageEventID: Stored] = [:]
 
+    init() {}
+
+    /// An index of events with distinct ids that already lie inside the window.
+    init(distinct events: some Sequence<UsageEvent>) {
+        for event in events {
+            insert(event, since: .distantPast)
+        }
+    }
+
     var values: some Collection<UsageEvent> {
         events.lazy.map { UsageEvent(id: $0.key, record: $0.value.record, revision: $0.value.revision) }
     }
@@ -33,10 +42,6 @@ struct UsageEventIndex: Sendable {
         if let existing = events[event.id], !event.supersedes(record: existing.record, revision: existing.revision) {
             return
         }
-        replace(event)
-    }
-
-    mutating func replace(_ event: UsageEvent) {
         events[event.id] = Stored(record: event.record, revision: event.revision)
     }
 
