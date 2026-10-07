@@ -16,7 +16,7 @@ struct ActivityTrendChart: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .frame(height: Self.height)
+        .frame(height: Self.height, alignment: .bottom)
         .accessibilityHidden(true)
     }
 }
