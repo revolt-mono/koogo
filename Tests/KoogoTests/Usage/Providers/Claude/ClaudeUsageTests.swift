@@ -153,6 +153,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         let standard = usage(false, false)
         let fast = usage(true, false)
         let usInference = usage(false, true)
+        let shortPrompt = claudeBillableUsage(uncachedInput: 50_000, cachedInput: 50_000, output: 10_000)
 
         for (model, name, usage, expectedUSD) in [
             ("claude-fable-5-1", "Fable 5.1", standard, "4.775"),
@@ -174,6 +175,9 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             ("claude-sonnet-5", "Sonnet 5", usInference, "1.067"),
             ("claude-sonnet-4-6", "Sonnet 4.6", standard, "1.455"),
             ("claude-sonnet-4-5-20250929", "Sonnet 4.5", standard, "1.455"),
+            ("claude-haiku-5-5", "Haiku 5.5", shortPrompt, "0.0105"),
+            ("claude-haiku-5-5", "Haiku 5.5", standard, "0.2425"),
+            ("claude-haiku-5-5", "Haiku 5.5", usInference, "0.26675"),
             ("claude-haiku-4-5-20251001", "Haiku 4.5", standard, "0.485"),
         ] {
             let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: model, usage: usage), model)

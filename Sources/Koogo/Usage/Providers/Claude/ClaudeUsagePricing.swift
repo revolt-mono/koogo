@@ -1,6 +1,8 @@
 import Foundation
 
 enum ClaudeUsagePricing {
+    private static let longPromptThreshold: UInt64 = 100_000
+
     private struct Rates: Sendable {
         let input: Decimal
         let cacheRead: Decimal
@@ -35,11 +37,12 @@ enum ClaudeUsagePricing {
     private struct ModelPrice: Sendable {
         let displayName: String
         let rates: Rates
+        var longPromptRates: Rates?
         let supportsFastMode: Bool
         let supportsUSInference: Bool
     }
 
-    // Sources, checked 2026-09-29:
+    // Sources, checked 2026-10-08:
     // https://platform.claude.com/docs/en/about-claude/pricing
     // https://platform.claude.com/docs/en/models/overview
     private static let prices: [String: ModelPrice] = [
@@ -127,6 +130,13 @@ enum ClaudeUsagePricing {
             supportsFastMode: false,
             supportsUSInference: false
         ),
+        "claude-haiku-5-5": ModelPrice(
+            displayName: "Haiku 5.5",
+            rates: Rates(input: 100, cacheRead: 10, output: 500),
+            longPromptRates: Rates(input: 500, cacheRead: 50, output: 2_500),
+            supportsFastMode: false,
+            supportsUSInference: true
+        ),
         "claude-haiku-4-5-20251001": ModelPrice(
             displayName: "Haiku 4.5",
             rates: Rates(input: 1_000, cacheRead: 100, output: 5_000),
@@ -147,7 +157,9 @@ enum ClaudeUsagePricing {
             return nil
         }
 
-        var costNanodollars = price.rates.costNanodollars(for: usage.tokens)
+        let promptTokens = usage.tokens.processed - usage.tokens.output
+        let rates = promptTokens > longPromptThreshold ? price.longPromptRates ?? price.rates : price.rates
+        var costNanodollars = rates.costNanodollars(for: usage.tokens)
         if usage.isFast {
             guard price.supportsFastMode else {
                 return nil
