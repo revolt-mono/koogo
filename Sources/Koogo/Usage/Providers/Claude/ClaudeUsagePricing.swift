@@ -108,7 +108,7 @@ enum ClaudeUsagePricing {
         ),
         "claude-sonnet-5-5": ModelPrice(
             displayName: "Sonnet 5.5",
-            rates: Rates(input: 2_000, cacheRead: 200, output: 10_000),
+            rates: Rates(input: 2_000, cacheRead: 100, output: 10_000),
             supportsFastMode: false,
             supportsUSInference: true
         ),
