@@ -73,7 +73,7 @@ private struct ProviderCards: View {
             .padding(.horizontal, Self.inset)
             .motionAnimation(.smooth(duration: 0.25), value: quotaModel.statuses)
         }
-        .panelScroll(edgeFade: Self.spacing, trailingInset: Self.inset)
+        .panelScroll(edgeFade: Self.spacing, scrollerInset: Self.inset)
         .frame(height: min(visibleHeight.rounded(.up), heightLimit))
     }
 }

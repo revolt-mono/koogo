@@ -85,7 +85,7 @@ private struct ProviderUsageModelsView: View {
                     }
                 }
                 .contentMargins(.trailing, scrollerInset, for: .scrollContent)
-                .panelScroll(edgeFade: edgeFade, trailingInset: scrollerInset)
+                .panelScroll(edgeFade: edgeFade, scrollerInset: scrollerInset)
                 .frame(height: visibleHeight)
             }
         }

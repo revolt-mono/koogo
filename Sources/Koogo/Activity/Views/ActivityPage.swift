@@ -23,7 +23,7 @@ struct ActivityPage: View {
                 }
                 .padding(.horizontal, Self.inset)
             }
-            .panelScroll(edgeFade: Self.edgeFade, bottomInset: 32, trailingInset: Self.inset)
+            .panelScroll(edgeFade: Self.edgeFade, bottomInset: 32, scrollerInset: Self.inset)
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .task {
