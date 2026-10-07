@@ -34,19 +34,19 @@
 ```
 ├── Sources/Koogo          menu bar application
 │   ├── App                entry point, model lifetimes, scene wiring, preference-change refresh, headless report
-│   ├── Shared             leaf primitives: total enum map, persisted value, telemetry, iso 8601 dates, pager popover, local event monitor, reduce motion helpers, optional presence binding
-│   ├── Providers          provider identity (title, symbol, home, quota capability) and the one owner of order and usage/quota switches, with their settings toggles
-│   ├── Panel              menu bar panel shell: toolbar, pager, usage page composition, panel-open refresh of usage and quota
+│   ├── Shared             leaf primitives: total enum map, persisted value, telemetry, iso 8601 dates, local event monitor, reduce motion helpers, optional presence binding
+│   ├── Providers          provider identity (title, symbol, home, agent process, quota capability) and the one owner of order, usage/quota switches, and which quota a card shows, with their settings toggles
+│   ├── Panel              menu bar panel shell: toolbar, pager, pager popover, usage page composition, panel-open refresh of usage and quota
 │   ├── Settings           settings window shell hosting slice-owned controls
 │   ├── Usage              observable snapshot model, pipeline actor (discover, read, parse, dedup, aggregate, name), benchmark
 │   │   ├── Events         event identity per provider, record, revision and the one dedup rule, parser contract and quote
-│   │   ├── Ingestion      log roots with their open rule, append-only file reads, parsed logs, event index, tally, store with discovery walk and cross-file dedup, ingestion stats
-│   │   ├── Providers      the one registry of provider log layouts and model names, the json reader the parsers share, and per-provider parsers with their token shapes and pricing: codex, claude, grok (session with history join), pi agent (catalog)
+│   │   ├── Ingestion      log formats and roots, append-only file reads, parsed logs, event index with the one dedup rule, tally, store with discovery walk and cross-file dedup, ingestion stats
+│   │   ├── Providers      the usage source contract and its registry, the json reader the parsers share, and one folder per provider: source (log layout, model names) → parser (token shapes) → pricing; grok joins its history, pi reads a catalog
 │   │   ├── Aggregation    period intervals, snapshot builder, and snapshot types
 │   │   └── Views          summary, provider cards, chart, formatting
-│   ├── Quota              reading and snapshot vocabulary, source contract with the tool failure classification, one model for fetch status and the codex banked reset flow
-│   │   ├── Transport      command-line tool runner, line reader, process group lifetime, json-rpc connection
-│   │   ├── Providers      per-provider quota sources: codex (app-server client, response decoding, consume, reset flow types), claude (cli stream-json usage request), grok (cli acp billing)
+│   ├── Quota              reading and snapshot vocabulary, source contract with its registry and the one failure classification, a read-only model whose `read` is the single busy transition
+│   │   ├── Transport      the one tool failure vocabulary, command-line tool runner, line reader, process group lifetime, json-rpc connection
+│   │   ├── Providers      per-provider quota sources: codex (app-server client, response decoding, banked reset flow and model), claude (cli stream-json usage request), grok (cli acp billing)
 │   │   └── Views          quota section and the codex reset views
 │   ├── QuickActions       scan-then-act model, system adapters (appearance, disk images, orphaned agents), and views
 │   ├── BreakReminder      countdown state, notifications, controls, and issue alert
