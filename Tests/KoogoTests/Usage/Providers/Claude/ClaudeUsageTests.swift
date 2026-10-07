@@ -83,7 +83,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         for (model, usage) in [
             ("unknown-model", #""input_tokens":10,"output_tokens":40"#),
             ("claude-sonnet-4-6", #""input_tokens":10,"output_tokens":40,"speed":"fast""#),
-            ("claude-haiku-4-5", #""input_tokens":10,"output_tokens":40,"inference_geo":"us""#),
+            ("claude-sonnet-4-5", #""input_tokens":10,"output_tokens":40,"inference_geo":"us""#),
             ("claude-opus-5", #""input_tokens":10,"output_tokens":40,"speed":"turbo""#),
         ] {
             var parser = ClaudeUsageLogParser()
@@ -178,7 +178,6 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             ("claude-haiku-5-5", "Haiku 5.5", shortPrompt, "0.0105"),
             ("claude-haiku-5-5", "Haiku 5.5", standard, "0.2425"),
             ("claude-haiku-5-5", "Haiku 5.5", usInference, "0.26675"),
-            ("claude-haiku-4-5-20251001", "Haiku 4.5", standard, "0.485"),
         ] {
             let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: model, usage: usage), model)
             XCTAssertEqual(quote.model, ModelID(model))
@@ -203,14 +202,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(snapshot.costUSD, alias.costUSD)
         XCTAssertEqual(alias.model, ModelID("claude-sonnet-4-5-20250929"))
         XCTAssertEqual(ClaudeUsagePricing.displayName(of: alias.model), "Sonnet 4.5")
-        for model in ["claude-opus-4-5", "claude-haiku-4-5"] {
-            XCTAssertNotNil(
-                ClaudeUsagePricing.quote(
-                    model: model,
-                    usage: claudeBillableUsage(uncachedInput: 1)
-                )
-            )
-        }
+        XCTAssertNotNil(ClaudeUsagePricing.quote(model: "claude-opus-4-5", usage: usage))
         for model in [
             "claude-opus-4-1-20250805",
             "claude-opus-4-1",
@@ -218,6 +210,8 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             "claude-opus-4-0",
             "claude-sonnet-4-20250514",
             "claude-sonnet-4-0",
+            "claude-haiku-4-5-20251001",
+            "claude-haiku-4-5",
             "claude-3-5-haiku-20241022",
             "claude-3-5-haiku-latest",
         ] {

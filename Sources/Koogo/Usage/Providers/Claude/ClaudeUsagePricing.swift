@@ -137,12 +137,6 @@ enum ClaudeUsagePricing {
             supportsFastMode: false,
             supportsUSInference: true
         ),
-        "claude-haiku-4-5-20251001": ModelPrice(
-            displayName: "Haiku 4.5",
-            rates: Rates(input: 1_000, cacheRead: 100, output: 5_000),
-            supportsFastMode: false,
-            supportsUSInference: false
-        ),
     ]
 
     static func quote(model: String, usage: ClaudeBillableUsage) -> UsageQuote? {
@@ -150,7 +144,6 @@ enum ClaudeUsagePricing {
             switch model {
             case "claude-opus-4-5": "claude-opus-4-5-20251101"
             case "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
-            case "claude-haiku-4-5": "claude-haiku-4-5-20251001"
             default: model
             }
         guard let price = prices[modelID] else {
