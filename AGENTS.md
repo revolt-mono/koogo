@@ -33,15 +33,15 @@
 
 ```
 ├── Sources/Koogo          menu bar application
-│   ├── App                entry point, model lifetimes, scene wiring, preference-change refresh, headless report
-│   ├── Shared             leaf primitives: total enum map, persisted value, telemetry, iso 8601 dates, local event monitor, reduce motion helpers, optional presence binding
+│   ├── App                entry point, the one bundle of shared models and its scene wiring, headless report
+│   ├── Shared             leaf primitives: total enum map, persisted value, telemetry, date parsing, overflow arithmetic, local event monitor, reduce motion helpers, optional presence binding
 │   ├── Providers          provider identity (title, symbol, home, agent process, quota capability) and the one owner of order, usage/quota switches, and which quota a card shows, with their settings toggles
-│   ├── Panel              menu bar panel shell: toolbar, pager, pager popover, usage page composition, panel-open refresh of usage and quota
+│   ├── Panel              menu bar panel shell: toolbar, pager, pager popover and disclosure rows, page loading shell, shared chrome and scroll fade, usage page composition, panel-open and preference-change refresh of usage and quota
 │   ├── Settings           settings window shell hosting slice-owned controls
 │   ├── Usage              observable snapshot model, pipeline actor (discover, read, parse, dedup, aggregate, name), benchmark
 │   │   ├── Events         event identity per provider, record, revision and the one dedup rule, parser contract and quote
 │   │   ├── Ingestion      log formats and roots, append-only file reads, parsed logs, event index with the one dedup rule, tally, store with discovery walk and cross-file dedup, ingestion stats
-│   │   ├── Providers      the usage source contract and its registry, the json reader the parsers share, and one folder per provider: source (log layout, model names) → parser (token shapes) → pricing; grok joins its history, pi reads a catalog
+│   │   ├── Providers      the usage source contract and its registry, the json reader and typed field lookup the parsers share, and one folder per provider: source (log layout, model names) → parser (token shapes) → pricing; grok joins its history, pi reads a catalog
 │   │   ├── Aggregation    period intervals, snapshot builder, and snapshot types
 │   │   └── Views          summary, provider cards, chart, formatting
 │   ├── Quota              reading and snapshot vocabulary, source contract with its registry and the one failure classification, a read-only model whose `read` is the single busy transition

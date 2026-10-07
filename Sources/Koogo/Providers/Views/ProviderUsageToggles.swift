@@ -18,7 +18,7 @@ struct ProviderUsageToggles: View {
                 Toggle(
                     provider.title,
                     isOn: Binding(
-                        get: { preferences.usageEnabled.contains(provider) },
+                        get: { preferences.isUsageEnabled(provider) },
                         set: { preferences.setUsage($0, for: provider) }
                     )
                 )

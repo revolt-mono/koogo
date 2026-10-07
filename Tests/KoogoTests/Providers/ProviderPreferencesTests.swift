@@ -34,7 +34,7 @@ final class ProviderPreferencesTests: XCTestCase {
 
         XCTAssertEqual(preferences.usageProviders, [.claude, .piAgent, .grok])
         XCTAssertEqual(preferences.quotaProviders, [.claude], "a provider hidden from usage fetches no quota")
-        XCTAssertTrue(preferences.quotaEnabled.contains(.codex))
+        XCTAssertTrue(preferences.isQuotaEnabled(.codex))
 
         let relaunched = ProviderPreferences(defaults: defaults)
         XCTAssertEqual(relaunched.usageProviders, [.claude, .piAgent, .grok])
@@ -51,6 +51,6 @@ final class ProviderPreferencesTests: XCTestCase {
         let preferences = ProviderPreferences(defaults: defaults)
 
         XCTAssertEqual(preferences.order, Provider.allCases)
-        XCTAssertEqual(preferences.usageEnabled, Set(Provider.allCases))
+        XCTAssertEqual(preferences.usageProviders, Provider.allCases)
     }
 }

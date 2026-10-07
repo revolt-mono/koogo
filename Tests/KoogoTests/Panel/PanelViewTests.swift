@@ -10,9 +10,6 @@ final class PanelViewTests: XCTestCase {
         let workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
         try workspace.write(codexLog(input: 700, output: 300), to: workspace.codexSessions.appending(path: "log.jsonl"))
         let defaults = try makeIsolatedDefaults()
-        let update = UpdateModel()
-        let reminder = BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults)
-        let inbox = InboxModel(defaults: defaults)
         let activity = ActivityModel { activitySample() }
 
         for disabled: Set<QuotaProvider> in [
@@ -23,10 +20,8 @@ final class PanelViewTests: XCTestCase {
                 preferences.setQuota(false, for: provider)
             }
             preferences.setUsage(false, for: .codex)
-            let usage = UsageModel(
-                pipeline: UsagePipeline(home: workspace.root, calendar: usageTestCalendar),
-                now: { usageTestTimestamp }
-            )
+            let pipeline = UsagePipeline(home: workspace.root, calendar: usageTestCalendar)
+            let usage = UsageModel(pipeline: pipeline, now: { usageTestTimestamp })
             let quota = QuotaModel(
                 sources: QuotaSources(
                     codex: CodexQuotaSource(executableCandidates: []),
@@ -35,15 +30,21 @@ final class PanelViewTests: XCTestCase {
                 )
             )
             let host = NSHostingView(
-                rootView: PanelView()
-                    .environment(preferences)
-                    .environment(usage)
-                    .environment(quota)
-                    .environment(CodexQuotaResetModel(quota: quota))
-                    .environment(update)
-                    .environment(reminder)
-                    .environment(inbox)
-                    .environment(activity)
+                rootView: PanelView().environment(
+                    AppModels(
+                        preferences: preferences,
+                        usage: usage,
+                        quota: quota,
+                        codexReset: CodexQuotaResetModel(quota: quota),
+                        update: UpdateModel(),
+                        breakReminder: BreakReminderModel(
+                            notifications: BreakReminderTestNotifications(),
+                            defaults: defaults
+                        ),
+                        inbox: InboxModel(defaults: defaults),
+                        activity: activity
+                    )
+                )
             )
             host.layoutSubtreeIfNeeded()
             try await waitUntil { usage.snapshot != nil && activity.latest != nil }

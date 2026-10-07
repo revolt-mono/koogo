@@ -8,11 +8,11 @@ struct ProviderQuotaToggles: View {
             Toggle(
                 provider.provider.title,
                 isOn: Binding(
-                    get: { preferences.quotaEnabled.contains(provider) },
+                    get: { preferences.isQuotaEnabled(provider) },
                     set: { preferences.setQuota($0, for: provider) }
                 )
             )
-            .disabled(!preferences.usageEnabled.contains(provider.provider))
+            .disabled(!preferences.isUsageEnabled(provider.provider))
         }
     }
 }

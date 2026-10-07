@@ -2,63 +2,46 @@ import AppKit
 import SwiftUI
 
 struct KoogoApp: App {
-    @State private var preferences: ProviderPreferences
-    @State private var usageModel: UsageModel
-    @State private var quotaModel: QuotaModel
-    @State private var codexResetModel: CodexQuotaResetModel
-    @State private var updateModel: UpdateModel
-    @State private var breakReminderModel = BreakReminderModel(
-        notifications: BreakReminderNotificationCenter()
-    )
-    @State private var inboxModel = InboxModel()
-    @State private var activityModel: ActivityModel
+    @State private var models: AppModels
 
     init() {
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
         let preferences = ProviderPreferences()
         let usageModel = UsageModel(pipeline: UsagePipeline())
         usageModel.refresh(providers: preferences.usageProviders)
-        _preferences = State(initialValue: preferences)
-        _usageModel = State(initialValue: usageModel)
         let quotaModel = QuotaModel()
-        _quotaModel = State(initialValue: quotaModel)
-        _codexResetModel = State(initialValue: CodexQuotaResetModel(quota: quotaModel))
         let updateModel = UpdateModel()
         updateModel.start()
-        _updateModel = State(initialValue: updateModel)
         let sampler = ActivitySampler()
-        _activityModel = State(initialValue: ActivityModel { try await sampler.sample() })
+        _models = State(
+            initialValue: AppModels(
+                preferences: preferences,
+                usage: usageModel,
+                quota: quotaModel,
+                codexReset: CodexQuotaResetModel(quota: quotaModel),
+                update: updateModel,
+                breakReminder: BreakReminderModel(notifications: BreakReminderNotificationCenter()),
+                inbox: InboxModel(),
+                activity: ActivityModel { try await sampler.sample() }
+            )
+        )
     }
 
     var body: some Scene {
-        Group {
-            MenuBarExtra {
-                PanelView()
-                    .fontDesign(.rounded)
-            } label: {
-                Image(systemName: "chart.bar.xaxis")
-            }
-            .menuBarExtraStyle(.window)
+        MenuBarExtra {
+            PanelView()
+                .fontDesign(.rounded)
+                .environment(models)
+        } label: {
+            Image(systemName: "chart.bar.xaxis")
+        }
+        .menuBarExtraStyle(.window)
 
-            Settings {
-                SettingsView()
-                    .fontDesign(.rounded)
-            }
-            .windowResizability(.contentSize)
+        Settings {
+            SettingsView()
+                .fontDesign(.rounded)
+                .environment(models)
         }
-        .environment(preferences)
-        .environment(usageModel)
-        .environment(quotaModel)
-        .environment(codexResetModel)
-        .environment(updateModel)
-        .environment(breakReminderModel)
-        .environment(inboxModel)
-        .environment(activityModel)
-        .onChange(of: preferences.usageProviders) {
-            usageModel.refresh(providers: preferences.usageProviders)
-        }
-        .onChange(of: preferences.quotaProviders) {
-            quotaModel.refresh(preferences.quotaProviders)
-        }
+        .windowResizability(.contentSize)
     }
 }

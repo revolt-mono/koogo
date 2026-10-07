@@ -47,6 +47,12 @@ struct PanelView: View {
             usageModel.refresh(providers: preferences.usageProviders)
             quotaModel.refresh(preferences.quotaProviders)
         }
+        .onChange(of: preferences.usageProviders) { _, providers in
+            usageModel.refresh(providers: providers)
+        }
+        .onChange(of: preferences.quotaProviders) { _, providers in
+            quotaModel.refresh(providers)
+        }
     }
 }
 
