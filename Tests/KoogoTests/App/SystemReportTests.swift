@@ -14,7 +14,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
 
         let data = try await SystemReport.generate(
             pipeline: makePipeline(),
-            quotaSources: EnumMap(
+            quotaSources: QuotaSources(
                 codex: CodexQuotaSource(executableCandidates: [try quotaWorkspace.makeAppServer()]),
                 claude: ClaudeQuotaSource(executableCandidates: []),
                 grok: GrokQuotaSource(executableCandidates: [])
@@ -74,7 +74,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
 
         let data = try await SystemReport.generate(
             pipeline: makePipeline(),
-            quotaSources: EnumMap(
+            quotaSources: QuotaSources(
                 codex: CodexQuotaSource(executableCandidates: [codexExecutable]),
                 claude: ClaudeQuotaSource(executableCandidates: [claudeExecutable]),
                 grok: GrokQuotaSource(executableCandidates: [grokExecutable])

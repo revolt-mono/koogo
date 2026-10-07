@@ -2,8 +2,6 @@ import Foundation
 
 /// The `get_usage` control reply of the Claude CLI's stream-json protocol. The plan windows are the fields the CLI keeps even when it answers from its own cached snapshot; the raw server rows are dropped then.
 struct ClaudeQuotaResponse: Decodable {
-    struct Invalid: Error {}
-
     struct Window: Decodable {
         let displayName: String?
         /// Null while the window has not started.
@@ -13,7 +11,7 @@ struct ClaudeQuotaResponse: Decodable {
         func quotaWindow(_ title: String) throws -> QuotaWindow? {
             guard let utilization else { return nil }
             let resetsAt = try resetsAt.map { text in
-                guard let date = Date(iso8601: text) else { throw Invalid() }
+                guard let date = Date(iso8601: text) else { throw ToolFailure.invalidMessage }
                 return date
             }
             return QuotaWindow(title: title, usedPercent: utilization, resetsAt: resetsAt)
@@ -59,7 +57,7 @@ struct ClaudeControlResponse: Decodable {
         get throws {
             guard type == "control_response", let response else { return nil }
             guard response.subtype == "success", let reply = response.response else {
-                throw ClaudeQuotaResponse.Invalid()
+                throw ToolFailure.invalidMessage
             }
             return reply
         }

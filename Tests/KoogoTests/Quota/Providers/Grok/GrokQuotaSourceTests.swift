@@ -145,9 +145,7 @@ final class GrokQuotaSourceTests: XCTestCase {
             )
             let result = await GrokQuotaSource(executableCandidates: [executable], timeout: .milliseconds(500)).load()
             XCTAssertEqual(result, .unavailable(.timedOut))
-            let text = try String(contentsOf: workspace.pidFile, encoding: .utf8).trimmingCharacters(in: .newlines)
-            let pid = try XCTUnwrap(pid_t(text))
-            try await waitUntil(timeout: .seconds(3)) { kill(pid, 0) == -1 && errno == ESRCH }
+            try await waitForExit(pidIn: workspace.pidFile)
         }
     }
 }

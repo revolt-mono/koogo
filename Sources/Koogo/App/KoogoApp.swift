@@ -4,7 +4,8 @@ import SwiftUI
 struct KoogoApp: App {
     @State private var preferences: ProviderPreferences
     @State private var usageModel: UsageModel
-    @State private var quotaModel = QuotaModel()
+    @State private var quotaModel: QuotaModel
+    @State private var codexResetModel: CodexQuotaResetModel
     @State private var updateModel: UpdateModel
     @State private var breakReminderModel = BreakReminderModel(
         notifications: BreakReminderNotificationCenter()
@@ -18,6 +19,9 @@ struct KoogoApp: App {
         usageModel.refresh(providers: preferences.usageProviders)
         _preferences = State(initialValue: preferences)
         _usageModel = State(initialValue: usageModel)
+        let quotaModel = QuotaModel()
+        _quotaModel = State(initialValue: quotaModel)
+        _codexResetModel = State(initialValue: CodexQuotaResetModel(quota: quotaModel))
         let updateModel = UpdateModel()
         updateModel.start()
         _updateModel = State(initialValue: updateModel)
@@ -42,6 +46,7 @@ struct KoogoApp: App {
         .environment(preferences)
         .environment(usageModel)
         .environment(quotaModel)
+        .environment(codexResetModel)
         .environment(updateModel)
         .environment(breakReminderModel)
         .environment(inboxModel)

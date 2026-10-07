@@ -1,6 +1,6 @@
 import Foundation
 
-struct CodexQuotaSource: QuotaSource {
+struct CodexQuotaSource: CodexQuotaResetSource {
     private let appServer: CodexAppServer
 
     init(
@@ -22,7 +22,7 @@ struct CodexQuotaSource: QuotaSource {
             let response: CodexQuotaResponse = try await appServer.call("account/rateLimits/read")
             return response.snapshot.map(QuotaReading.available) ?? .unavailable(.emptyLimits)
         } catch {
-            return .unavailable(error.failure.unavailability)
+            return .unavailable(QuotaUnavailability(error.failure))
         }
     }
 

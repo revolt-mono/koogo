@@ -1,26 +1,34 @@
+/// One provider's tool, asked for the account's limits. A source never throws: every failure is a reading.
 protocol QuotaSource: Sendable {
     func load() async -> QuotaReading
 }
 
 extension QuotaUnavailability {
-    init(_ error: any Error) {
+    init(_ failure: ToolFailure) {
         self =
-            switch error {
-            case CommandLineTool.Failure.notFound: .binaryNotFound
-            case CommandLineTool.Failure.timedOut: .timedOut
-            default: .sessionFailed
+            switch failure {
+            case .notFound: .binaryNotFound
+            case .timedOut: .timedOut
+            case .cancelled, .closed, .invalidMessage, .rpc: .sessionFailed
             }
     }
 }
 
-extension EnumMap where Key == QuotaProvider, Value == any QuotaSource {
-    init(codex: any QuotaSource, claude: any QuotaSource, grok: any QuotaSource) {
-        self.init { provider in
-            switch provider {
-            case .codex: codex
-            case .claude: claude
-            case .grok: grok
-            }
+/// One tool per quota provider. Codex is typed for the banked reset only it supports, so the reset and the regular read share one tool.
+struct QuotaSources: Sendable {
+    let codex: any CodexQuotaResetSource
+    let claude: any QuotaSource
+    let grok: any QuotaSource
+
+    static var production: Self {
+        QuotaSources(codex: CodexQuotaSource(), claude: ClaudeQuotaSource(), grok: GrokQuotaSource())
+    }
+
+    subscript(provider: QuotaProvider) -> any QuotaSource {
+        switch provider {
+        case .codex: codex
+        case .claude: claude
+        case .grok: grok
         }
     }
 }

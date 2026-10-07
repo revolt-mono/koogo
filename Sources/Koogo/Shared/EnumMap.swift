@@ -8,6 +8,20 @@ struct EnumMap<Key: CaseIterable & Hashable, Value> {
         values = try keys.map(make)
     }
 
+    init(concurrently make: @escaping @Sendable (Key) async -> Value) async where Key: Sendable, Value: Sendable {
+        keys = Array(Key.allCases)
+        values = await withTaskGroup(of: (slot: Int, value: Value).self) { [keys] group in
+            for (slot, key) in keys.enumerated() {
+                group.addTask { (slot, await make(key)) }
+            }
+            var values = [Value?](repeating: nil, count: keys.count)
+            for await made in group {
+                values[made.slot] = made.value
+            }
+            return values.compactMap { $0 }
+        }
+    }
+
     subscript(key: Key) -> Value {
         get { values[slot(of: key)] }
         _modify { yield &values[slot(of: key)] }

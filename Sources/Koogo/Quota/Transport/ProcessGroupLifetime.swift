@@ -31,7 +31,7 @@ final class ProcessGroupLifetime: Sendable {
             }
             group.addTask {
                 try await Task.sleep(for: timeout)
-                throw CommandLineTool.Failure.timedOut
+                throw ToolFailure.timedOut
             }
             defer { group.cancelAll() }
             return try await group.next()!

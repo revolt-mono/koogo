@@ -229,7 +229,7 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         XCTAssertThrowsError(try result.get())
         XCTAssertLessThan(ContinuousClock.now - cancellationStarted, .seconds(3))
-        try await waitForExit(pidWrittenTo: childMarker)
+        try await waitForExit(pidIn: childMarker)
     }
 
     func testFetchTimesOutAndKillsStalledServer() async throws {
@@ -251,16 +251,7 @@ final class CodexQuotaSourceTests: XCTestCase {
 
         XCTAssertEqual(result, .unavailable(.timedOut))
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
-        try await waitForExit(pidWrittenTo: pidMarker)
+        try await waitForExit(pidIn: pidMarker)
     }
 
-    private func waitForExit(
-        pidWrittenTo marker: URL,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) async throws {
-        let contents = try String(contentsOf: marker, encoding: .utf8)
-        let pid = try XCTUnwrap(pid_t(contents.trimmingCharacters(in: .newlines)), file: file, line: line)
-        try await waitUntil(timeout: .seconds(3), file: file, line: line) { kill(pid, 0) == -1 && errno == ESRCH }
-    }
 }

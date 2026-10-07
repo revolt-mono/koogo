@@ -121,8 +121,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
             let result = await fetch.value
             XCTAssertEqual(result, .unavailable(cancel ? .sessionFailed : .timedOut))
             for marker in [parentMarker, childMarker] {
-                let processID = try XCTUnwrap(Int32(String(contentsOf: marker, encoding: .utf8)))
-                try await waitUntil { kill(processID, 0) == -1 && errno == ESRCH }
+                try await waitForExit(pidIn: marker)
                 try FileManager.default.removeItem(at: marker)
             }
         }

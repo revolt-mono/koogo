@@ -22,7 +22,7 @@ struct GrokQuotaSource: QuotaSource {
             ) { input, output in
                 var connection = JSONRPCConnection(input: input, output: output, dateDecodingStrategy: .iso8601)
                 let initialized: InitializeResponse = try connection.request("initialize", params: InitializeParams())
-                guard initialized.protocolVersion == 1 else { throw JSONRPCConnection.Failure.invalidMessage }
+                guard initialized.protocolVersion == 1 else { throw ToolFailure.invalidMessage }
                 return try connection.request("_x.ai/billing", params: [String: String]())
             }
             return response.snapshot.map(QuotaReading.available) ?? .unavailable(.emptyLimits)

@@ -1,7 +1,14 @@
 import Foundation
 
 struct CodexQuotaTestWorkspace {
-    let root: URL
+    let tool: ScriptedToolWorkspace
+
+    init(root: URL) {
+        tool = ScriptedToolWorkspace(root: root)
+    }
+
+    var root: URL { tool.root }
+    var pidFile: URL { tool.pidFile }
 
     static let resetCredit = """
         {"id":"credit-a","resetType":"codexRateLimits","status":"available","grantedAt":1700000000,"expiresAt":4102444800,"title":"Usage reset","description":"Reset eligible usage limits"}
@@ -24,7 +31,7 @@ struct CodexQuotaTestWorkspace {
     var readRequestsFile: URL { root.appending(path: "read-requests.jsonl") }
 
     func lines(in file: URL) throws -> [Substring] {
-        try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
+        try tool.lines(in: file)
     }
 
     func makeAppServer(
@@ -38,7 +45,7 @@ struct CodexQuotaTestWorkspace {
         return try makeTestExecutable(
             in: root,
             script: """
-                #!/bin/sh
+                \(tool.prologue)
                 \(onStart)
                 while IFS= read -r request; do
                   case "$request" in

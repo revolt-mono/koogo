@@ -1,30 +1,33 @@
 import Foundation
 
 struct ClaudeQuotaTestWorkspace {
-    let root: URL
+    let tool: ScriptedToolWorkspace
 
-    var requestsFile: URL { root.appending(path: "requests.jsonl") }
-    var argumentsFile: URL { root.appending(path: "arguments") }
-    var directoryFile: URL { root.appending(path: "directory") }
+    init(root: URL) {
+        tool = ScriptedToolWorkspace(root: root)
+    }
+
+    var root: URL { tool.root }
+    var requestsFile: URL { tool.requestsFile }
+    var argumentsFile: URL { tool.argumentsFile }
+    var directoryFile: URL { tool.directoryFile }
 
     func makeCLI(
         output: String = response(),
         beforeOutput: String = ""
     ) throws -> URL {
-        let executable = root.appending(path: "claude")
-        try """
-        #!/bin/sh
-        printf '%s\\n' "$@" > '\(argumentsFile.path)'
-        pwd > '\(directoryFile.path)'
-        \(beforeOutput)
-        IFS= read -r request || exit 1
-        printf '%s\\n' "$request" > '\(requestsFile.path)'
-        /bin/cat <<'OUTPUT'
-        \(output)
-        OUTPUT
-        """.write(to: executable, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
-        return executable
+        try makeTestExecutable(
+            in: root,
+            script: """
+                \(tool.prologue)
+                \(beforeOutput)
+                IFS= read -r request || exit 1
+                printf '%s\\n' "$request" > '\(requestsFile.path)'
+                /bin/cat <<'OUTPUT'
+                \(output)
+                OUTPUT
+                """
+        )
     }
 
     static func response(rateLimits: String = limits) -> String {

@@ -61,7 +61,7 @@ final class JSONRPCConnectionTests: XCTestCase {
                 try await request(reply: reply)
                 XCTFail("invalid message accepted: \(reply)")
             } catch {
-                if case CommandLineTool.Failure.timedOut = error {
+                if case ToolFailure.timedOut = error {
                     XCTFail("invalid message should fail immediately")
                 }
             }
@@ -72,7 +72,7 @@ final class JSONRPCConnectionTests: XCTestCase {
         do {
             try await request(reply: #"{"id":1,"error":{"code":-32601,"message":"Method not found"}}"#)
             XCTFail("rpc error accepted")
-        } catch JSONRPCConnection.Failure.rpc(let code) {
+        } catch ToolFailure.rpc(let code) {
             XCTAssertEqual(code, -32601)
         }
     }
@@ -81,7 +81,7 @@ final class JSONRPCConnectionTests: XCTestCase {
         do {
             try await request(reply: nil)
             XCTFail("eof accepted")
-        } catch JSONRPCConnection.Failure.closed {}
+        } catch ToolFailure.closed {}
     }
 
     private func request(reply: String?) async throws {

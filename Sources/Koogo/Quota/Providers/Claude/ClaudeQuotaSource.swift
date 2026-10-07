@@ -25,7 +25,7 @@ struct ClaudeQuotaSource: QuotaSource {
 
     func load() async -> QuotaReading {
         do {
-            let response = try await tool.session(
+            let snapshot = try await tool.session(
                 Self.arguments,
                 in: URL(filePath: "/tmp", directoryHint: .isDirectory)
             ) { input, output in
@@ -36,12 +36,12 @@ struct ClaudeQuotaSource: QuotaSource {
                 var output = output
                 while let line = try output.nextLine() {
                     if let reply = try decoder.decode(ClaudeControlResponse.self, from: line).reply {
-                        return reply
+                        return try reply.snapshot()
                     }
                 }
-                throw ClaudeQuotaResponse.Invalid()
+                throw ToolFailure.invalidMessage
             }
-            return try response.snapshot().map(QuotaReading.available) ?? .unavailable(.emptyLimits)
+            return snapshot.map(QuotaReading.available) ?? .unavailable(.emptyLimits)
         } catch {
             return .unavailable(QuotaUnavailability(error))
         }

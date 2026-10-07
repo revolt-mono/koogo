@@ -1,12 +1,17 @@
 import Foundation
 
 struct GrokQuotaTestWorkspace {
-    let root: URL
+    let tool: ScriptedToolWorkspace
 
-    var requestsFile: URL { root.appending(path: "requests.jsonl") }
-    var argumentsFile: URL { root.appending(path: "arguments") }
-    var directoryFile: URL { root.appending(path: "directory") }
-    var pidFile: URL { root.appending(path: "pid") }
+    init(root: URL) {
+        tool = ScriptedToolWorkspace(root: root)
+    }
+
+    var root: URL { tool.root }
+    var requestsFile: URL { tool.requestsFile }
+    var argumentsFile: URL { tool.argumentsFile }
+    var directoryFile: URL { tool.directoryFile }
+    var pidFile: URL { tool.pidFile }
 
     func makeAgent(
         billingResponse: String = response(),
@@ -17,10 +22,7 @@ struct GrokQuotaTestWorkspace {
         try makeTestExecutable(
             in: root,
             script: """
-                #!/bin/sh
-                printf '%s\\n' "$$" > '\(pidFile.path)'
-                printf '%s\\n' "$@" > '\(argumentsFile.path)'
-                pwd > '\(directoryFile.path)'
+                \(tool.prologue)
                 IFS= read -r request || exit 1
                 printf '%s\\n' "$request" > '\(requestsFile.path)'
                 \(beforeInitialize)

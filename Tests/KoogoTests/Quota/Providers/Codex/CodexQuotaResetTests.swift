@@ -75,10 +75,10 @@ final class CodexQuotaResetTests: XCTestCase {
     func testRPCErrorsMapToTypedFailuresAndUnknownOutcomesAreNotSuccess() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let attempt = resetAttempt()
-        let cases: [(String, CodexAppServer.Failure)] = [
-            ("{\"id\":2,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}", .methodNotFound),
+        let cases: [(String, ToolFailure)] = [
+            ("{\"id\":2,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}", .rpc(code: -32601)),
             ("{\"id\":2,\"error\":{\"code\":-32603,\"message\":\"Timed out\"}}", .rpc(code: -32603)),
-            ("{\"id\":2,\"result\":{\"outcome\":\"future-outcome\"}}", .sessionFailed),
+            ("{\"id\":2,\"result\":{\"outcome\":\"future-outcome\"}}", .invalidMessage),
         ]
         for (response, expected) in cases {
             let executable = try workspace.makeAppServer(consumeResponse: response)
@@ -124,7 +124,7 @@ final class CodexQuotaResetTests: XCTestCase {
 
     func testFailureBeforeTheWriteIsRejected() async {
         let result = await CodexQuotaSource(executableCandidates: []).consume(resetAttempt())
-        XCTAssertEqual(result, .failure(.rejected(.binaryNotFound)))
+        XCTAssertEqual(result, .failure(.rejected(.notFound)))
     }
 }
 

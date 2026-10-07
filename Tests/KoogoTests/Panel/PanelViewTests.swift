@@ -28,15 +28,19 @@ final class PanelViewTests: XCTestCase {
                 now: { usageTestTimestamp }
             )
             let quota = QuotaModel(
-                codex: CodexQuotaSource(executableCandidates: []),
-                claude: ClaudeQuotaSource(executableCandidates: []),
-                grok: GrokQuotaSource(executableCandidates: [])
+                sources: QuotaSources(
+                    codex: CodexQuotaSource(executableCandidates: []),
+                    claude: ClaudeQuotaSource(executableCandidates: []),
+                    grok: GrokQuotaSource(executableCandidates: [])
+                )
             )
+            let codexReset = CodexQuotaResetModel(quota: quota)
             let host = NSHostingView(
                 rootView: PanelView()
                     .environment(preferences)
                     .environment(usage)
                     .environment(quota)
+                    .environment(codexReset)
                     .environment(update)
                     .environment(reminder)
                     .environment(inbox)

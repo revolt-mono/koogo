@@ -27,7 +27,7 @@ struct LineReader {
             }
             buffer.append(chunk)
             guard buffer.count <= Self.outputLimit else {
-                throw CommandLineTool.Failure.failed
+                throw ToolFailure.invalidMessage
             }
         }
     }

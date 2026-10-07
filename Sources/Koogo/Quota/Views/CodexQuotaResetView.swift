@@ -1,16 +1,16 @@
 import SwiftUI
 
 struct CodexQuotaResetView: View {
-    @Environment(QuotaModel.self) private var model
+    @Environment(CodexQuotaResetModel.self) private var model
     @State private var isPresented = false
 
     var body: some View {
-        if model.codexResetCredits != nil || model.codexReset != .idle {
+        if model.isShown {
             Button {
                 isPresented.toggle()
             } label: {
                 HStack(spacing: 4) {
-                    if let credits = model.codexResetCredits {
+                    if let credits = model.credits {
                         let noun = credits.availableCount == 1 ? "banked reset" : "banked resets"
                         Text("\(Text("\(credits.availableCount)").foregroundStyle(.white)) \(noun) available")
                             .monospacedDigit()
@@ -35,21 +35,21 @@ struct CodexQuotaResetView: View {
 }
 
 private struct CodexQuotaResetDetail: View {
-    @Environment(QuotaModel.self) private var model
+    @Environment(CodexQuotaResetModel.self) private var model
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("Banked resets").font(.headline)
-                if let resetCredits = model.codexResetCredits {
-                    Text("\(resetCredits.availableCount) available")
+                if let credits = model.credits {
+                    Text("\(credits.availableCount) available")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                QuotaRefreshButton(isDisabled: model.isBusy(.codex)) { model.refresh([.codex], force: true) }
+                CodexQuotaRefreshButton(isDisabled: model.isBusy, action: model.refresh)
             }
             CodexQuotaResetStatus()
-            if let credits = model.codexResetCredits?.credits, !credits.isEmpty {
+            if let credits = model.credits?.credits, !credits.isEmpty {
                 VStack(spacing: 8) {
                     ForEach(credits) { credit in
                         if credit.id != credits.first?.id {
@@ -58,7 +58,7 @@ private struct CodexQuotaResetDetail: View {
                         CodexQuotaResetCreditRow(credit: credit)
                     }
                 }
-            } else if let resetCredits = model.codexResetCredits, resetCredits.availableCount > 0 {
+            } else if let credits = model.credits, credits.availableCount > 0 {
                 Text("Banked reset details are unavailable. Refresh to load them.")
                     .foregroundStyle(.secondary)
             }
@@ -72,10 +72,10 @@ private struct CodexQuotaResetDetail: View {
 }
 
 private struct CodexQuotaResetStatus: View {
-    @Environment(QuotaModel.self) private var model
+    @Environment(CodexQuotaResetModel.self) private var model
 
     var body: some View {
-        switch model.codexReset {
+        switch model.flow {
         case .idle:
             EmptyView()
         case .confirming(let attempt, let rejection):
@@ -94,10 +94,10 @@ private struct CodexQuotaResetStatus: View {
                         .foregroundStyle(.orange)
                 }
                 HStack(spacing: 8) {
-                    Button("Use banked reset") { model.submitCodexReset() }
+                    Button("Use banked reset", action: model.submit)
                         .buttonStyle(.borderedProminent)
-                        .disabled(model.isBusy(.codex))
-                    Button("Cancel") { model.cancelCodexReset() }
+                        .disabled(model.isBusy)
+                    Button("Cancel", action: model.cancel)
                 }
             }
         case .submitting:
@@ -113,8 +113,8 @@ private struct CodexQuotaResetStatus: View {
                     .foregroundStyle(.orange)
                 Text("Reset outcome not confirmed. Retry uses the same request to avoid spending twice.")
                     .foregroundStyle(.secondary)
-                Button("Retry same reset") { model.submitCodexReset() }
-                    .disabled(model.isBusy(.codex))
+                Button("Retry same reset", action: model.submit)
+                    .disabled(model.isBusy)
             }
         }
     }
@@ -130,15 +130,15 @@ private struct CodexQuotaResetStatus: View {
         }
     }
 
-    private func failureMessage(_ failure: CodexAppServer.Failure) -> String {
+    private func failureMessage(_ failure: ToolFailure) -> String {
         switch failure {
-        case .methodNotFound:
+        case .rpc(code: -32601):
             "This Codex version cannot use banked resets. Update Codex, then retry."
         case .rpc(let code):
             "Codex returned an error (code \(code))."
-        case .binaryNotFound:
+        case .notFound:
             "Codex wasn't found. Install Codex, then retry."
-        case .timedOut, .sessionFailed:
+        case .timedOut, .cancelled, .closed, .invalidMessage:
             "The Codex request failed. Try again."
         }
     }
@@ -147,20 +147,21 @@ private struct CodexQuotaResetStatus: View {
 private struct CodexQuotaResetCreditRow: View {
     private static let expiryWarning: TimeInterval = 48 * 3_600
 
-    @Environment(QuotaModel.self) private var model
+    @Environment(CodexQuotaResetModel.self) private var model
     let credit: QuotaSnapshot.ResetCredit
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+        // The timeline only re-evaluates the row; the model's clock decides expiry.
+        TimelineView(.periodic(from: .now, by: 60)) { _ in
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(credit.title)
                         .fontWeight(.semibold)
                     if let expiration = credit.expiresAt {
                         let date = expiration.formatted(date: .abbreviated, time: .shortened)
-                        Text(credit.canUse(at: timeline.date) ? "Expires \(date)" : "Expired \(date)")
+                        Text(credit.canUse(at: model.now) ? "Expires \(date)" : "Expired \(date)")
                             .foregroundStyle(
-                                expiration.timeIntervalSince(timeline.date) <= Self.expiryWarning
+                                expiration.timeIntervalSince(model.now) <= Self.expiryWarning
                                     ? Color.orange : .secondary
                             )
                     } else {
@@ -168,15 +169,15 @@ private struct CodexQuotaResetCreditRow: View {
                     }
                 }
                 Spacer()
-                Button("Use") { model.beginCodexReset(creditID: credit.id) }
+                Button("Use") { model.begin(creditID: credit.id) }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!model.canChooseCodexReset || !credit.canUse(at: timeline.date))
+                    .disabled(!model.canUse(credit))
             }
         }
     }
 }
 
-private struct QuotaRefreshButton: View {
+private struct CodexQuotaRefreshButton: View {
     let isDisabled: Bool
     let action: () -> Void
 

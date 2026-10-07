@@ -1,28 +1,14 @@
 import Foundation
 import Synchronization
 
+/// One request to `codex app-server` per call, with the handshake the server requires first.
 struct CodexAppServer: Sendable {
-    enum Failure: Error, Equatable, Sendable {
-        case binaryNotFound
-        case timedOut
-        case sessionFailed
-        case methodNotFound
-        case rpc(code: Int)
-
-        var unavailability: QuotaUnavailability {
-            switch self {
-            case .binaryNotFound: .binaryNotFound
-            case .timedOut: .timedOut
-            case .sessionFailed, .methodNotFound, .rpc: .sessionFailed
-            }
-        }
-    }
-
+    /// A failed call, split by whether the server may already have received the request. Only an unconfirmed write is safe to retry with the same idempotency key.
     enum CallError: Error, Equatable {
-        case rejected(Failure)
-        case unconfirmed(Failure)
+        case rejected(ToolFailure)
+        case unconfirmed(ToolFailure)
 
-        var failure: Failure {
+        var failure: ToolFailure {
             switch self {
             case .rejected(let failure), .unconfirmed(let failure): failure
             }
@@ -52,15 +38,7 @@ struct CodexAppServer: Sendable {
                 return try connection.request(method, params: params)
             }
         } catch {
-            let failure: Failure =
-                switch error {
-                case CommandLineTool.Failure.notFound: .binaryNotFound
-                case CommandLineTool.Failure.timedOut: .timedOut
-                case JSONRPCConnection.Failure.rpc(code: -32601): .methodNotFound
-                case JSONRPCConnection.Failure.rpc(let code): .rpc(code: code)
-                default: .sessionFailed
-                }
-            throw requestStarted.withLock { $0 } ? .unconfirmed(failure) : .rejected(failure)
+            throw requestStarted.withLock { $0 } ? .unconfirmed(error) : .rejected(error)
         }
     }
 }

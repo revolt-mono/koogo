@@ -3,23 +3,14 @@ import Foundation
 struct SystemReport: Encodable {
     private let generatedAt: Date
     private let usage: UsageReport
-    private let quota: [QuotaProvider: QuotaReading]
+    private let quota: EnumMap<QuotaProvider, QuotaReading>
 
     static func generate(
         pipeline: UsagePipeline = UsagePipeline(),
-        quotaSources: EnumMap<QuotaProvider, any QuotaSource> = EnumMap(
-            codex: CodexQuotaSource(),
-            claude: ClaudeQuotaSource(),
-            grok: GrokQuotaSource()
-        ),
+        quotaSources: QuotaSources = .production,
         at date: Date = .now
     ) async throws -> Data {
-        async let quota = withTaskGroup(of: (QuotaProvider, QuotaReading).self) { group in
-            for (provider, source) in quotaSources.entries {
-                group.addTask { (provider, await source.load()) }
-            }
-            return await group.reduce(into: [:]) { readings, read in readings[read.0] = read.1 }
-        }
+        async let quota = EnumMap<QuotaProvider, QuotaReading>(concurrently: { await quotaSources[$0].load() })
         let usage = await pipeline.run(at: date, providers: Provider.allCases)
         let report = SystemReport(generatedAt: date, usage: usage, quota: await quota)
         let encoder = JSONEncoder()

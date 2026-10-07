@@ -1,12 +1,6 @@
 import Foundation
 
 struct JSONRPCConnection {
-    enum Failure: Error {
-        case closed
-        case invalidMessage
-        case rpc(code: Int)
-    }
-
     private let input: FileHandle
     private var output: LineReader
     private let decoder: JSONDecoder
@@ -35,7 +29,7 @@ struct JSONRPCConnection {
             guard case .response(id) = header else { continue }
             return try decoder.decode(Response<Value>.self, from: line).result
         }
-        throw Failure.closed
+        throw ToolFailure.closed
     }
 
     func notify(_ method: String) throws {
@@ -75,7 +69,7 @@ extension JSONRPCConnection {
             if container.contains(.method) {
                 _ = try container.decode(String.self, forKey: .method)
                 guard !container.contains(.id), !container.contains(.result), !container.contains(.error) else {
-                    throw Failure.invalidMessage
+                    throw ToolFailure.invalidMessage
                 }
                 self = .notification
             } else {
@@ -94,10 +88,10 @@ extension JSONRPCConnection {
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             guard container.contains(.result) != container.contains(.error) else {
-                throw Failure.invalidMessage
+                throw ToolFailure.invalidMessage
             }
             if container.contains(.error) {
-                throw Failure.rpc(code: try container.decode(RemoteError.self, forKey: .error).code)
+                throw ToolFailure.rpc(code: try container.decode(RemoteError.self, forKey: .error).code)
             }
             result = try container.decode(Value.self, forKey: .result)
         }
