@@ -10,6 +10,16 @@ struct LineReader {
         self.fileHandle = fileHandle
     }
 
+    /// Output that ends before `match` accepts a line means the tool closed without replying.
+    mutating func first<Value>(_ match: (Data) throws -> Value?) throws -> Value {
+        while let line = try nextLine() {
+            if let value = try match(line) {
+                return value
+            }
+        }
+        throw ToolFailure.closed
+    }
+
     mutating func nextLine() throws -> Data? {
         while true {
             if let newline = buffer.firstIndex(of: 0x0A) {

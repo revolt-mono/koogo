@@ -24,26 +24,29 @@ struct ClaudeQuotaSource: QuotaSource {
     }
 
     func load() async -> QuotaReading {
-        do {
-            let snapshot = try await tool.session(
+        await QuotaReading { () throws(ToolFailure) in
+            try await tool.session(
                 Self.arguments,
                 in: URL(filePath: "/tmp", directoryHint: .isDirectory)
             ) { input, output in
                 // The CLI shuts down and skips network reads once its input closes, so the request must stay open until the reply arrives.
                 try input.write(contentsOf: Self.request)
-                let decoder = JSONDecoder()
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
                 var output = output
-                while let line = try output.nextLine() {
-                    if let reply = try decoder.decode(ClaudeControlResponse.self, from: line).reply {
-                        return try reply.snapshot()
-                    }
-                }
-                throw ToolFailure.invalidMessage
+                return try output.first { try Self.decoder.decode(ClaudeControlResponse.self, from: $0).reply }.snapshot
             }
-            return snapshot.map(QuotaReading.available) ?? .unavailable(.emptyLimits)
-        } catch {
-            return .unavailable(QuotaUnavailability(error))
         }
     }
+
+    private static let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            guard let date = Date(iso8601: try container.decode(String.self)) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "not an ISO 8601 date")
+            }
+            return date
+        }
+        return decoder
+    }()
 }

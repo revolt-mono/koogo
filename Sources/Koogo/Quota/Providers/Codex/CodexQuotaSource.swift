@@ -18,34 +18,29 @@ struct CodexQuotaSource: CodexQuotaResetSource {
     }
 
     func load() async -> QuotaReading {
-        do {
-            let response: CodexQuotaResponse = try await appServer.call("account/rateLimits/read")
-            return response.snapshot.map(QuotaReading.available) ?? .unavailable(.emptyLimits)
-        } catch {
-            return .unavailable(QuotaUnavailability(error.failure))
+        await QuotaReading { () throws(ToolFailure) in
+            do throws(CodexAppServer.CallError) {
+                let response: CodexQuotaResponse = try await appServer.call("account/rateLimits/read")
+                return response.snapshot
+            } catch {
+                throw error.failure
+            }
         }
     }
 
     @concurrent
     func consume(_ attempt: CodexQuotaResetAttempt) async -> CodexQuotaResetResult {
-        let result: CodexQuotaResetResult
         do {
             let response: ConsumeResponse = try await appServer.call(
                 "account/rateLimitResetCredit/consume",
                 params: ConsumeParams(creditId: attempt.credit.id, idempotencyKey: attempt.idempotencyKey.uuidString)
             )
-            result = .success(response.outcome)
+            Telemetry.quota.info("codex reset outcome=\(response.outcome.rawValue, privacy: .public)")
+            return .success(response.outcome)
         } catch {
-            result = .failure(error)
-        }
-
-        switch result {
-        case .success(let outcome):
-            Telemetry.quota.info("codex reset outcome=\(outcome.rawValue, privacy: .public)")
-        case .failure(let error):
             Telemetry.quota.error("codex reset failed \(String(describing: error), privacy: .public)")
+            return .failure(error)
         }
-        return result
     }
 }
 

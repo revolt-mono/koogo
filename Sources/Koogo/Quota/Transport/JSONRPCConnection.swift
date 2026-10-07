@@ -24,12 +24,10 @@ struct JSONRPCConnection {
         let id = nextID
         nextID += 1
         try send(Request(id: id, method: method, params: params))
-        while let line = try output.nextLine() {
-            let header = try decoder.decode(Header.self, from: line)
-            guard case .response(id) = header else { continue }
+        return try output.first { line in
+            guard case .response(id) = try decoder.decode(Header.self, from: line) else { return nil }
             return try decoder.decode(Response<Value>.self, from: line).result
         }
-        throw ToolFailure.closed
     }
 
     func notify(_ method: String) throws {

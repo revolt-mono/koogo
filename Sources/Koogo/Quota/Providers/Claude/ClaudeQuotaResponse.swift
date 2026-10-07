@@ -6,15 +6,10 @@ struct ClaudeQuotaResponse: Decodable {
         let displayName: String?
         /// Null while the window has not started.
         let utilization: Double?
-        let resetsAt: String?
+        let resetsAt: Date?
 
-        func quotaWindow(_ title: String) throws -> QuotaWindow? {
-            guard let utilization else { return nil }
-            let resetsAt = try resetsAt.map { text in
-                guard let date = Date(iso8601: text) else { throw ToolFailure.invalidMessage }
-                return date
-            }
-            return QuotaWindow(title: title, usedPercent: utilization, resetsAt: resetsAt)
+        func quotaWindow(_ title: String) -> QuotaWindow? {
+            utilization.map { QuotaWindow(title: title, usedPercent: $0, resetsAt: resetsAt) }
         }
     }
 
@@ -27,16 +22,16 @@ struct ClaudeQuotaResponse: Decodable {
     /// Null for API-key sessions and while the usage endpoint cannot be reached.
     let rateLimits: RateLimits?
 
-    func snapshot() throws -> QuotaSnapshot? {
+    var snapshot: QuotaSnapshot? {
         guard let rateLimits else { return nil }
-        let account = try [
+        let account = [
             rateLimits.fiveHour?.quotaWindow("Session"),
             rateLimits.sevenDay?.quotaWindow("Weekly"),
         ].compactMap { $0 }
         var named: [String: QuotaWindow] = [:]
         for entry in rateLimits.modelScoped ?? [] {
             guard let name = entry.displayName?.trimmingCharacters(in: .whitespaces), !name.isEmpty,
-                let window = try entry.quotaWindow(name)
+                let window = entry.quotaWindow(name)
             else { continue }
             named[name] = window
         }
@@ -57,7 +52,9 @@ struct ClaudeControlResponse: Decodable {
         get throws {
             guard type == "control_response", let response else { return nil }
             guard response.subtype == "success", let reply = response.response else {
-                throw ToolFailure.invalidMessage
+                throw DecodingError.dataCorrupted(
+                    DecodingError.Context(codingPath: [], debugDescription: "the usage request failed")
+                )
             }
             return reply
         }

@@ -15,7 +15,7 @@ struct GrokQuotaSource: QuotaSource {
     }
 
     func load() async -> QuotaReading {
-        do {
+        await QuotaReading { () throws(ToolFailure) in
             let response: GrokQuotaResponse = try await tool.session(
                 ["--no-auto-update", "agent", "--no-leader", "stdio"],
                 in: URL(filePath: "/tmp", directoryHint: .isDirectory)
@@ -25,9 +25,7 @@ struct GrokQuotaSource: QuotaSource {
                 guard initialized.protocolVersion == 1 else { throw ToolFailure.invalidMessage }
                 return try connection.request("_x.ai/billing", params: [String: String]())
             }
-            return response.snapshot.map(QuotaReading.available) ?? .unavailable(.emptyLimits)
-        } catch {
-            return .unavailable(QuotaUnavailability(error))
+            return response.snapshot
         }
     }
 }

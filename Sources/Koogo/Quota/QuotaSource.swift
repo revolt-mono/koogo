@@ -3,6 +3,17 @@ protocol QuotaSource: Sendable {
     func load() async -> QuotaReading
 }
 
+extension QuotaReading {
+    /// A tool that answers without limits reads as `emptyLimits`; a tool that fails reads as its classified reason.
+    init(_ read: () async throws(ToolFailure) -> QuotaSnapshot?) async {
+        do {
+            self = try await read().map(Self.available) ?? .unavailable(.emptyLimits)
+        } catch {
+            self = .unavailable(QuotaUnavailability(error))
+        }
+    }
+}
+
 extension QuotaUnavailability {
     init(_ failure: ToolFailure) {
         self =
