@@ -12,7 +12,7 @@ struct ActivityTrend: Equatable {
 @MainActor
 @Observable
 final class ActivityModel {
-    static let historyLength = 60
+    nonisolated static let historyLength = 60
 
     private let interval: Duration
     private let sample: @Sendable () async throws -> ActivitySample

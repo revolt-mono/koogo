@@ -1,22 +1,38 @@
 import SwiftUI
 
-/// The recent samples as bars that fill in from the left on a fixed scale. Plain shapes, because a Swift Charts redraw inside the panel allocates about 86 MB of graphics memory per sample, and `Color.primary` fills turn gray under the glass vibrancy.
+/// Recent samples as bars on a fixed scale, filling in from the left. A plain shape rather than Swift Charts, which allocated about 86 MB of graphics memory per redraw inside the panel. Bar edges snap to the pixel grid so the gaps stay crisp at any width.
 struct ActivityTrendChart: View {
-    private static let height: CGFloat = 48
-
     let trend: ActivityTrend
 
+    @Environment(\.displayScale) private var displayScale
+
     var body: some View {
-        HStack(alignment: .bottom, spacing: 0) {
-            ForEach(0..<ActivityModel.historyLength, id: \.self) { index in
-                let value = index < trend.values.count ? trend.values[index] : 0
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(Color(nsColor: .labelColor))
-                    .frame(width: 3, height: Self.height * value)
-                    .frame(maxWidth: .infinity)
+        Bars(values: trend.values, displayScale: displayScale)
+            // `Color.primary` turns gray under the panel's glass vibrancy.
+            .fill(Color(nsColor: .labelColor))
+            .frame(height: 48)
+            .accessibilityHidden(true)
+    }
+
+    private struct Bars: Shape {
+        let values: [Double]
+        let displayScale: CGFloat
+
+        func path(in rect: CGRect) -> Path {
+            let slot = rect.width / CGFloat(ActivityModel.historyLength)
+            let gap: CGFloat = 1
+            var path = Path()
+            for (index, value) in values.enumerated() {
+                let left = snapped(slot * CGFloat(index))
+                let right = snapped(slot * CGFloat(index + 1)) - gap
+                let height = rect.height * value
+                path.addRect(CGRect(x: rect.minX + left, y: rect.maxY - height, width: right - left, height: height))
             }
+            return path
         }
-        .frame(height: Self.height, alignment: .bottom)
-        .accessibilityHidden(true)
+
+        private func snapped(_ offset: CGFloat) -> CGFloat {
+            (offset * displayScale).rounded() / displayScale
+        }
     }
 }
