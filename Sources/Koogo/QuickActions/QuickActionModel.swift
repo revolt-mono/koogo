@@ -8,7 +8,8 @@ final class QuickActionModel<Targets: Sendable> {
         case idle
         case ready(Targets)
         case performing(Targets)
-        case failed(String)
+        case scanFailed(String)
+        case performFailed(String)
     }
 
     private(set) var phase = Phase.scanning
@@ -44,7 +45,7 @@ final class QuickActionModel<Targets: Sendable> {
             do {
                 try await action(targets)
             } catch {
-                phase = .failed(error.localizedDescription)
+                phase = .performFailed(error.localizedDescription)
                 return
             }
             startScan()
@@ -62,7 +63,7 @@ final class QuickActionModel<Targets: Sendable> {
             phase =
                 switch result {
                 case .success(let targets): targets.map(Phase.ready) ?? .idle
-                case .failure(let error): .failed(error.localizedDescription)
+                case .failure(let error): .scanFailed(error.localizedDescription)
                 }
         }
     }

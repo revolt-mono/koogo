@@ -18,7 +18,7 @@ struct QuickActionRow<Targets: Sendable>: View {
         let click: (@MainActor () -> Void)? =
             switch phase {
             case .ready: model.perform
-            case .failed: model.refresh
+            case .scanFailed, .performFailed: model.refresh
             case .scanning, .idle, .performing: nil
             }
         let isEnabled = click != nil
@@ -32,7 +32,7 @@ struct QuickActionRow<Targets: Sendable>: View {
                     case .scanning, .performing:
                         ProgressView()
                             .controlSize(.small)
-                    case .failed:
+                    case .scanFailed, .performFailed:
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 11, weight: .medium))
                     case .idle, .ready:

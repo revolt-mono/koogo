@@ -21,7 +21,7 @@ struct QuickActionsPopoverContent: View {
                     QuickActionCopy(title: "Toggle System Appearance", detail: "Switch macOS light and dark mode")
                 case .performing:
                     QuickActionCopy(title: "Changing System Appearance", detail: "Waiting for System Events")
-                case .failed(let message):
+                case .scanFailed(let message), .performFailed(let message):
                     QuickActionCopy(title: "System Appearance Failed", detail: message)
                 }
             }
@@ -42,8 +42,10 @@ struct QuickActionsPopoverContent: View {
                         title: "Ejecting \(plural(diskImages.values.count, "DMG"))",
                         detail: "Waiting for macOS"
                     )
-                case .failed(let message):
+                case .scanFailed(let message):
                     QuickActionCopy(title: "Retry Disk Image Scan", detail: message)
+                case .performFailed(let message):
+                    QuickActionCopy(title: "Eject Failed", detail: message)
                 }
             }
             .onReceive(
@@ -74,8 +76,10 @@ struct QuickActionsPopoverContent: View {
                         title: "Stopping \(plural(processes.values.count, "Agent"))",
                         detail: "Waiting for the processes to exit"
                     )
-                case .failed(let message):
+                case .scanFailed(let message):
                     QuickActionCopy(title: "Retry Agent Process Scan", detail: message)
+                case .performFailed(let message):
+                    QuickActionCopy(title: "Stop Failed", detail: message)
                 }
             }
         }

@@ -22,7 +22,7 @@ final class QuickActionModelTests: XCTestCase {
 
         model.refresh()
 
-        try await waitUntil { model.phase == .failed("scan broke") }
+        try await waitUntil { model.phase == .scanFailed("scan broke") }
     }
 
     func testPerformRunsTheActionThenRescans() async throws {
@@ -50,7 +50,7 @@ final class QuickActionModelTests: XCTestCase {
         try await waitUntil { model.phase == .ready(1) }
 
         model.perform()
-        try await waitUntil { model.phase == .failed("scan broke") }
+        try await waitUntil { model.phase == .performFailed("scan broke") }
 
         model.refresh()
         try await waitUntil { model.phase == .ready(1) }
