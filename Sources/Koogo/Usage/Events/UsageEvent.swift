@@ -31,6 +31,24 @@ struct UsageRecord: Sendable {
         self.costUSD = costUSD
         self.modelTurn = modelTurn
     }
+
+    init(timestamp: Date, processedTokens: UInt64, quote: UsageQuote, reasoningEffort: String?) {
+        self.init(
+            timestamp: timestamp,
+            processedTokens: processedTokens,
+            costUSD: quote.costUSD,
+            modelTurn: ModelTurn(model: quote.model, reasoningEffort: reasoningEffort)
+        )
+    }
+
+    func withReasoningEffort(_ reasoningEffort: String?) -> Self {
+        Self(
+            timestamp: timestamp,
+            processedTokens: processedTokens,
+            costUSD: costUSD,
+            modelTurn: modelTurn.map { ModelTurn(model: $0.model, reasoningEffort: reasoningEffort) }
+        )
+    }
 }
 
 enum UsageEventID: Hashable, Sendable {

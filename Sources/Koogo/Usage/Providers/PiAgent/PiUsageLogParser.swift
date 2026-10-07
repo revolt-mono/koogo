@@ -36,28 +36,18 @@ private struct PiEntry {
     let billed: PiBilledEntry?
 
     init?(_ line: UnsafeRawBufferPointer) throws {
-        guard var record = JSONObjectReader(line) else {
+        guard let record = JSONValue(object: line) else {
             return nil
         }
-        var type: JSONValue?
-        var id: String?
-        var parentID: String?
-        var timestamp: String?
-        var thinkingLevel: JSONValue?
-        var message: JSONValue?
-        var usage: JSONValue?
-        while let member = try record.next() {
-            switch member.key {
-            case "type": type = member.value
-            case "id": id = try member.value.string()
-            case "parentId": parentID = try member.value.string()
-            case "timestamp": timestamp = try member.value.string()
-            case "thinkingLevel": thinkingLevel = member.value
-            case "message": message = member.value
-            case "usage": usage = member.value
-            default: continue
-            }
-        }
+        let (type, id, parentID, timestamp, thinkingLevel, message, usage) = try record.fields(
+            .value("type"),
+            .string("id"),
+            .string("parentId"),
+            .string("timestamp"),
+            .value("thinkingLevel"),
+            .value("message"),
+            .value("usage")
+        )
         guard let type, let id else {
             throw MalformedUsageRecord()
         }
@@ -95,18 +85,13 @@ private struct PiBilledEntry {
     let timestamp: Date
 
     init?(usage: JSONValue, model: ModelID?, timestamp: Date?) throws {
-        guard var usage = try usage.nonNull?.object() else {
+        guard let usage = usage.nonNull else {
             return nil
         }
-        var processedTokens: UInt64?
-        var costUSD: Decimal?
-        while let member = try usage.next() {
-            switch member.key {
-            case "totalTokens": processedTokens = try member.value.integer()
-            case "cost": costUSD = try member.value.member("total")?.decimal()
-            default: continue
-            }
-        }
+        let (processedTokens, costUSD) = try usage.fields(
+            .uint64("totalTokens"),
+            JSONField("cost") { try $0.fields(.decimal("total")) }
+        )
         guard let processedTokens, let costUSD, costUSD >= 0, let timestamp else {
             throw MalformedUsageRecord()
         }
@@ -117,22 +102,13 @@ private struct PiBilledEntry {
     }
 
     init?(message: JSONValue) throws {
-        var message = try message.object()
-        var role: JSONValue?
-        var provider: String?
-        var model: String?
-        var milliseconds: JSONValue?
-        var usage: JSONValue?
-        while let member = try message.next() {
-            switch member.key {
-            case "role": role = member.value
-            case "provider": provider = try member.value.string()
-            case "model": model = try member.value.string()
-            case "timestamp": milliseconds = member.value
-            case "usage": usage = member.value
-            default: continue
-            }
-        }
+        let (role, provider, model, milliseconds, usage) = try message.fields(
+            .value("role"),
+            .string("provider"),
+            .string("model"),
+            .value("timestamp"),
+            .value("usage")
+        )
         guard let role else {
             throw MalformedUsageRecord()
         }
@@ -151,9 +127,7 @@ private struct PiBilledEntry {
         default:
             return nil
         }
-        let timestamp = try milliseconds?.integer(UInt64.self).map {
-            Date(timeIntervalSince1970: TimeInterval($0) / 1_000)
-        }
+        let timestamp = try milliseconds?.integer(UInt64.self).map(Date.init(unixMilliseconds:))
         try self.init(usage: usage, model: reference, timestamp: timestamp)
     }
 }

@@ -52,11 +52,8 @@ struct CodexUsageLogParser: UsageLogParser {
                 record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: lastUsage.processed,
-                    costUSD: quote.costUSD,
-                    modelTurn: UsageRecord.ModelTurn(
-                        model: quote.model,
-                        reasoningEffort: turn.reasoningEffort
-                    )
+                    quote: quote,
+                    reasoningEffort: turn.reasoningEffort
                 )
             )
         )
@@ -68,28 +65,18 @@ private enum CodexRecord {
     case eventMessage(payload: JSONValue, timestamp: JSONValue?)
 
     init?(_ line: UnsafeRawBufferPointer) throws {
-        guard var record = JSONObjectReader(line) else {
+        guard let record = JSONValue(object: line) else {
             return nil
         }
-        var isTurnContext: Bool?
-        var timestamp: JSONValue?
-        var payload: JSONValue?
-        while let member = try record.next() {
-            switch member.key {
-            case "type":
-                switch member.value {
-                case "turn_context": isTurnContext = true
-                case "event_msg": isTurnContext = false
-                default: return nil
-                }
-            case "timestamp": timestamp = member.value
-            case "payload": payload = member.value
-            default: continue
-            }
-        }
-        guard let isTurnContext else {
+        let (kind, timestamp, payload) = try record.fields(
+            .kind("type") { $0.isString("turn_context") || $0.isString("event_msg") },
+            .value("timestamp"),
+            .value("payload")
+        )
+        guard let kind else {
             return nil
         }
+        let isTurnContext = kind.isString("turn_context")
         guard let payload else {
             throw MalformedUsageRecord()
         }
@@ -103,18 +90,7 @@ private struct CodexTurn {
     let reasoningEffort: String?
 
     init(_ payload: JSONValue) throws {
-        var payload = try payload.object()
-        var id: String?
-        var model: String?
-        var reasoningEffort: String?
-        while let member = try payload.next() {
-            switch member.key {
-            case "turn_id": id = try member.value.string()
-            case "model": model = try member.value.string()
-            case "effort": reasoningEffort = try member.value.string()
-            default: continue
-            }
-        }
+        let (id, model, reasoningEffort) = try payload.fields(.string("turn_id"), .string("model"), .string("effort"))
         guard let id, let model else {
             throw MalformedUsageRecord()
         }
@@ -129,33 +105,15 @@ private struct CodexTokenCount {
     let total: CodexTokenUsage
 
     init?(_ payload: JSONValue) throws {
-        var payload = try payload.object()
-        var isTokenCount = false
-        var info: JSONValue?
-        while let member = try payload.next() {
-            switch member.key {
-            case "type":
-                guard member.value.isString("token_count") else {
-                    return nil
-                }
-                isTokenCount = true
-            case "info": info = member.value
-            default: continue
-            }
-        }
-        guard isTokenCount, var info = try info?.nonNull?.object() else {
+        let (kind, info) = try payload.fields(.kind("type") { $0.isString("token_count") }, .value("info"))
+        guard kind != nil, let info = info?.nonNull else {
             return nil
         }
-        var last: CodexTokenUsage?
-        var total: CodexTokenUsage?
-        while let member = try info.next() {
-            switch member.key {
-            case "last_token_usage": last = try CodexTokenUsage(member.value)
-            case "total_token_usage": total = try CodexTokenUsage(member.value)
-            case "model_context_window": _ = try member.value.integer(Int64.self)
-            default: continue
-            }
-        }
+        let (last, total, _) = try info.fields(
+            JSONField("last_token_usage", CodexTokenUsage.init(_:)),
+            JSONField("total_token_usage", CodexTokenUsage.init(_:)),
+            .int64("model_context_window")
+        )
         guard let last, let total else {
             throw MalformedUsageRecord()
         }
@@ -179,8 +137,9 @@ struct CodexTokenUsage: Equatable, Sendable {
         reasoningOutput: UInt64,
         processed: UInt64
     ) {
-        let (cachedAndWritten, overflow) = cachedInput.addingReportingOverflow(cacheWrite)
-        guard !overflow, cachedAndWritten <= input, reasoningOutput <= output else {
+        guard let cachedAndWritten = cachedInput.checkedAdding(cacheWrite), cachedAndWritten <= input,
+            reasoningOutput <= output
+        else {
             return nil
         }
         self.input = input
@@ -195,24 +154,14 @@ struct CodexTokenUsage: Equatable, Sendable {
     }
 
     fileprivate init(_ value: JSONValue) throws {
-        var usage = try value.object()
-        var input: UInt64?
-        var cachedInput: UInt64?
-        var cacheWrite: UInt64?
-        var output: UInt64?
-        var reasoningOutput: UInt64?
-        var processed: UInt64?
-        while let member = try usage.next() {
-            switch member.key {
-            case "input_tokens": input = try member.value.integer()
-            case "cached_input_tokens": cachedInput = try member.value.integer()
-            case "cache_write_input_tokens": cacheWrite = try member.value.integer()
-            case "output_tokens": output = try member.value.integer()
-            case "reasoning_output_tokens": reasoningOutput = try member.value.integer()
-            case "total_tokens": processed = try member.value.integer()
-            default: continue
-            }
-        }
+        let (input, cachedInput, cacheWrite, output, reasoningOutput, processed) = try value.fields(
+            .uint64("input_tokens"),
+            .uint64("cached_input_tokens"),
+            .uint64("cache_write_input_tokens"),
+            .uint64("output_tokens"),
+            .uint64("reasoning_output_tokens"),
+            .uint64("total_tokens")
+        )
         guard let input, let cachedInput, let output, let reasoningOutput, let processed,
             let usage = CodexTokenUsage(
                 input: input,

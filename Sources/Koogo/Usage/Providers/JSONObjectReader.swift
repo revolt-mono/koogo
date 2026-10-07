@@ -132,6 +132,17 @@ struct JSONObjectReader {
 struct JSONValue {
     let bytes: UnsafeRawBufferPointer
 
+    init?(object line: UnsafeRawBufferPointer) {
+        guard JSONObjectReader(line) != nil else {
+            return nil
+        }
+        bytes = line
+    }
+
+    init(bytes: UnsafeRawBufferPointer) {
+        self.bytes = bytes
+    }
+
     static func ~= (literal: StaticString, value: Self) -> Bool {
         value.isString(literal)
     }
@@ -199,17 +210,6 @@ struct JSONValue {
             throw MalformedUsageRecord()
         }
         return object
-    }
-
-    func member(_ key: StaticString) throws -> Self? {
-        var object = try object()
-        var value: Self?
-        while let member = try object.next() {
-            if member.key.isString(key) {
-                value = member.value
-            }
-        }
-        return value
     }
 
     /// Whether the bytes spell a JSON number; `Decimal(string:)` alone would accept trailing text.

@@ -8,31 +8,40 @@ struct GrokUsageLogParser: UsageLogParser {
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         do {
-            guard JSONObjectReader(line) != nil,
-                let params = try JSONValue(bytes: line).member("params"),
-                let update = try params.member("update"),
-                let kind = try update.member("sessionUpdate")
-            else {
+            guard let record = JSONValue(object: line), let params = try record.fields(.value("params")) else {
+                return nil
+            }
+            let (update, meta) = try params.fields(.value("update"), .value("_meta"))
+            guard let update else {
+                return nil
+            }
+            let (kind, updateMeta, rewindTarget, usage) = try update.fields(
+                .value("sessionUpdate"),
+                .value("_meta"),
+                .value("target_prompt_index"),
+                .value("usage")
+            )
+            guard let kind else {
                 return nil
             }
             switch kind {
             case "user_message_chunk":
-                if let index = try update.member("_meta")?.member("promptIndex")?.integer(UInt64.self) {
+                if let index = try updateMeta?.fields(.uint64("promptIndex")) {
                     promptIndex = index
                 }
             case "rewind_marker":
                 promptIndex = nil
-                guard let target = try? update.member("target_prompt_index")?.integer(UInt64.self) else {
+                guard let target = try? rewindTarget?.integer(UInt64.self) else {
                     promptTurns.removeAll()
                     throw MalformedUsageRecord()
                 }
                 promptTurns = promptTurns.filter { $0.key < target }
             case "turn_completed":
                 defer { promptIndex = nil }
-                guard let usage = try update.member("usage")?.nonNull else {
+                guard let usage = usage?.nonNull else {
                     return nil
                 }
-                let outcome = try Self.completedTurn(GrokPromptUsage(usage), params: params)
+                let outcome = try Self.completedTurn(GrokPromptUsage(usage), meta: meta)
                 if case .event(let event) = outcome, let promptIndex {
                     promptTurns[promptIndex] = event.id
                 }
@@ -46,14 +55,15 @@ struct GrokUsageLogParser: UsageLogParser {
         }
     }
 
-    private static func completedTurn(_ usage: GrokPromptUsage, params: JSONValue) throws -> UsageLineOutcome? {
-        guard let meta = try params.member("_meta"),
-            let eventID = try meta.member("eventId")?.string(),
-            let milliseconds = try meta.member("agentTimestampMs")?.integer(UInt64.self)
-        else {
+    private static func completedTurn(_ usage: GrokPromptUsage, meta: JSONValue?) throws -> UsageLineOutcome? {
+        guard let meta else {
             throw MalformedUsageRecord()
         }
-        let timestamp = Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
+        let (eventID, milliseconds) = try meta.fields(.string("eventId"), .uint64("agentTimestampMs"))
+        guard let eventID, let milliseconds else {
+            throw MalformedUsageRecord()
+        }
+        let timestamp = Date(unixMilliseconds: milliseconds)
         guard let primaryModel = usage.primaryModel else {
             // A cancelled prompt completes with no model rows and nothing billed.
             guard usage.totalTokens == 0 else { throw MalformedUsageRecord() }
@@ -87,30 +97,19 @@ private struct GrokPromptUsage {
     let modelUsage: [String: GrokTokenUsage]
 
     init(_ value: JSONValue) throws {
-        var usage = try value.object()
-        var totalTokens: UInt64?
-        var modelUsage: [String: GrokTokenUsage]?
-        while let member = try usage.next() {
-            switch member.key {
-            case "totalTokens": totalTokens = try member.value.integer()
-            case "modelUsage":
-                var models = try member.value.object()
-                var usageByModel: [String: GrokTokenUsage] = [:]
-                while let model = try models.next() {
-                    guard let name = try model.key.string() else {
-                        throw MalformedUsageRecord()
-                    }
-                    usageByModel[name] = try GrokTokenUsage(model.value)
-                }
-                modelUsage = usageByModel
-            default: continue
-            }
-        }
-        guard let totalTokens, let modelUsage else {
+        let (totalTokens, modelUsage) = try value.fields(.uint64("totalTokens"), .value("modelUsage"))
+        guard let totalTokens, var models = try modelUsage?.object() else {
             throw MalformedUsageRecord()
         }
+        var usageByModel: [String: GrokTokenUsage] = [:]
+        while let model = try models.next() {
+            guard let name = try model.key.string() else {
+                throw MalformedUsageRecord()
+            }
+            usageByModel[name] = try GrokTokenUsage(model.value)
+        }
         self.totalTokens = totalTokens
-        self.modelUsage = modelUsage
+        self.modelUsage = usageByModel
     }
 
     var primaryModel: String? {
@@ -142,20 +141,12 @@ struct GrokTokenUsage: Sendable {
     }
 
     fileprivate init(_ value: JSONValue) throws {
-        var usage = try value.object()
-        var input: UInt64?
-        var cachedInput: UInt64?
-        var output: UInt64?
-        var modelCalls: UInt64?
-        while let member = try usage.next() {
-            switch member.key {
-            case "inputTokens": input = try member.value.integer()
-            case "cachedReadTokens": cachedInput = try member.value.integer()
-            case "outputTokens": output = try member.value.integer()
-            case "modelCalls": modelCalls = try member.value.integer()
-            default: continue
-            }
-        }
+        let (input, cachedInput, output, modelCalls) = try value.fields(
+            .uint64("inputTokens"),
+            .uint64("cachedReadTokens"),
+            .uint64("outputTokens"),
+            .uint64("modelCalls")
+        )
         guard let input, let cachedInput, let output, let modelCalls,
             let usage = GrokTokenUsage(input: input, cachedInput: cachedInput, output: output, modelCalls: modelCalls)
         else {

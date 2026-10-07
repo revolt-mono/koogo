@@ -41,11 +41,8 @@ struct ClaudeUsageLogParser: UsageLogParser {
                 record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: usage.tokens.processed,
-                    costUSD: quote.costUSD,
-                    modelTurn: UsageRecord.ModelTurn(
-                        model: quote.model,
-                        reasoningEffort: reasoningEffort
-                    )
+                    quote: quote,
+                    reasoningEffort: reasoningEffort
                 ),
                 revision: Self.revision(of: usage, reasoningEffort: reasoningEffort)
             )
@@ -85,19 +82,13 @@ struct ClaudeTokenUsage: Sendable {
         cacheCreation: CacheCreation,
         output: UInt64
     ) {
-        var processed = UInt64.zero
-        let amounts =
+        let cacheCreated =
             switch cacheCreation {
-            case .aggregate(let tokens): [input, cacheRead, tokens, output]
-            case .byDuration(let fiveMinute, let oneHour):
-                [input, cacheRead, fiveMinute, oneHour, output]
+            case .aggregate(let tokens): Optional(tokens)
+            case .byDuration(let fiveMinute, let oneHour): fiveMinute.checkedAdding(oneHour)
             }
-        for amount in amounts {
-            let (sum, overflow) = processed.addingReportingOverflow(amount)
-            guard !overflow else {
-                return nil
-            }
-            processed = sum
+        guard let processed = cacheCreated?.checkedAdding(input)?.checkedAdding(cacheRead)?.checkedAdding(output) else {
+            return nil
         }
         self.input = input
         self.cacheRead = cacheRead
@@ -123,42 +114,24 @@ private struct ClaudeAssistantReply {
     let usage: ClaudeLoggedUsage
 
     init?(_ line: UnsafeRawBufferPointer) throws {
-        guard var record = JSONObjectReader(line) else {
+        guard let record = JSONValue(object: line) else {
             return nil
         }
-        var isAssistant = false
-        var timestamp: String?
-        var requestID: String?
-        var effort: String?
-        var message: JSONValue?
-        while let member = try record.next() {
-            switch member.key {
-            case "type":
-                guard member.value.isString("assistant") else {
-                    return nil
-                }
-                isAssistant = true
-            case "timestamp": timestamp = try member.value.string()
-            case "requestId": requestID = try member.value.string()
-            case "effort": effort = try member.value.string()
-            case "message": message = member.value
-            default: continue
-            }
-        }
-        guard isAssistant, var message = try message?.object() else {
+        let (kind, timestamp, requestID, effort, message) = try record.fields(
+            .kind("type") { $0.isString("assistant") },
+            .string("timestamp"),
+            .string("requestId"),
+            .string("effort"),
+            .value("message")
+        )
+        guard kind != nil, let message else {
             return nil
         }
-        var messageID: String?
-        var model: String?
-        var usage: ClaudeLoggedUsage?
-        while let member = try message.next() {
-            switch member.key {
-            case "id": messageID = try member.value.string()
-            case "model": model = try member.value.string()
-            case "usage": usage = try ClaudeLoggedUsage(member.value)
-            default: continue
-            }
-        }
+        let (messageID, model, usage) = try message.fields(
+            .string("id"),
+            .string("model"),
+            JSONField("usage", ClaudeLoggedUsage.init)
+        )
         guard let usage else {
             return nil
         }
@@ -178,34 +151,25 @@ private struct ClaudeLoggedUsage {
     let webSearchRequests: UInt64
 
     init(_ value: JSONValue) throws {
-        var usage = try value.object()
-        var input: UInt64?
-        var cacheRead: UInt64?
-        var cacheCreationTotal: UInt64?
-        var cacheCreationSplit: JSONValue?
-        var output: UInt64?
-        var speed: String?
-        var geo: String?
-        var webSearchRequests: UInt64?
-        while let member = try usage.next() {
-            switch member.key {
-            case "input_tokens": input = try member.value.integer()
-            case "cache_read_input_tokens": cacheRead = try member.value.integer()
-            case "cache_creation_input_tokens": cacheCreationTotal = try member.value.integer()
-            case "cache_creation": cacheCreationSplit = member.value.nonNull
-            case "output_tokens": output = try member.value.integer()
-            case "speed": speed = try member.value.string()
-            case "inference_geo": geo = try member.value.string()
-            case "server_tool_use":
-                webSearchRequests = try member.value.nonNull?.member("web_search_requests")?.integer()
-            default: continue
-            }
-        }
+        let (input, cacheRead, cacheCreationTotal, cacheCreationSplit, output, speed, geo, serverToolUse) =
+            try value.fields(
+                .uint64("input_tokens"),
+                .uint64("cache_read_input_tokens"),
+                .uint64("cache_creation_input_tokens"),
+                .value("cache_creation"),
+                .uint64("output_tokens"),
+                .string("speed"),
+                .string("inference_geo"),
+                .value("server_tool_use")
+            )
         guard let input, let output,
             let tokens = ClaudeTokenUsage(
                 input: input,
                 cacheRead: cacheRead ?? 0,
-                cacheCreation: try Self.cacheCreation(total: cacheCreationTotal ?? 0, split: cacheCreationSplit),
+                cacheCreation: try Self.cacheCreation(
+                    total: cacheCreationTotal ?? 0,
+                    split: cacheCreationSplit?.nonNull
+                ),
                 output: output
             )
         else {
@@ -214,24 +178,18 @@ private struct ClaudeLoggedUsage {
         self.tokens = tokens
         self.speed = speed
         self.geo = geo
-        self.webSearchRequests = webSearchRequests ?? 0
+        webSearchRequests = try serverToolUse?.nonNull?.fields(.uint64("web_search_requests")) ?? 0
     }
 
     private static func cacheCreation(total: UInt64, split: JSONValue?) throws -> ClaudeTokenUsage.CacheCreation {
-        guard var split = try split?.object() else {
+        guard let split else {
             return .aggregate(total)
         }
-        var fiveMinute: UInt64?
-        var oneHour: UInt64?
-        while let member = try split.next() {
-            switch member.key {
-            case "ephemeral_5m_input_tokens": fiveMinute = try member.value.integer()
-            case "ephemeral_1h_input_tokens": oneHour = try member.value.integer()
-            default: continue
-            }
-        }
-        let (sum, overflow) = (fiveMinute ?? 0).addingReportingOverflow(oneHour ?? 0)
-        guard !overflow, sum == total else {
+        let (fiveMinute, oneHour) = try split.fields(
+            .uint64("ephemeral_5m_input_tokens"),
+            .uint64("ephemeral_1h_input_tokens")
+        )
+        guard (fiveMinute ?? 0).checkedAdding(oneHour ?? 0) == total else {
             throw MalformedUsageRecord()
         }
         return .byDuration(fiveMinute: fiveMinute ?? 0, oneHour: oneHour ?? 0)

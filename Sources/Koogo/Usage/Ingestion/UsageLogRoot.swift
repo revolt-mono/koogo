@@ -17,6 +17,10 @@ struct UsageLogFormat: Sendable {
     let match: Match
     /// Admits a matching file as a log, or returns nil when the file is not one or cannot be read.
     let open: @Sendable (_ url: URL, _ windowStart: Date) -> (any TrackedLog)?
+
+    static func jsonLines<Parser: UsageLogParser>(_: Parser.Type) -> Self {
+        Self(match: .fileExtension(".jsonl")) { ParsedLog<Parser>($0, since: $1) }
+    }
 }
 
 struct UsageLogRoot: Sendable {

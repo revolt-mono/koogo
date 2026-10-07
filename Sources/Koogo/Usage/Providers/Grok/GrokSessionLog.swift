@@ -82,12 +82,7 @@ struct GrokSessionLog: TrackedLog {
                 }
                 return UsageEvent(
                     id: event.id,
-                    record: UsageRecord(
-                        timestamp: event.record.timestamp,
-                        processedTokens: event.record.processedTokens,
-                        costUSD: event.record.costUSD,
-                        modelTurn: .init(model: turn.model, reasoningEffort: effort)
-                    ),
+                    record: event.record.withReasoningEffort(effort),
                     revision: UsageEvent.Revision(outputTokens: 0, metadataCompleteness: 1)
                 )
             }
@@ -121,22 +116,27 @@ struct GrokChatHistory: LineConsumer, Sendable {
     }
 
     private mutating func record(_ line: UnsafeRawBufferPointer) throws {
-        guard JSONObjectReader(line) != nil else {
+        guard let record = JSONValue(object: line) else {
             return
         }
-        let record = JSONValue(bytes: line)
-        guard let kind = try record.member("type") else {
+        let (kind, index, model, effort) = try record.fields(
+            .value("type"),
+            .value("prompt_index"),
+            .value("model_id"),
+            .value("reasoning_effort")
+        )
+        guard let kind else {
             return
         }
         switch kind {
         case "user":
-            if let index = try record.member("prompt_index")?.integer(UInt64.self) {
+            if let index = try index?.integer(UInt64.self) {
                 promptIndex = index
             }
         case "assistant":
             guard let promptIndex,
-                let model = try record.member("model_id")?.string(), !model.isEmpty,
-                let effort = try record.member("reasoning_effort")?.string(), !effort.isEmpty
+                let model = try model?.string(), !model.isEmpty,
+                let effort = try effort?.string(), !effort.isEmpty
             else {
                 return
             }

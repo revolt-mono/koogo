@@ -112,10 +112,3 @@ struct UsageSnapshot: Equatable, Sendable, Encodable {
         self.providers = providers
     }
 }
-
-private extension UInt64 {
-    func saturatingAdding(_ other: Self) -> Self {
-        let (sum, overflow) = addingReportingOverflow(other)
-        return overflow ? .max : sum
-    }
-}

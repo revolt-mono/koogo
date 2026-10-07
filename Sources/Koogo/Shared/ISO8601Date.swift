@@ -11,4 +11,8 @@ extension Date {
         else { return nil }
         self = date
     }
+
+    init(unixMilliseconds milliseconds: UInt64) {
+        self.init(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
+    }
 }
