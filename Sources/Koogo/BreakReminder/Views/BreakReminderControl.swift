@@ -7,12 +7,12 @@ struct BreakReminderControl: View {
 
     var body: some View {
         ZStack {
-            if isVisible, case .running = reminderModel.countdown.status(at: .now) {
+            if isVisible, case .running = reminderModel.status {
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                    button(at: timeline.date)
+                    button(status: reminderModel.countdown.status(at: timeline.date))
                 }
             } else {
-                button(at: .now)
+                button(status: reminderModel.status)
             }
         }
         .onAppear {
@@ -27,8 +27,8 @@ struct BreakReminderControl: View {
         .breakReminderIssueAlert($issue)
     }
 
-    private func button(at date: Date) -> some View {
-        BreakReminderButton(status: reminderModel.countdown.status(at: date), isBusy: reminderModel.isBusy) { action in
+    private func button(status: BreakReminderStatus) -> some View {
+        BreakReminderButton(status: status, isBusy: reminderModel.isBusy) { action in
             Task {
                 issue = await reminderModel.perform(action)
             }
@@ -118,24 +118,5 @@ private struct BreakReminderButton: View {
             }
             .disabled(isBusy)
         }
-    }
-}
-
-extension BreakReminderStatus {
-    var timeText: String {
-        let remaining: TimeInterval =
-            switch self {
-            case .running(let value), .paused(let value): value
-            case .expired: 0
-            }
-
-        let totalSeconds = Int(ceil(remaining))
-        let hours = totalSeconds / 3_600
-        let minutes = (totalSeconds % 3_600) / 60
-        let seconds = totalSeconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
-        return String(format: "%02d:%02d", minutes, seconds)
     }
 }

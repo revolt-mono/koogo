@@ -14,6 +14,23 @@ enum BreakReminderStatus: Equatable {
     case running(remaining: TimeInterval)
     case paused(remaining: TimeInterval)
     case expired
+
+    var timeText: String {
+        let remaining: TimeInterval =
+            switch self {
+            case .running(let value), .paused(let value): value
+            case .expired: 0
+            }
+
+        let totalSeconds = Int(ceil(remaining))
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
 }
 
 enum BreakReminderIssue: Error, Equatable {

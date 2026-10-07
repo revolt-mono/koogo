@@ -10,6 +10,10 @@ final class InboxModel {
         didSet { storage.save(todos) }
     }
 
+    var hasCompleted: Bool {
+        todos.contains(where: \.isCompleted)
+    }
+
     var openSummary: String {
         let open = todos.filter { !$0.isCompleted }
         let counts = TodoPriority.allCases.reversed().compactMap { priority in

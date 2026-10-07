@@ -22,6 +22,7 @@ struct UsageSnapshotBuilder {
             }
         }
 
+        /// An effort of "off" means reasoning was disabled, so the favorite names none.
         func snapshot(modelName: (ModelID) -> String) -> ProviderUsageSnapshot.Favorite? {
             guard
                 let (model, usage) = models.max(by: { lhs, rhs in
@@ -32,11 +33,12 @@ struct UsageSnapshotBuilder {
             else {
                 return nil
             }
+            let effort = usage.reasoningEfforts.max { lhs, rhs in
+                lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
+            }?.key
             return ProviderUsageSnapshot.Favorite(
                 modelName: modelName(model),
-                reasoningEffort: usage.reasoningEfforts.max { lhs, rhs in
-                    lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
-                }?.key
+                reasoningEffort: effort == "off" ? nil : effort
             )
         }
     }

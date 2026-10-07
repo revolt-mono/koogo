@@ -21,6 +21,10 @@ final class BreakReminderModel {
 
     private(set) var isBusy = false
 
+    var status: BreakReminderStatus {
+        countdown.status(at: now())
+    }
+
     init(
         notifications: any BreakReminderNotifications,
         defaults: UserDefaults = .standard,

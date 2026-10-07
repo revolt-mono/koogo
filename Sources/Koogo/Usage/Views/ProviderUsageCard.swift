@@ -109,16 +109,6 @@ private struct ProviderUsageModelsView: View {
     }
 }
 
-private extension UsagePeriod {
-    var title: String {
-        switch self {
-        case .today: "Today"
-        case .last7Days: "Last 7 days"
-        case .last30Days: "Last 30 days"
-        }
-    }
-}
-
 private struct ProviderUsageHeader: View {
     let provider: Provider
     let favorite: ProviderUsageSnapshot.Favorite?
@@ -146,17 +136,10 @@ private struct ProviderUsageHeader: View {
                     .frame(width: 12)
                     .accessibilityHidden(true)
 
-                Group {
-                    switch favorite.reasoningEffort {
-                    case .some(let effort) where effort != "off":
-                        Text("\(favorite.modelName) in \(effort)")
-                    default:
-                        Text(favorite.modelName)
-                    }
-                }
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                Text(favorite.reasoningEffort.map { "\(favorite.modelName) in \($0)" } ?? favorite.modelName)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
         .padding(.horizontal, 6)

@@ -5,8 +5,8 @@ struct UsageSummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            UsageSummaryPeriod(title: "Today", usage: summary.today)
-            UsageSummaryPeriod(title: "Last 30 days", usage: summary.last30Days)
+            UsageSummaryPeriod(title: UsagePeriod.today.title, usage: summary.today)
+            UsageSummaryPeriod(title: UsagePeriod.last30Days.title, usage: summary.last30Days)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

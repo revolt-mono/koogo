@@ -18,7 +18,7 @@ struct InboxView: View {
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
                 .tint(.red)
-                .disabled(!inboxModel.todos.contains(where: \.isCompleted))
+                .disabled(!inboxModel.hasCompleted)
             }
             .font(.system(size: 10, weight: .medium))
 

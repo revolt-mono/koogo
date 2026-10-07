@@ -1,5 +1,15 @@
 import Foundation
 
+extension UsagePeriod {
+    var title: String {
+        switch self {
+        case .today: "Today"
+        case .last7Days: "Last 7 days"
+        case .last30Days: "Last 30 days"
+        }
+    }
+}
+
 enum UsageFormatting {
     private static let locale = Locale(identifier: "en_US")
 
