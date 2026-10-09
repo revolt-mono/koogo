@@ -32,30 +32,30 @@
 ## repo structure
 
 ```
-├── Sources/Koogo          menu bar application
-│   ├── App                entry point, the one bundle of shared models and its scene wiring, headless report
-│   ├── Shared             leaf primitives: total enum map, persisted value, telemetry, date parsing, overflow arithmetic, local event monitor, reduce motion helpers, optional presence binding
-│   ├── Providers          provider identity (title, symbol, home, agent process, quota capability) and the one owner of order, usage/quota switches, and which quota a card shows, with their settings toggles
-│   ├── Panel              menu bar panel shell: toolbar, pager, pager popover and disclosure rows, page loading shell, shared chrome and scroll fade, usage page composition, panel-open and preference-change refresh of usage and quota
-│   ├── Settings           settings window shell hosting slice-owned controls
-│   ├── Usage              observable snapshot model, pipeline actor (discover, read, parse, dedup, aggregate, name), benchmark
-│   │   ├── Events         event identity per provider, record, revision and the one dedup rule, parser contract and quote
-│   │   ├── Ingestion      log formats and roots, append-only file reads, parsed logs, event index with the one dedup rule, tally, store with discovery walk and cross-file dedup, ingestion stats
-│   │   ├── Providers      the usage source contract and its registry, the json reader and typed field lookup the parsers share, and one folder per provider: source (log layout, model names) → parser (token shapes) → pricing; grok joins its history, pi reads a catalog
-│   │   ├── Aggregation    period intervals, snapshot builder, and snapshot types
-│   │   └── Views          summary, provider cards, chart, formatting
-│   ├── Quota              reading and snapshot vocabulary, source contract with its registry and the one failure classification, a read-only model whose `read` is the single busy transition
-│   │   ├── Transport      the one tool failure vocabulary, command-line tool session over swift-subprocess, its streams, json-rpc connection
-│   │   ├── Providers      per-provider quota sources: codex (app-server client, response decoding, banked reset flow and model), claude (cli stream-json usage request), grok (cli acp billing)
-│   │   └── Views          quota section and the codex reset views
-│   ├── QuickActions       scan-then-act model, system adapters (appearance, disk images, orphaned agents), and views
-│   ├── Activity           machine load for the activity page: cpu ticks, memory split, gpu statistics, processes grouped by responsible app, a sampler that reads them, and a model whose `monitor` loop runs only while the panel is open
-│   ├── BreakReminder      countdown state, notifications, controls, and issue alert
-│   ├── Inbox              todo rules, persistence with the open summary, and editors
-│   ├── Update             sparkle bridge and update indicator
-│   └── Resources          bundled image assets
-├── Tests/KoogoTests       mirrors the source tree folder for folder and file for file; a fixture lives with the slice that owns its source, and Support holds only slice-free helpers
-└── script                 signing, app bundle assembly, launch, and verification
+├── Sources/Koogo          menu bar app, one folder per feature slice
+│   ├── App                entry point, shared models, headless report
+│   ├── Shared             leaf primitives used across slices
+│   ├── Providers          provider identity, order, and toggles
+│   ├── Panel              menu bar panel shell and pages
+│   ├── Settings           settings window
+│   ├── Usage              token usage from local logs
+│   │   ├── Events         event identity and dedup
+│   │   ├── Ingestion      log discovery and reads
+│   │   ├── Providers      per-provider parsers and pricing
+│   │   ├── Aggregation    snapshot building
+│   │   └── Views
+│   ├── Quota              provider quota reads
+│   │   ├── Transport      cli and json-rpc plumbing
+│   │   ├── Providers      per-provider quota sources
+│   │   └── Views
+│   ├── QuickActions       appearance, disk image, and orphaned agent actions
+│   ├── Activity           cpu, memory, gpu, and process load
+│   ├── BreakReminder      break countdown and notifications
+│   ├── Inbox              todos
+│   ├── Update             sparkle updates
+│   └── Resources          image assets
+├── Tests/KoogoTests       mirrors the source tree; Support holds slice-free helpers
+└── script                 signing, bundling, launch, verification
 ```
 
 ## components and ui
