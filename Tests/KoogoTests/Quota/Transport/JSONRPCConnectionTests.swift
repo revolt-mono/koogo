@@ -25,11 +25,11 @@ final class JSONRPCConnectionTests: XCTestCase {
         )
 
         let tool = CommandLineTool(candidates: [executable], timeout: .seconds(3))
-        let values = try await tool.session([]) { input, output in
-            var connection = JSONRPCConnection(input: input, output: output, dateDecodingStrategy: .iso8601)
-            let first: ValueResponse = try connection.request("first")
-            try connection.notify("ready")
-            let second: ValueResponse = try connection.request("second", params: [String: String]())
+        let values = try await tool.session([]) { streams in
+            var connection = JSONRPCConnection(streams, dateDecodingStrategy: .iso8601)
+            let first: ValueResponse = try await connection.request("first")
+            try await connection.notify("ready")
+            let second: ValueResponse = try await connection.request("second", params: [String: String]())
             return [first.value, second.value]
         }
 
@@ -96,9 +96,9 @@ final class JSONRPCConnectionTests: XCTestCase {
                 /bin/cat '\(response.path)'
                 """
         )
-        try await CommandLineTool(candidates: [executable], timeout: .seconds(3)).session([]) { input, output in
-            var connection = JSONRPCConnection(input: input, output: output, dateDecodingStrategy: .iso8601)
-            let _: ValueResponse = try connection.request("read")
+        try await CommandLineTool(candidates: [executable], timeout: .seconds(3)).session([]) { streams in
+            var connection = JSONRPCConnection(streams, dateDecodingStrategy: .iso8601)
+            let _: ValueResponse = try await connection.request("read")
         }
     }
 }

@@ -28,11 +28,13 @@ struct ClaudeQuotaSource: QuotaSource {
             try await tool.session(
                 Self.arguments,
                 in: URL(filePath: "/tmp", directoryHint: .isDirectory)
-            ) { input, output in
+            ) { streams in
                 // The CLI shuts down and skips network reads once its input closes, so the request must stay open until the reply arrives.
-                try input.write(contentsOf: Self.request)
-                var output = output
-                return try output.first { try Self.decoder.decode(ClaudeControlResponse.self, from: $0).reply }.snapshot
+                try await streams.write(Self.request)
+                let reply = try await streams.first {
+                    try Self.decoder.decode(ClaudeControlResponse.self, from: $0).reply
+                }
+                return reply.snapshot
             }
         }
     }

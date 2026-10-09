@@ -246,8 +246,7 @@ final class CodexQuotaSourceTests: XCTestCase {
         )
 
         let started = ContinuousClock.now
-        let result = await CodexQuotaSource(executableCandidates: [executable], timeout: .milliseconds(500))
-            .load()
+        let result = await CodexQuotaSource(executableCandidates: [executable], timeout: .seconds(1)).load()
 
         XCTAssertEqual(result, .unavailable(.timedOut))
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))

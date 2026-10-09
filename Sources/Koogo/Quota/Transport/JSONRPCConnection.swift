@@ -1,18 +1,12 @@
 import Foundation
 
 struct JSONRPCConnection {
-    private let input: FileHandle
-    private var output: LineReader
+    private var streams: ToolStreams
     private let decoder: JSONDecoder
     private var nextID = 1
 
-    init(
-        input: FileHandle,
-        output: LineReader,
-        dateDecodingStrategy: JSONDecoder.DateDecodingStrategy
-    ) {
-        self.input = input
-        self.output = output
+    init(_ streams: ToolStreams, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy) {
+        self.streams = streams
         decoder = JSONDecoder()
         decoder.dateDecodingStrategy = dateDecodingStrategy
     }
@@ -20,24 +14,24 @@ struct JSONRPCConnection {
     mutating func request<Value: Decodable, Params: Encodable>(
         _ method: String,
         params: Params? = Optional<Never>.none
-    ) throws -> Value {
+    ) async throws -> Value {
         let id = nextID
         nextID += 1
-        try send(Request(id: id, method: method, params: params))
-        return try output.first { line in
+        try await send(Request(id: id, method: method, params: params))
+        return try await streams.first { line in
             guard case .response(id) = try decoder.decode(Header.self, from: line) else { return nil }
             return try decoder.decode(Response<Value>.self, from: line).result
         }
     }
 
-    func notify(_ method: String) throws {
-        try send(Notification(method: method))
+    func notify(_ method: String) async throws {
+        try await send(Notification(method: method))
     }
 
-    private func send(_ message: some Encodable) throws {
+    private func send(_ message: some Encodable) async throws {
         var data = try JSONEncoder().encode(message)
         data.append(0x0A)
-        try input.write(contentsOf: data)
+        try await streams.write(data)
     }
 }
 

@@ -13,6 +13,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/markiv/SwiftUI-Shimmer.git", from: "1.5.1"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.6"),
+        .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "1.0.1"),
     ],
     targets: [
         .executableTarget(
@@ -20,6 +21,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Shimmer", package: "SwiftUI-Shimmer"),
                 .product(name: "Sparkle", package: "Sparkle"),
+                .product(name: "Subprocess", package: "swift-subprocess"),
             ],
             exclude: ["Resources/Koogo.icon"],
             resources: [.process("Resources")]

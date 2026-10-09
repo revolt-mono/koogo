@@ -19,11 +19,14 @@ struct GrokQuotaSource: QuotaSource {
             let response: GrokQuotaResponse = try await tool.session(
                 ["--no-auto-update", "agent", "--no-leader", "stdio"],
                 in: URL(filePath: "/tmp", directoryHint: .isDirectory)
-            ) { input, output in
-                var connection = JSONRPCConnection(input: input, output: output, dateDecodingStrategy: .iso8601)
-                let initialized: InitializeResponse = try connection.request("initialize", params: InitializeParams())
+            ) { streams in
+                var connection = JSONRPCConnection(streams, dateDecodingStrategy: .iso8601)
+                let initialized: InitializeResponse = try await connection.request(
+                    "initialize",
+                    params: InitializeParams()
+                )
                 guard initialized.protocolVersion == 1 else { throw ToolFailure.invalidMessage }
-                return try connection.request("_x.ai/billing", params: [String: String]())
+                return try await connection.request("_x.ai/billing", params: [String: String]())
             }
             return response.snapshot
         }

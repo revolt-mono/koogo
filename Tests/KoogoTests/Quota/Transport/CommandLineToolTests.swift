@@ -17,9 +17,8 @@ final class CommandLineToolTests: XCTestCase {
         defer { unsetenv("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC") }
 
         let output = try await CommandLineTool(candidates: [executable], timeout: .seconds(3))
-            .session([], in: root) { _, output in
-                var output = output
-                return try XCTUnwrap(output.nextLine())
+            .session([], in: root) { streams in
+                try await streams.first { $0 }
             }
         let fields = try XCTUnwrap(String(bytes: output, encoding: .utf8)).split(
             separator: "|",
@@ -31,5 +30,26 @@ final class CommandLineToolTests: XCTestCase {
         XCTAssertEqual(String(fields[1]), NSUserName())
         XCTAssertTrue(fields[2].hasPrefix("\(root.path):"))
         XCTAssertTrue(fields[2].contains(":/opt/homebrew/bin:"))
+    }
+
+    func testReplyNearTheDeadlineSurvivesASlowExit() async throws {
+        let root = try makeTemporaryDirectory()
+        let executable = try makeTestExecutable(
+            in: root,
+            script: """
+                #!/bin/sh
+                trap '' TERM
+                sleep 0.2
+                printf 'reply\\n'
+                while :; do :; done
+                """
+        )
+
+        let reply = try await CommandLineTool(candidates: [executable], timeout: .seconds(1))
+            .session([], in: root) { streams in
+                try await streams.first { $0 }
+            }
+
+        XCTAssertEqual(reply, Data("reply".utf8))
     }
 }

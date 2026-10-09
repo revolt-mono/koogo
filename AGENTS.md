@@ -45,7 +45,7 @@
 │   │   ├── Aggregation    period intervals, snapshot builder, and snapshot types
 │   │   └── Views          summary, provider cards, chart, formatting
 │   ├── Quota              reading and snapshot vocabulary, source contract with its registry and the one failure classification, a read-only model whose `read` is the single busy transition
-│   │   ├── Transport      the one tool failure vocabulary, command-line tool runner, line reader, process group lifetime, json-rpc connection
+│   │   ├── Transport      the one tool failure vocabulary, command-line tool session over swift-subprocess, its streams, json-rpc connection
 │   │   ├── Providers      per-provider quota sources: codex (app-server client, response decoding, banked reset flow and model), claude (cli stream-json usage request), grok (cli acp billing)
 │   │   └── Views          quota section and the codex reset views
 │   ├── QuickActions       scan-then-act model, system adapters (appearance, disk images, orphaned agents), and views

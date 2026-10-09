@@ -23,19 +23,15 @@ struct CodexAppServer: Sendable {
     ) async throws(CallError) -> Value {
         let requestStarted = Mutex(false)
         do {
-            return try await tool.session(["app-server", "--stdio"]) { input, output in
-                var connection = JSONRPCConnection(
-                    input: input,
-                    output: output,
-                    dateDecodingStrategy: .secondsSince1970
-                )
-                let _: InitializeResponse = try connection.request(
+            return try await tool.session(["app-server", "--stdio"]) { streams in
+                var connection = JSONRPCConnection(streams, dateDecodingStrategy: .secondsSince1970)
+                let _: InitializeResponse = try await connection.request(
                     "initialize",
                     params: ["clientInfo": ["name": "koogo", "title": "Koogo", "version": "1.0"]]
                 )
-                try connection.notify("initialized")
+                try await connection.notify("initialized")
                 requestStarted.withLock { $0 = true }
-                return try connection.request(method, params: params)
+                return try await connection.request(method, params: params)
             }
         } catch {
             throw requestStarted.withLock { $0 } ? .unconfirmed(error) : .rejected(error)
