@@ -48,6 +48,7 @@ struct QuotaSection: View {
                         CodexQuotaResetView()
                     }
                 }
+                .displayOnly()
                 Divider()
             }
         }

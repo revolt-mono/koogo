@@ -8,19 +8,22 @@ struct ActivityPage: View {
         PanelPageContent(activityModel.latest, loading: "Sampling…") { sample in
             ScrollView {
                 VStack(alignment: .leading, spacing: PanelLayout.gap) {
-                    HStack(alignment: .top, spacing: PanelLayout.gap) {
-                        CPUSection(load: sample.cpu, trend: activityModel.cpuTrend)
+                    Group {
+                        HStack(alignment: .top, spacing: PanelLayout.gap) {
+                            CPUSection(load: sample.cpu, trend: activityModel.cpuTrend)
 
-                        if let gpu = sample.gpu {
-                            GPUSection(load: gpu, trend: activityModel.gpuTrend)
+                            if let gpu = sample.gpu {
+                                GPUSection(load: gpu, trend: activityModel.gpuTrend)
+                            }
+                        }
+
+                        MemorySection(usage: sample.memory)
+
+                        if let battery = sample.battery {
+                            BatterySection(state: battery, drawTrend: activityModel.drawTrend)
                         }
                     }
-
-                    MemorySection(usage: sample.memory)
-
-                    if let battery = sample.battery {
-                        BatterySection(state: battery, drawTrend: activityModel.drawTrend)
-                    }
+                    .displayOnly()
 
                     AppProcessList(groups: sample.processes, sampledAt: sample.taken)
                 }

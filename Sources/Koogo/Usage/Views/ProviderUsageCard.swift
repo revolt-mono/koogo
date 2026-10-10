@@ -8,6 +8,7 @@ struct ProviderUsageCard<Accessory: View>: View {
     var body: some View {
         PanelSection {
             ProviderUsageHeader(provider: provider, favorite: usage.favorite)
+                .displayOnly()
         } content: {
             VStack(spacing: 12) {
                 accessory()

@@ -52,6 +52,11 @@ struct PanelSectionTitle: View {
 }
 
 extension View {
+    /// SwiftUI hit-tests the whole panel on every mouse move, so content that never takes the pointer opts out.
+    func displayOnly() -> some View {
+        allowsHitTesting(false)
+    }
+
     func panelCard() -> some View {
         padding(12)
             .background(Color.black.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
