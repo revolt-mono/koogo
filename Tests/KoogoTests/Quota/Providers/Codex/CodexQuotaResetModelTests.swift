@@ -43,7 +43,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         model.submit()
         model.submit()
         model.begin(creditID: "credit-a")
-        quota.refresh([.codex], force: true)
+        quota.reload([.codex])
         guard case .submitting = model.flow else { return XCTFail("expected submitting") }
         try await waitUntil { !model.isBusy }
 
@@ -213,7 +213,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
     ) async throws -> (quota: QuotaModel, reset: CodexQuotaResetModel) {
         let quota = makeQuotaModel(codex: source, now: now)
         let reset = CodexQuotaResetModel(quota: quota)
-        quota.refresh([.codex], force: true)
+        quota.reload([.codex])
         try await waitUntil { !quota.isBusy(.codex) }
         XCTAssertNotNil(quota.statuses[.codex].latest?.snapshot)
         return (quota, reset)

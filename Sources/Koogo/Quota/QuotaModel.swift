@@ -46,9 +46,14 @@ final class QuotaModel {
         statuses[provider].isBusy
     }
 
-    /// Reads each provider whose reading is stale. `force` skips the cooldown but never doubles a read in flight.
-    func refresh(_ providers: some Sequence<QuotaProvider>, force: Bool = false) {
-        for provider in providers where force || !statuses[provider].isFresh(at: .now, within: Self.cooldown) {
+    /// Reads each provider whose reading is stale.
+    func refresh(_ providers: some Sequence<QuotaProvider>) {
+        reload(providers.filter { !statuses[$0].isFresh(at: .now, within: Self.cooldown) })
+    }
+
+    /// Reads each provider regardless of the cooldown, never doubling a read in flight.
+    func reload(_ providers: some Sequence<QuotaProvider>) {
+        for provider in providers {
             let source = sources[provider]
             read(provider) { await source.load() }
         }

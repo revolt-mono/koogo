@@ -43,7 +43,7 @@ final class CodexQuotaResetModel {
     }
 
     func refresh() {
-        quota.refresh([.codex], force: true)
+        quota.reload([.codex])
     }
 
     func begin(creditID: String) {
