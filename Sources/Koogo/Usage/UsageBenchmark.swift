@@ -50,13 +50,9 @@ enum UsageBenchmark {
     }
 
     private static func resourceUsage() -> rusage_info_v4 {
-        var usage = rusage_info_v4()
-        let status = withUnsafeMutablePointer(to: &usage) { pointer in
-            pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
-                proc_pid_rusage(getpid(), RUSAGE_INFO_V4, $0)
-            }
+        guard let usage = LibProc.resourceUsage(of: getpid()) else {
+            preconditionFailure("a process can always read its own resource usage")
         }
-        precondition(status == 0, "a process can always read its own resource usage")
         return usage
     }
 }
