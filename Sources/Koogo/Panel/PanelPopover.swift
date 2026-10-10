@@ -1,10 +1,6 @@
 import AppKit
 import SwiftUI
 
-extension EnvironmentValues {
-    @Entry var isSelectedPanelPage = true
-}
-
 @MainActor
 enum PopoverClickBoundary {
     static func independentClick(_ event: NSEvent, in view: NSView) -> NSEvent {
@@ -27,7 +23,6 @@ enum PopoverClickBoundary {
 }
 
 private struct PanelPopover<PopoverContent: View>: ViewModifier {
-    @Environment(\.isSelectedPanelPage) private var isSelectedPanelPage
     @Binding var isPresented: Bool
     let popoverContent: () -> PopoverContent
 
@@ -43,11 +38,6 @@ private struct PanelPopover<PopoverContent: View>: ViewModifier {
             .popover(isPresented: $isPresented, arrowEdge: .trailing, content: popoverContent)
             .onScrollVisibilityChange(threshold: 0.1) { isVisible in
                 if !isVisible {
-                    isPresented = false
-                }
-            }
-            .onChange(of: isSelectedPanelPage) {
-                if !isSelectedPanelPage {
                     isPresented = false
                 }
             }

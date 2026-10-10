@@ -6,11 +6,15 @@ import XCTest
 
 final class PanelViewTests: XCTestCase {
     @MainActor
-    func testOpeningThePanelRefreshesUsageAndQuotaForEveryShownProviderWithQuotaOn() async throws {
+    func testOpeningThePanelRefreshesUsageAndQuotaForEveryShownProviderWithQuotaOnAndSamplesNoActivity() async throws {
         let workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
         try workspace.write(codexLog(input: 700, output: 300), to: workspace.codexSessions.appending(path: "log.jsonl"))
         let defaults = try makeIsolatedDefaults()
-        let activity = ActivityModel { activitySample() }
+        let activitySamples = Counter()
+        let activity = ActivityModel {
+            activitySamples.increment()
+            return activitySample()
+        }
 
         for disabled: Set<QuotaProvider> in [
             [], [.codex], [.claude], [.grok], [.claude, .grok], [.codex, .claude, .grok],
@@ -31,23 +35,17 @@ final class PanelViewTests: XCTestCase {
             )
             let host = NSHostingView(
                 rootView: PanelView().environment(
-                    AppModels(
+                    panelModels(
                         preferences: preferences,
                         usage: usage,
                         quota: quota,
-                        codexReset: CodexQuotaResetModel(quota: quota),
-                        update: UpdateModel(),
-                        breakReminder: BreakReminderModel(
-                            notifications: BreakReminderTestNotifications(),
-                            defaults: defaults
-                        ),
-                        inbox: InboxModel(defaults: defaults),
-                        activity: activity
+                        activity: activity,
+                        defaults: defaults
                     )
                 )
             )
             host.layoutSubtreeIfNeeded()
-            try await waitUntil { usage.snapshot != nil && activity.latest != nil }
+            try await waitUntil { usage.snapshot != nil }
             XCTAssertNil(usage.snapshot?.providers[.codex])
             XCTAssertEqual(usage.snapshot?.providers[.claude]?.periods[.today].total.processedTokens, 0)
 
@@ -57,7 +55,28 @@ final class PanelViewTests: XCTestCase {
                 let expected: QuotaReading? = isShown ? .unavailable(.binaryNotFound) : nil
                 XCTAssertEqual(quota.statuses[provider].latest, expected, "\(provider)")
             }
+            XCTAssertEqual(activitySamples.value, 0)
             withExtendedLifetime(host) {}
         }
     }
+}
+
+@MainActor
+private func panelModels(
+    preferences: ProviderPreferences,
+    usage: UsageModel,
+    quota: QuotaModel,
+    activity: ActivityModel,
+    defaults: UserDefaults
+) -> AppModels {
+    AppModels(
+        preferences: preferences,
+        usage: usage,
+        quota: quota,
+        codexReset: CodexQuotaResetModel(quota: quota),
+        update: UpdateModel(),
+        breakReminder: BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults),
+        inbox: InboxModel(defaults: defaults),
+        activity: activity
+    )
 }

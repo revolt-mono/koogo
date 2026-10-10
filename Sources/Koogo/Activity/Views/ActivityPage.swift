@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Samples while the panel is open; closing it ends the task, so nothing runs in the background.
+/// Samples while the page shows; leaving it ends the task, so nothing runs in the background.
 struct ActivityPage: View {
     @Environment(ActivityModel.self) private var activityModel
 

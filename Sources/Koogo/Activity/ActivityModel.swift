@@ -13,7 +13,7 @@ extension ActivityTrend {
     }
 }
 
-/// As many samples as the widest chart shows. `monitor` is the only producer and runs exactly as long as the task the open panel holds.
+/// As many samples as the widest chart shows. `monitor` is the only producer and runs exactly as long as the task the shown page holds.
 @MainActor
 @Observable
 final class ActivityModel {

@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct InboxView: View {
+struct InboxPage: View {
     @Environment(InboxModel.self) private var inboxModel
 
     var body: some View {

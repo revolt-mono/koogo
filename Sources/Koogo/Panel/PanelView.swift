@@ -20,9 +20,7 @@ struct PanelView: View {
                     toolbarHeight = height
                 }
 
-            PanelPagesView(
-                maxHeight: (NSScreen.main?.visibleFrame.height ?? .infinity) - toolbarHeight - Self.toolbarGap
-            )
+            PanelPager(maxHeight: (NSScreen.main?.visibleFrame.height ?? .infinity) - toolbarHeight - Self.toolbarGap)
         }
         .frame(width: 320)
         .background {
