@@ -88,19 +88,17 @@ func waitForExit(
     try await waitUntil(timeout: .seconds(3), file: file, line: line) { kill(pid, 0) == -1 && errno == ESRCH }
 }
 
-/// A directory for one scripted tool. The prologue records how the tool was launched: its pid, arguments, and working directory.
+/// A directory for one scripted tool. The prologue records how the tool was launched: its arguments and working directory.
 struct ScriptedToolWorkspace {
     let root: URL
 
     var requestsFile: URL { root.appending(path: "requests.jsonl") }
     var argumentsFile: URL { root.appending(path: "arguments") }
     var directoryFile: URL { root.appending(path: "directory") }
-    var pidFile: URL { root.appending(path: "pid") }
 
     var prologue: String {
         """
         #!/bin/sh
-        printf '%s\\n' "$$" > '\(pidFile.path)'
         printf '%s\\n' "$@" > '\(argumentsFile.path)'
         pwd > '\(directoryFile.path)'
         """

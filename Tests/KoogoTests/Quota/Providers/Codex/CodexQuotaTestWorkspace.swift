@@ -8,7 +8,6 @@ struct CodexQuotaTestWorkspace {
     }
 
     var root: URL { tool.root }
-    var pidFile: URL { tool.pidFile }
 
     static let resetCredit = """
         {"id":"credit-a","resetType":"codexRateLimits","status":"available","grantedAt":1700000000,"expiresAt":4102444800,"title":"Usage reset","description":"Reset eligible usage limits"}

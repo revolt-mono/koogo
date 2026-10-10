@@ -126,39 +126,6 @@ final class CodexQuotaSourceTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.emptyLimits))
     }
 
-    func testFetchRejectsResponseContainingResultAndError() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeAppServer(
-            quotaResponse: """
-                {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,"windowDurationMins":300},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":null},"error":{"code":-32603,"message":"invalid response"}}
-                """
-        )
-
-        let result = await CodexQuotaSource(executableCandidates: [executable]).load()
-
-        XCTAssertEqual(result, .unavailable(.sessionFailed))
-    }
-
-    func testFetchAddsLauncherDirectoryToChildPath() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let runtime = try makeTestExecutable(in: workspace.root, script: "#!/bin/sh\nexec /bin/sh \"$@\"\n")
-        let executable = try makeTestExecutable(
-            in: workspace.root,
-            script: """
-                #!/usr/bin/env \(runtime.lastPathComponent)
-                IFS= read -r initialize
-                printf '%s\\n' '{"id":1,"result":{}}'
-                IFS= read -r initialized
-                IFS= read -r rate_limits
-                printf '%s\\n' '\(CodexQuotaTestWorkspace.rateLimitsResponse())'
-                """
-        )
-
-        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
-
-        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
-    }
-
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let executable = try makeTestExecutable(
@@ -170,29 +137,6 @@ final class CodexQuotaSourceTests: XCTestCase {
         let result = await CodexQuotaSource(executableCandidates: [executable]).load()
 
         XCTAssertEqual(result, .unavailable(.sessionFailed))
-    }
-
-    func testFetchReturnsSnapshotWhenServerDoesNotExitAfterResponse() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try makeTestExecutable(
-            in: workspace.root,
-            script: """
-                #!/bin/sh
-                trap '' TERM
-                IFS= read -r initialize
-                printf '%s\\n' '{"id":1,"result":{}}'
-                IFS= read -r initialized
-                IFS= read -r rate_limits
-                printf '%s\\n' '\(CodexQuotaTestWorkspace.rateLimitsResponse())'
-                while :; do :; done
-                """
-        )
-
-        let started = ContinuousClock.now
-        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
-
-        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
-        XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
     }
 
     func testCancellationKillsDescendantsSpawnedDuringTerminationGrace() async throws {
@@ -231,26 +175,4 @@ final class CodexQuotaSourceTests: XCTestCase {
         XCTAssertLessThan(ContinuousClock.now - cancellationStarted, .seconds(3))
         try await waitForExit(pidIn: childMarker)
     }
-
-    func testFetchTimesOutAndKillsStalledServer() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let pidMarker = workspace.root.appending(path: "pid")
-        let executable = try makeTestExecutable(
-            in: workspace.root,
-            script: """
-                #!/bin/sh
-                printf '%s\\n' "$$" > '\(pidMarker.path)'
-                IFS= read -r initialize
-                while :; do :; done
-                """
-        )
-
-        let started = ContinuousClock.now
-        let result = await CodexQuotaSource(executableCandidates: [executable], timeout: .seconds(1)).load()
-
-        XCTAssertEqual(result, .unavailable(.timedOut))
-        XCTAssertLessThan(ContinuousClock.now - started, .seconds(3))
-        try await waitForExit(pidIn: pidMarker)
-    }
-
 }

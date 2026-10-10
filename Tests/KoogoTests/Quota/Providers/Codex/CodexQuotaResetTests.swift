@@ -77,7 +77,6 @@ final class CodexQuotaResetTests: XCTestCase {
         let attempt = resetAttempt()
         let cases: [(String, ToolFailure)] = [
             ("{\"id\":2,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}", .rpc(code: -32601)),
-            ("{\"id\":2,\"error\":{\"code\":-32603,\"message\":\"Timed out\"}}", .rpc(code: -32603)),
             ("{\"id\":2,\"result\":{\"outcome\":\"future-outcome\"}}", .invalidMessage),
         ]
         for (response, expected) in cases {

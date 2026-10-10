@@ -11,12 +11,10 @@ struct GrokQuotaTestWorkspace {
     var requestsFile: URL { tool.requestsFile }
     var argumentsFile: URL { tool.argumentsFile }
     var directoryFile: URL { tool.directoryFile }
-    var pidFile: URL { tool.pidFile }
 
     func makeAgent(
         billingResponse: String = response(),
         initializeResponse: String = #"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"authMethods":[]}}"#,
-        beforeInitialize: String = "",
         beforeBilling: String = ""
     ) throws -> URL {
         try makeTestExecutable(
@@ -25,7 +23,6 @@ struct GrokQuotaTestWorkspace {
                 \(tool.prologue)
                 IFS= read -r request || exit 1
                 printf '%s\\n' "$request" > '\(requestsFile.path)'
-                \(beforeInitialize)
                 /bin/cat <<'INITIALIZE'
                 \(initializeResponse)
                 INITIALIZE

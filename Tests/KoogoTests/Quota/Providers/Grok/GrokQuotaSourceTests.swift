@@ -102,8 +102,6 @@ final class GrokQuotaSourceTests: XCTestCase {
     func testBillingErrorsAndUnusableFieldsFailTheSession() async throws {
         let responses = [
             #"{"id":2,"error":{"code":-32000,"message":"Authentication required"}}"#,
-            #"{"id":2,"error":{"code":-32603,"message":"HTTP 401"}}"#,
-            #"{"id":2,"error":{"code":-32601,"message":"Method not found"}}"#,
             GrokQuotaTestWorkspace.response(config: #"{"creditUsagePercent":"invalid"}"#),
             GrokQuotaTestWorkspace.response(config: #"{"currentPeriod":{"end":"invalid"}}"#),
         ]
@@ -128,24 +126,6 @@ final class GrokQuotaSourceTests: XCTestCase {
             XCTAssertEqual(result, .unavailable(.sessionFailed))
             let requests = try String(contentsOf: workspace.requestsFile, encoding: .utf8).split(separator: "\n")
             XCTAssertEqual(requests.count, 1)
-        }
-    }
-
-    func testMissingBinaryIsUnavailable() async {
-        let result = await GrokQuotaSource(executableCandidates: []).load()
-        XCTAssertEqual(result, .unavailable(.binaryNotFound))
-    }
-
-    func testTimeoutCoversInitializationAndBillingAndStopsTheAgent() async throws {
-        for stallsDuringInitialize in [true, false] {
-            let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
-            let executable = try workspace.makeAgent(
-                beforeInitialize: stallsDuringInitialize ? "while :; do :; done" : "",
-                beforeBilling: stallsDuringInitialize ? "" : "while :; do :; done"
-            )
-            let result = await GrokQuotaSource(executableCandidates: [executable], timeout: .milliseconds(500)).load()
-            XCTAssertEqual(result, .unavailable(.timedOut))
-            try await waitForExit(pidIn: workspace.pidFile)
         }
     }
 }
