@@ -3,7 +3,7 @@ import XCTest
 @testable import Koogo
 
 final class AppProcessGroupTests: XCTestCase {
-    private let start = ContinuousClock.now
+    private let start = SuspendingClock.now
 
     func testGroupsByResponsibleProcessHeaviestFirstUnderItsAppsIdentity() {
         let chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -61,17 +61,52 @@ final class AppProcessGroupTests: XCTestCase {
         XCTAssertEqual(groups.map(\.processCount), [2])
     }
 
-    func testAReusedPIDWithLessCPUTimeThanBeforeHasNoLoad() {
+    func testGPUTimeThatFellWithAClosedClientHasNoLoad() {
         let earlier = ProcessScan(
-            records: [record(pid: 7, responsiblePID: 7, path: "/bin/zsh", footprint: 1, cpuTime: .seconds(9))],
+            records: [record(pid: 7, responsiblePID: 7, path: "/bin/zsh", footprint: 1, gpuTime: .seconds(9))],
             taken: start
         )
         let now = ProcessScan(
-            records: [record(pid: 7, responsiblePID: 7, path: "/bin/zsh", footprint: 1, cpuTime: .seconds(1))],
+            records: [record(pid: 7, responsiblePID: 7, path: "/bin/zsh", footprint: 1, gpuTime: .seconds(1))],
             taken: start + .seconds(10)
         )
 
-        XCTAssertEqual(AppProcessGroup.heaviest(in: now, since: earlier) { _ in nil }.map(\.cpu), [0])
+        XCTAssertEqual(AppProcessGroup.heaviest(in: now, since: earlier) { _ in nil }.map(\.gpu), [0])
+    }
+
+    func testAProcessLaunchedSinceTheEarlierScanCountsAllItsTime() {
+        let earlier = ProcessScan(
+            records: [record(pid: 7, responsiblePID: 7, path: "/bin/zsh", footprint: 2, cpuTime: .seconds(9))],
+            taken: start
+        )
+        let launched = start + .seconds(1)
+        let now = ProcessScan(
+            records: [
+                record(
+                    pid: 7,
+                    responsiblePID: 7,
+                    path: "/bin/zsh",
+                    footprint: 2,
+                    launched: launched,
+                    cpuTime: .seconds(10)
+                ),
+                record(
+                    pid: 8,
+                    responsiblePID: 8,
+                    path: "/usr/bin/git",
+                    footprint: 1,
+                    launched: launched,
+                    cpuTime: .seconds(2),
+                    gpuTime: .seconds(1)
+                ),
+            ],
+            taken: start + .seconds(10)
+        )
+
+        let groups = AppProcessGroup.heaviest(in: now, since: earlier) { _ in nil }
+
+        XCTAssertEqual(groups.map(\.cpu), [1, 0.2])
+        XCTAssertEqual(groups.map(\.gpu), [0, 0.1])
     }
 
     func testTheRunningMachineMeasuresThisProcessAndRanksTheHeaviestGroups() throws {
@@ -102,11 +137,29 @@ final class AppProcessGroupTests: XCTestCase {
         XCTAssertTrue(after.records.contains { $0.gpuTime > .zero })
     }
 
+    func testTheRunningMachineStampsAProcessWithItsLaunch() async throws {
+        let child = Process()
+        child.executableURL = URL(filePath: "/bin/sleep")
+        child.arguments = ["10"]
+        let beforeLaunch = SuspendingClock.now
+        try child.run()
+        let afterLaunch = SuspendingClock.now
+        defer { child.terminate() }
+        try await Task.sleep(for: .milliseconds(300))
+
+        let scan = try ProcessScan.read()
+
+        let launched = try XCTUnwrap(scan.records.first { $0.pid == child.processIdentifier }).launched
+        XCTAssertGreaterThanOrEqual(launched, beforeLaunch)
+        XCTAssertLessThanOrEqual(launched, afterLaunch)
+    }
+
     private func record(
         pid: pid_t,
         responsiblePID: pid_t,
         path: String,
         footprint: UInt64,
+        launched: SuspendingClock.Instant? = nil,
         cpuTime: Duration = .zero,
         gpuTime: Duration = .zero
     ) -> ProcessRecord {
@@ -114,6 +167,7 @@ final class AppProcessGroupTests: XCTestCase {
             pid: pid,
             responsiblePID: responsiblePID,
             executablePath: path,
+            launched: launched ?? start - .seconds(60),
             footprint: footprint,
             cpuTime: cpuTime,
             gpuTime: gpuTime

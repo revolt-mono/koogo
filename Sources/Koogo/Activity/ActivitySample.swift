@@ -9,7 +9,7 @@ struct ActivityCounters: Sendable {
     let ticks: CPUTicks
     let processes: ProcessScan
 
-    var taken: ContinuousClock.Instant { processes.taken }
+    var taken: SuspendingClock.Instant { processes.taken }
 
     static func read() throws -> ActivityCounters {
         ActivityCounters(ticks: try CPUTicks.read(), processes: try ProcessScan.read())
@@ -47,7 +47,7 @@ actor ActivitySampler {
 
     func sample() async throws -> ActivitySample {
         let previous: ActivityCounters
-        if let counters, ContinuousClock.now - counters.taken < Self.countersExpireAfter {
+        if let counters, SuspendingClock.now - counters.taken < Self.countersExpireAfter {
             previous = counters
         } else {
             previous = try ActivityCounters.read()
