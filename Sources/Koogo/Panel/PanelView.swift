@@ -26,18 +26,14 @@ struct PanelView: View {
         }
         .frame(width: 320)
         .background {
+            // Dark enough for the headline to read against the desktop, light enough that a card still shows through.
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0.94), location: 0.15),
-                    .init(color: .black.opacity(0.94), location: 0.22),
-                    .init(color: .black.opacity(0.92), location: 0.28),
-                    .init(color: .black.opacity(0.84), location: 0.35),
-                    .init(color: .black.opacity(0.68), location: 0.42),
-                    .init(color: .black.opacity(0.47), location: 0.48),
-                    .init(color: .black.opacity(0.26), location: 0.55),
-                    .init(color: .black.opacity(0.1), location: 0.62),
-                    .init(color: .black.opacity(0.02), location: 0.68),
-                    .init(color: .clear, location: 0.75),
+                    .init(color: .black.opacity(0.72), location: 0),
+                    .init(color: .black.opacity(0.6), location: 0.15),
+                    .init(color: .black.opacity(0.38), location: 0.3),
+                    .init(color: .black.opacity(0.14), location: 0.42),
+                    .init(color: .clear, location: 0.5),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
