@@ -341,7 +341,9 @@ extension UsageSnapshotBuilderTests {
                 providers: [.codex],
                 intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
             )
-            ordered.forEach { builder.add($0) }
+            for event in ordered {
+                builder.add(event)
+            }
             let snapshot = builder.snapshot(sources: EnumMap { _ in SameNameUsageSource() })
             let models = try XCTUnwrap(snapshot.providers[.codex]?.periods[.today].models)
             XCTAssertEqual(models.map(\.id), [ModelID("c"), ModelID("a"), ModelID("b")])
