@@ -63,14 +63,12 @@ struct PanelProgressViewStyle: ProgressViewStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         GeometryReader { geometry in
-            Color.primary
+            Color.panelLabel
                 .frame(width: geometry.size.width * (configuration.fractionCompleted ?? 0))
         }
         .frame(height: Self.height)
-        .background(Color.primary.opacity(0.10))
+        .background(Color.panelLabel.opacity(0.10))
         .clipShape(Capsule())
-        // Flattened so the panel's Liquid Glass vibrancy cannot dim the fill to gray.
-        .drawingGroup()
     }
 }
 
@@ -80,6 +78,9 @@ extension ProgressViewStyle where Self == PanelProgressViewStyle {
 
 extension ShapeStyle where Self == Color {
     static var panelRaised: Color { .white.opacity(0.06) }
+
+    /// `Color.primary` turns gray under the panel's glass vibrancy.
+    static var panelLabel: Color { Color(nsColor: .labelColor) }
 }
 
 extension ShapeStyle where Self == LinearGradient {

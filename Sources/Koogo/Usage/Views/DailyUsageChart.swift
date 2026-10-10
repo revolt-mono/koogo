@@ -1,57 +1,48 @@
 import AppKit
-import Charts
 import SwiftUI
 
 struct DailyUsageChart: View {
     @Environment(\.calendar) private var calendar
+    @Environment(\.displayScale) private var displayScale
 
     let usage: UsageDailySnapshot
 
-    @State private var selectedDate: Date?
-
-    private var selectedDay: UsageDaySnapshot? {
-        guard let selectedDate else {
-            return nil
-        }
-        return usage.days.first {
-            calendar.isDate($0.date, inSameDayAs: selectedDate)
-        }
-    }
+    @State private var hoveredSlot: Int?
 
     var body: some View {
-        Chart {
-            ForEach(usage.days) { day in
-                BarMark(
-                    x: .value("Day", day.date, unit: .day),
-                    y: .value("Cost", NSDecimalNumber(decimal: day.usage.costUSD).doubleValue)
-                )
-                .foregroundStyle(Color.primary)
-                .cornerRadius(1)
-            }
+        let days = Dictionary(uniqueKeysWithValues: usage.days.map { (slot(of: $0.date), $0) })
+        let peakCost = usage.days.map(\.usage.costUSD).max() ?? 0
+        let heights = (0..<slot(of: usage.range.upperBound)).map { slot in
+            guard let day = days[slot], peakCost > 0 else { return 0.0 }
+            return NSDecimalNumber(decimal: day.usage.costUSD / peakCost).doubleValue
         }
-        .chartXScale(
-            domain: usage.range.lowerBound...usage.range.upperBound
-        )
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .chartLegend(.hidden)
-        .chartXSelection(value: $selectedDate)
-        .chartOverlay { proxy in
-            GeometryReader { geometry in
-                if let selectedDay, let plotFrame = proxy.plotFrame,
-                    let selectedX = proxy.position(forX: selectedDay.date)
-                {
-                    // A mark annotation changes the plot origin as its content moves.
-                    ChartAnnotationLayout(anchorX: geometry[plotFrame].minX + selectedX) {
-                        UsageChartAnnotation(day: selectedDay)
-                    }
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+
+        GeometryReader { geometry in
+            let slotWidth = geometry.size.width / CGFloat(heights.count)
+            BarChart(values: heights, cornerRadius: 1, displayScale: displayScale)
+                .fill(.panelLabel)
+                .contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    hoveredSlot = if case .active(let point) = phase { Int(point.x / slotWidth) } else { nil }
                 }
-            }
-            .allowsHitTesting(false)
+                .overlay {
+                    if let hoveredSlot, let day = days[hoveredSlot] {
+                        ChartAnnotationLayout(anchorX: (CGFloat(hoveredSlot) + 0.5) * slotWidth) {
+                            UsageChartAnnotation(day: day)
+                        }
+                        .allowsHitTesting(false)
+                    }
+                }
         }
         .frame(height: 48)
+        .accessibilityHidden(true)
         .motionAnimation(.smooth(duration: 0.35), value: usage)
+    }
+
+    /// Whole days from the start of the range, counted by day number so a day that starts after midnight still gets its own slot.
+    private func slot(of date: Date) -> Int {
+        let dayNumber = { calendar.ordinality(of: .day, in: .era, for: $0) ?? 0 }
+        return dayNumber(date) - dayNumber(usage.range.lowerBound)
     }
 }
 
@@ -95,7 +86,7 @@ private struct UsageChartAnnotation: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(day.date, format: .dateTime.month(.abbreviated).day())
                 .fontWeight(.semibold)
-                .foregroundStyle(Color(nsColor: .labelColor))
+                .foregroundStyle(.panelLabel)
 
             Text(
                 "\(UsageFormatting.cost(day.usage.costUSD)) · "
