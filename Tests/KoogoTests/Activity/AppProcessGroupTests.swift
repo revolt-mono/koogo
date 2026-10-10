@@ -35,7 +35,7 @@ final class AppProcessGroupTests: XCTestCase {
 
         XCTAssertEqual(groups.map(\.id), [200, 100, 300])
         XCTAssertEqual(groups.map(\.name), ["Slack", "Chromium", "zsh"])
-        XCTAssertEqual(groups.map(\.processCount), [1, 3, 1])
+        XCTAssertEqual(groups.map(\.members), [[200], [100, 101, 102], [300]])
         XCTAssertEqual(groups.map(\.footprint), [100, 90, 5])
         XCTAssertEqual(groups.map(\.cpu), [0, 0.5, 0])
         XCTAssertEqual(groups.map(\.gpu), [0.2, 0, 0])
@@ -152,6 +152,30 @@ final class AppProcessGroupTests: XCTestCase {
         let launched = try XCTUnwrap(scan.records.first { $0.pid == child.processIdentifier }).launched
         XCTAssertGreaterThanOrEqual(launched, beforeLaunch)
         XCTAssertLessThanOrEqual(launched, afterLaunch)
+    }
+
+    func testTerminatingAGroupStopsEveryMemberAndSurvivesOneAlreadyGone() async throws {
+        let child = Process()
+        child.executableURL = URL(filePath: "/bin/sleep")
+        child.arguments = ["10"]
+        try child.run()
+        addTeardownBlock { child.terminate() }
+        let scan = ProcessScan(
+            records: [
+                record(pid: 2_147_483_000, responsiblePID: 1, path: "/bin/sleep", footprint: 1),
+                record(pid: child.processIdentifier, responsiblePID: 1, path: "/bin/sleep", footprint: 1),
+            ],
+            taken: start
+        )
+        let group = try XCTUnwrap(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first)
+
+        group.terminate()
+
+        for _ in 0..<50 where child.isRunning {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertFalse(child.isRunning)
+        XCTAssertEqual(child.terminationReason, .uncaughtSignal)
     }
 
     private func record(

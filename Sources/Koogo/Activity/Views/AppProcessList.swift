@@ -4,26 +4,37 @@ import SwiftUI
 struct AppProcessList: View {
     let groups: [AppProcessGroup]
 
+    /// The order the pointer found the list in holds while the pointer stays, so no row moves out from under a click; groups arriving meanwhile queue at the end.
+    @State private var pinnedOrder: [pid_t]?
+
     var body: some View {
         PanelSection("Processes") {
             VStack(spacing: 8) {
-                ForEach(groups) { group in
+                ForEach(pinned) { group in
                     AppProcessRow(group: group)
                 }
             }
+            .onHover { pinnedOrder = $0 ? groups.map(\.id) : nil }
         }
+    }
+
+    private var pinned: [AppProcessGroup] {
+        guard let pinnedOrder else { return groups }
+        let rank = Dictionary(uniqueKeysWithValues: zip(pinnedOrder, 0...))
+        return groups.sorted { (rank[$0.id] ?? .max) < (rank[$1.id] ?? .max) }
     }
 }
 
 private struct AppProcessRow: View {
     let group: AppProcessGroup
 
+    @State private var isHovered = false
+    @State private var showsQuit = false
+    @State private var isTerminating = false
+
     var body: some View {
         HStack(spacing: 8) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: group.iconPath))
-                .resizable()
-                .frame(width: 20, height: 20)
-                .accessibilityHidden(true)
+            AppIcon(path: group.iconPath)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(group.name)
@@ -45,8 +56,53 @@ private struct AppProcessRow: View {
                     .foregroundStyle(.secondary)
             }
             .monospacedDigit()
+
+            if showsQuit && !isTerminating {
+                Button(action: quit) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Quit \(group.name)")
+                .transition(
+                    .asymmetric(
+                        insertion: .scale(scale: 0.4).combined(with: .opacity),
+                        removal: .opacity.animation(.easeOut(duration: 0.08))
+                    )
+                )
+            }
         }
         .font(.system(size: 9, weight: .medium))
         .lineLimit(1)
+        .contentShape(.rect)
+        .opacity(isTerminating ? 0.4 : 1)
+        .motionAnimation(.easeOut(duration: 0.2), value: isTerminating)
+        .motionAnimation(showsQuit ? .smooth(duration: 0.25) : .smooth(duration: 0.25).delay(0.08), value: showsQuit)
+        .accessibilityAction(named: "Quit \(group.name)", quit)
+        .onChange(of: group) { isTerminating = false }
+        .onHover { isHovered = $0 }
+        .task(id: isHovered) {
+            showsQuit = false
+            guard isHovered, (try? await Task.sleep(for: .milliseconds(300))) != nil else { return }
+            showsQuit = true
+        }
+    }
+
+    private func quit() {
+        isTerminating = true
+        group.terminate()
+    }
+}
+
+/// Keyed on the path alone; a fresh `NSImage` per row body would redraw and animate the icon on every hover.
+private struct AppIcon: View {
+    let path: String
+
+    var body: some View {
+        Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+            .resizable()
+            .frame(width: 20, height: 20)
+            .accessibilityHidden(true)
     }
 }

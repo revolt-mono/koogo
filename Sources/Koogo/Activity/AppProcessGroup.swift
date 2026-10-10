@@ -52,12 +52,24 @@ struct AppProcessGroup: Identifiable, Equatable, Sendable {
     let id: pid_t
     let name: String
     let iconPath: String
-    let processCount: Int
+    /// Every process in the group, since the responsible one may be out of reach.
+    let members: [pid_t]
     let footprint: UInt64
     /// Cores' worth of cpu time between the two scans; one busy core reads as 1.
     let cpu: Double
     /// Share of the span the gpu spent on the group's work.
     let gpu: Double
+
+    var processCount: Int { members.count }
+
+    /// Quits an app the way its menu would, so it can save and close its helpers; any other group gets every member signalled, and one already gone is no failure. The next sample shows what remains.
+    func terminate() {
+        if NSRunningApplication(processIdentifier: id)?.terminate() == true { return }
+        for pid in members where Darwin.kill(pid, SIGTERM) != 0 {
+            let error = errno
+            if error != ESRCH { Telemetry.activity.error("terminate failed pid=\(pid) errno=\(error)") }
+        }
+    }
 
     /// The twenty heaviest groups by responsible process. A group whose responsible process is out of sight takes its identity from its oldest member; a process launched since the earlier scan counts all its time, and one otherwise absent from it has no load yet.
     static func heaviest(
@@ -85,7 +97,7 @@ struct AppProcessGroup: Identifiable, Equatable, Sendable {
                     id: group.id,
                     name: identity.name,
                     iconPath: identity.iconPath,
-                    processCount: group.members.count,
+                    members: group.members.map(\.pid),
                     footprint: group.footprint,
                     cpu: group.members.reduce(0) { $0 + load($1, \.cpuTime) },
                     gpu: group.members.reduce(0) { $0 + load($1, \.gpuTime) }
