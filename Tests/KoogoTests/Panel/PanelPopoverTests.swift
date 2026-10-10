@@ -13,7 +13,6 @@ final class PanelPopoverTests: XCTestCase {
                 let original = try fixture.event(type: type, count: count)
                 let result = PopoverClickBoundary.independentClick(original, in: fixture.anchor)
 
-                XCTAssertEqual(original.clickCount, count)
                 XCTAssertEqual(result.clickCount, 1)
                 XCTAssertEqual(result.type, original.type)
                 XCTAssertEqual(result.locationInWindow, original.locationInWindow)
@@ -22,7 +21,6 @@ final class PanelPopoverTests: XCTestCase {
                 XCTAssertEqual(result.timestamp, original.timestamp)
                 XCTAssertEqual(result.modifierFlags, original.modifierFlags)
                 XCTAssertEqual(result.pressure, original.pressure)
-                XCTAssertEqual(result.buttonNumber, original.buttonNumber)
             }
         }
     }

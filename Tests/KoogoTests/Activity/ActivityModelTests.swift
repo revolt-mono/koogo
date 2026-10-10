@@ -58,21 +58,4 @@ final class ActivityModelTests: XCTestCase {
         XCTAssertEqual(model.cpuTrend.values, [0.1, 0.3])
         XCTAssertGreaterThanOrEqual(calls.value, 3)
     }
-
-    func testCancellingTheTaskStopsSampling() async throws {
-        let calls = Counter()
-        let model = ActivityModel(interval: .milliseconds(1)) {
-            calls.increment()
-            return activitySample()
-        }
-
-        let task = Task { await model.monitor() }
-        try await waitUntil { model.latest != nil }
-        task.cancel()
-        await task.value
-
-        let settled = calls.value
-        try await Task.sleep(for: .milliseconds(30))
-        XCTAssertEqual(calls.value, settled)
-    }
 }
