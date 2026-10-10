@@ -4,23 +4,26 @@ struct InboxView: View {
     @Environment(InboxModel.self) private var inboxModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: PanelLayout.gap) {
-            TodoEditor { inboxModel.add($0, priority: $1) }
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: PanelLayout.gap) {
+                TodoEditor { inboxModel.add($0, priority: $1) }
 
-            HStack(spacing: 8) {
-                Text(inboxModel.openSummary)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 8) {
+                    Text(inboxModel.openSummary)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                Button("Clear done", systemImage: "trash") {
-                    inboxModel.clearCompleted()
+                    Button("Clear done", systemImage: "trash") {
+                        inboxModel.clearCompleted()
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .tint(.red)
+                    .disabled(!inboxModel.hasCompleted)
                 }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .tint(.red)
-                .disabled(!inboxModel.hasCompleted)
+                .font(.system(size: 10, weight: .medium))
             }
-            .font(.system(size: 10, weight: .medium))
+            .padding(.horizontal, PanelLayout.inset)
 
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -32,11 +35,10 @@ struct InboxView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
+                .padding(.horizontal, PanelLayout.inset)
             }
-            .scrollIndicators(.automatic)
+            .panelPageScroll()
         }
-        .padding(.horizontal, PanelLayout.inset)
-        .padding(.bottom, PanelLayout.bottomInset)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 }

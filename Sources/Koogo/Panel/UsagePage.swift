@@ -71,7 +71,7 @@ private struct ProviderCards: View {
             .padding(.horizontal, PanelLayout.inset)
             .motionAnimation(.smooth(duration: 0.25), value: quotaModel.statuses)
         }
-        .panelScroll(edgeFade: PanelLayout.gap, bottomInset: PanelLayout.bottomInset, scrollerInset: PanelLayout.inset)
+        .panelPageScroll()
         .frame(height: min(visibleHeight.rounded(.up), heightLimit))
     }
 }

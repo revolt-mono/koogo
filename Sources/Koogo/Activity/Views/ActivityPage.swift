@@ -26,11 +26,7 @@ struct ActivityPage: View {
                 }
                 .padding(.horizontal, PanelLayout.inset)
             }
-            .panelScroll(
-                edgeFade: PanelLayout.gap,
-                bottomInset: PanelLayout.bottomInset,
-                scrollerInset: PanelLayout.inset
-            )
+            .panelPageScroll()
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .task {

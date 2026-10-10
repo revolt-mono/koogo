@@ -134,6 +134,6 @@ private struct PanelPageIndicator: View {
             }
         }
         .padding(.horizontal, 4)
-        .background(.black.opacity(0.22), in: Capsule())
+        .glassEffect(.regular, in: Capsule())
     }
 }
