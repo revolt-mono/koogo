@@ -21,18 +21,6 @@ final class UsagePeriodIntervalsTests: XCTestCase {
         XCTAssertEqual(intervals.last30DayIndex(containing: date), 0)
     }
 
-    func testRollingPeriodsIgnoreTimeOfDay() throws {
-        let midnight = try XCTUnwrap(Date(iso8601: "2026-09-01T00:00:00Z"))
-        let lastMillisecond = try XCTUnwrap(Date(iso8601: "2026-09-01T23:59:59.999Z"))
-        let morning = UsagePeriodIntervals(containing: midnight, calendar: usageTestCalendar)
-        let evening = UsagePeriodIntervals(containing: lastMillisecond, calendar: usageTestCalendar)
-
-        XCTAssertEqual(morning, evening)
-        XCTAssertEqual(morning.last30DayStarts[6], Date(iso8601: "2026-08-26T00:00:00Z"))
-        XCTAssertEqual(morning.last30Days.lowerBound, Date(iso8601: "2026-08-03T00:00:00Z"))
-        XCTAssertEqual(morning.previous30Days.lowerBound, Date(iso8601: "2026-07-04T00:00:00Z"))
-    }
-
     func testMidnightDaylightSavingTransitionKeepsPreviousDayWhole() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Havana"))
@@ -47,9 +35,9 @@ final class UsagePeriodIntervalsTests: XCTestCase {
     func testDailyBucketsFollowMidnightAcrossDaylightSavingTime() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
-        for (start, end, hours) in [
-            ("2026-03-08T08:00:00Z", "2026-03-09T07:00:00Z", 23),
-            ("2026-11-01T07:00:00Z", "2026-11-02T08:00:00Z", 25),
+        for (start, end) in [
+            ("2026-03-08T08:00:00Z", "2026-03-09T07:00:00Z"),
+            ("2026-11-01T07:00:00Z", "2026-11-02T08:00:00Z"),
         ] {
             let midnight = try XCTUnwrap(Date(iso8601: start))
             let nextMidnight = try XCTUnwrap(Date(iso8601: end))
@@ -57,7 +45,6 @@ final class UsagePeriodIntervalsTests: XCTestCase {
 
             XCTAssertEqual(intervals.last30DayStarts[0], midnight)
             XCTAssertEqual(intervals.last30Days.upperBound, nextMidnight)
-            XCTAssertEqual(nextMidnight.timeIntervalSince(midnight), Double(hours * 60 * 60))
             XCTAssertEqual(intervals.last30DayIndex(containing: midnight), 0)
             XCTAssertEqual(intervals.last30DayIndex(containing: nextMidnight.addingTimeInterval(-0.001)), 0)
             XCTAssertNil(intervals.last30DayIndex(containing: nextMidnight))

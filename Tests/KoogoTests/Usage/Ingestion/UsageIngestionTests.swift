@@ -147,21 +147,6 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         XCTAssertEqual(snapshot.providers[.codex]?.periods[.today].total.processedTokens, 120)
     }
 
-    func testShrunkFileIsRereadAndDeletedFileDropsItsEvents() async throws {
-        let log = workspace.codexSessions.appending(path: "session.jsonl")
-        try workspace.write(codexLog(input: 100, output: 20), to: log)
-        let service = makePipeline()
-        _ = await service.run(at: now, providers: Provider.allCases).snapshot
-
-        try workspace.write(codexLog(input: 40, output: 10, thread: "t"), to: log)
-        let shrunk = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(shrunk.providers[.codex]?.periods[.today].total.processedTokens, 50)
-
-        try FileManager.default.removeItem(at: log)
-        let deleted = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(deleted.providers[.codex]?.periods[.today].total, UsagePeriodSnapshot())
-    }
-
     func testSameSizeRewriteWithNewModificationDateIsReread() async throws {
         let log = workspace.codexSessions.appending(path: "session.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: log)

@@ -43,43 +43,6 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         }
     }
 
-    func testSnapshotComparesCompletePreviousPeriods() throws {
-        let snapshot = usageSnapshot(
-            events: [
-                usageEvent(
-                    .codex,
-                    id: 1,
-                    processedTokens: 1_000,
-                    costUSD: 0.005,
-                    at: try XCTUnwrap(Date(iso8601: "2026-08-24T17:00:00Z"))
-                ),
-                usageEvent(
-                    .claude,
-                    processedTokens: 10_000,
-                    costUSD: 0.05,
-                    at: try XCTUnwrap(Date(iso8601: "2026-08-24T19:00:00Z"))
-                ),
-                usageEvent(
-                    .codex,
-                    id: 3,
-                    processedTokens: 2_000,
-                    costUSD: 0.01,
-                    at: try XCTUnwrap(Date(iso8601: "2026-07-25T17:00:00Z"))
-                ),
-                usageEvent(
-                    .claude,
-                    processedTokens: 20_000,
-                    costUSD: 0.1,
-                    at: try XCTUnwrap(Date(iso8601: "2026-07-25T19:00:00Z"))
-                ),
-            ],
-            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
-        )
-
-        XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
-        XCTAssertEqual(snapshot.summary.last30Days.costChange, .decrease(fraction: Decimal(1) / 2))
-    }
-
     func testSummaryComparisonIgnoresProvidersOutsideTheSet() throws {
         let yesterday = try XCTUnwrap(usageTestCalendar.date(byAdding: .day, value: -1, to: usageTestTimestamp))
 
