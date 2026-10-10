@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AppProcessList: View {
     let groups: [AppProcessGroup]
+    let sampledAt: SuspendingClock.Instant
 
     /// The order the pointer found the list in holds while the pointer stays, so no row moves out from under a click; groups arriving meanwhile queue at the end.
     @State private var pinnedOrder: [pid_t]?
@@ -11,7 +12,7 @@ struct AppProcessList: View {
         PanelSection("Processes") {
             VStack(spacing: 8) {
                 ForEach(pinned) { group in
-                    AppProcessRow(group: group)
+                    AppProcessRow(group: group, sampledAt: sampledAt)
                 }
             }
             .onHover { pinnedOrder = $0 ? groups.map(\.id) : nil }
@@ -27,10 +28,12 @@ struct AppProcessList: View {
 
 private struct AppProcessRow: View {
     let group: AppProcessGroup
+    let sampledAt: SuspendingClock.Instant
 
     @State private var isHovered = false
     @State private var showsQuit = false
-    @State private var isTerminating = false
+    /// The process count when the quit was asked and at each sample since that showed fewer; a sample showing no fewer means the quit stalled, and the row thaws.
+    @State private var quittingFrom: Int?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -57,7 +60,7 @@ private struct AppProcessRow: View {
             }
             .monospacedDigit()
 
-            if showsQuit && !isTerminating {
+            if showsQuit && !isQuitting {
                 Button(action: quit) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 14))
@@ -76,11 +79,14 @@ private struct AppProcessRow: View {
         .font(.system(size: 9, weight: .medium))
         .lineLimit(1)
         .contentShape(.rect)
-        .opacity(isTerminating ? 0.4 : 1)
-        .motionAnimation(.easeOut(duration: 0.2), value: isTerminating)
+        .opacity(isQuitting ? 0.4 : 1)
+        .motionAnimation(.easeOut(duration: 0.2), value: isQuitting)
         .motionAnimation(showsQuit ? .smooth(duration: 0.25) : .smooth(duration: 0.25).delay(0.08), value: showsQuit)
         .accessibilityAction(named: "Quit \(group.name)", quit)
-        .onChange(of: group) { isTerminating = false }
+        .onChange(of: sampledAt) {
+            guard let quittingFrom else { return }
+            self.quittingFrom = group.processCount < quittingFrom ? group.processCount : nil
+        }
         .onHover { isHovered = $0 }
         .task(id: isHovered) {
             showsQuit = false
@@ -89,8 +95,10 @@ private struct AppProcessRow: View {
         }
     }
 
+    private var isQuitting: Bool { quittingFrom != nil }
+
     private func quit() {
-        isTerminating = true
+        quittingFrom = group.processCount
         group.terminate()
     }
 }

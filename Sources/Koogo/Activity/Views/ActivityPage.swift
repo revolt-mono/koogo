@@ -22,7 +22,7 @@ struct ActivityPage: View {
                         BatterySection(state: battery, drawTrend: activityModel.drawTrend)
                     }
 
-                    AppProcessList(groups: sample.processes)
+                    AppProcessList(groups: sample.processes, sampledAt: sample.taken)
                 }
                 .padding(.horizontal, PanelLayout.inset)
             }

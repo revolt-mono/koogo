@@ -8,6 +8,7 @@ func activitySample(
 ) -> ActivitySample {
     let busy = UInt32((cpu * 100).rounded())
     return ActivitySample(
+        taken: .now,
         cpu: CPULoad(
             from: CPUTicks(user: 0, system: 0, idle: 0),
             to: CPUTicks(user: busy, system: 0, idle: 100 - busy),
