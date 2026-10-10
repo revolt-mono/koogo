@@ -19,7 +19,16 @@ final class ActivitySampleTests: XCTestCase {
         }
         if let gpu = second.gpu {
             XCTAssertFalse(gpu.name.isEmpty)
-            XCTAssertTrue((0...1).contains(gpu.utilization))
+            for stage in [gpu.utilization, gpu.renderer, gpu.tiler] {
+                XCTAssertTrue((0...1).contains(stage))
+            }
+        }
+        if let battery = second.battery {
+            XCTAssertTrue((0...1).contains(battery.charge))
+            XCTAssertTrue((0...1).contains(battery.health))
+            if let draw = battery.draw {
+                XCTAssertGreaterThan(draw, 0)
+            }
         }
     }
 }

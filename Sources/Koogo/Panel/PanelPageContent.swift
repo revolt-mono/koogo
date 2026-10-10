@@ -22,7 +22,7 @@ struct PanelPageContent<Value, Content: View>: View {
                     .foregroundStyle(.secondary)
                     .loadingShimmer()
                     .frame(maxWidth: .infinity, minHeight: 96)
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, PanelLayout.inset)
                     .padding(.vertical, 24)
                     .transition(.blurReplace)
             }

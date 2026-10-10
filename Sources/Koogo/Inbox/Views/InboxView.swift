@@ -4,7 +4,7 @@ struct InboxView: View {
     @Environment(InboxModel.self) private var inboxModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: PanelLayout.gap) {
             TodoEditor { inboxModel.add($0, priority: $1) }
 
             HStack(spacing: 8) {
@@ -35,8 +35,8 @@ struct InboxView: View {
             }
             .scrollIndicators(.automatic)
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 32)
+        .padding(.horizontal, PanelLayout.inset)
+        .padding(.bottom, PanelLayout.bottomInset)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 }

@@ -26,6 +26,24 @@ enum ActivityFormatting {
         return Measure(value: value, unit: "%", text: "\(value)%")
     }
 
+    static func watts(_ watts: Double) -> Measure {
+        let value = number(watts, decimals: 1)
+        return Measure(value: value, unit: "W", text: "\(value) W")
+    }
+
+    /// Hours and minutes at most, whole minutes only.
+    static func duration(_ duration: Duration) -> String {
+        duration.formatted(
+            .units(
+                allowed: [.hours, .minutes],
+                width: .narrow,
+                maximumUnitCount: 2,
+                fractionalPart: .hide(rounded: .towardZero)
+            )
+            .locale(locale)
+        )
+    }
+
     private static func number(_ value: Double, decimals: Int) -> String {
         value.formatted(
             .number

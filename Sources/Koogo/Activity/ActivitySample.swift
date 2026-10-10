@@ -16,20 +16,22 @@ struct ActivityCounters: Sendable {
     }
 }
 
-/// One moment of the machine. The gpu is absent only when the machine exposes no accelerator statistics.
+/// One moment of the machine. The gpu is absent only when the machine exposes no accelerator statistics, the battery only when there is none.
 struct ActivitySample: Equatable, Sendable {
     let cpu: CPULoad
     let memory: MemoryUsage
     let gpu: GPULoad?
+    let battery: BatteryState?
     let processes: [AppProcessGroup]
 }
 
 extension ActivitySample {
-    /// Loads over the span between two counter readings, with the memory and gpu state at its end.
+    /// Loads over the span between two counter readings, with the memory, gpu, and battery state at its end.
     init(from previous: ActivityCounters, to current: ActivityCounters) throws {
         cpu = CPULoad(from: previous.ticks, to: current.ticks, cores: try CPUCores.read())
         memory = try MemoryUsage.read()
         gpu = GPULoad.read()
+        battery = BatteryState.read()
         processes = AppProcessGroup.heaviest(
             in: current.processes,
             since: previous.processes,

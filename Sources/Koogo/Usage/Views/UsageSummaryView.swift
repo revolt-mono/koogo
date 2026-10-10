@@ -18,8 +18,7 @@ private struct UsageSummaryPeriod: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .panelSectionTitle()
+            PanelSectionTitle(title: title)
 
             ViewThatFits(in: .horizontal) {
                 UsageSummaryLine(usage: usage, fontSize: 18)

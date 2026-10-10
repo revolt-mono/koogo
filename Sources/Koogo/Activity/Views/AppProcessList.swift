@@ -5,17 +5,12 @@ struct AppProcessList: View {
     let groups: [AppProcessGroup]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Processes")
-                .panelSectionTitle()
-                .padding(.horizontal, 6)
-
+        PanelSection("Processes") {
             VStack(spacing: 8) {
                 ForEach(groups) { group in
                     AppProcessRow(group: group)
                 }
             }
-            .panelCard()
         }
     }
 }

@@ -13,20 +13,20 @@ final class ActivityModelTests: XCTestCase {
         let task = Task { await model.monitor() }
         defer { task.cancel() }
 
-        try await waitUntil { calls.value > 70 }
+        try await waitUntil { calls.value > ActivityModel.historyLength + 10 }
         XCTAssertEqual(model.samples.count, ActivityModel.historyLength)
         let newest = try XCTUnwrap(model.latest).memory.used
         let oldest = try XCTUnwrap(model.samples.first).memory.used
-        XCTAssertEqual(newest - oldest, 59)
+        XCTAssertEqual(newest - oldest, UInt64(ActivityModel.historyLength - 1))
     }
 
-    func testTrendsFollowEachMetricAndSkipAMissingGPU() async throws {
+    func testTrendsFollowEachMetricAndSkipWhatAMachineLacks() async throws {
         let calls = Counter()
         let model = ActivityModel(interval: .milliseconds(1)) {
             switch calls.increment() {
-            case 1: activitySample(cpu: 0.2, memoryUsed: 16 << 30, gpu: 0.9)
-            case 2: activitySample(cpu: 0.6, memoryUsed: 32 << 30, gpu: nil)
-            case 3: activitySample(cpu: 0.4, memoryUsed: 48 << 30, gpu: 0.3)
+            case 1: activitySample(cpu: 0.2, gpu: 0.9, draw: 5)
+            case 2: activitySample(cpu: 0.6, gpu: nil, draw: 20)
+            case 3: activitySample(cpu: 0.4, gpu: 0.3, draw: nil)
             default: throw ActivityReadFailure.cpu
             }
         }
@@ -35,10 +35,9 @@ final class ActivityModelTests: XCTestCase {
         try await waitUntil { model.samples.count == 3 }
         task.cancel()
 
-        XCTAssertEqual(model.cpuTrend.average, 0.4, accuracy: 0.0001)
-        XCTAssertEqual(model.cpuTrend.peak, 0.6, accuracy: 0.0001)
-        XCTAssertEqual(model.memoryTrend.values, [0.25, 0.5, 0.75])
+        XCTAssertEqual(model.cpuTrend.values, [0.2, 0.6, 0.4])
         XCTAssertEqual(model.gpuTrend.values, [0.9, 0.3])
+        XCTAssertEqual(model.drawTrend.values, [0.25, 1])
     }
 
     func testAFailedSampleLeavesTheLastOneAndSamplingGoesOn() async throws {

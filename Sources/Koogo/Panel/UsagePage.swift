@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct UsagePage: View {
-    private static let headerGap: CGFloat = 20 - ProviderCards.spacing
-    private static let bottomInset: CGFloat = 32 - ProviderCards.spacing
+    private static let headerGap: CGFloat = 20
+    /// The cards scroll's edge fades carry part of the gaps around it.
+    private static let cardsGap = headerGap - PanelLayout.gap
+    private static let cardsBottomInset = PanelLayout.bottomInset - PanelLayout.gap
 
     @Environment(ProviderPreferences.self) private var preferences
     @Environment(UsageModel.self) private var usageModel
@@ -12,13 +14,13 @@ struct UsagePage: View {
 
     var body: some View {
         PanelPageContent(usageModel.snapshot, loading: "Parsing logs…") { snapshot in
-            VStack(spacing: Self.headerGap) {
-                VStack(spacing: 20) {
+            VStack(spacing: Self.cardsGap) {
+                VStack(spacing: Self.headerGap) {
                     UsageSummaryView(summary: snapshot.summary)
 
                     QuickActionsControl()
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, PanelLayout.inset)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { height in
@@ -29,17 +31,15 @@ struct UsagePage: View {
                     cards: preferences.usageProviders.compactMap { provider in
                         snapshot.providers[provider].map { (provider: provider, usage: $0) }
                     },
-                    heightLimit: max(maxHeight - headerHeight - Self.headerGap - Self.bottomInset, 0)
+                    heightLimit: max(maxHeight - headerHeight - Self.cardsGap - Self.cardsBottomInset, 0)
                 )
             }
-            .padding(.bottom, Self.bottomInset)
+            .padding(.bottom, Self.cardsBottomInset)
         }
     }
 }
 
 private struct ProviderCards: View {
-    fileprivate static let spacing: CGFloat = 12
-    private static let inset: CGFloat = 20
     private static let visibleCards = 3
 
     @Environment(ProviderPreferences.self) private var preferences
@@ -53,10 +53,10 @@ private struct ProviderCards: View {
         let leading = cards.prefix(Self.visibleCards)
         let visibleHeight =
             leading.compactMap { cardHeights[$0.provider] }.reduce(0, +)
-            + Self.spacing * CGFloat(max(leading.count - 1, 0) + 2)
+            + PanelLayout.gap * CGFloat(max(leading.count - 1, 0) + 2)
 
         ScrollView {
-            VStack(spacing: Self.spacing) {
+            VStack(spacing: PanelLayout.gap) {
                 ForEach(cards, id: \.provider) { card in
                     ProviderUsageCard(provider: card.provider, usage: card.usage) {
                         if let quota = preferences.quotaProvider(for: card.provider) {
@@ -70,10 +70,10 @@ private struct ProviderCards: View {
                     }
                 }
             }
-            .padding(.horizontal, Self.inset)
+            .padding(.horizontal, PanelLayout.inset)
             .motionAnimation(.smooth(duration: 0.25), value: quotaModel.statuses)
         }
-        .panelScroll(edgeFade: Self.spacing, scrollerInset: Self.inset)
+        .panelScroll(edgeFade: PanelLayout.gap, scrollerInset: PanelLayout.inset)
         .frame(height: min(visibleHeight.rounded(.up), heightLimit))
     }
 }

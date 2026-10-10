@@ -12,7 +12,7 @@ struct PanelView: View {
     var body: some View {
         VStack(spacing: Self.toolbarGap) {
             PanelToolbar()
-                .padding(.horizontal, 20)
+                .padding(.horizontal, PanelLayout.inset)
                 .padding(.top, 16)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height

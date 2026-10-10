@@ -6,9 +6,9 @@ struct ProviderUsageCard<Accessory: View>: View {
     @ViewBuilder let accessory: () -> Accessory
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        PanelSection {
             ProviderUsageHeader(provider: provider, favorite: usage.favorite)
-
+        } content: {
             VStack(spacing: 12) {
                 accessory()
 
@@ -25,7 +25,6 @@ struct ProviderUsageCard<Accessory: View>: View {
                 }
                 .font(.system(size: 9, weight: .medium))
             }
-            .panelCard()
         }
     }
 }
@@ -129,7 +128,6 @@ private struct ProviderUsageHeader: View {
                     .lineLimit(1)
             }
         }
-        .padding(.horizontal, 6)
     }
 }
 

@@ -54,8 +54,6 @@ struct QuotaSection: View {
     }
 }
 
-private let quotaBarHeight: CGFloat = 5
-
 private struct QuotaWindowRow: View {
     let provider: Provider
     let window: QuotaWindow
@@ -81,7 +79,7 @@ private struct QuotaWindowRow: View {
             .lineLimit(1)
 
             ProgressView(value: Double(window.usedPercent), total: 100)
-                .progressViewStyle(QuotaProgressViewStyle())
+                .progressViewStyle(.panel)
                 .accessibilityLabel("\(provider.title) \(window.title)")
                 .accessibilityValue("\(window.usedPercent) percent used")
         }
@@ -99,7 +97,7 @@ private struct QuotaWindowPlaceholder: View {
                     .frame(width: 104, height: 8)
             }
             RoundedRectangle(cornerRadius: 2)
-                .frame(height: quotaBarHeight)
+                .frame(height: PanelProgressViewStyle.height)
         }
     }
 }
@@ -128,18 +126,4 @@ func quotaTimeRemainingText(until date: Date, now: Date) -> String {
         fractionalPart: .hide(rounded: .towardZero)
     )
     return "in \(remaining.formatted(style.locale(Locale(identifier: "en_US"))))"
-}
-
-private struct QuotaProgressViewStyle: ProgressViewStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        GeometryReader { geometry in
-            Color.primary
-                .frame(width: geometry.size.width * (configuration.fractionCompleted ?? 0))
-        }
-        .frame(height: quotaBarHeight)
-        .background(Color.primary.opacity(0.10))
-        .clipShape(Capsule())
-        // Flattened so the panel's Liquid Glass vibrancy cannot dim the fill to gray.
-        .drawingGroup()
-    }
 }
