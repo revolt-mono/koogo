@@ -16,9 +16,10 @@ struct BarChart: Shape {
     }
 
     func path(in rect: CGRect) -> Path {
+        let shown = if let slotWidth { values.suffix(Int(rect.width / slotWidth)) } else { values[...] }
         let slot = slotWidth ?? rect.width / CGFloat(values.count)
         var path = Path()
-        for (index, value) in values.suffix(Int(rect.width / slot)).enumerated() where value > 0 {
+        for (index, value) in shown.enumerated() where value > 0 {
             let left = snapped(slot * CGFloat(index) + Self.gap / 2)
             let right = snapped(slot * CGFloat(index + 1) - Self.gap / 2)
             let height = max(rect.height * value, cornerRadius * 2)

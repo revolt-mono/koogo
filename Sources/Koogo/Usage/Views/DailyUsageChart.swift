@@ -10,7 +10,7 @@ struct DailyUsageChart: View {
     @State private var hoveredSlot: Int?
 
     var body: some View {
-        let days = Dictionary(uniqueKeysWithValues: usage.days.map { (slot(of: $0.date), $0) })
+        let days = Dictionary(usage.days.map { (slot(of: $0.date), $0) }) { _, newer in newer }
         let peakCost = usage.days.map(\.usage.costUSD).max() ?? 0
         let heights = (0..<slot(of: usage.range.upperBound)).map { slot in
             guard let day = days[slot], peakCost > 0 else { return 0.0 }
