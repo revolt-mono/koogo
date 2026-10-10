@@ -18,16 +18,18 @@ struct ClaudeUsageLogParser: UsageLogParser {
         else {
             throw MalformedUsageRecord()
         }
-        let isFast: Bool
+        var options: Set<ClaudeBillableUsage.Option> = []
         switch usage.speed {
-        case nil, "standard": isFast = false
-        case "fast": isFast = true
+        case nil, "standard": break
+        case "fast": options.insert(.fastMode)
         default: return .unpricedModel(id: model, timestamp: timestamp)
+        }
+        if usage.geo == "us" {
+            options.insert(.usInference)
         }
         let billable = ClaudeBillableUsage(
             tokens: usage.tokens,
-            isFast: isFast,
-            isUSInference: usage.geo == "us",
+            options: options,
             webSearchRequests: usage.webSearchRequests
         )
         guard let quote = ClaudeUsagePricing.quote(model: model, usage: billable) else {
@@ -99,9 +101,14 @@ struct ClaudeTokenUsage: Sendable {
 }
 
 struct ClaudeBillableUsage: Sendable {
+    /// Surcharged extras a reply opted into. Only models that offer them can price the reply.
+    enum Option: Sendable {
+        case fastMode
+        case usInference
+    }
+
     let tokens: ClaudeTokenUsage
-    let isFast: Bool
-    let isUSInference: Bool
+    let options: Set<Option>
     let webSearchRequests: UInt64
 }
 

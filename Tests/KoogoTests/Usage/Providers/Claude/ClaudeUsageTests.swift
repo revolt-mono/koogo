@@ -139,20 +139,19 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     }
 
     func testClaudeQuotesMatchPublishedRates() throws {
-        let usage = { (isFast: Bool, isUSInference: Bool) in
+        let usage = { (options: Set<ClaudeBillableUsage.Option>) in
             claudeBillableUsage(
                 uncachedInput: 100_000,
                 cachedInput: 100_000,
                 cacheWrite5MinuteInput: 100_000,
                 cacheWrite1HourInput: 100_000,
                 output: 10_000,
-                isFast: isFast,
-                isUSInference: isUSInference
+                options: options
             )
         }
-        let standard = usage(false, false)
-        let fast = usage(true, false)
-        let usInference = usage(false, true)
+        let standard = usage([])
+        let fast = usage([.fastMode])
+        let usInference = usage([.usInference])
         let shortPrompt = claudeBillableUsage(uncachedInput: 50_000, cachedInput: 50_000, output: 10_000)
 
         for (model, name, usage, expectedUSD) in [
@@ -231,8 +230,7 @@ private func claudeBillableUsage(
     cacheWrite5MinuteInput: UInt64 = 0,
     cacheWrite1HourInput: UInt64 = 0,
     output: UInt64 = 0,
-    isFast: Bool = false,
-    isUSInference: Bool = false
+    options: Set<ClaudeBillableUsage.Option> = []
 ) -> ClaudeBillableUsage {
     guard
         let tokens = ClaudeTokenUsage(
@@ -247,5 +245,5 @@ private func claudeBillableUsage(
     else {
         preconditionFailure("invalid claude usage fixture")
     }
-    return ClaudeBillableUsage(tokens: tokens, isFast: isFast, isUSInference: isUSInference, webSearchRequests: 0)
+    return ClaudeBillableUsage(tokens: tokens, options: options, webSearchRequests: 0)
 }

@@ -38,8 +38,7 @@ enum ClaudeUsagePricing {
         let displayName: String
         let rates: Rates
         var longPromptRates: Rates?
-        let supportsFastMode: Bool
-        let supportsUSInference: Bool
+        let options: Set<ClaudeBillableUsage.Option>
     }
 
     // Sources, checked 2026-10-08:
@@ -49,93 +48,78 @@ enum ClaudeUsagePricing {
         "claude-fable-5-1": ModelPrice(
             displayName: "Fable 5.1",
             rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
         "claude-mythos-5-1": ModelPrice(
             displayName: "Mythos 5.1",
             rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
         "claude-fable-5": ModelPrice(
             displayName: "Fable 5",
             rates: Rates(input: 10_000, cacheRead: 1_000, output: 50_000),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
         "claude-mythos-5": ModelPrice(
             displayName: "Mythos 5",
             rates: Rates(input: 10_000, cacheRead: 1_000, output: 50_000),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
         "claude-opus-5-5": ModelPrice(
             displayName: "Opus 5.5",
             rates: Rates(input: 4_000, cacheRead: 200, output: 20_000),
-            supportsFastMode: true,
-            supportsUSInference: true
+            options: [.fastMode, .usInference]
         ),
         "claude-opus-5": ModelPrice(
             displayName: "Opus 5",
             rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            supportsFastMode: true,
-            supportsUSInference: true
+            options: [.fastMode, .usInference]
         ),
         "claude-opus-4-8": ModelPrice(
             displayName: "Opus 4.8",
             rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            supportsFastMode: true,
-            supportsUSInference: true
+            options: [.fastMode, .usInference]
         ),
         "claude-opus-4-7": ModelPrice(
             displayName: "Opus 4.7",
             rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
         "claude-opus-4-6": ModelPrice(
             displayName: "Opus 4.6",
             rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
         "claude-opus-4-5-20251101": ModelPrice(
             displayName: "Opus 4.5",
             rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            supportsFastMode: false,
-            supportsUSInference: false
+            options: []
         ),
         "claude-sonnet-5-5": ModelPrice(
             displayName: "Sonnet 5.5",
             rates: Rates(input: 2_000, cacheRead: 100, output: 10_000),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
         "claude-sonnet-5": ModelPrice(
             displayName: "Sonnet 5",
             rates: Rates(input: 2_000, cacheRead: 200, output: 10_000),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
         "claude-sonnet-4-6": ModelPrice(
             displayName: "Sonnet 4.6",
             rates: Rates(input: 3_000, cacheRead: 300, output: 15_000),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
         "claude-sonnet-4-5-20250929": ModelPrice(
             displayName: "Sonnet 4.5",
             rates: Rates(input: 3_000, cacheRead: 300, output: 15_000),
-            supportsFastMode: false,
-            supportsUSInference: false
+            options: []
         ),
         "claude-haiku-5-5": ModelPrice(
             displayName: "Haiku 5.5",
             rates: Rates(input: 100, cacheRead: 10, output: 500),
             longPromptRates: Rates(input: 500, cacheRead: 50, output: 2_500),
-            supportsFastMode: false,
-            supportsUSInference: true
+            options: [.usInference]
         ),
     ]
 
@@ -152,18 +136,14 @@ enum ClaudeUsagePricing {
 
         let promptTokens = usage.tokens.processed - usage.tokens.output
         let rates = promptTokens > longPromptThreshold ? price.longPromptRates ?? price.rates : price.rates
-        var costNanodollars = rates.costNanodollars(for: usage.tokens)
-        if usage.isFast {
-            guard price.supportsFastMode else {
-                return nil
-            }
-            costNanodollars *= 2
+        guard usage.options.isSubset(of: price.options) else {
+            return nil
         }
-        if usage.isUSInference {
-            guard price.supportsUSInference else {
-                return nil
+        let costNanodollars = usage.options.reduce(rates.costNanodollars(for: usage.tokens)) { cost, option in
+            switch option {
+            case .fastMode: cost * 2
+            case .usInference: cost * 11 / 10
             }
-            costNanodollars = costNanodollars * 11 / 10
         }
         return UsageQuote(
             model: ModelID(modelID),
