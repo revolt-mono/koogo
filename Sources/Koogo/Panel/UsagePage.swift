@@ -2,9 +2,8 @@ import SwiftUI
 
 struct UsagePage: View {
     private static let headerGap: CGFloat = 20
-    /// The cards scroll's edge fades carry part of the gaps around it.
+    /// The cards scroll's top edge fade carries part of the gap above it.
     private static let cardsGap = headerGap - PanelLayout.gap
-    private static let cardsBottomInset = PanelLayout.bottomInset - PanelLayout.gap
 
     @Environment(ProviderPreferences.self) private var preferences
     @Environment(UsageModel.self) private var usageModel
@@ -31,10 +30,9 @@ struct UsagePage: View {
                     cards: preferences.usageProviders.compactMap { provider in
                         snapshot.providers[provider].map { (provider: provider, usage: $0) }
                     },
-                    heightLimit: max(maxHeight - headerHeight - Self.cardsGap - Self.cardsBottomInset, 0)
+                    heightLimit: max(maxHeight - headerHeight - Self.cardsGap, 0)
                 )
             }
-            .padding(.bottom, Self.cardsBottomInset)
         }
     }
 }
@@ -53,7 +51,7 @@ private struct ProviderCards: View {
         let leading = cards.prefix(Self.visibleCards)
         let visibleHeight =
             leading.compactMap { cardHeights[$0.provider] }.reduce(0, +)
-            + PanelLayout.gap * CGFloat(max(leading.count - 1, 0) + 2)
+            + PanelLayout.gap * CGFloat(max(leading.count, 1)) + PanelLayout.bottomInset
 
         ScrollView {
             VStack(spacing: PanelLayout.gap) {
@@ -73,7 +71,7 @@ private struct ProviderCards: View {
             .padding(.horizontal, PanelLayout.inset)
             .motionAnimation(.smooth(duration: 0.25), value: quotaModel.statuses)
         }
-        .panelScroll(edgeFade: PanelLayout.gap, scrollerInset: PanelLayout.inset)
+        .panelScroll(edgeFade: PanelLayout.gap, bottomInset: PanelLayout.bottomInset, scrollerInset: PanelLayout.inset)
         .frame(height: min(visibleHeight.rounded(.up), heightLimit))
     }
 }
