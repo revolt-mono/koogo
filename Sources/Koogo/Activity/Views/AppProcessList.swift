@@ -64,7 +64,7 @@ private struct AppProcessRow: View {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
-                    .frame(width: 20)
+                    .frame(width: 12)
                     .frame(maxHeight: .infinity)
                     .contentShape(.rect)
             }
