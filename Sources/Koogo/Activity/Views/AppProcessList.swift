@@ -62,8 +62,11 @@ private struct AppProcessRow: View {
 
             Button(action: quit) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 12))
+                    .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
+                    .frame(width: 20)
+                    .frame(maxHeight: .infinity)
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .disabled(isQuitting)
