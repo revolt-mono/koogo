@@ -62,25 +62,12 @@ struct OrphanedAgentProcesses: Sendable {
         return OrphanedAgentProcess(pid: pid, parentPID: pid_t(info.pbi_ppid), executablePath: executablePath)
     }
 
-    @concurrent
-    func terminate() async throws {
+    func forceTerminate() throws {
         // A pid can be reused between the scan and the click; only signal processes that still match.
-        var survivors = values.filter { Self.orphanedAgentProcess($0.pid) != nil }
-        for process in survivors {
-            try Self.send(SIGTERM, to: process)
-        }
-        for _ in 0..<20 where !survivors.isEmpty {
-            try await Task.sleep(for: .milliseconds(100))
-            survivors.removeAll { Darwin.kill($0.pid, 0) == -1 && (errno == ESRCH || errno == EPERM) }
-        }
-        for process in survivors {
-            try Self.send(SIGKILL, to: process)
-        }
-    }
-
-    private static func send(_ signal: Int32, to process: OrphanedAgentProcess) throws {
-        guard Darwin.kill(process.pid, signal) == 0 || errno == ESRCH else {
-            throw Failure.termination(process)
+        for process in values where Self.orphanedAgentProcess(process.pid) != nil {
+            guard Darwin.kill(process.pid, SIGKILL) == 0 || errno == ESRCH else {
+                throw Failure.termination(process)
+            }
         }
     }
 }

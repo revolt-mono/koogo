@@ -154,7 +154,7 @@ final class AppProcessGroupTests: XCTestCase {
         XCTAssertLessThanOrEqual(launched, afterLaunch)
     }
 
-    func testTerminatingAGroupStopsEveryMemberAndSurvivesOneAlreadyGone() async throws {
+    func testForceTerminatingAGroupKillsEveryMemberAndSurvivesOneAlreadyGone() async throws {
         let child = Process()
         child.executableURL = URL(filePath: "/bin/sleep")
         child.arguments = ["10"]
@@ -169,7 +169,7 @@ final class AppProcessGroupTests: XCTestCase {
         )
         let group = try XCTUnwrap(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first)
 
-        group.terminate()
+        group.forceTerminate()
 
         for _ in 0..<50 where child.isRunning {
             try await Task.sleep(for: .milliseconds(20))

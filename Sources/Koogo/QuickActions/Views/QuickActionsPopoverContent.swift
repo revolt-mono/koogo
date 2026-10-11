@@ -6,7 +6,7 @@ struct QuickActionsPopoverContent: View {
     @State private var systemAppearance = QuickActionModel(perform: SystemAppearance.toggle)
     @State private var diskImages = QuickActionModel(scan: MountedDiskImages.mounted) { try await $0.eject() }
     @State private var agentProcesses = QuickActionModel(scan: OrphanedAgentProcesses.running) {
-        try await $0.terminate()
+        try $0.forceTerminate()
     }
 
     var body: some View {

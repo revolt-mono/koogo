@@ -83,7 +83,7 @@ private struct AppProcessRow: View {
 
     private func quit() {
         quittingFrom = group.processCount
-        group.terminate()
+        group.forceTerminate()
     }
 }
 

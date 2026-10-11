@@ -62,12 +62,11 @@ struct AppProcessGroup: Identifiable, Equatable, Sendable {
 
     var processCount: Int { members.count }
 
-    /// Quits an app the way its menu would, so it can save and close its helpers; any other group gets every member signalled, and one already gone is no failure. The next sample shows what remains.
-    func terminate() {
-        if NSRunningApplication(processIdentifier: id)?.terminate() == true { return }
-        for pid in members where Darwin.kill(pid, SIGTERM) != 0 {
-            let error = errno
-            if error != ESRCH { Telemetry.activity.error("terminate failed pid=\(pid) errno=\(error)") }
+    /// Force quits an app with its helpers; any other group gets every member killed, and one already gone is no failure. The next sample shows what remains.
+    func forceTerminate() {
+        if NSRunningApplication(processIdentifier: id)?.forceTerminate() == true { return }
+        for pid in members where Darwin.kill(pid, SIGKILL) != 0 && errno != ESRCH {
+            Telemetry.activity.error("force terminate failed pid=\(pid) errno=\(errno)")
         }
     }
 
