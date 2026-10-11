@@ -16,7 +16,6 @@ struct UsagePage: View {
             VStack(spacing: Self.cardsGap) {
                 VStack(spacing: Self.headerGap) {
                     UsageSummaryView(summary: snapshot.summary)
-                        .displayOnly()
 
                     QuickActionsControl()
                 }
