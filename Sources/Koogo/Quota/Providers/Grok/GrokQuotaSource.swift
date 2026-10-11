@@ -7,11 +7,12 @@ struct GrokQuotaSource: QuotaSource {
     init(
         executableCandidates: [URL] = CommandLineTool.candidates(
             named: "grok",
-            preferring: [FileManager.default.homeDirectoryForCurrentUser.appending(path: ".grok/bin")]
-        ),
-        timeout: Duration = .seconds(30)
+            preferring: [
+                Provider.grok.home(under: FileManager.default.homeDirectoryForCurrentUser).appending(path: "bin")
+            ]
+        )
     ) {
-        tool = CommandLineTool(candidates: executableCandidates, timeout: timeout)
+        tool = CommandLineTool(candidates: executableCandidates, timeout: .seconds(30))
     }
 
     func load() async -> QuotaReading {

@@ -52,7 +52,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             {"type":"branch_summary","id":"summary","parentId":"compaction","timestamp":"2026-08-25T12:00:00.000Z","usage":\(piUsage(input: 30, cost: "0.03"))}
             """,
         ]
-        let events = try records.map { try XCTUnwrap(try parse($0, with: &parser)?.event) }
+        let events = try records.map { try XCTUnwrap(parse($0, with: &parser)?.event) }
 
         XCTAssertEqual(events.map(\.record.processedTokens), [10, 20, 30])
         XCTAssertTrue(events.allSatisfy { $0.record.modelTurn == nil })
@@ -65,7 +65,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             {"type":"compaction","id":"compaction","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","usage":{"input":10,"output":20,"cacheRead":30,"cacheWrite":40,"totalTokens":125,"cost":{"total":1}}}
             """
 
-        XCTAssertEqual(try XCTUnwrap(try parse(log, with: &parser)?.event).record.processedTokens, 125)
+        XCTAssertEqual(try XCTUnwrap(parse(log, with: &parser)?.event).record.processedTokens, 125)
     }
 
     func testParserKeepsZeroUsageAssistantTurnsForFavorites() throws {

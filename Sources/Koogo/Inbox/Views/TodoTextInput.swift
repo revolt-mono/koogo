@@ -60,7 +60,8 @@ struct TodoTextInput: NSViewRepresentable {
         if case .editing = mode, !context.coordinator.didRequestFocus {
             context.coordinator.didRequestFocus = true
             // Wait for the context menu to close before taking focus.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            Task {
+                try? await Task.sleep(for: .milliseconds(50))
                 scrollView.window?.makeFirstResponder(textView)
             }
         }
@@ -98,7 +99,7 @@ struct TodoTextInput: NSViewRepresentable {
                         scrollView.convert(event.locationInWindow, from: nil)
                     )
                 if !isInside {
-                    DispatchQueue.main.async { [weak scrollView, weak textView] in
+                    Task { [weak scrollView, weak textView] in
                         guard let textView, let window = scrollView?.window,
                             window.firstResponder === textView
                         else {
@@ -158,18 +159,16 @@ private final class TodoTextView: NSTextView {
             return
         }
 
-        if modifiers == .shift {
+        switch modifiers {
+        case .shift:
             insertNewlineIgnoringFieldEditor(nil)
-            return
-        }
-        guard modifiers.isEmpty else {
+        case []:
+            // TextKit finishes dispatching this key event after keyDown returns.
+            Task { [onSubmit] in
+                onSubmit()
+            }
+        default:
             super.keyDown(with: event)
-            return
-        }
-
-        // TextKit finishes dispatching this key event after keyDown returns.
-        DispatchQueue.main.async { [onSubmit] in
-            onSubmit()
         }
     }
 }

@@ -13,7 +13,7 @@ struct JSONRPCConnection {
 
     mutating func request<Value: Decodable, Params: Encodable>(
         _ method: String,
-        params: Params? = Optional<Never>.none
+        params: Params? = Never?.none
     ) async throws -> Value {
         let id = nextID
         nextID += 1

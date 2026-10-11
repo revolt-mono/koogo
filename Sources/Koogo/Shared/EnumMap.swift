@@ -51,7 +51,6 @@ extension EnumMap: Encodable where Key: Encodable & CodingKeyRepresentable, Valu
 }
 
 extension EnumMap: ExpressibleByDictionaryLiteral {
-    /// A literal must name every case once.
     init(dictionaryLiteral elements: (Key, Value)...) {
         let values = Dictionary(uniqueKeysWithValues: elements)
         precondition(values.count == Key.allCases.count, "a literal must cover every case")

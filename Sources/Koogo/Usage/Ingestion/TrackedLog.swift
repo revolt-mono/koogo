@@ -9,7 +9,6 @@ protocol TrackedLog: Sendable {
     mutating func discard(before windowStart: Date)
 }
 
-/// What one parser has made of a log's lines: its running state, surviving events, and dropped lines.
 struct ParsedLines<Parser: UsageLogParser>: LineConsumer, Sendable {
     private(set) var parser = Parser()
     var events = UsageEventIndex()
@@ -45,7 +44,6 @@ struct ParsedLines<Parser: UsageLogParser>: LineConsumer, Sendable {
     }
 }
 
-/// A log whose every line goes through one parser.
 struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
     private var file: AppendOnlyFile
     private var lines: ParsedLines<Parser>

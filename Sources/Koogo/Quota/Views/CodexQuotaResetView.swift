@@ -41,7 +41,16 @@ private struct CodexQuotaResetDetail: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                CodexQuotaRefreshButton(isDisabled: model.isBusy, action: model.refresh)
+                Button(action: model.refresh) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Refresh")
+                .disabled(model.isBusy)
             }
             CodexQuotaResetStatus()
             if let credits = model.credits?.credits, !credits.isEmpty {
@@ -165,23 +174,5 @@ private struct CodexQuotaResetCreditRow: View {
                     .disabled(!model.canUse(credit))
             }
         }
-    }
-}
-
-private struct CodexQuotaRefreshButton: View {
-    let isDisabled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "arrow.clockwise")
-                .font(.system(size: 11, weight: .medium))
-                .frame(width: 16, height: 16)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .accessibilityLabel("Refresh")
-        .disabled(isDisabled)
     }
 }

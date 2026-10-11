@@ -38,7 +38,7 @@ final class JSONObjectReaderTests: XCTestCase {
             "timestamp":"2026-08-25T12:00:00.000Z"}
             """#
 
-        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).record.processedTokens, 15)
+        XCTAssertEqual(try XCTUnwrap(parse(line, with: &parser)?.event).record.processedTokens, 15)
     }
 
     func testEscapedKeysAndRecordKindsMatchDecodedText() throws {
@@ -47,7 +47,7 @@ final class JSONObjectReaderTests: XCTestCase {
             .replacingOccurrences(of: #""type":"assistant""#, with: #""ty\u0070e":"ass\u0069stant""#)
             .replacingOccurrences(of: #""input_tokens""#, with: #""input_\u0074okens""#)
 
-        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).record.processedTokens, 15)
+        XCTAssertEqual(try XCTUnwrap(parse(line, with: &parser)?.event).record.processedTokens, 15)
     }
 
     func testSimilarAndNonStringRecordKindsAreSkipped() throws {
@@ -66,7 +66,7 @@ final class JSONObjectReaderTests: XCTestCase {
             usage: #""input_tokens":1e1,"output_tokens":5.0,"cache_read_input_tokens":0e0"#
         )
 
-        XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event).record.processedTokens, 15)
+        XCTAssertEqual(try XCTUnwrap(parse(line, with: &parser)?.event).record.processedTokens, 15)
     }
 
     func testIntegersInUnusualFormsAreReadAsJSON() throws {
@@ -76,7 +76,7 @@ final class JSONObjectReaderTests: XCTestCase {
             (#"{"totalTokens":100000000000000000000e-20,"cost":{"total":0.01}}"#, 1),
         ] {
             let line = piAssistant(id: "reply", parentID: nil, model: "model-a", usage: usage)
-            XCTAssertEqual(try XCTUnwrap(try parse(line, with: &parser)?.event, usage).record.processedTokens, tokens)
+            XCTAssertEqual(try XCTUnwrap(parse(line, with: &parser)?.event, usage).record.processedTokens, tokens)
         }
     }
 

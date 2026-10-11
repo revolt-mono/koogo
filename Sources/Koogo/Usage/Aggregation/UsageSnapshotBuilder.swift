@@ -26,15 +26,13 @@ struct UsageSnapshotBuilder {
         func snapshot(modelName: (ModelID) -> String) -> ProviderUsageSnapshot.Favorite? {
             guard
                 let (model, usage) = models.max(by: { lhs, rhs in
-                    lhs.value.occurrences == rhs.value.occurrences
-                        ? lhs.key.rawValue > rhs.key.rawValue
-                        : lhs.value.occurrences < rhs.value.occurrences
+                    (lhs.value.occurrences, rhs.key) < (rhs.value.occurrences, lhs.key)
                 })
             else {
                 return nil
             }
             let effort = usage.reasoningEfforts.max { lhs, rhs in
-                lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
+                (lhs.value, rhs.key) < (rhs.value, lhs.key)
             }?.key
             return ProviderUsageSnapshot.Favorite(
                 modelName: modelName(model),
@@ -67,23 +65,25 @@ struct UsageSnapshotBuilder {
             }
             return ProviderUsageSnapshot(
                 favorite: favorite.snapshot(modelName: modelName),
-                periods: EnumMap { period in
-                    let usageByModel = usageByDay.prefix(period.dayCount).reduce(into: [:]) {
-                        $0.merge($1, uniquingKeysWith: +)
-                    }
-                    let models = usageByModel.filter { $0.value != UsagePeriodSnapshot() }.map { model, usage in
-                        ModelUsageSnapshot(id: model, modelName: model.map(modelName) ?? "Unattributed", usage: usage)
-                    }.sorted { lhs, rhs in
-                        lhs.usage.costUSD == rhs.usage.costUSD
-                            ? (lhs.id?.rawValue ?? "") < (rhs.id?.rawValue ?? "")
-                            : lhs.usage.costUSD > rhs.usage.costUSD
-                    }
-                    return ProviderUsagePeriodSnapshot(
-                        total: usageByModel.values.reduce(UsagePeriodSnapshot(), +),
-                        models: splitsByModel ? models : nil
-                    )
-                },
+                periods: EnumMap { period(dayCount: $0.dayCount, splitsByModel: splitsByModel, modelName: modelName) },
                 dailyLast30Days: UsageDailySnapshot(range: intervals.last30Days, days: days)
+            )
+        }
+
+        private func period(
+            dayCount: Int,
+            splitsByModel: Bool,
+            modelName: (ModelID) -> String
+        ) -> ProviderUsagePeriodSnapshot {
+            let usageByModel = usageByDay.prefix(dayCount).reduce(into: [:]) { $0.merge($1, uniquingKeysWith: +) }
+            let models = usageByModel.filter { $0.value != UsagePeriodSnapshot() }.map { model, usage in
+                ModelUsageSnapshot(id: model, modelName: model.map(modelName) ?? "Unattributed", usage: usage)
+            }.sorted { lhs, rhs in
+                (rhs.usage.costUSD, lhs.id?.rawValue ?? "") < (lhs.usage.costUSD, rhs.id?.rawValue ?? "")
+            }
+            return ProviderUsagePeriodSnapshot(
+                total: usageByModel.values.reduce(UsagePeriodSnapshot(), +),
+                models: splitsByModel ? models : nil
             )
         }
     }
@@ -112,22 +112,16 @@ struct UsageSnapshotBuilder {
 
     /// Names each model through its provider's source; a model the source does not know shows its id.
     func snapshot(sources: EnumMap<Provider, any UsageSource>) -> UsageSnapshot {
-        let included = accumulators.entries.compactMap { provider, accumulator in
-            accumulator.map { (provider, $0) }
+        var providers: [Provider: ProviderUsageSnapshot] = [:]
+        for case (let provider, let accumulator?) in accumulators.entries {
+            let source = sources[provider]
+            providers[provider] = accumulator.snapshot(intervals: intervals, splitsByModel: source.splitsUsageByModel) {
+                source.modelName($0) ?? $0.rawValue
+            }
         }
         return UsageSnapshot(
-            providers: Dictionary(
-                uniqueKeysWithValues: included.map { provider, accumulator in
-                    let source = sources[provider]
-                    return (
-                        provider,
-                        accumulator.snapshot(intervals: intervals, splitsByModel: source.splitsUsageByModel) {
-                            source.modelName($0) ?? $0.rawValue
-                        }
-                    )
-                }
-            ),
-            previousDay: included.map { $1.total(day: 1) }.reduce(UsagePeriodSnapshot(), +),
+            providers: providers,
+            previousDay: accumulators.entries.compactMap { $1?.total(day: 1) }.reduce(UsagePeriodSnapshot(), +),
             previous30Days: previous30Days
         )
     }

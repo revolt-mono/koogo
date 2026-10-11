@@ -45,9 +45,10 @@ struct MountedDiskImages: Sendable {
 
     @concurrent
     static func mounted() async throws -> MountedDiskImages? {
+        let volumeKeys: Set<URLResourceKey> = [.volumeNameKey, .volumeIsEjectableKey]
         guard
             let volumeURLs = FileManager.default.mountedVolumeURLs(
-                includingResourceValuesForKeys: [.volumeNameKey, .volumeIsEjectableKey],
+                includingResourceValuesForKeys: Array(volumeKeys),
                 options: .skipHiddenVolumes
             ),
             let session = DASessionCreate(kCFAllocatorDefault)
@@ -55,36 +56,29 @@ struct MountedDiskImages: Sendable {
             throw ScanFailure()
         }
 
-        var diskImages: [MountedDiskImage] = []
-        for mountURL in volumeURLs {
+        let diskImages = volumeURLs.compactMap { mountURL -> MountedDiskImage? in
             guard
-                let values = try? mountURL.resourceValues(forKeys: [
-                    .volumeNameKey,
-                    .volumeIsEjectableKey,
-                ]),
+                let values = try? mountURL.resourceValues(forKeys: volumeKeys),
                 let disk = DADiskCreateFromVolumePath(
                     kCFAllocatorDefault,
                     session,
                     mountURL as CFURL
                 ),
                 let wholeDisk = DADiskCopyWholeDisk(disk),
-                let wholeDiskName = DADiskGetBSDName(wholeDisk),
-                let diskImage = MountedDiskImage(
-                    wholeDiskID: String(cString: wholeDiskName),
-                    volumeName: values.volumeName,
-                    mountURL: mountURL,
-                    isEjectable: values.volumeIsEjectable == true,
-                    deviceModel: (DADiskCopyDescription(wholeDisk) as? [String: Any])?[
-                        kDADiskDescriptionDeviceModelKey as String
-                    ] as? String
-                )
+                let wholeDiskName = DADiskGetBSDName(wholeDisk)
             else {
-                continue
+                return nil
             }
-
-            diskImages.append(diskImage)
+            return MountedDiskImage(
+                wholeDiskID: String(cString: wholeDiskName),
+                volumeName: values.volumeName,
+                mountURL: mountURL,
+                isEjectable: values.volumeIsEjectable == true,
+                deviceModel: (DADiskCopyDescription(wholeDisk) as? [String: Any])?[
+                    kDADiskDescriptionDeviceModelKey as String
+                ] as? String
+            )
         }
-
         return MountedDiskImages(diskImages)
     }
 

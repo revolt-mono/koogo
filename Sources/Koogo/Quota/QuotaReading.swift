@@ -5,7 +5,6 @@ enum QuotaUnavailability: String, Error, Encodable, Sendable {
     case emptyLimits
 }
 
-/// One answer from a provider's tool.
 enum QuotaReading: Equatable, Sendable {
     case available(QuotaSnapshot)
     case unavailable(QuotaUnavailability)

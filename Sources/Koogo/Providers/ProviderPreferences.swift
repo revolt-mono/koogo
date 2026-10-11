@@ -19,27 +19,39 @@ final class ProviderPreferences {
 
     var order: [Provider] { stored.order }
 
-    /// Providers that show usage, in display order.
     var usageProviders: [Provider] {
-        order.filter(isUsageEnabled)
+        order.filter { self[usage: $0] }
     }
 
-    /// Providers that fetch quota, in display order.
     var quotaProviders: [QuotaProvider] {
         order.compactMap(quotaProvider(for:))
     }
 
-    func isUsageEnabled(_ provider: Provider) -> Bool {
-        !stored.usageDisabled.contains(provider)
+    subscript(usage provider: Provider) -> Bool {
+        get { !stored.usageDisabled.contains(provider) }
+        set {
+            if newValue {
+                stored.usageDisabled.remove(provider)
+            } else {
+                stored.usageDisabled.insert(provider)
+            }
+        }
     }
 
-    func isQuotaEnabled(_ provider: QuotaProvider) -> Bool {
-        !stored.quotaDisabled.contains(provider)
+    subscript(quota provider: QuotaProvider) -> Bool {
+        get { !stored.quotaDisabled.contains(provider) }
+        set {
+            if newValue {
+                stored.quotaDisabled.remove(provider)
+            } else {
+                stored.quotaDisabled.insert(provider)
+            }
+        }
     }
 
     /// The quota a provider's usage card shows. Quota renders inside that card, so a provider hidden from usage fetches none.
     func quotaProvider(for provider: Provider) -> QuotaProvider? {
-        guard isUsageEnabled(provider), let quota = provider.quota, isQuotaEnabled(quota) else {
+        guard self[usage: provider], let quota = provider.quota, self[quota: quota] else {
             return nil
         }
         return quota
@@ -48,7 +60,8 @@ final class ProviderPreferences {
     init(defaults: UserDefaults = .standard) {
         storage = PersistedValue(key: "provider-preferences", defaults: defaults)
         let loaded = storage.load()
-        let storedOrder = (loaded?.order ?? []).reduce(into: [Provider]()) { if !$0.contains($1) { $0.append($1) } }
+        var seen = Set<Provider>()
+        let storedOrder = (loaded?.order ?? []).filter { seen.insert($0).inserted }
         stored = Stored(
             order: storedOrder + Provider.allCases.filter { !storedOrder.contains($0) },
             usageDisabled: loaded?.usageDisabled ?? [],
@@ -65,21 +78,5 @@ final class ProviderPreferences {
         order.remove(at: source)
         order.insert(provider, at: target)
         stored.order = order
-    }
-
-    func setUsage(_ isEnabled: Bool, for provider: Provider) {
-        if isEnabled {
-            stored.usageDisabled.remove(provider)
-        } else {
-            stored.usageDisabled.insert(provider)
-        }
-    }
-
-    func setQuota(_ isEnabled: Bool, for provider: QuotaProvider) {
-        if isEnabled {
-            stored.quotaDisabled.remove(provider)
-        } else {
-            stored.quotaDisabled.insert(provider)
-        }
     }
 }

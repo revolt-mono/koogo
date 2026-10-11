@@ -300,14 +300,12 @@ extension UsageSnapshotBuilderTests {
             usageEvent(.codex, id: 3, model: "c", processedTokens: 20, costUSD: 2),
         ]
         for ordered in [events, events.reversed()] {
-            var builder = UsageSnapshotBuilder(
+            let snapshot = usageSnapshot(
+                events: ordered,
                 providers: [.codex],
-                intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
+                intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar),
+                sources: EnumMap { _ in SameNameUsageSource() }
             )
-            for event in ordered {
-                builder.add(event)
-            }
-            let snapshot = builder.snapshot(sources: EnumMap { _ in SameNameUsageSource() })
             let models = try XCTUnwrap(snapshot.providers[.codex]?.periods[.today].models)
             XCTAssertEqual(models.map(\.id), [ModelID("c"), ModelID("a"), ModelID("b")])
             XCTAssertEqual(models.map(\.modelName), ["Same name", "Same name", "Same name"])

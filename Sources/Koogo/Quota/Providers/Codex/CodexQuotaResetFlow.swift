@@ -15,7 +15,6 @@ enum CodexQuotaResetOutcome: String, Decodable, Sendable {
 
 typealias CodexQuotaResetResult = Result<CodexQuotaResetOutcome, CodexAppServer.CallError>
 
-/// A Codex tool that can also spend a banked reset.
 protocol CodexQuotaResetSource: QuotaSource {
     func consume(_ attempt: CodexQuotaResetAttempt) async -> CodexQuotaResetResult
 }

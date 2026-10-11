@@ -1,6 +1,5 @@
 import Foundation
 
-/// How to recognize and read one kind of log file.
 struct UsageLogFormat: Sendable {
     enum Match: Sendable {
         case fileExtension(String)

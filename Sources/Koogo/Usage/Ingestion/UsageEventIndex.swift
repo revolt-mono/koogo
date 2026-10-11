@@ -30,10 +30,6 @@ struct UsageEventIndex: Sendable {
         events.count
     }
 
-    subscript(id: UsageEventID) -> UsageEvent? {
-        events[id].map { UsageEvent(id: id, record: $0.record, revision: $0.revision) }
-    }
-
     /// Keeps the event unless an existing copy of its id supersedes it or it predates the window.
     mutating func insert(_ event: UsageEvent, since windowStart: Date) {
         guard event.record.timestamp >= windowStart else {

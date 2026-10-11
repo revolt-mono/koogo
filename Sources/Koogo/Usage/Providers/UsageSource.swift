@@ -8,7 +8,6 @@ protocol UsageSource: Sendable {
     var splitsUsageByModel: Bool { get }
     /// Rereads any model catalog under the tool's home. Returns true when a name may have changed.
     mutating func refresh(home: URL) -> Bool
-    /// The display name of a logged model, or nil when the provider has none for it.
     func modelName(_ model: ModelID) -> String?
 }
 

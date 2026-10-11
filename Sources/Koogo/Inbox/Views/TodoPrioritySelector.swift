@@ -58,7 +58,7 @@ struct TodoPrioritySelector: View {
 private extension TodoPriority {
     func cycled(by offset: Int) -> Self {
         let cases = Self.allCases
-        let index = cases.firstIndex(of: self) ?? cases.startIndex
+        let index = cases.firstIndex(of: self)!
         return cases[(index + offset + cases.count) % cases.count]
     }
 }

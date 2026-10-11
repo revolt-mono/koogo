@@ -29,10 +29,6 @@ struct CodexQuotaTestWorkspace {
     var consumeRequestsFile: URL { root.appending(path: "consume-requests.jsonl") }
     var readRequestsFile: URL { root.appending(path: "read-requests.jsonl") }
 
-    func lines(in file: URL) throws -> [Substring] {
-        try tool.lines(in: file)
-    }
-
     func makeAppServer(
         quotaResponse: String = rateLimitsResponse(resetCount: 1, credits: "[\(resetCredit)]"),
         consumeResponse: String = "{\"id\":2,\"result\":{\"outcome\":\"reset\"}}",

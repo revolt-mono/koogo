@@ -74,7 +74,7 @@ class UsageWorkspaceTestCase: XCTestCase {
     let now = usageTestTimestamp
 
     override func setUpWithError() throws {
-        workspace = try UsageTestWorkspace(root: try makeTemporaryDirectory())
+        workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
     }
 
     func makePipeline() -> UsagePipeline {
@@ -114,11 +114,12 @@ func grokMilliseconds(_ date: Date) -> UInt64 {
 func usageSnapshot(
     events: [UsageEvent],
     providers: Set<Provider> = Set(Provider.allCases),
-    intervals: UsagePeriodIntervals
+    intervals: UsagePeriodIntervals,
+    sources: EnumMap<Provider, any UsageSource> = EnumMap { $0.usageSource }
 ) -> UsageSnapshot {
     var builder = UsageSnapshotBuilder(providers: providers, intervals: intervals)
     for event in events {
         builder.add(event)
     }
-    return builder.snapshot(sources: EnumMap { $0.usageSource })
+    return builder.snapshot(sources: sources)
 }

@@ -21,9 +21,9 @@ final class PanelViewTests: XCTestCase {
         ] {
             let preferences = ProviderPreferences(defaults: try makeIsolatedDefaults())
             for provider in disabled {
-                preferences.setQuota(false, for: provider)
+                preferences[quota: provider] = false
             }
-            preferences.setUsage(false, for: .codex)
+            preferences[usage: .codex] = false
             let pipeline = UsagePipeline(home: workspace.root, calendar: usageTestCalendar)
             let usage = UsageModel(pipeline: pipeline, now: { usageTestTimestamp })
             let quota = QuotaModel(

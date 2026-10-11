@@ -27,7 +27,7 @@ struct TodoEditor: View {
                 Spacer(minLength: 8)
 
                 TodoSubmitButton(systemImage: "arrow.up", action: submit)
-                    .disabled(TodoText(text) == nil)
+                    .disabled(todoText == nil)
                     .accessibilityLabel("Add todo")
             }
         }
@@ -35,8 +35,12 @@ struct TodoEditor: View {
         .background(.panelRaised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private var todoText: TodoText? {
+        TodoText(text)
+    }
+
     private func submit() {
-        guard let todoText = TodoText(text) else {
+        guard let todoText else {
             return
         }
         onSubmit(todoText, priority)

@@ -24,7 +24,7 @@ struct OrphanedAgentProcesses: Sendable {
             case .scan:
                 "Could not list running processes."
             case .termination(let process):
-                "Could not stop \(process.provider.rawValue) process \(process.pid)."
+                "Could not stop \(process.provider.title) process \(process.pid)."
             }
         }
     }
@@ -41,14 +41,14 @@ struct OrphanedAgentProcesses: Sendable {
     var summary: String {
         Provider.allCases.compactMap { provider in
             let count = values.count { $0.provider == provider }
-            return count > 0 ? "\(count) \(provider.rawValue)" : nil
+            return count > 0 ? "\(count) \(provider.title.lowercased())" : nil
         }
         .joined(separator: ", ")
     }
 
     @concurrent
     static func running() async throws -> OrphanedAgentProcesses? {
-        guard let pids = LibProc.pids() else { throw Failure.scan }
+        guard let pids = LibProc.pids(ownedBy: getuid()) else { throw Failure.scan }
         return OrphanedAgentProcesses(pids.compactMap(orphanedAgentProcess))
     }
 
@@ -56,7 +56,6 @@ struct OrphanedAgentProcesses: Sendable {
         var info = proc_bsdinfo()
         guard
             proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0,
-            info.pbi_uid == getuid(),
             let executablePath = LibProc.executablePath(of: pid)
         else { return nil }
         return OrphanedAgentProcess(pid: pid, parentPID: pid_t(info.pbi_ppid), executablePath: executablePath)

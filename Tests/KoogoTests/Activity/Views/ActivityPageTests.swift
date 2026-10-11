@@ -12,12 +12,12 @@ final class ActivityPageTests: XCTestCase {
             calls.increment()
             return activitySample()
         }
-        let host = NSHostingView(rootView: AnyView(ActivityPage().environment(model)))
+        let host = NSHostingView(rootView: Optional(ActivityPage().environment(model)))
         host.layoutSubtreeIfNeeded()
 
         try await waitUntil { model.samples.count >= 3 }
 
-        host.rootView = AnyView(EmptyView())
+        host.rootView = nil
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(20))
         let settled = calls.value

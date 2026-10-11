@@ -24,7 +24,6 @@ enum Provider: String, CaseIterable, Sendable, Codable, CodingKeyRepresentable {
         }
     }
 
-    /// The tool's configuration directory under the given user home.
     func home(under root: URL) -> URL {
         let path =
             switch self {
@@ -48,16 +47,10 @@ enum Provider: String, CaseIterable, Sendable, Codable, CodingKeyRepresentable {
     }
 
     var quota: QuotaProvider? {
-        switch self {
-        case .codex: .codex
-        case .claude: .claude
-        case .grok: .grok
-        case .piAgent: nil
-        }
+        QuotaProvider.allCases.first { $0.provider == self }
     }
 }
 
-/// A provider whose tool reports account limits.
 enum QuotaProvider: String, CaseIterable, Sendable, Codable, CodingKeyRepresentable {
     case codex
     case claude

@@ -33,7 +33,7 @@ struct CommandLineTool: Sendable {
         return (preferred + installDirectories + path).map { $0.appending(path: name) }
     }
 
-    /// Runs one conversation over the tool's standard streams. A decoding error inside the session is an invalid message; any other error means the tool closed the conversation.
+    /// Runs one conversation over the tool's standard streams. A decoding error or oversized output inside the session is an invalid message; any other error means the tool closed the conversation unless the task was cancelled.
     func session<Value: Sendable>(
         _ arguments: [String],
         in directory: URL? = nil,

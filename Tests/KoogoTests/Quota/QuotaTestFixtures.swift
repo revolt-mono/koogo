@@ -28,7 +28,6 @@ extension QuotaSnapshot {
     }
 }
 
-/// Answers each load with the next scripted reading.
 final class ScriptedQuotaSource: QuotaSource {
     let loads = Mutex(0)
     private let readings: Mutex<[QuotaReading]>
@@ -43,7 +42,6 @@ final class ScriptedQuotaSource: QuotaSource {
     }
 }
 
-/// Answers each load and consume with the next scripted value and records every attempt sent.
 final class ScriptedCodexResetSource: CodexQuotaResetSource {
     let loads = Mutex(0)
     let consumed = Mutex<[CodexQuotaResetAttempt]>([])
@@ -66,7 +64,7 @@ final class ScriptedCodexResetSource: CodexQuotaResetSource {
     }
 }
 
-/// A quota model whose unscripted providers never answer.
+/// A quota model whose unscripted providers trap when loaded.
 @MainActor
 func makeQuotaModel(
     codex: any CodexQuotaResetSource = ScriptedCodexResetSource(),

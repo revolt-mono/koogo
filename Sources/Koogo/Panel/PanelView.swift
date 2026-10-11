@@ -37,15 +37,11 @@ struct PanelView: View {
                 endPoint: .bottom
             )
         }
-        .onAppear {
+        .task(id: preferences.usageProviders) {
             usageModel.refresh(providers: preferences.usageProviders)
+        }
+        .task(id: preferences.quotaProviders) {
             quotaModel.refresh(preferences.quotaProviders)
-        }
-        .onChange(of: preferences.usageProviders) { _, providers in
-            usageModel.refresh(providers: providers)
-        }
-        .onChange(of: preferences.quotaProviders) { _, providers in
-            quotaModel.refresh(providers)
         }
     }
 }

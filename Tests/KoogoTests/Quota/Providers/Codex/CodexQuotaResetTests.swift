@@ -61,7 +61,7 @@ final class CodexQuotaResetTests: XCTestCase {
             let result = await CodexQuotaSource(executableCandidates: [executable]).consume(attempt)
             XCTAssertEqual(result, .success(expected))
         }
-        let requests = try workspace.lines(in: workspace.consumeRequestsFile)
+        let requests = try workspace.tool.lines(in: workspace.consumeRequestsFile)
         XCTAssertEqual(requests.count, 4)
         for line in requests {
             let request = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])

@@ -7,11 +7,17 @@ struct PiUsageLogParser: UsageLogParser {
         guard let entry = try PiEntry(line) else {
             return nil
         }
-        let thinking = entry.thinkingLevel ?? entry.parentID.flatMap { thinkingByEntry[$0] }
+        let thinking =
+            if case .thinkingLevelChange(let level) = entry.kind {
+                level
+            } else {
+                entry.parentID.flatMap { thinkingByEntry[$0] }
+            }
         if let thinking {
             thinkingByEntry[entry.id] = thinking
         }
-        guard let billed = entry.billed, billed.model != nil || billed.processedTokens > 0 || billed.costUSD > 0
+        guard case .billed(let billed) = entry.kind,
+            billed.model != nil || billed.processedTokens > 0 || billed.costUSD > 0
         else {
             return nil
         }
@@ -30,10 +36,15 @@ struct PiUsageLogParser: UsageLogParser {
 }
 
 private struct PiEntry {
+    enum Kind {
+        case thinkingLevelChange(String)
+        case billed(PiBilledEntry)
+        case other
+    }
+
     let id: String
     let parentID: String?
-    let thinkingLevel: String?
-    let billed: PiBilledEntry?
+    let kind: Kind
 
     init?(_ line: UnsafeRawBufferPointer) throws {
         guard let record = JSONValue(object: line) else {
@@ -58,22 +69,20 @@ private struct PiEntry {
             guard let level = try thinkingLevel?.string() else {
                 throw MalformedUsageRecord()
             }
-            self.thinkingLevel = level
-            billed = nil
+            kind = .thinkingLevelChange(level)
         case "message":
             guard let message else {
                 throw MalformedUsageRecord()
             }
-            self.thinkingLevel = nil
-            billed = try PiBilledEntry(message: message)
+            kind = try PiBilledEntry(message: message).map(Kind.billed) ?? .other
         case "compaction", "branch_summary":
-            self.thinkingLevel = nil
-            billed = try usage.flatMap {
-                try PiBilledEntry(usage: $0, model: nil, timestamp: timestamp.flatMap(Date.init(iso8601:)))
-            }
+            kind =
+                try usage.flatMap {
+                    try PiBilledEntry(usage: $0, model: nil, timestamp: timestamp.flatMap(Date.init(iso8601:)))
+                }
+                .map(Kind.billed) ?? .other
         default:
-            self.thinkingLevel = nil
-            billed = nil
+            kind = .other
         }
     }
 }

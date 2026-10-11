@@ -9,7 +9,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         let source = ScriptedCodexResetSource(readings: [.available(snapshot())])
         let model = try await loadModels(source).reset
         model.begin(creditID: "credit-a")
-        guard case .confirming(let attempt, _) = model.flow else { return XCTFail("expected confirmation") }
+        let attempt = try XCTUnwrap(model.flow.confirmingAttempt)
         model.begin(creditID: "credit-a")
         XCTAssertEqual(model.flow, .confirming(attempt))
         model.cancel()
@@ -24,7 +24,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         let source = ScriptedCodexResetSource(readings: [.available(snapshot())])
         let model = try await loadModels(source, now: { now }).reset
         model.begin(creditID: "credit-a")
-        guard case .confirming(let attempt, _) = model.flow else { return XCTFail("expected confirmation") }
+        let attempt = try XCTUnwrap(model.flow.confirmingAttempt)
 
         now = try XCTUnwrap(attempt.credit.expiresAt)
         model.submit()
@@ -86,7 +86,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         )
         let model = try await loadModels(source).reset
         model.begin(creditID: "credit-a")
-        guard case .confirming(let attempt, _) = model.flow else { return XCTFail("expected confirmation") }
+        let attempt = try XCTUnwrap(model.flow.confirmingAttempt)
         model.submit()
         try await waitUntil { !model.isBusy }
         XCTAssertEqual(model.flow, .unconfirmed(attempt, .closed))
@@ -114,7 +114,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         )
         let model = try await loadModels(source).reset
         model.begin(creditID: "credit-a")
-        guard case .confirming(let attempt, _) = model.flow else { return XCTFail("expected confirmation") }
+        let attempt = try XCTUnwrap(model.flow.confirmingAttempt)
         model.submit()
         try await waitUntil { !model.isBusy }
         XCTAssertEqual(model.flow, .unconfirmed(attempt, .timedOut))
@@ -146,7 +146,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         )
         let model = try await loadModels(source).reset
         model.begin(creditID: "credit-a")
-        guard case .confirming(let attempt, _) = model.flow else { return XCTFail("expected confirmation") }
+        let attempt = try XCTUnwrap(model.flow.confirmingAttempt)
         model.submit()
         try await waitUntil { !model.isBusy }
         XCTAssertEqual(model.flow, .confirming(attempt, rejection: .rpc(code: -32601)))
@@ -192,7 +192,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         )
         let model = try await loadModels(source).reset
         model.begin(creditID: "credit-a")
-        guard case .confirming(let attempt, _) = model.flow else { return XCTFail("expected confirmation") }
+        let attempt = try XCTUnwrap(model.flow.confirmingAttempt)
         model.refresh()
         model.submit()
         XCTAssertTrue(model.isBusy)
@@ -234,4 +234,13 @@ private func snapshot(
         windows: [QuotaWindow(title: "Session", usedPercent: Double(usedPercent), resetsAt: nil)],
         resetCredits: QuotaSnapshot.ResetCredits(availableCount: UInt64(credits?.count ?? 0), credits: credits)
     )!
+}
+
+extension CodexQuotaResetFlow {
+    fileprivate var confirmingAttempt: CodexQuotaResetAttempt? {
+        guard case .confirming(let attempt, _) = self else {
+            return nil
+        }
+        return attempt
+    }
 }

@@ -69,8 +69,8 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         try workspace.write(grokTurn(eventID: "s-1") + "\n", to: grokSession.appending(path: "updates.jsonl"))
 
         let codexExecutable = try quotaWorkspace.makeAppServer(quotaResponse: codexQuotaResponse)
-        let claudeExecutable = try ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory()).makeCLI()
-        let grokExecutable = try GrokQuotaTestWorkspace(root: try makeTemporaryDirectory()).makeAgent()
+        let claudeExecutable = try ClaudeQuotaTestWorkspace(root: makeTemporaryDirectory()).makeCLI()
+        let grokExecutable = try GrokQuotaTestWorkspace(root: makeTemporaryDirectory()).makeAgent()
 
         let data = try await SystemReport.generate(
             pipeline: makePipeline(),

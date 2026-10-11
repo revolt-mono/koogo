@@ -70,21 +70,20 @@ struct AppendOnlyFile: Sendable {
             parsedTail = Data()
             needsRestart = false
         }
-        var linesRead = 0
+        let startOffset = parsedOffset
         if parsedOffset < current.size {
-            guard readLines(file, in: parsedOffset..<current.size, into: &consumer, count: &linesRead) else {
+            guard readLines(file, in: parsedOffset..<current.size, into: &consumer) else {
                 return .unreadable
             }
         }
         metadata = current
-        return restarted || linesRead > 0 ? .readLines : .nothingNew
+        return restarted || parsedOffset > startOffset ? .readLines : .nothingNew
     }
 
     private mutating func readLines(
         _ file: FileDescriptor,
         in offsets: Range<UInt64>,
-        into consumer: inout some LineConsumer,
-        count linesRead: inout Int
+        into consumer: inout some LineConsumer
     ) -> Bool {
         var buffer = UnsafeMutableRawBufferPointer.allocate(
             byteCount: min(offsets.count, Self.readSize),
@@ -112,11 +111,7 @@ struct AppendOnlyFile: Sendable {
             }
             readOffset += UInt64(count)
             pending += count
-            let parsed = handOutCompleteLines(
-                UnsafeRawBufferPointer(rebasing: buffer[..<pending]),
-                into: &consumer,
-                count: &linesRead
-            )
+            let parsed = handOutCompleteLines(UnsafeRawBufferPointer(rebasing: buffer[..<pending]), into: &consumer)
             parsedOffset += UInt64(parsed)
             pending -= parsed
             if let base = buffer.baseAddress, parsed > 0 {
@@ -128,8 +123,7 @@ struct AppendOnlyFile: Sendable {
 
     private mutating func handOutCompleteLines(
         _ bytes: UnsafeRawBufferPointer,
-        into consumer: inout some LineConsumer,
-        count linesRead: inout Int
+        into consumer: inout some LineConsumer
     ) -> Int {
         guard let base = bytes.baseAddress else {
             return 0
@@ -138,7 +132,6 @@ struct AppendOnlyFile: Sendable {
         while let newline = memchr(base + lineStart, 0x0A, bytes.count - lineStart) {
             let lineEnd = base.distance(to: newline)
             consumer.consume(UnsafeRawBufferPointer(rebasing: bytes[lineStart..<lineEnd]))
-            linesRead += 1
             lineStart = lineEnd + 1
         }
         if lineStart > 0 {

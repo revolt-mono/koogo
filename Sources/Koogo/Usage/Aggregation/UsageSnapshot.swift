@@ -57,18 +57,16 @@ enum UsageCostChange: Equatable, Sendable, Encodable {
     case unchanged
 
     init(currentUSD: Decimal, previousUSD: Decimal) {
-        let signedFraction =
-            previousUSD == 0
-            ? (currentUSD == 0 ? 0 : 1)
-            : (currentUSD - previousUSD) / previousUSD
-
-        if signedFraction > 0 {
-            self = .increase(fraction: signedFraction)
-        } else if signedFraction < 0 {
-            self = .decrease(fraction: -signedFraction)
-        } else {
-            self = .unchanged
-        }
+        self =
+            switch (currentUSD, previousUSD) {
+            case (0, 0): .unchanged
+            case (_, 0): .increase(fraction: 1)
+            case (let current, let previous) where current > previous:
+                .increase(fraction: (current - previous) / previous)
+            case (let current, let previous) where current < previous:
+                .decrease(fraction: (previous - current) / previous)
+            default: .unchanged
+            }
     }
 }
 

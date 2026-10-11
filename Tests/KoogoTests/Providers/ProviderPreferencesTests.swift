@@ -29,17 +29,17 @@ final class ProviderPreferencesTests: XCTestCase {
         let defaults = try makeIsolatedDefaults()
         let preferences = ProviderPreferences(defaults: defaults)
 
-        preferences.setUsage(false, for: .codex)
-        preferences.setQuota(false, for: .grok)
+        preferences[usage: .codex] = false
+        preferences[quota: .grok] = false
 
         XCTAssertEqual(preferences.usageProviders, [.claude, .piAgent, .grok])
         XCTAssertEqual(preferences.quotaProviders, [.claude], "a provider hidden from usage fetches no quota")
-        XCTAssertTrue(preferences.isQuotaEnabled(.codex))
+        XCTAssertTrue(preferences[quota: .codex])
 
         let relaunched = ProviderPreferences(defaults: defaults)
         XCTAssertEqual(relaunched.usageProviders, [.claude, .piAgent, .grok])
         XCTAssertEqual(relaunched.quotaProviders, [.claude])
-        relaunched.setUsage(true, for: .codex)
+        relaunched[usage: .codex] = true
         XCTAssertEqual(ProviderPreferences(defaults: defaults).usageProviders, Provider.allCases)
         XCTAssertEqual(ProviderPreferences(defaults: defaults).quotaProviders, [.codex, .claude])
     }

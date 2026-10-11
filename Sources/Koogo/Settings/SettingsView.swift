@@ -60,7 +60,9 @@ private struct SettingsWindowStyle: NSViewRepresentable {
 }
 
 private struct LaunchAtLoginToggle: View {
-    @State private var isEnabled = SMAppService.mainApp.status == .enabled
+    private static var isRegistered: Bool { SMAppService.mainApp.status == .enabled }
+
+    @State private var isEnabled = Self.isRegistered
     @State private var failure: (any Error)?
 
     var body: some View {
@@ -72,7 +74,7 @@ private struct LaunchAtLoginToggle: View {
             )
         )
         .onAppear {
-            isEnabled = SMAppService.mainApp.status == .enabled
+            isEnabled = Self.isRegistered
         }
         .alert(
             "Couldn't Change Login Setting",
@@ -96,6 +98,6 @@ private struct LaunchAtLoginToggle: View {
             failure = error
         }
 
-        isEnabled = SMAppService.mainApp.status == .enabled
+        isEnabled = Self.isRegistered
     }
 }

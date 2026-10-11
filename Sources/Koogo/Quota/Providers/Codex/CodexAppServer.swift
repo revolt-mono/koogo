@@ -19,7 +19,7 @@ struct CodexAppServer: Sendable {
 
     func call<Value: Decodable & Sendable, Params: Encodable & Sendable>(
         _ method: String,
-        params: Params? = Optional<Never>.none
+        params: Params? = Never?.none
     ) async throws(CallError) -> Value {
         let requestStarted = Mutex(false)
         do {

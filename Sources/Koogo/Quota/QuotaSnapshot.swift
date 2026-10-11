@@ -7,7 +7,7 @@ struct QuotaWindow: Equatable, Sendable, Encodable {
 
     init(title: String, usedPercent: Double, resetsAt: Date?) {
         self.title = title
-        self.usedPercent = Int(Double.minimum(Double.maximum(usedPercent, 0), 100).rounded(.down))
+        self.usedPercent = Int(min(max(usedPercent, 0), 100).rounded(.down))
         self.resetsAt = resetsAt
     }
 }

@@ -43,7 +43,6 @@ final class PageStepRecognizer {
         case step(PageStep)
         /// Part of a page swipe, with no step to take.
         case consumed
-        /// Not for the pager.
         case ignored
     }
 

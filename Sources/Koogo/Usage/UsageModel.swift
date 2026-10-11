@@ -6,8 +6,12 @@ import Observation
 final class UsageModel {
     private let pipeline: UsagePipeline
     private let now: @MainActor () -> Date
-    @ObservationIgnored private var isRefreshing = false
-    @ObservationIgnored private var queued: [Provider]?
+    @ObservationIgnored private var state = RefreshState.idle
+
+    private enum RefreshState {
+        case idle
+        case running(queued: [Provider]?)
+    }
 
     private(set) var snapshot: UsageSnapshot?
 
@@ -18,17 +22,17 @@ final class UsageModel {
 
     /// Rebuilds the snapshot for the given providers. A call during a refresh runs once that refresh ends.
     func refresh(providers: [Provider]) {
-        guard !isRefreshing else {
-            queued = providers
+        guard case .idle = state else {
+            state = .running(queued: providers)
             return
         }
         let date = now()
-        isRefreshing = true
+        state = .running(queued: nil)
         Task(priority: .utility) {
             snapshot = await pipeline.run(at: date, providers: providers).snapshot
-            isRefreshing = false
-            if let queued {
-                self.queued = nil
+            let finished = state
+            state = .idle
+            if case .running(let queued?) = finished {
                 refresh(providers: queued)
             }
         }

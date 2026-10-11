@@ -67,13 +67,8 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
 extension BreakReminderNotificationCenter: UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(
         _: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
-        completionHandler(
-            notification.request.identifier == Self.requestIdentifier
-                ? [.banner, .list, .sound]
-                : []
-        )
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        notification.request.identifier == Self.requestIdentifier ? [.banner, .list, .sound] : []
     }
 }
