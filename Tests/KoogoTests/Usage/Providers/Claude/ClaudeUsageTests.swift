@@ -13,7 +13,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
                 """
         )
 
-        let event = try XCTUnwrap(try parse(line, with: &parser)?.event)
+        let event = try XCTUnwrap(parse(line, with: &parser)?.event)
 
         XCTAssertEqual(event.provider, .claude)
         XCTAssertEqual(event.record.processedTokens, 140)
@@ -28,7 +28,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             usage: #""input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40"#
         )
 
-        let event = try XCTUnwrap(try parse(line, with: &parser)?.event)
+        let event = try XCTUnwrap(parse(line, with: &parser)?.event)
 
         XCTAssertEqual(event.record.processedTokens, 120)
         XCTAssertEqual(event.record.costUSD, Decimal(string: "0.0014875"))
@@ -89,7 +89,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             var parser = ClaudeUsageLogParser()
             let outcome = try parse(claudeAssistant(model: model, usage: usage), with: &parser)
 
-            XCTAssertEqual(outcome?.unpricedModelID, model)
+            XCTAssertEqual(outcome?.unpricedModel, ModelID(model))
         }
     }
 
@@ -109,8 +109,8 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             claudeAssistant(model: "claude-opus-5", usage: tokens, effort: "high"),
         ] {
             var parser = ClaudeUsageLogParser()
-            let bareCopy = try XCTUnwrap(try parse(bare, with: &parser)?.event)
-            let detailedCopy = try XCTUnwrap(try parse(detailed, with: &parser)?.event)
+            let bareCopy = try XCTUnwrap(parse(bare, with: &parser)?.event)
+            let detailedCopy = try XCTUnwrap(parse(detailed, with: &parser)?.event)
 
             for copies in [[bareCopy, detailedCopy], [detailedCopy, bareCopy]] {
                 var index = UsageEventIndex()
@@ -178,7 +178,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             ("claude-haiku-5-5", "Haiku 5.5", standard, "0.2425"),
             ("claude-haiku-5-5", "Haiku 5.5", usInference, "0.26675"),
         ] {
-            let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: model, usage: usage), model)
+            let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: ModelID(model), usage: usage), model)
             XCTAssertEqual(quote.model, ModelID(model))
             XCTAssertEqual(ClaudeUsagePricing.displayName(of: quote.model), name)
             XCTAssertEqual(quote.costUSD, Decimal(string: expectedUSD), model)
@@ -216,7 +216,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         ] {
             XCTAssertNil(
                 ClaudeUsagePricing.quote(
-                    model: model,
+                    model: ModelID(model),
                     usage: claudeBillableUsage(uncachedInput: 1)
                 )
             )

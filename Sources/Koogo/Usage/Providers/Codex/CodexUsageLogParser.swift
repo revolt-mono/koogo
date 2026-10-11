@@ -22,28 +22,20 @@ struct CodexUsageLogParser: UsageLogParser {
         }
     }
 
-    private mutating func bill(
-        _ tokenCount: CodexTokenCount,
-        at loggedTimestamp: String
-    ) throws
-        -> UsageLineOutcome?
-    {
+    private mutating func bill(_ tokenCount: CodexTokenCount, at loggedTimestamp: String) throws -> UsageLineOutcome? {
         let lastUsage = tokenCount.last
         let totalUsage = tokenCount.total
 
         defer { previousTotalUsage = totalUsage }
 
-        guard lastUsage.input > 0 || lastUsage.output > 0, previousTotalUsage != totalUsage else {
-            return nil
-        }
-        guard let turn else {
+        guard lastUsage.input > 0 || lastUsage.output > 0, previousTotalUsage != totalUsage, let turn else {
             return nil
         }
         guard let timestamp = Date(iso8601: loggedTimestamp) else {
             throw MalformedUsageRecord()
         }
         guard let quote = CodexUsagePricing.quote(model: turn.model, tokens: lastUsage) else {
-            return .unpricedModel(id: turn.model, timestamp: timestamp)
+            return .unpricedModel(turn.model, timestamp: timestamp)
         }
 
         return .event(
@@ -76,17 +68,19 @@ private enum CodexRecord {
         guard let kind else {
             return nil
         }
-        let isTurnContext = kind.isString("turn_context")
         guard let payload else {
             throw MalformedUsageRecord()
         }
-        self = isTurnContext ? .turnContext(payload: payload) : .eventMessage(payload: payload, timestamp: timestamp)
+        switch kind {
+        case "turn_context": self = .turnContext(payload: payload)
+        default: self = .eventMessage(payload: payload, timestamp: timestamp)
+        }
     }
 }
 
 private struct CodexTurn {
     let id: String
-    let model: String
+    let model: ModelID
     let reasoningEffort: String?
 
     init(_ payload: JSONValue) throws {
@@ -95,7 +89,7 @@ private struct CodexTurn {
             throw MalformedUsageRecord()
         }
         self.id = id
-        self.model = model
+        self.model = ModelID(model)
         self.reasoningEffort = reasoningEffort
     }
 }

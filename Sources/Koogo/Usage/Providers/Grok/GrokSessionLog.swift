@@ -76,7 +76,7 @@ struct GrokSessionLog: TrackedLog {
         events = UsageEventIndex(
             distinct: turns.events.values.map { event in
                 guard let promptIndex = promptIndices[event.id], let turn = event.record.modelTurn,
-                    let effort = efforts.effort(promptIndex: promptIndex, model: turn.model.rawValue)
+                    let effort = efforts.effort(promptIndex: promptIndex, model: turn.model)
                 else {
                     return event
                 }
@@ -92,8 +92,13 @@ struct GrokSessionLog: TrackedLog {
 
 /// Reasoning effort votes per prompt and model from `chat_history.jsonl`.
 struct GrokChatHistory: LineConsumer, Sendable {
+    private struct VoteKey: Hashable {
+        let promptIndex: UInt64
+        let model: ModelID
+    }
+
     private var promptIndex: UInt64?
-    private var votes: [UInt64: [String: [String: Int]]] = [:]
+    private var votes: [VoteKey: [String: Int]] = [:]
     private(set) var malformedLines = 0
 
     mutating func restart() {
@@ -109,9 +114,9 @@ struct GrokChatHistory: LineConsumer, Sendable {
         }
     }
 
-    func effort(promptIndex: UInt64, model: String) -> String? {
-        votes[promptIndex]?[model]?.max { lhs, rhs in
-            lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
+    func effort(promptIndex: UInt64, model: ModelID) -> String? {
+        votes[VoteKey(promptIndex: promptIndex, model: model)]?.max { lhs, rhs in
+            (lhs.value, rhs.key) < (rhs.value, lhs.key)
         }?.key
     }
 
@@ -140,7 +145,7 @@ struct GrokChatHistory: LineConsumer, Sendable {
             else {
                 return
             }
-            votes[promptIndex, default: [:]][model, default: [:]][effort, default: 0] += 1
+            votes[VoteKey(promptIndex: promptIndex, model: ModelID(model)), default: [:]][effort, default: 0] += 1
         default: break
         }
     }

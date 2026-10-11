@@ -69,12 +69,12 @@ struct GrokUsageLogParser: UsageLogParser {
             guard usage.totalTokens == 0 else { throw MalformedUsageRecord() }
             return nil
         }
-        var quotes: [String: UsageQuote] = [:]
+        var costUSD: Decimal = 0
         for (model, tokens) in usage.modelUsage.sorted(by: { $0.key < $1.key }) {
             guard let quote = GrokUsagePricing.quote(model: model, tokens: tokens) else {
-                return .unpricedModel(id: model, timestamp: timestamp)
+                return .unpricedModel(model, timestamp: timestamp)
             }
-            quotes[model] = quote
+            costUSD += quote.costUSD
         }
 
         return .event(
@@ -83,8 +83,8 @@ struct GrokUsageLogParser: UsageLogParser {
                 record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: usage.totalTokens,
-                    costUSD: quotes.values.map(\.costUSD).reduce(0, +),
-                    modelTurn: .init(model: ModelID(primaryModel), reasoningEffort: nil)
+                    costUSD: costUSD,
+                    modelTurn: .init(model: primaryModel, reasoningEffort: nil)
                 )
             )
         )
@@ -94,25 +94,25 @@ struct GrokUsageLogParser: UsageLogParser {
 private struct GrokPromptUsage {
     /// Full prompt input, cache reads included, plus output.
     let totalTokens: UInt64
-    let modelUsage: [String: GrokTokenUsage]
+    let modelUsage: [ModelID: GrokTokenUsage]
 
     init(_ value: JSONValue) throws {
         let (totalTokens, modelUsage) = try value.fields(.uint64("totalTokens"), .value("modelUsage"))
         guard let totalTokens, var models = try modelUsage?.object() else {
             throw MalformedUsageRecord()
         }
-        var usageByModel: [String: GrokTokenUsage] = [:]
+        var usageByModel: [ModelID: GrokTokenUsage] = [:]
         while let model = try models.next() {
             guard let name = try model.key.string() else {
                 throw MalformedUsageRecord()
             }
-            usageByModel[name] = try GrokTokenUsage(model.value)
+            usageByModel[ModelID(name)] = try GrokTokenUsage(model.value)
         }
         self.totalTokens = totalTokens
         self.modelUsage = usageByModel
     }
 
-    var primaryModel: String? {
+    var primaryModel: ModelID? {
         modelUsage.max { lhs, rhs in
             (lhs.value.modelCalls, rhs.key) < (rhs.value.modelCalls, lhs.key)
         }?.key

@@ -1,5 +1,3 @@
-import Foundation
-
 struct GrokUsageSource: UsageSource {
     let logDirectories = ["sessions"]
     let logFormat = UsageLogFormat(match: .fileName("updates.jsonl")) { GrokSessionLog($0, since: $1) }

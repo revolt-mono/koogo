@@ -8,7 +8,7 @@ protocol UsageLogParser: Sendable {
 
 enum UsageLineOutcome: Sendable {
     case event(UsageEvent)
-    case unpricedModel(id: String, timestamp: Date)
+    case unpricedModel(ModelID, timestamp: Date)
 }
 
 struct MalformedUsageRecord: Error {}

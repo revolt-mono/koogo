@@ -1,5 +1,3 @@
-import Foundation
-
 struct ClaudeUsageSource: UsageSource {
     let logDirectories = ["projects"]
     let logFormat = UsageLogFormat.jsonLines(ClaudeUsageLogParser.self)

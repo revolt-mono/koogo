@@ -72,7 +72,7 @@ struct LogStore {
     func collect(_ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
         var trackedFiles = EnumMap<Provider, Int> { _ in 0 }
         var malformedLines = EnumMap<Provider, Int> { _ in 0 }
-        var unpricedModels = Set<String>()
+        var unpricedModels = Set<ModelID>()
         for entry in entries.values {
             trackedFiles[entry.provider] += 1
             malformedLines[entry.provider] += entry.log.tally.malformedLines
@@ -109,7 +109,7 @@ struct LogStore {
             trackedFiles: trackedFiles,
             events: counts,
             malformedLines: malformedLines,
-            unpricedModels: unpricedModels.sorted()
+            unpricedModels: unpricedModels.sorted().map(\.rawValue)
         )
     }
 

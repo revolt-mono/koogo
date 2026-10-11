@@ -44,7 +44,7 @@ enum ClaudeUsagePricing {
     // Sources, checked 2026-10-08:
     // https://platform.claude.com/docs/en/about-claude/pricing
     // https://platform.claude.com/docs/en/models/overview
-    private static let prices: [String: ModelPrice] = [
+    private static let prices: [ModelID: ModelPrice] = [
         "claude-fable-5-1": ModelPrice(
             displayName: "Fable 5.1",
             rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),
@@ -123,14 +123,14 @@ enum ClaudeUsagePricing {
         ),
     ]
 
-    static func quote(model: String, usage: ClaudeBillableUsage) -> UsageQuote? {
-        let modelID =
+    static func quote(model: ModelID, usage: ClaudeBillableUsage) -> UsageQuote? {
+        let model: ModelID =
             switch model {
             case "claude-opus-4-5": "claude-opus-4-5-20251101"
             case "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
             default: model
             }
-        guard let price = prices[modelID] else {
+        guard let price = prices[model] else {
             return nil
         }
 
@@ -146,12 +146,12 @@ enum ClaudeUsagePricing {
             }
         }
         return UsageQuote(
-            model: ModelID(modelID),
+            model: model,
             costNanodollars: costNanodollars + Decimal(usage.webSearchRequests) * 10_000_000
         )
     }
 
     static func displayName(of model: ModelID) -> String? {
-        prices[model.rawValue]?.displayName
+        prices[model]?.displayName
     }
 }

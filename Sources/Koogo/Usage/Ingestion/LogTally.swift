@@ -3,9 +3,9 @@ import Foundation
 /// Lines a log dropped: malformed ones by count, unpriced ones by model and latest timestamp.
 struct LogTally: Sendable {
     private(set) var malformedLines = 0
-    private var unpricedModels: [String: Date] = [:]
+    private var unpricedModels: [ModelID: Date] = [:]
 
-    var unpricedModelIDs: some Collection<String> {
+    var unpricedModelIDs: some Collection<ModelID> {
         unpricedModels.keys
     }
 
@@ -13,7 +13,7 @@ struct LogTally: Sendable {
         malformedLines += count
     }
 
-    mutating func noteUnpricedModel(_ id: String, at timestamp: Date, since windowStart: Date) {
+    mutating func noteUnpricedModel(_ id: ModelID, at timestamp: Date, since windowStart: Date) {
         guard timestamp >= windowStart else {
             return
         }

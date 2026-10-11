@@ -7,15 +7,14 @@ enum CodexUsagePricing {
         let input: Decimal
         let cachedInput: Decimal
         let output: Decimal
-        let supportsCacheWrite: Bool
-        let cacheWrite: Decimal
+        /// Nil for models that cannot write cache, so a request that wrote cache stays unpriced.
+        let cacheWrite: Decimal?
 
         init(input: Decimal, cachedInput: Decimal, output: Decimal, supportsCacheWrite: Bool) {
             self.input = input
             self.cachedInput = cachedInput
             self.output = output
-            self.supportsCacheWrite = supportsCacheWrite
-            cacheWrite = input * 5 / 4
+            cacheWrite = supportsCacheWrite ? input * 5 / 4 : nil
         }
 
         var longContext: Rates {
@@ -23,12 +22,12 @@ enum CodexUsagePricing {
                 input: input * 2,
                 cachedInput: cachedInput * 2,
                 output: output * 3 / 2,
-                supportsCacheWrite: supportsCacheWrite
+                supportsCacheWrite: cacheWrite != nil
             )
         }
 
         func costNanodollars(for tokens: CodexTokenUsage) -> Decimal? {
-            guard supportsCacheWrite || tokens.cacheWrite == 0 else {
+            guard let cacheWrite = tokens.cacheWrite == 0 ? 0 : cacheWrite else {
                 return nil
             }
             return Decimal(tokens.uncachedInput) * input
@@ -60,7 +59,7 @@ enum CodexUsagePricing {
     // Sources, checked 2026-08-26:
     // https://developers.openai.com/api/docs/pricing
     // https://openai.com/index/gpt-5-6
-    private static let prices: [String: ModelPrice] = [
+    private static let prices: [ModelID: ModelPrice] = [
         "gpt-6.1-sol": ModelPrice(
             displayName: "GPT 6.1 Sol",
             rates: .tiered(Rates(input: 2_000, cachedInput: 100, output: 10_000, supportsCacheWrite: true))
@@ -113,23 +112,20 @@ enum CodexUsagePricing {
         ),
     ]
 
-    static func quote(model: String, tokens: CodexTokenUsage) -> UsageQuote? {
-        let modelID =
-            model == "gpt-5.6"
-            ? "gpt-5.6-sol"
-            : model
+    static func quote(model: ModelID, tokens: CodexTokenUsage) -> UsageQuote? {
+        let model: ModelID = model == "gpt-5.6" ? "gpt-5.6-sol" : model
         guard
-            let price = prices[modelID],
+            let price = prices[model],
             let costNanodollars = price.rates.costNanodollars(for: tokens)
         else {
             return nil
         }
 
         // Codex rollout logs do not reliably record service tiers, so usage uses standard rates.
-        return UsageQuote(model: ModelID(modelID), costNanodollars: costNanodollars)
+        return UsageQuote(model: model, costNanodollars: costNanodollars)
     }
 
     static func displayName(of model: ModelID) -> String? {
-        prices[model.rawValue]?.displayName
+        prices[model]?.displayName
     }
 }

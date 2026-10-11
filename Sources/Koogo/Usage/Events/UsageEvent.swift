@@ -1,11 +1,19 @@
 import Foundation
 
 /// A provider's model identifier as logged, or for Pi `provider/model`.
-struct ModelID: Hashable, Sendable, Encodable {
+struct ModelID: Hashable, Comparable, Sendable, Encodable, ExpressibleByStringLiteral {
     let rawValue: String
 
     init(_ rawValue: String) {
         self.rawValue = rawValue
+    }
+
+    init(stringLiteral value: String) {
+        rawValue = value
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        lhs.rawValue < rhs.rawValue
     }
 }
 

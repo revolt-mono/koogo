@@ -14,7 +14,7 @@ struct ClaudeUsageLogParser: UsageLogParser {
             let timestamp = reply.timestamp.flatMap(Date.init(iso8601:)),
             let messageID = nonEmpty(reply.messageID),
             let requestID = nonEmpty(reply.requestID),
-            let model = nonEmpty(reply.model)
+            let model = nonEmpty(reply.model).map(ModelID.init(_:))
         else {
             throw MalformedUsageRecord()
         }
@@ -22,7 +22,7 @@ struct ClaudeUsageLogParser: UsageLogParser {
         switch usage.speed {
         case nil, "standard": break
         case "fast": options.insert(.fastMode)
-        default: return .unpricedModel(id: model, timestamp: timestamp)
+        default: return .unpricedModel(model, timestamp: timestamp)
         }
         if usage.geo == "us" {
             options.insert(.usInference)
@@ -33,7 +33,7 @@ struct ClaudeUsageLogParser: UsageLogParser {
             webSearchRequests: usage.webSearchRequests
         )
         guard let quote = ClaudeUsagePricing.quote(model: model, usage: billable) else {
-            return .unpricedModel(id: model, timestamp: timestamp)
+            return .unpricedModel(model, timestamp: timestamp)
         }
 
         let reasoningEffort = nonEmpty(reply.effort)

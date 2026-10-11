@@ -14,10 +14,10 @@ extension UsageLineOutcome {
         return event
     }
 
-    var unpricedModelID: String? {
-        guard case .unpricedModel(let id, _) = self else {
+    var unpricedModel: ModelID? {
+        guard case .unpricedModel(let model, _) = self else {
             return nil
         }
-        return id
+        return model
     }
 }
