@@ -34,7 +34,8 @@ private struct CodexQuotaResetDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("Banked resets").font(.headline)
+                Text("Banked resets")
+                    .fontWeight(.semibold)
                 if let credits = model.credits {
                     Text("\(credits.availableCount) available")
                         .foregroundStyle(.secondary)
@@ -57,11 +58,7 @@ private struct CodexQuotaResetDetail: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .font(.system(size: 11))
         .controlSize(.small)
-        .padding(16)
-        .frame(width: 320)
-        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

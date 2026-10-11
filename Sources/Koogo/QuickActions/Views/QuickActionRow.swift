@@ -29,10 +29,8 @@ struct QuickActionRow<Targets: Sendable>: View {
                             .controlSize(.small)
                     case .scanFailed, .performFailed:
                         Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 11, weight: .medium))
                     case .idle, .ready:
                         Image(systemName: systemImage)
-                            .font(.system(size: 11, weight: .medium))
                     }
                 }
                 .frame(width: 22, height: 22)
@@ -41,11 +39,10 @@ struct QuickActionRow<Targets: Sendable>: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(words.title)
-                        .font(.system(size: 10, weight: .semibold))
+                        .fontWeight(.semibold)
                         .foregroundStyle(.primary)
 
                     Text(words.detail)
-                        .font(.system(size: 8, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
                 }

@@ -35,7 +35,13 @@ private struct PanelPopover<PopoverContent: View>: ViewModifier {
                 }
                 .allowsHitTesting(false)
             }
-            .popover(isPresented: $isPresented, arrowEdge: .trailing, content: popoverContent)
+            .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+                popoverContent()
+                    .font(.system(size: 11, weight: .medium))
+                    .frame(width: 264)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(16)
+            }
             .onScrollVisibilityChange(threshold: 0.1) { isVisible in
                 if !isVisible {
                     isPresented = false

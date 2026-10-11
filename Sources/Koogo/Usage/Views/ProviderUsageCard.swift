@@ -88,10 +88,6 @@ private struct ProviderUsageModelsView: View {
                 .frame(height: visibleHeight)
             }
         }
-        .font(.system(size: 11, weight: .medium))
-        .padding(16)
-        .frame(width: 296)
-        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
