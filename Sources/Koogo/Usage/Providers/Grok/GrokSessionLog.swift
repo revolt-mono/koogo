@@ -5,7 +5,7 @@ struct GrokSessionLog: TrackedLog {
     private var updates: AppendOnlyFile
     private var turns: ParsedLines<GrokUsageLogParser>
     private var history: AppendOnlyFile?
-    private let historyURL: URL
+    private let historyPath: String
     private var efforts = GrokChatHistory()
     /// The billed turns, each carrying the effort its surviving prompt ran with.
     private(set) var events = UsageEventIndex()
@@ -17,19 +17,19 @@ struct GrokSessionLog: TrackedLog {
     }
 
     /// Admits `updates.jsonl` once its session has a readable summary. A subagent session is skipped, since the parent turn that spawned it already includes its usage.
-    init?(_ url: URL, since windowStart: Date) {
-        let sessionURL = url.deletingLastPathComponent()
+    init?(_ path: String, since windowStart: Date) {
+        let sessionURL = URL(filePath: path).deletingLastPathComponent()
         guard let data = try? Data(contentsOf: sessionURL.appending(path: "summary.json")),
             let summary = try? JSONDecoder().decode(GrokSessionSummary.self, from: data),
             summary.kind?.hasPrefix("subagent") != true,
-            let updates = AppendOnlyFile(url)
+            let updates = AppendOnlyFile(path)
         else {
             return nil
         }
         self.updates = updates
         turns = ParsedLines(since: windowStart)
-        historyURL = sessionURL.appending(path: "chat_history.jsonl")
-        guard self.updates.read(into: &turns) != .unreadable else {
+        historyPath = sessionURL.appending(path: "chat_history.jsonl").path
+        guard turns.read(&self.updates) != .unreadable else {
             return nil
         }
         _ = readHistory()
@@ -37,7 +37,7 @@ struct GrokSessionLog: TrackedLog {
     }
 
     mutating func sync(observed metadata: UsageFileMetadata) -> Bool {
-        let updatesChanged = updates.observe(metadata) && updates.read(into: &turns) != .nothingNew
+        let updatesChanged = updates.observe(metadata) && turns.read(&updates) != .nothingNew
         let historyChanged = readHistory()
         guard updatesChanged || historyChanged else {
             return false
@@ -52,14 +52,14 @@ struct GrokSessionLog: TrackedLog {
     }
 
     private mutating func readHistory() -> Bool {
-        guard let metadata = UsageFileMetadata(path: historyURL.path) else {
+        guard let metadata = UsageFileMetadata(path: historyPath) else {
             let removed = history != nil
             history = nil
             efforts = GrokChatHistory()
             return removed
         }
         if history == nil {
-            history = AppendOnlyFile(historyURL)
+            history = AppendOnlyFile(historyPath)
             efforts = GrokChatHistory()
         } else if history?.observe(metadata) != true {
             return false

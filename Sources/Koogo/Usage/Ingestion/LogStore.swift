@@ -151,8 +151,7 @@ struct LogStore {
         DispatchQueue.concurrentPerform(iterations: min(files.count, 4)) { _ in
             while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
                 let (path, root) = files[index]
-                let url = URL(filePath: path, directoryHint: .notDirectory)
-                guard let log = root.format.open(url, windowStart) else {
+                guard let log = root.format.open(path, windowStart) else {
                     continue
                 }
                 opened.withLock { $0[path] = Entry(provider: root.provider, log: log) }

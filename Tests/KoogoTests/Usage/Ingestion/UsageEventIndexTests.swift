@@ -57,6 +57,27 @@ final class UsageEventIndexTests: XCTestCase {
         }
     }
 
+    func testSealedCopiesYieldOnlyToMoreCompleteOnes() {
+        var index = UsageEventIndex()
+        for id in 0..<8 {
+            index.insert(usageEvent(.claude, id: id, processedTokens: 10, costUSD: 0), since: .distantPast)
+        }
+        index.seal()
+
+        for id in 0..<8 {
+            index.insert(
+                usageEvent(.claude, id: id, processedTokens: id.isMultiple(of: 2) ? 50 : 5, costUSD: 0),
+                since: .distantPast
+            )
+        }
+        index.insert(usageEvent(.claude, id: 8, processedTokens: 1, costUSD: 0), since: .distantPast)
+
+        XCTAssertEqual(
+            index.values.map(\.record.processedTokens).sorted(),
+            [1] + Array(repeating: 10, count: 4) + Array(repeating: 50, count: 4)
+        )
+    }
+
     func testInsertSkipsEventsBeforeTheWindowAndDiscardDropsThem() {
         let windowStart = usageTestTimestamp
         let old = windowStart.addingTimeInterval(-1)
@@ -100,7 +121,7 @@ final class UsageEventIndexTests: XCTestCase {
     private func claudeCopy(
         tokens: UInt64,
         outputTokens: UInt64,
-        metadataCompleteness: Int,
+        metadataCompleteness: UInt8,
         at date: Date = usageTestTimestamp
     ) -> UsageEvent {
         UsageEvent(

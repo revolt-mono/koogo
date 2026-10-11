@@ -11,12 +11,18 @@ protocol TrackedLog: Sendable {
 
 struct ParsedLines<Parser: UsageLogParser>: LineConsumer, Sendable {
     private(set) var parser = Parser()
-    var events = UsageEventIndex()
+    private(set) var events = UsageEventIndex()
     private(set) var tally = LogTally()
     private var windowStart: Date
 
     init(since windowStart: Date) {
         self.windowStart = windowStart
+    }
+
+    mutating func read(_ file: inout AppendOnlyFile) -> FileRead {
+        let read = file.read(into: &self)
+        events.seal()
+        return read
     }
 
     mutating func restart() {
@@ -51,13 +57,13 @@ struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
     var events: UsageEventIndex { lines.events }
     var tally: LogTally { lines.tally }
 
-    init?(_ url: URL, since windowStart: Date) {
-        guard let file = AppendOnlyFile(url) else {
+    init?(_ path: String, since windowStart: Date) {
+        guard let file = AppendOnlyFile(path) else {
             return nil
         }
         self.file = file
         lines = ParsedLines(since: windowStart)
-        guard self.file.read(into: &lines) != .unreadable else {
+        guard lines.read(&self.file) != .unreadable else {
             return nil
         }
     }
@@ -66,7 +72,7 @@ struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
         guard file.observe(metadata) else {
             return false
         }
-        return file.read(into: &lines) != .nothingNew
+        return lines.read(&file) != .nothingNew
     }
 
     mutating func discard(before windowStart: Date) {

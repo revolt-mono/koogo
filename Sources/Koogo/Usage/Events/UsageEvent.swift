@@ -18,7 +18,7 @@ struct ModelID: Hashable, Comparable, Sendable, Encodable, ExpressibleByStringLi
 }
 
 struct UsageRecord: Sendable {
-    struct ModelTurn: Sendable {
+    struct ModelTurn: Equatable, Sendable {
         let model: ModelID
         let reasoningEffort: String?
     }
@@ -59,20 +59,52 @@ struct UsageRecord: Sendable {
     }
 }
 
-enum UsageEventID: Hashable, Sendable {
-    /// A forked thread replays its parent's records under new thread ids, ordinals, and timestamps, so only the turn and its running total identify a request.
-    case codex(turnID: String, cumulativeTotal: UInt64)
-    case claude(messageID: String, requestID: String)
-    case piAgent(entryID: String)
-    /// Fork copies keep both fields, while a resumed Grok session can reuse an event id at a new time.
-    case grok(eventID: String, timestampMilliseconds: UInt64)
+/// A request's identity, held as a 128-bit digest of its logged fields so that tracking it stores no strings. Two requests sharing a digest is as unlikely as a random 128-bit collision.
+struct UsageEventID: Hashable, Comparable, Sendable {
+    private let high: UInt64
+    private let low: UInt64
+    let provider: Provider
 
-    var provider: Provider {
-        switch self {
-        case .codex: .codex
-        case .claude: .claude
-        case .piAgent: .piAgent
-        case .grok: .grok
+    private init(_ provider: Provider, fields: (inout Hasher) -> Void) {
+        func digest(salt: UInt8) -> UInt64 {
+            var hasher = Hasher()
+            hasher.combine(salt)
+            fields(&hasher)
+            return UInt64(bitPattern: Int64(hasher.finalize()))
+        }
+        high = digest(salt: 0)
+        low = digest(salt: 1)
+        self.provider = provider
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        (lhs.high, lhs.low, lhs.provider.rawValue) < (rhs.high, rhs.low, rhs.provider.rawValue)
+    }
+
+    /// A forked thread replays its parent's records under new thread ids, ordinals, and timestamps, so only the turn and its running total identify a request.
+    static func codex(turnID: String, cumulativeTotal: UInt64) -> Self {
+        Self(.codex) {
+            $0.combine(turnID)
+            $0.combine(cumulativeTotal)
+        }
+    }
+
+    static func claude(messageID: String, requestID: String) -> Self {
+        Self(.claude) {
+            $0.combine(messageID)
+            $0.combine(requestID)
+        }
+    }
+
+    static func piAgent(entryID: String) -> Self {
+        Self(.piAgent) { $0.combine(entryID) }
+    }
+
+    /// Fork copies keep both fields, while a resumed Grok session can reuse an event id at a new time.
+    static func grok(eventID: String, timestampMilliseconds: UInt64) -> Self {
+        Self(.grok) {
+            $0.combine(eventID)
+            $0.combine(timestampMilliseconds)
         }
     }
 }
@@ -81,7 +113,7 @@ struct UsageEvent: Sendable {
     /// Streamed replies grow their output, and rewritten lines can add speed, cache split, or reasoning effort.
     struct Revision: Comparable, Sendable {
         let outputTokens: UInt64
-        let metadataCompleteness: Int
+        let metadataCompleteness: UInt8
 
         static let none = Self(outputTokens: 0, metadataCompleteness: 0)
 
@@ -101,10 +133,4 @@ struct UsageEvent: Sendable {
     }
 
     var provider: Provider { id.provider }
-
-    func supersedes(record existing: UsageRecord, revision existingRevision: Revision) -> Bool {
-        let rank = (revision, record.processedTokens)
-        let existingRank = (existingRevision, existing.processedTokens)
-        return rank == existingRank ? record.timestamp < existing.timestamp : rank > existingRank
-    }
 }

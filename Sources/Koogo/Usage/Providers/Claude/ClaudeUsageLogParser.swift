@@ -52,7 +52,7 @@ struct ClaudeUsageLogParser: UsageLogParser {
     }
 
     private static func revision(of usage: ClaudeLoggedUsage, reasoningEffort: String?) -> UsageEvent.Revision {
-        let explicitCacheDuration =
+        let explicitCacheDuration: UInt8 =
             switch usage.tokens.cacheCreation {
             case .aggregate: 0
             case .byDuration: 1

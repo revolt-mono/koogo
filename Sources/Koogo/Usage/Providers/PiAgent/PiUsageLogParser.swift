@@ -1,21 +1,23 @@
 import Foundation
 
 struct PiUsageLogParser: UsageLogParser {
-    private var thinkingByEntry: [String: String] = [:]
+    private var levelSlots: [String: UInt8] = [:]
+    private var levels: [String] = []
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         guard let entry = try PiEntry(line) else {
             return nil
         }
-        let thinking =
+        let levelSlot =
             if case .thinkingLevelChange(let level) = entry.kind {
-                level
+                try slot(of: level)
             } else {
-                entry.parentID.flatMap { thinkingByEntry[$0] }
+                entry.parentID.flatMap { levelSlots[$0] }
             }
-        if let thinking {
-            thinkingByEntry[entry.id] = thinking
+        if let levelSlot {
+            levelSlots[entry.id] = levelSlot
         }
+        let thinking = levelSlot.map { levels[Int($0)] }
         guard case .billed(let billed) = entry.kind,
             billed.model != nil || billed.processedTokens > 0 || billed.costUSD > 0
         else {
@@ -32,6 +34,18 @@ struct PiUsageLogParser: UsageLogParser {
                 )
             )
         )
+    }
+
+    /// A log naming more distinct levels than a slot can hold is malformed.
+    private mutating func slot(of level: String) throws -> UInt8 {
+        if let slot = levels.firstIndex(of: level) {
+            return UInt8(slot)
+        }
+        guard let slot = UInt8(exactly: levels.count) else {
+            throw MalformedUsageRecord()
+        }
+        levels.append(level)
+        return slot
     }
 }
 

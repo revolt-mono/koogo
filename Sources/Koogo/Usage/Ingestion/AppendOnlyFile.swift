@@ -20,21 +20,21 @@ struct AppendOnlyFile: Sendable {
     private static var parsedTailSize: Int { 64 }
     private static var readSize: Int { 1 << 18 }
 
-    private let url: URL
+    private let path: String
     private var metadata: UsageFileMetadata
     private var parsedOffset: UInt64 = 0
     private var parsedTail = Data()
     private var needsRestart = false
 
-    init?(_ url: URL) {
-        guard let file = try? FileDescriptor.open(FilePath(url.path), .readOnly) else {
+    init?(_ path: String) {
+        guard let file = try? FileDescriptor.open(FilePath(path), .readOnly) else {
             return nil
         }
         defer { try? file.close() }
         guard let metadata = UsageFileMetadata(fileDescriptor: file.rawValue) else {
             return nil
         }
-        self.url = url
+        self.path = path
         self.metadata = metadata
     }
 
@@ -53,7 +53,7 @@ struct AppendOnlyFile: Sendable {
 
     /// Hands every complete line not yet consumed to the consumer, restarting it first when the file no longer continues the bytes read so far.
     mutating func read(into consumer: inout some LineConsumer) -> FileRead {
-        guard let file = try? FileDescriptor.open(FilePath(url.path), .readOnly) else {
+        guard let file = try? FileDescriptor.open(FilePath(path), .readOnly) else {
             return .unreadable
         }
         defer { try? file.close() }
