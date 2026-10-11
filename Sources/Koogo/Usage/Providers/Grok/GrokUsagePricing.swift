@@ -6,6 +6,10 @@ enum GrokUsagePricing {
         let input: Decimal
         let cachedInput: Decimal
         let output: Decimal
+
+        var fast: Self {
+            Self(displayName: "\(displayName) Fast", input: input * 2, cachedInput: cachedInput * 2, output: output * 2)
+        }
     }
 
     // Grok subscriptions bill one flat rate, so the standard API rates apply at any context length.
@@ -18,7 +22,7 @@ enum GrokUsagePricing {
     ]
 
     static func quote(model: ModelID, tokens: GrokTokenUsage) -> UsageQuote? {
-        guard let (price, isFast) = price(of: model) else {
+        guard let price = price(of: model) else {
             return nil
         }
         let costNanodollars =
@@ -26,16 +30,19 @@ enum GrokUsagePricing {
             + Decimal(tokens.cachedInput) * price.cachedInput
             + Decimal(tokens.output) * price.output
 
-        return UsageQuote(model: model, costNanodollars: costNanodollars * (isFast ? 2 : 1))
+        return UsageQuote(model: model, costNanodollars: costNanodollars)
     }
 
     static func displayName(of model: ModelID) -> String? {
-        price(of: model).map { price, isFast in isFast ? "\(price.displayName) Fast" : price.displayName }
+        price(of: model)?.displayName
     }
 
     /// Grok Build logs `<model>-build` at the rates of `<model>`, and `<model>-build-fast` at twice them.
-    private static func price(of model: ModelID) -> (price: ModelPrice, isFast: Bool)? {
+    private static func price(of model: ModelID) -> ModelPrice? {
         let name = model.rawValue
-        return prices[ModelID(name.replacing(/-build(-fast)?$/, with: ""))].map { ($0, name.hasSuffix("-build-fast")) }
+        guard let price = prices[ModelID(name.replacing(/-build(-fast)?$/, with: ""))] else {
+            return nil
+        }
+        return name.hasSuffix("-build-fast") ? price.fast : price
     }
 }
