@@ -103,6 +103,7 @@ struct LogStore {
                 }
             }
         }
+        shared.seal()
         shared.values.forEach(countAndVisit)
         return UsageIngestionStats(
             logRoots: logRoots,

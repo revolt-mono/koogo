@@ -22,6 +22,7 @@ final class UsageEventIndexTests: XCTestCase {
                 UsageEvent(id: id, record: record(tokens: 10, at: usageTestTimestamp + 2)),
                 since: .distantPast
             )
+            index.seal()
 
             XCTAssertEqual(index.values.map(\.record.timestamp), [usageTestTimestamp], "\(id)")
         }
@@ -45,9 +46,11 @@ final class UsageEventIndexTests: XCTestCase {
             var completeFirst = UsageEventIndex()
             completeFirst.insert(complete, since: .distantPast)
             completeFirst.insert(partial, since: .distantPast)
+            completeFirst.seal()
             var partialFirst = UsageEventIndex()
             partialFirst.insert(partial, since: .distantPast)
             partialFirst.insert(complete, since: .distantPast)
+            partialFirst.seal()
 
             for index in [completeFirst, partialFirst] {
                 XCTAssertEqual(index.values.count, 1)
@@ -71,6 +74,7 @@ final class UsageEventIndexTests: XCTestCase {
             )
         }
         index.insert(usageEvent(.claude, id: 8, processedTokens: 1, costUSD: 0), since: .distantPast)
+        index.seal()
 
         XCTAssertEqual(
             index.values.map(\.record.processedTokens).sorted(),
@@ -87,6 +91,7 @@ final class UsageEventIndexTests: XCTestCase {
             index.insert(usageEvent(provider, id: id, processedTokens: 2, costUSD: 0, at: old), since: .distantPast)
         }
         index.insert(usageEvent(.codex, id: 100, processedTokens: 4, costUSD: 0), since: windowStart)
+        index.seal()
         XCTAssertEqual(index.count, 5)
 
         index.discard(before: windowStart)

@@ -14,6 +14,7 @@ final class UsageEventIndexMemoryTests: XCTestCase {
         for number in 0..<50_000 {
             index.insert(UsageEvent(id: .piAgent(entryID: String(number)), record: usage), since: .distantPast)
         }
+        index.seal()
 
         XCTAssertLessThan(allocatedHeapBytes() - before, 24 * 1_024 * 1_024)
         XCTAssertEqual(index.count, 50_000)

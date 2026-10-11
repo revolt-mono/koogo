@@ -117,6 +117,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
                 for copy in copies {
                     index.insert(copy, since: .distantPast)
                 }
+                index.seal()
                 XCTAssertEqual(index.values.map(\.record.processedTokens), [120], detailed)
             }
         }

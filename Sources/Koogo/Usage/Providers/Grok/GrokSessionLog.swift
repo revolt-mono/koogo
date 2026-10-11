@@ -74,7 +74,7 @@ struct GrokSessionLog: TrackedLog {
     private mutating func joinEfforts() {
         let promptIndices = Dictionary(turns.parser.promptTurns.map { ($0.value, $0.key) }) { first, _ in first }
         events = UsageEventIndex(
-            distinct: turns.events.values.map { event in
+            turns.events.values.map { event in
                 guard let promptIndex = promptIndices[event.id], let turn = event.record.modelTurn,
                     let effort = efforts.effort(promptIndex: promptIndex, model: turn.model)
                 else {
