@@ -85,18 +85,15 @@ struct AppendOnlyFile: Sendable {
         in offsets: Range<UInt64>,
         into consumer: inout some LineConsumer
     ) -> Bool {
-        var buffer = UnsafeMutableRawBufferPointer.allocate(
-            byteCount: min(offsets.count, Self.readSize),
-            alignment: 1
-        )
-        defer { buffer.deallocate() }
+        var buffer = Self.mapPages(byteCount: min(offsets.count, Self.readSize))
+        defer { Self.unmapPages(buffer) }
         var pending = 0
         var readOffset = offsets.lowerBound
         while readOffset < offsets.upperBound {
             if pending == buffer.count {
-                let larger = UnsafeMutableRawBufferPointer.allocate(byteCount: buffer.count * 2, alignment: 1)
+                let larger = Self.mapPages(byteCount: buffer.count * 2)
                 larger.copyMemory(from: UnsafeRawBufferPointer(buffer))
-                buffer.deallocate()
+                Self.unmapPages(buffer)
                 buffer = larger
             }
             let space = buffer[pending..<min(buffer.count, pending + Int(clamping: offsets.upperBound - readOffset))]
@@ -119,6 +116,20 @@ struct AppendOnlyFile: Sendable {
             }
         }
         return true
+    }
+
+    /// Line buffers come straight from the VM system, which takes the pages back on release. Malloc would keep a freed buffer, which grows to fit the longest line, dirty for the life of the process.
+    private static func mapPages(byteCount: Int) -> UnsafeMutableRawBufferPointer {
+        guard let pages = mmap(nil, byteCount, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0),
+            pages != MAP_FAILED
+        else {
+            preconditionFailure("out of address space for a \(byteCount)-byte line buffer")
+        }
+        return UnsafeMutableRawBufferPointer(start: pages, count: byteCount)
+    }
+
+    private static func unmapPages(_ buffer: UnsafeMutableRawBufferPointer) {
+        munmap(buffer.baseAddress, buffer.count)
     }
 
     private mutating func handOutCompleteLines(
