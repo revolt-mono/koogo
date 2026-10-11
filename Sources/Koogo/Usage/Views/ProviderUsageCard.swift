@@ -140,10 +140,10 @@ private struct ProviderUsageRow: View {
             Spacer(minLength: 12)
 
             HStack(spacing: 4) {
-                Text("\(UsageFormatting.tokens(usage.processedTokens)) tokens ·")
+                Text("\(usage.processedTokens.formatted(.compactTokens)) tokens ·")
                     .foregroundStyle(.secondary)
 
-                Text(UsageFormatting.cost(usage.costUSD))
+                Text(usage.costUSD.formatted(.usd))
                     .foregroundStyle(.primary)
             }
             .lineLimit(1)

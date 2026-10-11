@@ -57,7 +57,7 @@ private struct UsageSummaryCost: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            AnimatedNumericText(text: UsageFormatting.cost(usage.current.costUSD))
+            AnimatedNumericText(text: usage.current.costUSD.formatted(.usd))
             UsageCostChangeCapsule(change: usage.costChange)
         }
     }
@@ -73,7 +73,7 @@ private struct UsageSummaryTokens: View {
                 .foregroundStyle(.secondary)
 
             AnimatedNumericText(
-                text: "\(UsageFormatting.tokens(usage.current.processedTokens)) tokens"
+                text: "\(usage.current.processedTokens.formatted(.compactTokens)) tokens"
             )
         }
     }
@@ -83,7 +83,7 @@ private struct UsageCostChangeCapsule: View {
     let change: UsageCostChange
 
     var body: some View {
-        let style: (prefix: String, fraction: Decimal, color: Color) =
+        let (prefix, fraction, color): (String, Decimal, Color) =
             switch change {
             case .increase(let fraction):
                 (
@@ -100,9 +100,9 @@ private struct UsageCostChangeCapsule: View {
             case .unchanged:
                 ("", 0, .secondary)
             }
-        let percentage = UsageFormatting.percentage(style.fraction)
+        let percentage = fraction.formatted(.usagePercent)
 
-        AnimatedNumericText(text: style.prefix + percentage)
+        AnimatedNumericText(text: prefix + percentage)
             .font(.system(size: 9, weight: .bold))
             .monospacedDigit()
             .lineLimit(1)
@@ -111,7 +111,7 @@ private struct UsageCostChangeCapsule: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(
-                style.color.opacity(0.6),
+                color.opacity(0.6),
                 in: Capsule()
             )
             .alignmentGuide(.firstTextBaseline) { dimensions in

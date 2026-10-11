@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 struct CodexQuotaSource: CodexQuotaResetSource {
     private let appServer: CodexAppServer
@@ -7,9 +8,8 @@ struct CodexQuotaSource: CodexQuotaResetSource {
         executableCandidates: [URL] = CommandLineTool.candidates(
             named: "codex",
             preferring: [
-                FileManager.default.homeDirectoryForCurrentUser.appending(
-                    path: ".codex/packages/standalone/current/bin"
-                )
+                Provider.codex.home(under: FileManager.default.homeDirectoryForCurrentUser)
+                    .appending(path: "packages/standalone/current/bin")
             ]
         ),
         timeout: Duration = .seconds(15)
@@ -33,12 +33,12 @@ struct CodexQuotaSource: CodexQuotaResetSource {
         do {
             let response: ConsumeResponse = try await appServer.call(
                 "account/rateLimitResetCredit/consume",
-                params: ConsumeParams(creditId: attempt.credit.id, idempotencyKey: attempt.idempotencyKey.uuidString)
+                params: ConsumeParams(creditId: attempt.credit.id, idempotencyKey: attempt.idempotencyKey)
             )
-            Telemetry.quota.info("codex reset outcome=\(response.outcome.rawValue, privacy: .public)")
+            Logger.quota.info("codex reset outcome=\(response.outcome.rawValue, privacy: .public)")
             return .success(response.outcome)
         } catch {
-            Telemetry.quota.error("codex reset failed \(String(describing: error), privacy: .public)")
+            Logger.quota.error("codex reset failed \(String(describing: error), privacy: .public)")
             return .failure(error)
         }
     }
@@ -46,7 +46,7 @@ struct CodexQuotaSource: CodexQuotaResetSource {
 
 private struct ConsumeParams: Encodable {
     let creditId: String
-    let idempotencyKey: String
+    let idempotencyKey: UUID
 }
 
 private struct ConsumeResponse: Decodable {

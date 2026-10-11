@@ -1,4 +1,5 @@
 import Observation
+import os
 
 /// One metric over the recent samples, oldest first, as fractions of its scale.
 struct ActivityTrend: Equatable {
@@ -45,7 +46,7 @@ final class ActivityModel {
                 samples.removeFirst(max(samples.count - Self.historyLength, 0))
             } catch {
                 guard !Task.isCancelled else { return }
-                Telemetry.activity.error("sample failed error=\(String(describing: error), privacy: .public)")
+                Logger.activity.error("sample failed error=\(String(describing: error), privacy: .public)")
             }
             try? await Task.sleep(for: interval)
         }

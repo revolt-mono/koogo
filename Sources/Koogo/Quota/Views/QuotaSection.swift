@@ -125,5 +125,5 @@ func quotaTimeRemainingText(until date: Date, now: Date) -> String {
         maximumUnitCount: 2,
         fractionalPart: .hide(rounded: .towardZero)
     )
-    return "in \(remaining.formatted(style.locale(Locale(identifier: "en_US"))))"
+    return "in \(remaining.formatted(style.locale(.display)))"
 }

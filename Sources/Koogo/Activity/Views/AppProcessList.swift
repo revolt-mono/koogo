@@ -43,18 +43,18 @@ private struct AppProcessRow: View {
                 Text(group.name)
                     .fontWeight(.semibold)
 
-                Text("^[\(group.processCount) process](inflect: true)")
+                Text("^[\(group.members.count) process](inflect: true)")
                     .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 12)
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text(ActivityFormatting.bytes(group.footprint).text)
+                Text(Measure(bytes: group.footprint).text)
                     .fontWeight(.semibold)
 
-                let cpu = ActivityFormatting.percent(group.cpu).text
-                let gpu = ActivityFormatting.percent(group.gpu).text
+                let cpu = Measure(fraction: group.cpu).text
+                let gpu = Measure(fraction: group.gpu).text
                 Text("\(cpu) CPU, \(gpu) GPU")
                     .foregroundStyle(.secondary)
             }
@@ -78,14 +78,14 @@ private struct AppProcessRow: View {
         .motionAnimation(.easeOut(duration: 0.2), value: isQuitting)
         .onChange(of: sampledAt) {
             guard let quittingFrom else { return }
-            self.quittingFrom = group.processCount < quittingFrom ? group.processCount : nil
+            self.quittingFrom = group.members.count < quittingFrom ? group.members.count : nil
         }
     }
 
     private var isQuitting: Bool { quittingFrom != nil }
 
     private func quit() {
-        quittingFrom = group.processCount
+        quittingFrom = group.members.count
         group.forceTerminate()
     }
 }

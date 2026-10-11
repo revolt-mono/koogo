@@ -1,24 +1,25 @@
 import AppKit
 import SwiftUI
 
-@MainActor
-enum PopoverClickBoundary {
-    static func independentClick(_ event: NSEvent, in view: NSView) -> NSEvent {
-        guard event.clickCount > 1, let window = view.window, event.window === window,
+extension NSEvent {
+    /// A multi-click on the view counts as a fresh single click, so each press toggles its popover.
+    @MainActor
+    func independentClick(in view: NSView) -> NSEvent {
+        guard clickCount > 1, let window = view.window, self.window === window,
             !view.isHiddenOrHasHiddenAncestor,
-            view.bounds.intersection(view.visibleRect).contains(view.convert(event.locationInWindow, from: nil))
-        else { return event }
+            view.bounds.intersection(view.visibleRect).contains(view.convert(locationInWindow, from: nil))
+        else { return self }
         return NSEvent.mouseEvent(
-            with: event.type,
-            location: event.locationInWindow,
-            modifierFlags: event.modifierFlags,
-            timestamp: event.timestamp,
-            windowNumber: event.windowNumber,
+            with: type,
+            location: locationInWindow,
+            modifierFlags: modifierFlags,
+            timestamp: timestamp,
+            windowNumber: windowNumber,
             context: nil,
-            eventNumber: event.eventNumber,
+            eventNumber: eventNumber,
             clickCount: 1,
-            pressure: event.pressure
-        ) ?? event
+            pressure: pressure
+        ) ?? self
     }
 }
 
@@ -31,7 +32,7 @@ private struct PanelPopover<PopoverContent: View>: ViewModifier {
             .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
             .background {
                 LocalEventMonitor(events: [.leftMouseDown, .leftMouseUp]) { event, view in
-                    PopoverClickBoundary.independentClick(event, in: view)
+                    event.independentClick(in: view)
                 }
                 .allowsHitTesting(false)
             }

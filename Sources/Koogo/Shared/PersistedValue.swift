@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// One property-list value under one `UserDefaults` key.
 struct PersistedValue<Value: Codable> {
@@ -12,15 +13,16 @@ struct PersistedValue<Value: Codable> {
         do {
             return try PropertyListDecoder().decode(Value.self, from: data)
         } catch {
-            Telemetry.app.warning("dropped undecodable \(key, privacy: .public): \(error, privacy: .public)")
+            Logger.app.warning("dropped undecodable \(key, privacy: .public): \(error, privacy: .public)")
             return nil
         }
     }
 
     func save(_ value: Value) {
-        guard let data = try? PropertyListEncoder().encode(value) else {
-            return
+        do {
+            defaults.set(try PropertyListEncoder().encode(value), forKey: key)
+        } catch {
+            Logger.app.warning("dropped unencodable \(key, privacy: .public): \(error, privacy: .public)")
         }
-        defaults.set(data, forKey: key)
     }
 }

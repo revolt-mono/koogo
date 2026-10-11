@@ -1,5 +1,6 @@
 import AppKit
 import Darwin
+import os
 
 /// One running process of the current user and the process macOS holds responsible for it. Cpu and gpu time accumulate since launch, so only their differences between two scans are loads.
 struct ProcessRecord: Equatable, Sendable {
@@ -60,17 +61,15 @@ struct AppProcessGroup: Identifiable, Equatable, Sendable {
     /// Share of the span the gpu spent on the group's work.
     let gpu: Double
 
-    var processCount: Int { members.count }
-
     /// Force quits an app with its helpers; any other group gets every member killed, and one already gone is no failure. The next sample shows what remains.
     func forceTerminate() {
         if NSRunningApplication(processIdentifier: id)?.forceTerminate() == true { return }
         for pid in members where Darwin.kill(pid, SIGKILL) != 0 && errno != ESRCH {
-            Telemetry.activity.error("force terminate failed pid=\(pid) errno=\(errno)")
+            Logger.activity.error("force terminate failed pid=\(pid) errno=\(errno)")
         }
     }
 
-    /// The twenty heaviest groups by responsible process. A group whose responsible process is out of sight takes its identity from its oldest member; a process launched since the earlier scan counts all its time, and one otherwise absent from it has no load yet.
+    /// The twenty heaviest groups by responsible process. A group whose responsible process is out of sight takes its identity from its lowest pid; a process launched since the earlier scan counts all its time, and one otherwise absent from it has no load yet.
     static func heaviest(
         in scan: ProcessScan,
         since previous: ProcessScan,

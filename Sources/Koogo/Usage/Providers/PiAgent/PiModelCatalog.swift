@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import os
 
 /// Display names from Pi's model store and the user's custom model file.
 struct PiModelCatalog: Sendable {
@@ -87,6 +88,11 @@ struct PiModelCatalog: Sendable {
         }
         let decoder = JSONDecoder()
         decoder.allowsJSON5 = allowsJSON5
-        return try? decoder.decode(type, from: data)
+        do {
+            return try decoder.decode(type, from: data)
+        } catch {
+            Logger.usage.warning("dropped undecodable pi \(type, privacy: .public): \(error, privacy: .public)")
+            return nil
+        }
     }
 }

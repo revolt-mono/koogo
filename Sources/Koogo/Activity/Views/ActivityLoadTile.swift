@@ -3,7 +3,7 @@ import SwiftUI
 struct ActivityLoadTile: View {
     let title: String
     let subtitle: String
-    let headline: ActivityFormatting.Measure
+    let headline: Measure
     let details: KeyValuePairs<String, String>
     let trend: ActivityTrend
 
@@ -26,7 +26,7 @@ struct ActivityLoadTile: View {
 }
 
 struct ActivityHeadline: View {
-    let measure: ActivityFormatting.Measure
+    let measure: Measure
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {

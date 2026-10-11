@@ -22,14 +22,11 @@ enum BreakReminderStatus: Equatable {
             case .expired: 0
             }
 
-        let totalSeconds = Int(ceil(remaining))
-        let hours = totalSeconds / 3_600
-        let minutes = (totalSeconds % 3_600) / 60
-        let seconds = totalSeconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
-        return String(format: "%02d:%02d", minutes, seconds)
+        let whole = Duration.seconds(ceil(remaining))
+        return whole.formatted(
+            .time(pattern: whole >= .seconds(3_600) ? .hourMinuteSecond : .minuteSecond(padMinuteToLength: 2))
+                .locale(.display)
+        )
     }
 }
 

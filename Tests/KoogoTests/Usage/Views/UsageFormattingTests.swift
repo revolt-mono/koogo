@@ -5,27 +5,19 @@ import XCTest
 
 final class UsageFormattingTests: XCTestCase {
     func testCostsRoundToCents() throws {
-        XCTAssertEqual(UsageFormatting.cost(0.005), "$0.01")
-        XCTAssertEqual(UsageFormatting.cost(0.01), "$0.01")
-        XCTAssertEqual(
-            UsageFormatting.cost(try XCTUnwrap(Decimal(string: "0.025"))),
-            "$0.03"
-        )
+        XCTAssertEqual((0.005 as Decimal).formatted(.usd), "$0.01")
+        XCTAssertEqual((0.01 as Decimal).formatted(.usd), "$0.01")
+        XCTAssertEqual(try XCTUnwrap(Decimal(string: "0.025")).formatted(.usd), "$0.03")
     }
 
     func testTokensUseCompactNotation() {
-        XCTAssertEqual(UsageFormatting.tokens(999), "999")
-        XCTAssertEqual(UsageFormatting.tokens(1_500), "1.5K")
+        XCTAssertEqual((999 as UInt64).formatted(.compactTokens), "999")
+        XCTAssertEqual((1_500 as UInt64).formatted(.compactTokens), "1.5K")
     }
 
     func testPercentagesRoundToOneDecimalPlace() throws {
-        XCTAssertEqual(UsageFormatting.percentage(1), "100%")
-        XCTAssertEqual(UsageFormatting.percentage(0), "0%")
-        XCTAssertEqual(
-            UsageFormatting.percentage(
-                try XCTUnwrap(Decimal(string: "0.125"))
-            ),
-            "12.5%"
-        )
+        XCTAssertEqual((1 as Decimal).formatted(.usagePercent), "100%")
+        XCTAssertEqual((0 as Decimal).formatted(.usagePercent), "0%")
+        XCTAssertEqual(try XCTUnwrap(Decimal(string: "0.125")).formatted(.usagePercent), "12.5%")
     }
 }

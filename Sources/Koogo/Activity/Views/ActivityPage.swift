@@ -45,10 +45,10 @@ private struct CPUSection: View {
             subtitle: load.cores.efficiency > 0
                 ? "\(load.cores.performance)P · \(load.cores.efficiency)E"
                 : "\(load.cores.performance) cores",
-            headline: ActivityFormatting.percent(load.total),
+            headline: Measure(fraction: load.total),
             details: [
-                "User": ActivityFormatting.percent(load.user).text,
-                "System": ActivityFormatting.percent(load.system).text,
+                "User": Measure(fraction: load.user).text,
+                "System": Measure(fraction: load.system).text,
             ],
             trend: trend
         )
@@ -63,10 +63,10 @@ private struct GPUSection: View {
         ActivityLoadTile(
             title: "GPU",
             subtitle: load.name,
-            headline: ActivityFormatting.percent(load.utilization),
+            headline: Measure(fraction: load.utilization),
             details: [
-                "Render": ActivityFormatting.percent(load.renderer).text,
-                "Tile": ActivityFormatting.percent(load.tiler).text,
+                "Render": Measure(fraction: load.renderer).text,
+                "Tile": Measure(fraction: load.tiler).text,
             ],
             trend: trend
         )
@@ -79,20 +79,20 @@ private struct MemorySection: View {
     var body: some View {
         PanelSection(
             "Memory",
-            subtitle: "\(ActivityFormatting.bytes(usage.used).text) of \(ActivityFormatting.bytes(usage.total).text)"
+            subtitle: "\(Measure(bytes: usage.used).text) of \(Measure(bytes: usage.total).text)"
         ) {
             VStack(spacing: 12) {
                 ActivityDetails(details: [
-                    "App": ActivityFormatting.bytes(usage.app).text,
-                    "Wired": ActivityFormatting.bytes(usage.wired).text,
-                    "Compressed": ActivityFormatting.bytes(usage.compressed).text,
+                    "App": Measure(bytes: usage.app).text,
+                    "Wired": Measure(bytes: usage.wired).text,
+                    "Compressed": Measure(bytes: usage.compressed).text,
                 ])
 
                 let share = Double(usage.used) / Double(usage.total)
                 ProgressView(value: share)
                     .progressViewStyle(.panel)
                     .accessibilityLabel("Memory in use")
-                    .accessibilityValue(ActivityFormatting.percent(share).text)
+                    .accessibilityValue(Measure(fraction: share).text)
             }
         }
     }
@@ -106,11 +106,11 @@ private struct BatterySection: View {
         PanelSection("Battery", subtitle: supply) {
             VStack(spacing: 12) {
                 HStack(alignment: .center, spacing: 12) {
-                    ActivityHeadline(measure: ActivityFormatting.percent(state.charge))
+                    ActivityHeadline(measure: Measure(fraction: state.charge))
 
                     ActivityDetails(details: [
-                        "Draw": state.draw.map { ActivityFormatting.watts($0).text } ?? "–",
-                        "Health": ActivityFormatting.percent(state.health).text,
+                        "Draw": state.draw.map { Measure(watts: $0).text } ?? "–",
+                        "Health": Measure(fraction: state.health).text,
                         "Cycles": "\(state.cycles)",
                     ])
                 }
@@ -124,10 +124,10 @@ private struct BatterySection: View {
 
     private var supply: String {
         switch state.supply {
-        case .charging(let timeToFull?): "charging · \(ActivityFormatting.duration(timeToFull)) to full"
+        case .charging(let timeToFull?): "charging · \(timeToFull.formatted(.hoursMinutes)) to full"
         case .charging(nil): "charging"
         case .external: "on power"
-        case .discharging(let timeToEmpty?): "\(ActivityFormatting.duration(timeToEmpty)) left"
+        case .discharging(let timeToEmpty?): "\(timeToEmpty.formatted(.hoursMinutes)) left"
         case .discharging(nil): "on battery"
         }
     }

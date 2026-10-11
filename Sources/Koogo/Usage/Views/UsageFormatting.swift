@@ -10,33 +10,29 @@ extension UsagePeriod {
     }
 }
 
-enum UsageFormatting {
-    private static let locale = Locale(identifier: "en_US")
-
-    static func cost(_ cost: Decimal) -> String {
-        cost.formatted(
-            .currency(code: "USD")
-                .locale(locale)
-                .precision(.fractionLength(2))
-                .rounded(rule: .toNearestOrAwayFromZero)
-        )
+extension FormatStyle where Self == Decimal.FormatStyle.Currency {
+    static var usd: Self {
+        .currency(code: "USD")
+            .locale(.display)
+            .precision(.fractionLength(2))
+            .rounded(rule: .toNearestOrAwayFromZero)
     }
+}
 
-    static func tokens(_ tokens: UInt64) -> String {
-        tokens.formatted(
-            .number
-                .locale(locale)
-                .notation(.compactName)
-                .precision(.fractionLength(0...1))
-        )
+extension FormatStyle where Self == IntegerFormatStyle<UInt64> {
+    static var compactTokens: Self {
+        .number
+            .locale(.display)
+            .notation(.compactName)
+            .precision(.fractionLength(0...1))
     }
+}
 
-    static func percentage(_ fraction: Decimal) -> String {
-        (fraction * 100).formatted(
-            .number
-                .locale(locale)
-                .precision(.fractionLength(0...1))
-                .rounded(rule: .toNearestOrAwayFromZero)
-        ) + "%"
+extension FormatStyle where Self == Decimal.FormatStyle.Percent {
+    static var usagePercent: Self {
+        .percent
+            .locale(.display)
+            .precision(.fractionLength(0...1))
+            .rounded(rule: .toNearestOrAwayFromZero)
     }
 }

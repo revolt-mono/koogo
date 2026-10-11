@@ -19,10 +19,6 @@ struct UsagePeriodIntervals: Equatable, Sendable {
     let previous30Days: Range<Date>
     let last30DayStarts: [Date]
 
-    var historyStart: Date {
-        previous30Days.lowerBound
-    }
-
     init(containing date: Date, calendar: Calendar) {
         guard let todayInterval = calendar.dateInterval(of: .day, for: date) else {
             preconditionFailure("calendar must provide day intervals")

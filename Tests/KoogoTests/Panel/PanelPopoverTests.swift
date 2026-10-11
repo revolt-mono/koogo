@@ -11,7 +11,7 @@ final class PanelPopoverTests: XCTestCase {
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
             for count in [2, 3, 6] {
                 let original = try fixture.event(type: type, count: count)
-                let result = PopoverClickBoundary.independentClick(original, in: fixture.anchor)
+                let result = original.independentClick(in: fixture.anchor)
 
                 XCTAssertEqual(result.clickCount, 1)
                 XCTAssertEqual(result.type, original.type)
@@ -30,7 +30,7 @@ final class PanelPopoverTests: XCTestCase {
         let fixture = Fixture()
         defer { fixture.window.close() }
         let original = try fixture.event(count: 1)
-        XCTAssertTrue(PopoverClickBoundary.independentClick(original, in: fixture.anchor) === original)
+        XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
     }
 
     @MainActor
@@ -38,7 +38,7 @@ final class PanelPopoverTests: XCTestCase {
         let fixture = Fixture()
         defer { fixture.window.close() }
         let original = try fixture.event(location: NSPoint(x: 250, y: 150))
-        XCTAssertTrue(PopoverClickBoundary.independentClick(original, in: fixture.anchor) === original)
+        XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
     }
 
     @MainActor
@@ -50,7 +50,7 @@ final class PanelPopoverTests: XCTestCase {
             other.window.close()
         }
         let original = try other.event()
-        XCTAssertTrue(PopoverClickBoundary.independentClick(original, in: fixture.anchor) === original)
+        XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
     }
 
     @MainActor
@@ -59,10 +59,10 @@ final class PanelPopoverTests: XCTestCase {
         defer { fixture.window.close() }
         let original = try fixture.event()
         fixture.anchor.isHidden = true
-        XCTAssertTrue(PopoverClickBoundary.independentClick(original, in: fixture.anchor) === original)
+        XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
         fixture.anchor.isHidden = false
         fixture.anchor.removeFromSuperview()
-        XCTAssertTrue(PopoverClickBoundary.independentClick(original, in: fixture.anchor) === original)
+        XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
     }
 }
 

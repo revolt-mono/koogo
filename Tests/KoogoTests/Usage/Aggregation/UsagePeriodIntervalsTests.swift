@@ -17,7 +17,6 @@ final class UsagePeriodIntervalsTests: XCTestCase {
         XCTAssertEqual(intervals.last30Days.upperBound, Date(iso8601: "2026-03-12T07:00:00Z"))
         XCTAssertEqual(intervals.previous30Days.lowerBound, Date(iso8601: "2026-01-11T08:00:00Z"))
         XCTAssertEqual(intervals.previous30Days.upperBound, intervals.last30Days.lowerBound)
-        XCTAssertEqual(intervals.historyStart, intervals.previous30Days.lowerBound)
         XCTAssertEqual(intervals.last30DayIndex(containing: date), 0)
     }
 

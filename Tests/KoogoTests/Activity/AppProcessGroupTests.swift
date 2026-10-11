@@ -58,7 +58,7 @@ final class AppProcessGroupTests: XCTestCase {
 
         XCTAssertEqual(groups.map(\.name), ["node"])
         XCTAssertEqual(groups.map(\.iconPath), ["/usr/local/bin/node"])
-        XCTAssertEqual(groups.map(\.processCount), [2])
+        XCTAssertEqual(groups.map(\.members.count), [2])
     }
 
     func testGPUTimeThatFellWithAClosedClientHasNoLoad() {
@@ -145,11 +145,14 @@ final class AppProcessGroupTests: XCTestCase {
         try child.run()
         let afterLaunch = SuspendingClock.now
         defer { child.terminate() }
-        try await Task.sleep(for: .milliseconds(300))
 
-        let scan = try ProcessScan.read()
+        var scanned: SuspendingClock.Instant?
+        try await waitUntil {
+            scanned = (try? ProcessScan.read())?.records.first { $0.pid == child.processIdentifier }?.launched
+            return scanned != nil
+        }
 
-        let launched = try XCTUnwrap(scan.records.first { $0.pid == child.processIdentifier }).launched
+        let launched = try XCTUnwrap(scanned)
         XCTAssertGreaterThanOrEqual(launched, beforeLaunch)
         XCTAssertLessThanOrEqual(launched, afterLaunch)
     }
@@ -171,10 +174,7 @@ final class AppProcessGroupTests: XCTestCase {
 
         group.forceTerminate()
 
-        for _ in 0..<50 where child.isRunning {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        XCTAssertFalse(child.isRunning)
+        try await waitUntil { !child.isRunning }
         XCTAssertEqual(child.terminationReason, .uncaughtSignal)
     }
 

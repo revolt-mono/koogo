@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 /// Where a provider's quota stands between reads. A cooldown exists only after an available reading.
 enum QuotaStatus: Equatable, Sendable {
@@ -46,7 +47,6 @@ final class QuotaModel {
         statuses[provider].isBusy
     }
 
-    /// Reads each provider whose reading is stale.
     func refresh(_ providers: some Sequence<QuotaProvider>) {
         reload(providers.filter { !statuses[$0].isFresh(at: .now, within: Self.cooldown) })
     }
@@ -73,7 +73,7 @@ final class QuotaModel {
                 case .available: "available"
                 case .unavailable(let reason): "unavailable reason=\(reason.rawValue)"
                 }
-            Telemetry.quota.info("\(provider.rawValue, privacy: .public) fetch \(outcome, privacy: .public)")
+            Logger.quota.info("\(provider.rawValue, privacy: .public) fetch \(outcome, privacy: .public)")
             statuses[provider] = .read(reading, since: .now)
         }
         return true

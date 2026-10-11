@@ -88,8 +88,8 @@ private struct UsageChartAnnotation: View {
                 .foregroundStyle(.panelLabel)
 
             Text(
-                "\(UsageFormatting.cost(day.usage.costUSD)) · "
-                    + "\(UsageFormatting.tokens(day.usage.processedTokens)) tokens"
+                "\(day.usage.costUSD.formatted(.usd)) · "
+                    + "\(day.usage.processedTokens.formatted(.compactTokens)) tokens"
             )
             .foregroundStyle(Color(nsColor: .secondaryLabelColor))
             .monospacedDigit()

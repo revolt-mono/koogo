@@ -1,8 +1,10 @@
 import os
 
-enum Telemetry {
-    static let app = Logger(subsystem: "com.revolt.koogo", category: "app")
-    static let usage = Logger(subsystem: "com.revolt.koogo", category: "usage")
-    static let quota = Logger(subsystem: "com.revolt.koogo", category: "quota")
-    static let activity = Logger(subsystem: "com.revolt.koogo", category: "activity")
+extension Logger {
+    private static let subsystem = "com.revolt.koogo"
+
+    static let app = Logger(subsystem: subsystem, category: "app")
+    static let usage = Logger(subsystem: subsystem, category: "usage")
+    static let quota = Logger(subsystem: subsystem, category: "quota")
+    static let activity = Logger(subsystem: subsystem, category: "activity")
 }
