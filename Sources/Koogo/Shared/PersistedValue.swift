@@ -1,7 +1,6 @@
 import Foundation
 import os
 
-/// One property-list value under one `UserDefaults` key.
 struct PersistedValue<Value: Codable> {
     let key: String
     let defaults: UserDefaults

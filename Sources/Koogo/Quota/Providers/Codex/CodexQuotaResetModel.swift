@@ -21,7 +21,7 @@ final class CodexQuotaResetModel {
     }
 
     var isBusy: Bool {
-        quota.isBusy(.codex)
+        quota.statuses[.codex].isBusy
     }
 
     /// A confirmation outlives its credit only until the next reading drops that credit.
@@ -29,7 +29,7 @@ final class CodexQuotaResetModel {
         pending.reconciled { usableCredit(id: $0.id) != nil }
     }
 
-    var isShown: Bool {
+    var hasResetActivity: Bool {
         credits != nil || flow != .idle
     }
 

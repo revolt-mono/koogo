@@ -2,12 +2,12 @@ import SwiftUI
 
 struct BreakReminderControl: View {
     @Environment(BreakReminderModel.self) private var reminderModel
-    @State private var isVisible = false
+    @State private var isOnScreen = false
     @State private var issue: BreakReminderIssue?
 
     var body: some View {
         ZStack {
-            if isVisible, case .running = reminderModel.status {
+            if isOnScreen, case .running = reminderModel.status {
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
                     button(status: reminderModel.countdown.status(at: timeline.date))
                 }
@@ -16,10 +16,10 @@ struct BreakReminderControl: View {
             }
         }
         .onAppear {
-            isVisible = true
+            isOnScreen = true
         }
         .onDisappear {
-            isVisible = false
+            isOnScreen = false
         }
         .task {
             issue = await reminderModel.reconcile()

@@ -214,7 +214,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         let quota = makeQuotaModel(codex: source, now: now)
         let reset = CodexQuotaResetModel(quota: quota)
         quota.reload([.codex])
-        try await waitUntil { !quota.isBusy(.codex) }
+        try await waitUntil { !quota.statuses[.codex].isBusy }
         XCTAssertNotNil(quota.statuses[.codex].latest?.snapshot)
         return (quota, reset)
     }

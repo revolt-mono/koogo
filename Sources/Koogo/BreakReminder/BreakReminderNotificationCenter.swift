@@ -46,7 +46,7 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
         }
     }
 
-    func isPending() async -> Bool {
+    func hasPendingReminder() async -> Bool {
         switch await center.notificationSettings().authorizationStatus {
         case .authorized, .provisional, .ephemeral:
             return await center.pendingNotificationRequests().contains {

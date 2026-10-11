@@ -11,16 +11,16 @@ final class QuotaModelTests: XCTestCase {
         model.refresh([.grok])
         model.reload([.grok])
         XCTAssertEqual(model.statuses[.grok], .reading(last: nil))
-        try await waitUntil { !model.isBusy(.grok) }
+        try await waitUntil { !model.statuses[.grok].isBusy }
         XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(1)))
 
         model.refresh([.grok])
-        XCTAssertFalse(model.isBusy(.grok))
+        XCTAssertFalse(model.statuses[.grok].isBusy)
         XCTAssertEqual(source.loads.withLock { $0 }, 1)
 
         model.reload([.grok])
         XCTAssertEqual(model.statuses[.grok], .reading(last: .available(.stub(1))))
-        try await waitUntil { !model.isBusy(.grok) }
+        try await waitUntil { !model.statuses[.grok].isBusy }
         XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(2)))
     }
 
@@ -32,21 +32,21 @@ final class QuotaModelTests: XCTestCase {
         let model = makeQuotaModel(grok: source)
 
         model.refresh([.grok])
-        try await waitUntil { !model.isBusy(.grok) }
+        try await waitUntil { !model.statuses[.grok].isBusy }
         XCTAssertEqual(model.statuses[.grok].latest, .unavailable(.timedOut))
 
         model.refresh([.grok])
         XCTAssertEqual(model.statuses[.grok].latest, .unavailable(.timedOut))
-        try await waitUntil { !model.isBusy(.grok) }
+        try await waitUntil { !model.statuses[.grok].isBusy }
         XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(1)))
 
         model.reload([.grok])
         XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(1)))
-        try await waitUntil { !model.isBusy(.grok) }
+        try await waitUntil { !model.statuses[.grok].isBusy }
         XCTAssertEqual(model.statuses[.grok].latest, .unavailable(.sessionFailed))
 
         model.refresh([.grok])
-        try await waitUntil { !model.isBusy(.grok) }
+        try await waitUntil { !model.statuses[.grok].isBusy }
         XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(2)))
     }
 
@@ -57,7 +57,7 @@ final class QuotaModelTests: XCTestCase {
         let model = makeQuotaModel(claude: claude, grok: grok)
 
         model.refresh([.claude])
-        try await waitUntil { !model.isBusy(.claude) }
+        try await waitUntil { !model.statuses[.claude].isBusy }
 
         XCTAssertEqual(model.statuses[.claude].latest, .available(.stub()))
         XCTAssertEqual(model.statuses[.grok], .unread)

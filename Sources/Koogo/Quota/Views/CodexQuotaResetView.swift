@@ -4,7 +4,7 @@ struct CodexQuotaResetView: View {
     @Environment(CodexQuotaResetModel.self) private var model
 
     var body: some View {
-        if model.isShown {
+        if model.hasResetActivity {
             PanelDisclosure {
                 HStack(spacing: 4) {
                     if let credits = model.credits {

@@ -49,7 +49,7 @@ final class PanelViewTests: XCTestCase {
             XCTAssertNil(usage.snapshot?.providers[.codex])
             XCTAssertEqual(usage.snapshot?.providers[.claude]?.periods[.today].total.processedTokens, 0)
 
-            try await waitUntil { QuotaProvider.allCases.allSatisfy { !quota.isBusy($0) } }
+            try await waitUntil { QuotaProvider.allCases.allSatisfy { !quota.statuses[$0].isBusy } }
             for provider in QuotaProvider.allCases {
                 let isShown = provider != .codex && !disabled.contains(provider)
                 let expected: QuotaReading? = isShown ? .unavailable(.binaryNotFound) : nil

@@ -43,10 +43,6 @@ final class QuotaModel {
         self.now = now
     }
 
-    func isBusy(_ provider: QuotaProvider) -> Bool {
-        statuses[provider].isBusy
-    }
-
     func refresh(_ providers: some Sequence<QuotaProvider>) {
         reload(providers.filter { !statuses[$0].isFresh(at: .now, within: Self.cooldown) })
     }

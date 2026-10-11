@@ -19,7 +19,7 @@ final class BreakReminderTestNotifications: BreakReminderNotifications {
         isReminderPending = true
     }
 
-    func isPending() async -> Bool {
+    func hasPendingReminder() async -> Bool {
         await beforeOperation?()
         return isReminderPending
     }

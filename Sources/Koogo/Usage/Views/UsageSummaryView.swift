@@ -131,7 +131,7 @@ private struct UsageCostChangeCapsule: View {
 }
 
 private struct AnimatedNumericText: View {
-    @State private var isShown = false
+    @State private var isOnScreen = false
 
     let text: String
 
@@ -139,8 +139,8 @@ private struct AnimatedNumericText: View {
         // ViewThatFits keeps updating unselected candidates, and an animation started there never settles.
         Text(text)
             .numericTextTransition()
-            .motionAnimation(isShown ? .smooth(duration: 0.35) : nil, value: text)
-            .onAppear { isShown = true }
-            .onDisappear { isShown = false }
+            .motionAnimation(isOnScreen ? .smooth(duration: 0.35) : nil, value: text)
+            .onAppear { isOnScreen = true }
+            .onDisappear { isOnScreen = false }
     }
 }

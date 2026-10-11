@@ -4,7 +4,7 @@ import Observation
 @MainActor
 protocol BreakReminderNotifications: AnyObject {
     func schedule(after duration: TimeInterval) async throws(BreakReminderIssue)
-    func isPending() async -> Bool
+    func hasPendingReminder() async -> Bool
     func cancel()
 }
 
@@ -49,7 +49,7 @@ final class BreakReminderModel {
     func reconcile() async -> BreakReminderIssue? {
         await whileBusy {
             guard case .running = countdown.status(at: now()),
-                !(await notifications.isPending()),
+                !(await notifications.hasPendingReminder()),
                 case .running(let remaining) = countdown.status(at: now())
             else {
                 return nil
