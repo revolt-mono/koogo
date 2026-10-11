@@ -127,7 +127,7 @@ private struct TodoPriorityOption: View, Animatable {
                 }
         }
         .contentShape(.capsule)
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
     }
 }
 

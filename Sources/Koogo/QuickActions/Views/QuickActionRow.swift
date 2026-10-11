@@ -63,7 +63,7 @@ struct QuickActionRow<Targets: Sendable>: View {
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.58)
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
         .onAppear {
             if case .scanning = model.phase {
                 model.refresh()

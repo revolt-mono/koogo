@@ -21,8 +21,7 @@ struct DailyUsageChart: View {
             let slotWidth = geometry.size.width / CGFloat(heights.count)
             BarChart(values: heights, cornerRadius: 1, displayScale: displayScale)
                 .fill(.panelLabel)
-                .contentShape(Rectangle())
-                .onContinuousHover { phase in
+                .onContinuousPointerHover { phase in
                     hoveredSlot = if case .active(let point) = phase { Int(point.x / slotWidth) } else { nil }
                 }
                 .overlay {
