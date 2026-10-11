@@ -50,7 +50,8 @@ final class PageStepRecognizer {
 
     private enum Swipe {
         case undecided
-        case paging(travelled: CGFloat, stepped: Bool)
+        case paging(travelled: CGFloat)
+        case stepped
         case scrolling
     }
 
@@ -68,20 +69,28 @@ final class PageStepRecognizer {
             return .ignored
         case .swipeEnded:
             defer { swipe = .undecided }
-            if case .paging = swipe { return .consumed }
-            return .ignored
+            switch swipe {
+            case .paging, .stepped: return .consumed
+            case .undecided, .scrolling: return .ignored
+            }
         case .swipeMoved:
             if case .undecided = swipe, scroll.deltaX != 0 || scroll.deltaY != 0 {
-                swipe = abs(scroll.deltaX) > abs(scroll.deltaY) ? .paging(travelled: 0, stepped: false) : .scrolling
+                swipe = abs(scroll.deltaX) > abs(scroll.deltaY) ? .paging(travelled: 0) : .scrolling
             }
-            guard case .paging(let travelled, let stepped) = swipe else { return .ignored }
-            let distance = travelled + scroll.deltaX
-            guard !stepped, abs(distance) >= Self.swipeDistance else {
-                swipe = .paging(travelled: distance, stepped: stepped)
+            switch swipe {
+            case .undecided, .scrolling:
+                return .ignored
+            case .stepped:
                 return .consumed
+            case .paging(let travelled):
+                let distance = travelled + scroll.deltaX
+                guard abs(distance) >= Self.swipeDistance else {
+                    swipe = .paging(travelled: distance)
+                    return .consumed
+                }
+                swipe = .stepped
+                return .step(distance < 0 ? .forward : .backward)
             }
-            swipe = .paging(travelled: distance, stepped: true)
-            return .step(distance < 0 ? .forward : .backward)
         }
     }
 }
