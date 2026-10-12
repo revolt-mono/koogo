@@ -85,35 +85,17 @@ private struct UsageCostChangeCapsule: View {
     var body: some View {
         let (prefix, fraction, color): (String, Decimal, Color) =
             switch change {
-            case .increase(let fraction):
-                (
-                    "+",
-                    fraction,
-                    Color(red: 0, green: 128.0 / 255, blue: 9.0 / 255)
-                )
-            case .decrease(let fraction):
-                (
-                    "-",
-                    fraction,
-                    Color(red: 182.0 / 255, green: 68.0 / 255, blue: 0)
-                )
-            case .unchanged:
-                ("", 0, .secondary)
+            case .increase(let fraction): ("+", fraction, .riseFill)
+            case .decrease(let fraction): ("-", fraction, .fallFill)
+            case .unchanged: ("", 0, .flatFill)
             }
         let percentage = fraction.formatted(.usagePercent)
 
         AnimatedNumericText(text: prefix + percentage)
-            .font(.system(size: 9, weight: .bold))
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.5)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                color.opacity(0.6),
-                in: Capsule()
-            )
+            .capsuleBadge(color, weight: .bold)
             .alignmentGuide(.firstTextBaseline) { dimensions in
                 dimensions[.bottom] + 2
             }

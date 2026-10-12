@@ -6,11 +6,7 @@ struct UpdateAvailableButton: View {
     var body: some View {
         Button(action: updateModel.checkForUpdates) {
             Text("Update")
-                .font(.system(size: 9, weight: .medium))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .foregroundStyle(.white)
-                .background(.tint, in: Capsule())
+                .capsuleBadge(.tint)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Update available")
