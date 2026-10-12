@@ -110,7 +110,7 @@ private struct QuotaDeadlineLabel: View {
             Text("resets \(quotaTimeRemainingText(until: deadline, now: timeline.date))")
         }
         .foregroundStyle(.secondary)
-        .help(deadline.formatted(date: .complete, time: .shortened))
+        .tooltip(deadline.formatted(date: .complete, time: .shortened))
     }
 }
 

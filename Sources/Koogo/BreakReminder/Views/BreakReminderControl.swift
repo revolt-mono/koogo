@@ -96,10 +96,9 @@ private struct BreakReminderButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(appearance.color)
         .disabled(isBusy)
-        .help(appearance.help)
+        .tooltip(appearance.help)
         .accessibilityLabel(appearance.label)
         .accessibilityValue(status.timeText)
-        .accessibilityHint(appearance.help)
         .accessibilityAction(named: "Restart Timer") {
             perform(.restart)
         }

@@ -83,3 +83,25 @@ private struct PointerTracker: NSViewRepresentable {
         }
     }
 }
+
+extension View {
+    /// Like `help`, through an AppKit tooltip rect. SwiftUI's `help` resolves its tooltip by hit-testing the whole window on every mouse move; a tooltip rect only tracks entry and exit.
+    func tooltip(_ text: String) -> some View {
+        background(ToolTipRect(text: text).allowsHitTesting(false))
+            .accessibilityHint(text)
+    }
+}
+
+private struct ToolTipRect: NSViewRepresentable {
+    let text: String
+
+    func makeNSView(context _: Context) -> NSView {
+        let view = NSView()
+        view.toolTip = text
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context _: Context) {
+        view.toolTip = text
+    }
+}

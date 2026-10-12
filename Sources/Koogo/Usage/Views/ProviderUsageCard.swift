@@ -78,7 +78,7 @@ private struct ProviderUsageModelsView: View {
                     VStack(spacing: rowSpacing) {
                         ForEach(models) { model in
                             ProviderUsageRow(title: model.modelName, usage: model.usage)
-                                .help(model.modelName)
+                                .tooltip(model.modelName)
                                 .frame(height: rowHeight)
                         }
                     }
