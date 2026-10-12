@@ -103,7 +103,7 @@ private struct TodoRow: View {
                 }
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, isEditing ? 4 : 10)
         .contextMenu {
             Button("Edit") {
                 isEditing = true

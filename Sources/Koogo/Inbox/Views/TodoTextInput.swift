@@ -2,17 +2,22 @@ import AppKit
 import SwiftUI
 
 struct TodoTextInput: NSViewRepresentable {
-    static let font = NSFont.systemFont(ofSize: 11, weight: .medium)
+    static let font: NSFont = {
+        let base = NSFont.systemFont(ofSize: 11, weight: .medium)
+        return base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: base.pointSize) } ?? base
+    }()
     static let textInset = NSSize(width: 5, height: 6)
+    static let maxHeight: CGFloat = 56
 
     enum Mode {
         case composing
-        case editing(onBlur: () -> Void)
+        case editing
     }
 
     @Binding var text: String
     let mode: Mode
     let onSubmit: () -> Void
+    var onCancel: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
@@ -20,9 +25,7 @@ struct TodoTextInput: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let textView = context.coordinator.textView
-        textView.font =
-            Self.font.fontDescriptor.withDesign(.rounded)
-            .flatMap { NSFont(descriptor: $0, size: Self.font.pointSize) } ?? Self.font
+        textView.font = Self.font
         textView.delegate = context.coordinator
         textView.drawsBackground = false
         textView.isRichText = false
@@ -45,14 +48,13 @@ struct TodoTextInput: NSViewRepresentable {
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.documentView = textView
-        context.coordinator.startMonitoringClicks(for: scrollView)
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let textView = context.coordinator.textView
-        context.coordinator.onBlur = if case .editing(let onBlur) = mode { onBlur } else { nil }
         textView.onSubmit = onSubmit
+        textView.onCancel = onCancel
         if textView.string != text {
             textView.string = text
             textView.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
@@ -67,57 +69,29 @@ struct TodoTextInput: NSViewRepresentable {
         }
     }
 
-    static func dismantleNSView(_: NSScrollView, coordinator: Coordinator) {
-        coordinator.onBlur = nil
-        coordinator.stopMonitoringClicks()
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView _: NSScrollView, context: Context) -> CGSize? {
+        let textView = context.coordinator.textView
+        guard case .editing = mode, let width = proposal.width, width > 0,
+            let layoutManager = textView.layoutManager,
+            let container = textView.textContainer
+        else {
+            return nil
+        }
+        container.size.width = width - Self.textInset.width * 2
+        layoutManager.ensureLayout(for: container)
+        let lineHeight = layoutManager.defaultLineHeight(for: Self.font)
+        let textHeight = max(layoutManager.usedRect(for: container).height, lineHeight)
+        return CGSize(width: width, height: min(textHeight + Self.textInset.height * 2, Self.maxHeight))
     }
 
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         private let text: Binding<String>
         fileprivate let textView = TodoTextView()
-        var onBlur: (() -> Void)?
         var didRequestFocus = false
-        private var clickMonitor: Any?
 
         init(text: Binding<String>) {
             self.text = text
-        }
-
-        func startMonitoringClicks(for scrollView: NSScrollView) {
-            clickMonitor = NSEvent.addLocalMonitorForEvents(
-                matching: [.leftMouseUp, .rightMouseUp]
-            ) { [weak scrollView, weak textView] event in
-                guard let scrollView, let textView, let window = scrollView.window,
-                    window.firstResponder === textView
-                else {
-                    return event
-                }
-                let isInside =
-                    event.window === window
-                    && scrollView.bounds.contains(
-                        scrollView.convert(event.locationInWindow, from: nil)
-                    )
-                if !isInside {
-                    Task { [weak scrollView, weak textView] in
-                        guard let textView, let window = scrollView?.window,
-                            window.firstResponder === textView
-                        else {
-                            return
-                        }
-                        window.makeFirstResponder(nil)
-                    }
-                }
-                return event
-            }
-        }
-
-        func stopMonitoringClicks() {
-            guard let clickMonitor else {
-                return
-            }
-            NSEvent.removeMonitor(clickMonitor)
-            self.clickMonitor = nil
         }
 
         func textDidChange(_ notification: Notification) {
@@ -126,15 +100,12 @@ struct TodoTextInput: NSViewRepresentable {
             }
             text.wrappedValue = textView.string
         }
-
-        func textDidEndEditing(_: Notification) {
-            onBlur?()
-        }
     }
 }
 
 private final class TodoTextView: NSTextView {
     var onSubmit: () -> Void = {}
+    var onCancel: () -> Void = {}
 
     init() {
         let textStorage = NSTextStorage()
@@ -154,18 +125,22 @@ private final class TodoTextView: NSTextView {
         let modifiers = event.modifierFlags.intersection([
             .shift, .control, .option, .command,
         ])
-        guard !hasMarkedText(), event.keyCode == 36 || event.keyCode == 76 else {
+        guard !hasMarkedText() else {
             super.keyDown(with: event)
             return
         }
 
-        switch modifiers {
-        case .shift:
+        // TextKit finishes dispatching a key event after keyDown returns, so callbacks wait a turn.
+        switch (event.keyCode, modifiers) {
+        case (36, .shift), (76, .shift):
             insertNewlineIgnoringFieldEditor(nil)
-        case []:
-            // TextKit finishes dispatching this key event after keyDown returns.
+        case (36, []), (76, []):
             Task { [onSubmit] in
                 onSubmit()
+            }
+        case (53, []):
+            Task { [onCancel] in
+                onCancel()
             }
         default:
             super.keyDown(with: event)

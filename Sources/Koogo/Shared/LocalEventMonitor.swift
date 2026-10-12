@@ -1,6 +1,30 @@
 import AppKit
 import SwiftUI
 
+extension NSEvent {
+    @MainActor
+    func isInside(_ view: NSView) -> Bool {
+        guard let window = view.window, self.window === window, !view.isHiddenOrHasHiddenAncestor else {
+            return false
+        }
+        return view.bounds.intersection(view.visibleRect).contains(view.convert(locationInWindow, from: nil))
+    }
+}
+
+extension View {
+    func onMouseDownOutside(perform action: @escaping @MainActor (NSView) -> Void) -> some View {
+        background {
+            LocalEventMonitor(events: [.leftMouseDown, .rightMouseDown]) { event, view in
+                if !event.isInside(view) {
+                    action(view)
+                }
+                return event
+            }
+            .allowsHitTesting(false)
+        }
+    }
+}
+
 struct LocalEventMonitor: NSViewRepresentable {
     let events: NSEvent.EventTypeMask
     let handler: @MainActor (NSEvent, NSView) -> NSEvent?

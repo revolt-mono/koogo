@@ -10,10 +10,10 @@ struct TodoEditor: View {
         VStack(alignment: .leading, spacing: 8) {
             TodoTextInput(text: $text, mode: .composing, onSubmit: submit)
                 .frame(maxWidth: .infinity)
-                .frame(height: 56)
+                .frame(height: TodoTextInput.maxHeight)
                 .overlay(alignment: .topLeading) {
                     Text("Add a todo…")
-                        .font(Font(TodoTextInput.font as CTFont))
+                        .font(Font(TodoTextInput.font))
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, TodoTextInput.textInset.width)
                         .padding(.vertical, TodoTextInput.textInset.height)
@@ -33,6 +33,7 @@ struct TodoEditor: View {
         }
         .padding(12)
         .background(.panelRaised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onMouseDownOutside { $0.window?.makeFirstResponder(nil) }
     }
 
     private var todoText: TodoText? {
@@ -68,16 +69,20 @@ struct TodoInlineEditor: View {
         HStack(spacing: 8) {
             TodoTextInput(
                 text: $draft,
-                mode: .editing(onBlur: { onFinish(.discarded) }),
-                onSubmit: submit
+                mode: .editing,
+                onSubmit: submit,
+                onCancel: { onFinish(.discarded) }
             )
             .frame(maxWidth: .infinity)
-            .frame(height: 40)
 
             TodoSubmitButton(systemImage: "checkmark", action: submit)
                 .disabled(todoText == nil)
                 .accessibilityLabel("Save todo")
         }
+        .padding(8)
+        .background(.panelRaised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        // Deciding on mouse down keeps a click on the save button from racing the discard.
+        .onMouseDownOutside { _ in onFinish(.discarded) }
     }
 
     private var todoText: TodoText? {
@@ -100,9 +105,9 @@ private struct TodoSubmitButton: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 8, weight: .bold))
-                .frame(width: 16, height: 16)
+                .frame(width: 12, height: 16)
         }
         .buttonStyle(.glassProminent)
-        .buttonBorderShape(.circle)
+        .buttonBorderShape(.capsule)
     }
 }

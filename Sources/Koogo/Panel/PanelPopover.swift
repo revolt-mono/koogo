@@ -5,10 +5,7 @@ extension NSEvent {
     /// A multi-click on the view counts as a fresh single click, so each press toggles its popover.
     @MainActor
     func independentClick(in view: NSView) -> NSEvent {
-        guard clickCount > 1, let window = view.window, self.window === window,
-            !view.isHiddenOrHasHiddenAncestor,
-            view.bounds.intersection(view.visibleRect).contains(view.convert(locationInWindow, from: nil))
-        else { return self }
+        guard clickCount > 1, isInside(view) else { return self }
         return NSEvent.mouseEvent(
             with: type,
             location: locationInWindow,
