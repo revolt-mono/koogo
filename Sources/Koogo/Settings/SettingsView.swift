@@ -2,36 +2,56 @@ import AppKit
 import ServiceManagement
 import SwiftUI
 
+enum SettingsTab: String {
+    case general
+    case providers
+    case mouse
+
+    static let storageKey = "settings-tab"
+}
+
 struct SettingsView: View {
     @Environment(UpdateModel.self) private var updateModel
+    @AppStorage(SettingsTab.storageKey) private var tab = SettingsTab.general
 
     var body: some View {
-        Form {
-            Section("Break Reminder") {
-                BreakReminderIntervalPicker()
+        TabView(selection: $tab) {
+            Tab("General", systemImage: "gearshape", value: .general) {
+                SettingsForm {
+                    Section("Break Reminder") {
+                        BreakReminderIntervalPicker()
+                    }
+
+                    Section("System") {
+                        LaunchAtLoginToggle()
+
+                        AccessibilityCheck()
+
+                        LabeledContent("Check for Updates") {
+                            Button("Check Now", action: updateModel.checkForUpdates)
+                        }
+                    }
+                }
             }
 
-            Section("Providers") {
-                ProviderUsageToggles()
+            Tab("Providers", systemImage: "chart.bar.xaxis", value: .providers) {
+                SettingsForm {
+                    Section("Providers") {
+                        ProviderUsageToggles()
+                    }
+
+                    Section("Fetch Quota") {
+                        ProviderQuotaToggles()
+                    }
+                }
             }
 
-            Section("Fetch Quota") {
-                ProviderQuotaToggles()
-            }
-
-            Section("System") {
-                LaunchAtLoginToggle()
-
-                LabeledContent("Check for Updates") {
-                    Button("Check Now", action: updateModel.checkForUpdates)
+            Tab("Mouse", systemImage: "computermouse", value: .mouse) {
+                SettingsForm {
+                    MouseSettingsSections()
                 }
             }
         }
-        .formStyle(.grouped)
-        // The window already fits the form's ideal height; disabling scrolling keeps a sub-point rounding overflow from showing a scroller.
-        .scrollDisabled(true)
-        .frame(width: 440)
-        .fixedSize(horizontal: false, vertical: true)
         .background { SettingsWindowStyle() }
         .onAppear {
             NSApp.setActivationPolicy(.regular)
@@ -40,6 +60,19 @@ struct SettingsView: View {
         .onDisappear {
             NSApp.setActivationPolicy(.accessory)
         }
+    }
+}
+
+/// Every tab shares one size, a little taller than Providers, so switching tabs never resizes the window; longer tabs scroll.
+private struct SettingsForm<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        Form {
+            content
+        }
+        .formStyle(.grouped)
+        .frame(width: 440, height: 462)
     }
 }
 
@@ -55,6 +88,43 @@ private struct SettingsWindowStyle: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             window?.styleMask.remove(.fullSizeContentView)
+        }
+    }
+}
+
+/// Checks Accessibility on demand. A grant briefly replaces the button with a confirmation; a missing grant is left to the system prompt.
+private struct AccessibilityCheck: View {
+    private enum Phase {
+        case ready
+        case confirmedGranted
+    }
+
+    @Environment(MouseModel.self) private var mouse
+    @State private var phase = Phase.ready
+
+    var body: some View {
+        LabeledContent("Accessibility") {
+            Group {
+                if phase == .ready {
+                    Button("Check Now") {
+                        mouse.checkAccessibility()
+                        if mouse.isTrusted {
+                            phase = .confirmedGranted
+                        }
+                    }
+                } else {
+                    Label("Granted", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+            .transition(.blurReplace)
+        }
+        .motionAnimation(.smooth(duration: 0.35), value: phase)
+        .task(id: phase) {
+            guard phase == .confirmedGranted, (try? await Task.sleep(for: .seconds(2))) != nil else {
+                return
+            }
+            phase = .ready
         }
     }
 }

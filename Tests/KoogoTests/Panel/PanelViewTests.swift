@@ -77,6 +77,7 @@ private func panelModels(
         update: UpdateModel(),
         breakReminder: BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults),
         inbox: InboxModel(defaults: defaults),
-        activity: activity
+        activity: activity,
+        mouse: MouseModel(defaults: defaults, isInstalled: { _ in false })
     )
 }

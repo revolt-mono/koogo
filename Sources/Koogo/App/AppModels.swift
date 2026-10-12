@@ -10,6 +10,7 @@ struct AppModels {
     let breakReminder: BreakReminderModel
     let inbox: InboxModel
     let activity: ActivityModel
+    let mouse: MouseModel
 }
 
 extension View {
@@ -22,5 +23,6 @@ extension View {
             .environment(models.breakReminder)
             .environment(models.inbox)
             .environment(models.activity)
+            .environment(models.mouse)
     }
 }

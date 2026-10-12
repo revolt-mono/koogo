@@ -22,12 +22,18 @@
 - benchmark: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift run -c release Koogo --benchmark [home]`
 - rendered memory regression (run alone): `KOOGO_MEMORY_TESTS=1 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test --filter UsageSummaryMemoryTests`
 
+## mouse input
+
+- keep the event tap callback free of allocation, locks, lookups, logging, and async work; `ScrollRewriterTests` counts allocations on that path.
+- pass continuous and phased scrolling through untouched and drop diagonal or zero wheel events; only make that drop policy stricter.
+- add no smoothing, momentum, acceleration, or gesture phases. per-app behavior is the user's line-by-line app list, seeded from installed terminals.
+
 ## observability
 
 - verify pipeline behavior with `report` rather than screenshots; its json covers log roots, ingestion counts, the usage snapshot, and typed quota outcomes.
 - measure pipeline changes with `benchmark` on the same logs and day: compare retired instructions, which stay stable across runs, and memory across repeated release runs without allocation tracing. the digest stays fixed unless the snapshot is meant to change.
 - dropped input stays out of the ui: known-kind lines with unusable fields count in `malformedLines`, events with an unpriced model or billed option list their model in `unpricedModels`, and both log telemetry warnings.
-- stream telemetry (subsystem `com.revolt.koogo`, categories `app`, `usage`, `quota`, `activity`) with `script/build_and_run.sh telemetry`.
+- stream telemetry (subsystem `com.revolt.koogo`, categories `app`, `usage`, `quota`, `activity`, `mouse`) with `script/build_and_run.sh telemetry`.
 
 ## repo structure
 
@@ -50,6 +56,7 @@
 │   │   └── Views
 │   ├── QuickActions       appearance, disk image, and orphaned agent actions
 │   ├── Activity           cpu, memory, gpu, and process load
+│   ├── Mouse              wheel step and button remapping through an event tap
 │   ├── BreakReminder      break countdown and notifications
 │   ├── Inbox              todos
 │   ├── Update             sparkle updates

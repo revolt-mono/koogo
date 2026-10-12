@@ -13,6 +13,8 @@ struct KoogoApp: App {
         let updateModel = UpdateModel()
         updateModel.start()
         let sampler = ActivitySampler()
+        let mouse = MouseModel()
+        mouse.start()
         _models = State(
             initialValue: AppModels(
                 preferences: preferences,
@@ -22,7 +24,8 @@ struct KoogoApp: App {
                 update: updateModel,
                 breakReminder: BreakReminderModel(notifications: BreakReminderNotificationCenter()),
                 inbox: InboxModel(),
-                activity: ActivityModel { try await sampler.sample() }
+                activity: ActivityModel { try await sampler.sample() },
+                mouse: mouse
             )
         )
     }

@@ -55,6 +55,8 @@ private struct PanelToolbar: View {
 
             Spacer()
 
+            MouseIssueButton()
+
             if updateModel.showsUpdateIndicator {
                 UpdateAvailableButton()
             }
