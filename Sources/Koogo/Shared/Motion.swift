@@ -28,10 +28,16 @@ private struct MotionAnimation<Value: Equatable>: ViewModifier {
     }
 }
 
+/// Rests while scrolled off screen, so a page waiting out of view costs no frames.
 private struct LoadingShimmer: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isOnScreen = true
 
     func body(content: Content) -> some View {
-        content.shimmering(active: !reduceMotion)
+        content
+            .shimmering(active: !reduceMotion && isOnScreen)
+            .onScrollVisibilityChange(threshold: 0.1) { isVisible in
+                isOnScreen = isVisible
+            }
     }
 }

@@ -14,65 +14,65 @@ enum PanelPage: Int, CaseIterable {
         }
     }
 
-    func stepped(_ step: PageStep) -> PanelPage? {
-        PanelPage(rawValue: rawValue + (step == .forward ? 1 : -1))
+    func stepped(by step: Int) -> PanelPage? {
+        PanelPage(rawValue: rawValue + step)
     }
 }
 
-/// Shows one page at a time, so a page's work runs only while it is on screen. The usage page, shown first, sets the height and the others fill it, so a switch never resizes the window.
+/// A paging scroll across the pages, so a swipe moves the pages with the fingers and the system snaps them; a wheel click or a dot steps a whole page. The pages are built once up front and stay, so a swipe never builds or lays out a page. The usage page sets the height and the others fill it, so a switch never resizes the window.
 struct PanelPager: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let maxHeight: CGFloat
 
-    @State private var shown = PanelPage.usage
-    @State private var lastStep = PageStep.forward
-    @State private var steps = PageStepRecognizer()
-    /// A returning usage page measures a short first pass before it settles, so the pager follows its height only outside a slide.
+    @State private var shown: PanelPage? = .usage
     @State private var usageHeight: CGFloat = 0
-    @State private var pageHeight: CGFloat = 0
-    @State private var isSliding = false
+    @State private var slide = PageSlide()
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Group {
-                switch shown {
-                case .usage:
-                    UsagePage(maxHeight: maxHeight)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.height.rounded()
-                        } action: { height in
-                            usageHeight = height
-                            if !isSliding { pageHeight = height }
+        ScrollView(.horizontal) {
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(PanelPage.allCases, id: \.self) { page in
+                    Group {
+                        switch page {
+                        case .usage:
+                            UsagePage(maxHeight: maxHeight)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .onGeometryChange(for: CGFloat.self) { proxy in
+                                    proxy.size.height.rounded()
+                                } action: { height in
+                                    usageHeight = height
+                                }
+                        case .activity:
+                            ActivityPage(isShown: shown == .activity)
+                        case .inbox:
+                            InboxPage()
                         }
-                case .activity:
-                    ActivityPage()
-                case .inbox:
-                    InboxPage()
+                    }
+                    .containerRelativeFrame(.horizontal)
                 }
             }
-            .transition(
-                .asymmetric(insertion: .move(edge: lastStep.entryEdge), removal: .move(edge: lastStep.exitEdge))
-            )
+            .scrollTargetLayout()
+            .background { PageSlideAnchor(slide: slide) }
         }
-        .frame(height: min(pageHeight, maxHeight))
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $shown)
+        .scrollIndicators(.never, axes: .horizontal)
+        .frame(height: min(usageHeight, maxHeight))
         .overlay(alignment: .bottom) {
             PanelPageIndicator(shown: shown, onSelect: show)
                 .padding(.bottom, 6)
         }
         .background {
             LocalEventMonitor(events: .scrollWheel) { event, view in
-                guard let window = view.window, event.window === window, let scroll = PageScroll(event) else {
-                    return event
-                }
-                switch steps.receive(scroll) {
+                guard let window = view.window, event.window === window else { return event }
+                switch WheelPaging(event) {
                 case .step(let step):
-                    if let page = shown.stepped(step) { show(page) }
+                    if let page = shown?.stepped(by: step) { show(page) }
                     return nil
-                case .consumed:
+                case .drop:
                     return nil
-                case .ignored:
+                case .pass:
                     return event
                 }
             }
@@ -80,27 +80,48 @@ struct PanelPager: View {
         }
     }
 
+    /// The model jumps with animations off, or SwiftUI scrolls there on its own alongside the slide and costs twice the frames.
     private func show(_ page: PanelPage) {
-        guard page != shown else { return }
-        lastStep = page.rawValue > shown.rawValue ? .forward : .backward
-        isSliding = true
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+        var jump = Transaction()
+        jump.disablesAnimations = true
+        withTransaction(jump) {
             shown = page
-        } completion: {
-            guard shown == page else { return }
-            isSliding = false
-            pageHeight = usageHeight
+        }
+        if !reduceMotion {
+            slide.run(to: page)
         }
     }
 }
 
-extension PageStep {
-    fileprivate var entryEdge: Edge { self == .forward ? .trailing : .leading }
-    fileprivate var exitEdge: Edge { self == .forward ? .leading : .trailing }
+/// Slides the clip view on the render server while the model jumps to the target page. A SwiftUI animation re-lays out every page on each frame it moves; this costs the main thread one update.
+@MainActor
+private final class PageSlide {
+    weak var anchor: NSView?
+
+    func run(to page: PanelPage) {
+        guard let clip = anchor?.enclosingScrollView?.contentView, let layer = clip.layer else { return }
+        let slide = CASpringAnimation(perceptualDuration: 0.3, bounce: 0)
+        slide.keyPath = "bounds.origin.x"
+        slide.fromValue = (layer.presentation() ?? layer).bounds.origin.x
+        slide.toValue = CGFloat(page.rawValue) * clip.bounds.width
+        layer.add(slide, forKey: "slide")
+    }
+}
+
+private struct PageSlideAnchor: NSViewRepresentable {
+    let slide: PageSlide
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        slide.anchor = view
+        return view
+    }
+
+    func updateNSView(_: NSView, context: Context) {}
 }
 
 private struct PanelPageIndicator: View {
-    let shown: PanelPage
+    let shown: PanelPage?
     let onSelect: (PanelPage) -> Void
 
     var body: some View {

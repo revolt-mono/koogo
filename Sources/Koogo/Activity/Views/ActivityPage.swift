@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Samples while the page shows; leaving it ends the task, so nothing runs in the background.
+/// Samples while shown; leaving the page ends the task, so nothing runs in the background.
 struct ActivityPage: View {
     @Environment(ActivityModel.self) private var activityModel
+
+    let isShown: Bool
 
     var body: some View {
         PanelPageContent(activityModel.latest, loading: "Sampling…") { sample in
@@ -29,7 +31,8 @@ struct ActivityPage: View {
             .panelPageScroll()
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .task {
+        .task(id: isShown) {
+            guard isShown else { return }
             await activityModel.monitor()
         }
     }
