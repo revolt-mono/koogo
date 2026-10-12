@@ -132,17 +132,6 @@ struct JSONObjectReader {
 struct JSONValue {
     let bytes: UnsafeRawBufferPointer
 
-    init?(object line: UnsafeRawBufferPointer) {
-        guard JSONObjectReader(line) != nil else {
-            return nil
-        }
-        bytes = line
-    }
-
-    init(bytes: UnsafeRawBufferPointer) {
-        self.bytes = bytes
-    }
-
     static func ~= (literal: StaticString, value: Self) -> Bool {
         value.isString(literal)
     }
@@ -259,5 +248,14 @@ struct JSONValue {
             return nil
         }
         return UnsafeRawBufferPointer(rebasing: bytes[1..<bytes.count - 1])
+    }
+}
+
+extension JSONValue {
+    init?(object line: UnsafeRawBufferPointer) {
+        guard JSONObjectReader(line) != nil else {
+            return nil
+        }
+        bytes = line
     }
 }
