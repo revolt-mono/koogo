@@ -93,7 +93,6 @@ private struct UsageCostChangeCapsule: View {
 
         AnimatedNumericText(text: prefix + percentage)
             .monospacedDigit()
-            .lineLimit(1)
             .minimumScaleFactor(0.5)
             .capsuleBadge(color, weight: .bold)
             .alignmentGuide(.firstTextBaseline) { dimensions in

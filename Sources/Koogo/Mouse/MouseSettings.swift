@@ -19,11 +19,10 @@ struct MouseSettings: Codable, Equatable {
     var direction = ScrollDirection.standard
     var isOptionPrecisionEnabled = false
     /// Bundle identifiers of apps where a notch scrolls one line, in the order the user added them.
-    private(set) var lineByLineApps: [String] = []
+    private(set) var lineByLineApps: [String]
     var isLookUpEnabled = true
 
-    init(isEnabled: Bool = false, lineByLineApps: [String] = []) {
-        self.isEnabled = isEnabled
+    init(lineByLineApps: [String] = []) {
         self.lineByLineApps = lineByLineApps
     }
 

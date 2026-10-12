@@ -60,7 +60,6 @@ struct GrokSessionLog: TrackedLog {
         }
         if history == nil {
             history = AppendOnlyFile(historyPath)
-            efforts = GrokChatHistory()
         } else if history?.observe(metadata) != true {
             return false
         }

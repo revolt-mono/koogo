@@ -94,10 +94,7 @@ struct TodoTextInput: NSViewRepresentable {
             self.text = text
         }
 
-        func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else {
-                return
-            }
+        func textDidChange(_: Notification) {
             text.wrappedValue = textView.string
         }
     }

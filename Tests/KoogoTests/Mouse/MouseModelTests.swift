@@ -39,7 +39,9 @@ final class MouseModelTests: XCTestCase {
 
     func testEnabledSettingsWaitForAccessibilityBeforeTheFirstRefresh() throws {
         let defaults = try makeIsolatedDefaults()
-        PersistedValue<MouseSettings>(key: "mouse-settings", defaults: defaults).save(MouseSettings(isEnabled: true))
+        var settings = MouseSettings()
+        settings.isEnabled = true
+        PersistedValue<MouseSettings>(key: "mouse-settings", defaults: defaults).save(settings)
 
         XCTAssertEqual(MouseModel(defaults: defaults).status, .needsAccessibility)
     }
