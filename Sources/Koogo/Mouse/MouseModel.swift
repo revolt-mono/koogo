@@ -34,10 +34,9 @@ final class MouseModel {
                 return
             }
             storage.save(settings)
+            applyRules()
             if settings.isEnabled, !oldValue.isEnabled, !isTrusted {
-                checkAccessibility()
-            } else {
-                applyRules()
+                AccessibilityPermission.request()
             }
         }
     }
@@ -77,12 +76,6 @@ final class MouseModel {
         }
         isTrusted = AccessibilityPermission.isTrusted
         frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        applyRules()
-    }
-
-    /// Checks Accessibility at the user's request, letting macOS prompt when it's missing, and reinstalls a stopped tap.
-    func checkAccessibility() {
-        isTrusted = AccessibilityPermission.request()
         applyRules()
     }
 

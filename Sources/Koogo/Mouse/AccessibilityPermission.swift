@@ -11,9 +11,9 @@ enum AccessibilityPermission {
         DistributedNotificationCenter.default().notifications(named: Notification.Name("com.apple.accessibility.api"))
     }
 
-    /// Prompts the user when trust is missing and returns the trust at the time of the call.
-    static func request() -> Bool {
+    /// Prompts the user when trust is missing; a grant arrives through `changes`.
+    static func request() {
         let prompt = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        return AXIsProcessTrustedWithOptions([prompt: true] as CFDictionary)
+        _ = AXIsProcessTrustedWithOptions([prompt: true] as CFDictionary)
     }
 }
