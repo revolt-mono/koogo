@@ -20,37 +20,6 @@ extension NSEvent {
     }
 }
 
-private struct PanelPopover<PopoverContent: View>: ViewModifier {
-    @Binding var isPresented: Bool
-    let popoverContent: () -> PopoverContent
-
-    func body(content: Content) -> some View {
-        content
-            .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
-            .background {
-                LocalEventMonitor(events: [.leftMouseDown, .leftMouseUp]) { event, view in
-                    event.independentClick(in: view)
-                }
-                .allowsHitTesting(false)
-            }
-            .popover(isPresented: $isPresented, arrowEdge: .trailing) {
-                popoverContent()
-                    .font(.system(size: 11, weight: .medium))
-                    .frame(width: 264)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(16)
-            }
-            .onScrollVisibilityChange(threshold: 0.1) { isVisible in
-                if !isVisible {
-                    isPresented = false
-                }
-            }
-            .onDisappear {
-                isPresented = false
-            }
-    }
-}
-
 struct PanelDisclosure<Label: View, Content: View>: View {
     @State private var isPresented = false
 
@@ -77,15 +46,27 @@ struct PanelDisclosure<Label: View, Content: View>: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .panelPopover(isPresented: $isPresented, content: content)
-    }
-}
-
-extension View {
-    func panelPopover<PopoverContent: View>(
-        isPresented: Binding<Bool>,
-        @ViewBuilder content: @escaping () -> PopoverContent
-    ) -> some View {
-        modifier(PanelPopover(isPresented: isPresented, popoverContent: content))
+        .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
+        .background {
+            LocalEventMonitor(events: [.leftMouseDown, .leftMouseUp]) { event, view in
+                event.independentClick(in: view)
+            }
+            .allowsHitTesting(false)
+        }
+        .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+            content()
+                .font(.system(size: 11, weight: .medium))
+                .frame(width: 264)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(16)
+        }
+        .onScrollVisibilityChange(threshold: 0.1) { isVisible in
+            if !isVisible {
+                isPresented = false
+            }
+        }
+        .onDisappear {
+            isPresented = false
+        }
     }
 }
