@@ -13,8 +13,8 @@ struct MouseSettingsSections: View {
         Group {
             Section("Scrolling") {
                 Picker("Wheel Step", selection: $mouse.settings.wheelStep) {
-                    Text("Slow, 2 Lines").tag(WheelStep.slow)
-                    Text("Medium, 3 Lines").tag(WheelStep.medium)
+                    Text("Slow").tag(WheelStep.slow)
+                    Text("Default").tag(WheelStep.default)
                 }
 
                 Picker("Direction", selection: $mouse.settings.direction) {

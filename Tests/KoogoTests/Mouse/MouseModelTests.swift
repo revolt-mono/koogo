@@ -17,7 +17,7 @@ final class MouseModelTests: XCTestCase {
         let defaults = try makeIsolatedDefaults()
         let mouse = MouseModel(defaults: defaults, isInstalled: { _ in true })
 
-        mouse.settings.wheelStep = .medium
+        mouse.settings.wheelStep = .slow
         mouse.settings.direction = .natural
         mouse.settings.isLookUpEnabled = false
         mouse.settings.removeLineByLineApp("com.apple.Terminal")

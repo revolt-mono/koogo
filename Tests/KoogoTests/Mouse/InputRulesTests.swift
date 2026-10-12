@@ -32,7 +32,7 @@ final class InputRulesTests: XCTestCase {
         let left = WheelNotch(axis: .horizontal, direction: .negative)
 
         XCTAssertEqual(rules(.slow, .natural).step(for: upward, isOptionHeld: false), step(.vertical, 2))
-        XCTAssertEqual(rules(.medium, .natural).step(for: left, isOptionHeld: false), step(.horizontal, -3))
+        XCTAssertEqual(rules(.default, .natural).step(for: left, isOptionHeld: false), step(.horizontal, -3))
         XCTAssertEqual(rules(.slow, .standard).step(for: upward, isOptionHeld: false), step(.vertical, -2))
     }
 
@@ -40,23 +40,23 @@ final class InputRulesTests: XCTestCase {
         let down = WheelNotch(axis: .vertical, direction: .negative)
 
         XCTAssertEqual(
-            rules(.medium, .natural, .standard).step(for: down, isOptionHeld: true),
+            rules(.default, .natural, .standard).step(for: down, isOptionHeld: true),
             step(.vertical, -3)
         )
         XCTAssertEqual(
-            rules(.medium, .natural, .optionPrecision).step(for: down, isOptionHeld: false),
+            rules(.default, .natural, .optionPrecision).step(for: down, isOptionHeld: false),
             step(.vertical, -3)
         )
         XCTAssertEqual(
-            rules(.medium, .natural, .optionPrecision).step(for: down, isOptionHeld: true),
+            rules(.default, .natural, .optionPrecision).step(for: down, isOptionHeld: true),
             step(.vertical, -1, stripsOption: true)
         )
         XCTAssertEqual(
-            rules(.medium, .natural, .lineByLine).step(for: down, isOptionHeld: false),
+            rules(.default, .natural, .lineByLine).step(for: down, isOptionHeld: false),
             step(.vertical, -1)
         )
         XCTAssertEqual(
-            rules(.medium, .natural, .lineByLine).step(for: down, isOptionHeld: true),
+            rules(.default, .natural, .lineByLine).step(for: down, isOptionHeld: true),
             step(.vertical, -3, stripsOption: true)
         )
     }

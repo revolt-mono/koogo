@@ -9,7 +9,7 @@ struct LineByLineAppList: View {
     @State private var isChoosingApps = false
 
     var body: some View {
-        Text("Each notch scrolls one line in these apps. Hold Option for the wheel step.")
+        Text("Each notch scrolls one line in these apps.")
             .foregroundStyle(.secondary)
 
         List(mouse.settings.lineByLineApps, id: \.self, selection: $selection) { bundleID in

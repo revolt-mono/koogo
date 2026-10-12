@@ -19,7 +19,7 @@ final class EventTapTests: XCTestCase {
                 .getIntegerValueField(.scrollWheelEventDeltaAxis1)
         }.value
 
-        XCTAssertEqual(delivered, -2)
+        XCTAssertEqual(delivered, -3)
         withExtendedLifetime(tap) {}
     }
 }

@@ -17,15 +17,15 @@ final class ScrollRewriterTests: XCTestCase {
         let inTerminal = try scrollEvent(verticalDelta: 1)
 
         XCTAssertTrue(rewriter.rewrite(vertical, rules: rules).isDeliver)
-        XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis1), -2)
+        XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis1), -3)
         XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis2), 0)
-        XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventFixedPtDeltaAxis1), -2 * 65_536)
-        XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventPointDeltaAxis1), -32)
+        XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventFixedPtDeltaAxis1), -3 * 65_536)
+        XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventPointDeltaAxis1), -48)
 
         XCTAssertTrue(rewriter.rewrite(horizontal, rules: rules).isDeliver)
         XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis1), 0)
-        XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis2), 2)
-        XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventPointDeltaAxis2), 32)
+        XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis2), 3)
+        XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventPointDeltaAxis2), 48)
 
         XCTAssertTrue(rewriter.rewrite(inTerminal, rules: lineByLine).isDeliver)
         XCTAssertEqual(inTerminal.getIntegerValueField(.scrollWheelEventDeltaAxis1), -1)

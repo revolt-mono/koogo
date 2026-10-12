@@ -15,7 +15,7 @@ struct MouseSettings: Codable, Equatable {
     ]
 
     var isEnabled = false
-    var wheelStep = WheelStep.slow
+    var wheelStep = WheelStep.default
     var direction = ScrollDirection.standard
     var isOptionPrecisionEnabled = false
     /// Bundle identifiers of apps where a notch scrolls one line, in the order the user added them.
@@ -41,12 +41,12 @@ struct MouseSettings: Codable, Equatable {
 
 enum WheelStep: UInt32, Codable, CaseIterable {
     case slow
-    case medium
+    case `default`
 
     var lines: Int32 {
         switch self {
         case .slow: 2
-        case .medium: 3
+        case .default: 3
         }
     }
 }
