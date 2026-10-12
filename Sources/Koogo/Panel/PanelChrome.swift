@@ -2,7 +2,6 @@ import SwiftUI
 
 enum PanelLayout {
     static let inset: CGFloat = 20
-    /// Between sections, and the depth of a scroll edge fade.
     static let gap: CGFloat = 12
     /// Room for the page indicator.
     static let bottomInset: CGFloat = 32

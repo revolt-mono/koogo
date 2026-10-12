@@ -35,7 +35,6 @@ struct InboxPage: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
-                .padding(.horizontal, PanelLayout.inset)
             }
             .panelPageScroll()
         }

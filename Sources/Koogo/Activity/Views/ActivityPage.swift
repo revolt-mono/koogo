@@ -26,7 +26,6 @@ struct ActivityPage: View {
 
                     AppProcessList(groups: sample.processes, sampledAt: sample.taken)
                 }
-                .padding(.horizontal, PanelLayout.inset)
             }
             .panelPageScroll()
         }

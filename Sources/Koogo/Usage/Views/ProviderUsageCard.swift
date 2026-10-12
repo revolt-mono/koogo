@@ -71,8 +71,6 @@ private struct ProviderUsageModelsView: View {
                 let contentHeight = CGFloat(models.count) * (rowHeight + rowSpacing) - rowSpacing
                 let visibleHeight = min(contentHeight, 256)
                 let scrolls = contentHeight > visibleHeight
-                let edgeFade: CGFloat = scrolls ? 12 : 0
-                let scrollerInset: CGFloat = scrolls ? 16 : 0
 
                 ScrollView {
                     VStack(spacing: rowSpacing) {
@@ -83,8 +81,7 @@ private struct ProviderUsageModelsView: View {
                         }
                     }
                 }
-                .contentMargins(.trailing, scrollerInset, for: .scrollContent)
-                .panelScroll(edgeFade: edgeFade, scrollerInset: scrollerInset)
+                .panelScroll(fadeDepth: 32, scrollerInset: scrolls ? 16 : 0)
                 .frame(height: visibleHeight)
             }
         }

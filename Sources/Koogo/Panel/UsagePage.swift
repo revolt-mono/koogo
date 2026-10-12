@@ -2,7 +2,7 @@ import SwiftUI
 
 struct UsagePage: View {
     private static let headerGap: CGFloat = 20
-    /// The cards scroll's top edge fade carries part of the gap above it.
+    /// The cards scroll's top margin carries part of the gap above it.
     private static let cardsGap = headerGap - PanelLayout.gap
 
     @Environment(ProviderPreferences.self) private var preferences
@@ -68,7 +68,6 @@ private struct ProviderCards: View {
                     }
                 }
             }
-            .padding(.horizontal, PanelLayout.inset)
             .motionAnimation(.smooth(duration: 0.25), value: quotaModel.statuses)
         }
         .panelPageScroll()
