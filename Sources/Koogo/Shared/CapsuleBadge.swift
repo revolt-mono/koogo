@@ -1,7 +1,6 @@
 import SwiftUI
 
 extension View {
-    /// The panel's badge: a small white label on a filled capsule.
     func capsuleBadge(_ fill: some ShapeStyle, weight: Font.Weight = .medium) -> some View {
         font(.system(size: 9, weight: weight))
             .foregroundStyle(.white)

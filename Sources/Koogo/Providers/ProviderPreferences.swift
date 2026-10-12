@@ -1,7 +1,6 @@
 import Foundation
 import Observation
 
-/// The user's provider choices: display order, which providers show usage, and which fetch quota.
 @MainActor
 @Observable
 final class ProviderPreferences {
