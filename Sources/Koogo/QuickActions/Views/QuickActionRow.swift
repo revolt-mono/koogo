@@ -27,9 +27,7 @@ struct QuickActionRow<Targets: Sendable>: View {
                     case .scanning, .performing:
                         ProgressView()
                             .controlSize(.small)
-                    case .scanFailed, .performFailed:
-                        Image(systemName: "exclamationmark.triangle")
-                    case .idle, .ready:
+                    case .idle, .ready, .scanFailed, .performFailed:
                         Image(systemName: systemImage)
                     }
                 }
