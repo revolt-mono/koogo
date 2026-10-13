@@ -17,7 +17,8 @@ struct PanelSection<Header: View, Content: View>: View {
                 .padding(.horizontal, 6)
 
             content()
-                .panelCard()
+                .padding(12)
+                .background(Color.black.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 }
@@ -47,13 +48,6 @@ struct PanelSectionTitle: View {
                     .lineLimit(1)
             }
         }
-    }
-}
-
-extension View {
-    func panelCard() -> some View {
-        padding(12)
-            .background(Color.black.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 @MainActor
-protocol BreakReminderNotifications: AnyObject {
+protocol BreakReminderNotifications {
     func schedule(after duration: TimeInterval) async throws(BreakReminderIssue)
     func hasPendingReminder() async -> Bool
     func cancel()
