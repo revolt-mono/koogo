@@ -81,7 +81,7 @@ private struct ProviderUsageModelsView: View {
                         }
                     }
                 }
-                .panelScroll(fadeDepth: 32, scrollerInset: scrolls ? 16 : 0)
+                .panelScroll(scrollerInset: scrolls ? 16 : 0)
                 .frame(height: visibleHeight)
             }
         }
