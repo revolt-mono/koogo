@@ -2,13 +2,12 @@ import Darwin
 import IOKit
 import Metal
 
-/// The accelerator's utilization and the system memory it holds, from the IOAccelerator performance statistics. Rendering and tiling are the two stages apple gpus report separately.
-struct GPULoad: Equatable, Sendable {
+/// The accelerator's utilization from the IOAccelerator performance statistics. Rendering and tiling are the two stages apple gpus report separately.
+struct GPULoad: Sendable {
     let name: String
     let utilization: Double
     let renderer: Double
     let tiler: Double
-    let memory: UInt64
 
     /// The default device's registry id names its IOAccelerator entry, so a second gpu's statistics never wear its name.
     private static let device = MTLCreateSystemDefaultDevice().map { (name: $0.name, registryID: $0.registryID) }
@@ -24,16 +23,14 @@ struct GPULoad: Equatable, Sendable {
                 let statistics = property(accelerator, "PerformanceStatistics") as? [String: Any],
                 let utilization = statistics["Device Utilization %"] as? Double,
                 let renderer = statistics["Renderer Utilization %"] as? Double,
-                let tiler = statistics["Tiler Utilization %"] as? Double,
-                let memory = statistics["In use system memory"] as? UInt64
+                let tiler = statistics["Tiler Utilization %"] as? Double
             else { return }
             let fraction = { (percent: Double) in min(max(percent / 100, 0), 1) }
             load = GPULoad(
                 name: name,
                 utilization: fraction(utilization),
                 renderer: fraction(renderer),
-                tiler: fraction(tiler),
-                memory: memory
+                tiler: fraction(tiler)
             )
         }
         return load

@@ -1,6 +1,6 @@
 import Foundation
 
-struct Measure: Equatable {
+struct Measure {
     let value: String
     let unit: String
     let text: String

@@ -2,7 +2,7 @@ import Observation
 import os
 
 /// One metric over the recent samples, oldest first, as fractions of its scale.
-struct ActivityTrend: Equatable {
+struct ActivityTrend {
     let values: [Double]
 }
 

@@ -1,6 +1,6 @@
 import IOKit
 
-struct BatteryState: Equatable, Sendable {
+struct BatteryState: Sendable {
     /// Estimates are absent until the charger or load settles.
     enum Supply: Equatable, Sendable {
         case charging(timeToFull: Duration?)

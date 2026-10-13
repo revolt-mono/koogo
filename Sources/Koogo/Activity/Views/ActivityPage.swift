@@ -10,7 +10,7 @@ struct ActivityPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: PanelLayout.gap) {
                     HStack(alignment: .top, spacing: PanelLayout.gap) {
-                        CPUSection(load: sample.cpu, trend: activityModel.cpuTrend)
+                        CPUSection(load: sample.cpu, cores: sample.cores, trend: activityModel.cpuTrend)
 
                         if let gpu = sample.gpu {
                             GPUSection(load: gpu, trend: activityModel.gpuTrend)
@@ -38,14 +38,15 @@ struct ActivityPage: View {
 
 private struct CPUSection: View {
     let load: CPULoad
+    let cores: CPUCores
     let trend: ActivityTrend
 
     var body: some View {
         ActivityLoadTile(
             title: "CPU",
-            subtitle: load.cores.efficiency > 0
-                ? "\(load.cores.performance)P · \(load.cores.efficiency)E"
-                : "\(load.cores.performance) cores",
+            subtitle: cores.efficiency > 0
+                ? "\(cores.performance)P · \(cores.efficiency)E"
+                : "\(cores.performance) cores",
             headline: Measure(fraction: load.total),
             details: [
                 "User": Measure(fraction: load.user).text,

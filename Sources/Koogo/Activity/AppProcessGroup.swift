@@ -3,7 +3,7 @@ import Darwin
 import os
 
 /// One running process of the current user and the process macOS holds responsible for it. Cpu and gpu time accumulate since launch, so only their differences between two scans are loads.
-struct ProcessRecord: Equatable, Sendable {
+struct ProcessRecord: Sendable {
     let pid: pid_t
     let responsiblePID: pid_t
     let executablePath: String
@@ -14,12 +14,12 @@ struct ProcessRecord: Equatable, Sendable {
 }
 
 /// Timed on the suspending clock, which pauses in sleep like the mach absolute time rusage stamps launches with.
-struct ProcessScan: Equatable, Sendable {
+struct ProcessScan: Sendable {
     let records: [ProcessRecord]
     let taken: SuspendingClock.Instant
 }
 
-struct AppIdentity: Equatable, Sendable {
+struct AppIdentity: Sendable {
     let name: String
     let iconPath: String
 
@@ -46,7 +46,7 @@ struct AppIdentity: Equatable, Sendable {
 }
 
 /// The processes one app is responsible for, summed the way activity monitor groups them.
-struct AppProcessGroup: Identifiable, Equatable, Sendable {
+struct AppProcessGroup: Identifiable, Sendable {
     /// The responsible process, which stays put while helpers come and go.
     let id: pid_t
     let name: String

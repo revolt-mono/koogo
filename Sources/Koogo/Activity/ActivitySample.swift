@@ -13,28 +13,14 @@ struct ActivityCounters: Sendable {
     }
 }
 
-struct ActivitySample: Equatable, Sendable {
+struct ActivitySample: Sendable {
     let taken: SuspendingClock.Instant
     let cpu: CPULoad
+    let cores: CPUCores
     let memory: MemoryUsage
     let gpu: GPULoad?
     let battery: BatteryState?
     let processes: [AppProcessGroup]
-}
-
-extension ActivitySample {
-    init(from previous: ActivityCounters, to current: ActivityCounters) throws {
-        taken = current.processes.taken
-        cpu = CPULoad(from: previous.ticks, to: current.ticks, cores: try CPUCores.read())
-        memory = try MemoryUsage.read()
-        gpu = GPULoad.read()
-        battery = BatteryState.read()
-        processes = AppProcessGroup.heaviest(
-            in: current.processes,
-            since: previous.processes,
-            identity: AppIdentity.running
-        )
-    }
 }
 
 actor ActivitySampler {
@@ -53,6 +39,18 @@ actor ActivitySampler {
         }
         let current = try ActivityCounters.read()
         counters = current
-        return try ActivitySample(from: previous, to: current)
+        return ActivitySample(
+            taken: current.processes.taken,
+            cpu: CPULoad(from: previous.ticks, to: current.ticks),
+            cores: try CPUCores.read(),
+            memory: try MemoryUsage.read(),
+            gpu: GPULoad.read(),
+            battery: BatteryState.read(),
+            processes: AppProcessGroup.heaviest(
+                in: current.processes,
+                since: previous.processes,
+                identity: AppIdentity.running
+            )
+        )
     }
 }

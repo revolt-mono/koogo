@@ -1,7 +1,7 @@
 import Darwin
 
 /// Physical memory split the way activity monitor shows it: app memory is internal pages less purgeable ones.
-struct MemoryUsage: Equatable, Sendable {
+struct MemoryUsage: Sendable {
     let total: UInt64
     let app: UInt64
     let wired: UInt64

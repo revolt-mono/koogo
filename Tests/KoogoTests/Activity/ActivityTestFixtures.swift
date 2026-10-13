@@ -11,11 +11,11 @@ func activitySample(
         taken: .now,
         cpu: CPULoad(
             from: CPUTicks(user: 0, system: 0, idle: 0),
-            to: CPUTicks(user: busy, system: 0, idle: 100 - busy),
-            cores: CPUCores(performance: 8, efficiency: 4)
+            to: CPUTicks(user: busy, system: 0, idle: 100 - busy)
         ),
+        cores: CPUCores(performance: 8, efficiency: 4),
         memory: MemoryUsage(total: 64 << 30, app: memoryUsed, wired: 0, compressed: 0),
-        gpu: gpu.map { GPULoad(name: "Test GPU", utilization: $0, renderer: $0, tiler: 0, memory: 1 << 30) },
+        gpu: gpu.map { GPULoad(name: "Test GPU", utilization: $0, renderer: $0, tiler: 0) },
         battery: draw.flatMap { batteryState(draw: $0) },
         processes: []
     )
