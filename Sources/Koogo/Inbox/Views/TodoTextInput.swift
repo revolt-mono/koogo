@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 
 struct TodoTextInput: NSViewRepresentable {
@@ -119,23 +120,21 @@ private final class TodoTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
-        let modifiers = event.modifierFlags.intersection([
-            .shift, .control, .option, .command,
-        ])
         guard !hasMarkedText() else {
             super.keyDown(with: event)
             return
         }
 
         // TextKit finishes dispatching a key event after keyDown returns, so callbacks wait a turn.
+        let modifiers = event.modifierFlags.intersection([.shift, .control, .option, .command])
         switch (event.keyCode, modifiers) {
-        case (36, .shift), (76, .shift):
+        case (UInt16(kVK_Return), .shift), (UInt16(kVK_ANSI_KeypadEnter), .shift):
             insertNewlineIgnoringFieldEditor(nil)
-        case (36, []), (76, []):
+        case (UInt16(kVK_Return), []), (UInt16(kVK_ANSI_KeypadEnter), []):
             Task { [onSubmit] in
                 onSubmit()
             }
-        case (53, []):
+        case (UInt16(kVK_Escape), []):
             Task { [onCancel] in
                 onCancel()
             }

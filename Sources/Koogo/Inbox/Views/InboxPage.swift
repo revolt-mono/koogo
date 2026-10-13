@@ -29,7 +29,9 @@ struct InboxPage: View {
                 LazyVStack(spacing: 0) {
                     ForEach(inboxModel.todos) { todo in
                         if todo.id != inboxModel.todos.first?.id {
-                            DashedDivider()
+                            DashedLine()
+                                .stroke(.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                                .frame(height: 1)
                         }
                         TodoRow(todo: todo)
                     }
@@ -42,15 +44,7 @@ struct InboxPage: View {
     }
 }
 
-private struct DashedDivider: View {
-    var body: some View {
-        HorizontalLine()
-            .stroke(.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-            .frame(height: 1)
-    }
-}
-
-private struct HorizontalLine: Shape {
+private struct DashedLine: Shape {
     nonisolated func path(in rect: CGRect) -> Path {
         Path { path in
             path.move(to: CGPoint(x: rect.minX, y: rect.midY))

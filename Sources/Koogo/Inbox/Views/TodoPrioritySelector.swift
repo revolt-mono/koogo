@@ -43,9 +43,9 @@ struct TodoPrioritySelector: View {
         case .rightArrow, .downArrow:
             destination = selection.cycled(by: 1)
         case .home:
-            destination = .backlog
+            destination = TodoPriority.allCases.first!
         case .end:
-            destination = .urgent
+            destination = TodoPriority.allCases.last!
         default:
             return .ignored
         }
