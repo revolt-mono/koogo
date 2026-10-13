@@ -8,7 +8,6 @@ enum FileRead {
     case unreadable
 }
 
-/// Receives the complete lines of one file in order.
 protocol LineConsumer {
     /// The file no longer continues the bytes consumed so far; drop everything derived from them.
     mutating func restart()
@@ -51,7 +50,6 @@ struct AppendOnlyFile: Sendable {
         return observed.size > metadata.size
     }
 
-    /// Hands every complete line not yet consumed to the consumer, restarting it first when the file no longer continues the bytes read so far.
     mutating func read(into consumer: inout some LineConsumer) -> FileRead {
         guard let file = try? FileDescriptor.open(FilePath(path), .readOnly) else {
             return .unreadable

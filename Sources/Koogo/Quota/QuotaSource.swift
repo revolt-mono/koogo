@@ -1,4 +1,3 @@
-/// One provider's tool, asked for the account's limits. A source never throws: every failure is a reading.
 protocol QuotaSource: Sendable {
     func load() async -> QuotaReading
 }

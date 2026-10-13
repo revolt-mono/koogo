@@ -13,7 +13,6 @@ struct GPULoad: Equatable, Sendable {
     /// The default device's registry id names its IOAccelerator entry, so a second gpu's statistics never wear its name.
     private static let device = MTLCreateSystemDefaultDevice().map { (name: $0.name, registryID: $0.registryID) }
 
-    /// Nil when the machine exposes no accelerator statistics, which only means the gpu goes unshown.
     static func read() -> GPULoad? {
         guard let (name, registryID) = device else { return nil }
         var load: GPULoad?

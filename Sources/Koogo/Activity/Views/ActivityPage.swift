@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Samples while shown; leaving the page ends the task, so nothing runs in the background.
 struct ActivityPage: View {
     @Environment(ActivityModel.self) private var activityModel
 

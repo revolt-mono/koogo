@@ -2,7 +2,6 @@ enum QuotaUnavailability: String, Error, Encodable, Sendable {
     case binaryNotFound
     case timedOut
     case sessionFailed
-    /// The tool answered without limits to show.
     case emptyLimits
     /// The tool decided locally that plan limits do not apply to the login, such as an API key.
     case noPlan

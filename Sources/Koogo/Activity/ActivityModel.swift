@@ -7,7 +7,6 @@ struct ActivityTrend: Equatable {
 }
 
 extension ActivityTrend {
-    /// Readings without a natural ceiling scaled so the highest one reaches the top.
     init(scalingToPeak readings: [Double]) {
         let peak = readings.max() ?? 0
         self.init(values: peak > 0 ? readings.map { $0 / peak } : readings)
@@ -38,7 +37,6 @@ final class ActivityModel {
         self.sample = sample
     }
 
-    /// Samples every interval until the task is cancelled. A failed sample logs and leaves the last one in place.
     func monitor() async {
         while !Task.isCancelled {
             do {

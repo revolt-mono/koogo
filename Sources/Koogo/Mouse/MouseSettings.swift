@@ -1,4 +1,3 @@
-/// The user's mouse choices, persisted as one value.
 struct MouseSettings: Codable, Equatable {
     /// Bundle identifiers of terminals, whose scrollback reads best a line at a time. Those installed seed the line-by-line apps.
     static let terminalApps = [
@@ -18,7 +17,6 @@ struct MouseSettings: Codable, Equatable {
     var wheelStep = WheelStep.default
     var direction = ScrollDirection.standard
     var isOptionPrecisionEnabled = false
-    /// Bundle identifiers of apps where a notch scrolls one line, in the order the user added them.
     private(set) var lineByLineApps: [String]
     var isLookUpEnabled = true
 

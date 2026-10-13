@@ -4,7 +4,6 @@ enum ActivityReadFailure: Error {
     case processes
 }
 
-/// Counters that only accumulate: cpu ticks since boot and each process's cpu and gpu time. Two readings a moment apart yield that moment's loads.
 struct ActivityCounters: Sendable {
     let ticks: CPUTicks
     let processes: ProcessScan
@@ -14,7 +13,6 @@ struct ActivityCounters: Sendable {
     }
 }
 
-/// One moment of the machine. The gpu is absent only when the machine exposes no accelerator statistics, the battery only when there is none.
 struct ActivitySample: Equatable, Sendable {
     let taken: SuspendingClock.Instant
     let cpu: CPULoad
@@ -25,7 +23,6 @@ struct ActivitySample: Equatable, Sendable {
 }
 
 extension ActivitySample {
-    /// Loads over the span between two counter readings, with the memory, gpu, and battery state at its end.
     init(from previous: ActivityCounters, to current: ActivityCounters) throws {
         taken = current.processes.taken
         cpu = CPULoad(from: previous.ticks, to: current.ticks, cores: try CPUCores.read())
@@ -40,7 +37,6 @@ extension ActivitySample {
     }
 }
 
-/// Reads the machine once per call. A call without a recent earlier reading pauses briefly to take both ends of the span.
 actor ActivitySampler {
     /// Counters older than this span a gap between two openings of the panel, not a moment of load.
     private static let countersExpireAfter: Duration = .seconds(10)

@@ -13,14 +13,12 @@ struct BatteryState: Equatable, Sendable {
     let supply: Supply
     /// Watts the system draws. Absent without power telemetry on external power, where the battery's own current says nothing about the system.
     let draw: Double?
-    /// Full capacity over design capacity, capped at one for a fresh cell.
     let health: Double
     let cycles: Int
 
     /// The driver marks an unknown estimate with all ones.
     private static let unknownMinutes = 65535
 
-    /// Nil when the machine has no battery, which only means the battery goes unshown.
     static func read() -> BatteryState? {
         let entry = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard entry != 0 else { return nil }

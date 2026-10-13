@@ -24,7 +24,6 @@ final class CodexQuotaResetModel {
         quota.statuses[.codex].isBusy
     }
 
-    /// A confirmation outlives its credit only until the next reading drops that credit.
     var flow: CodexQuotaResetFlow {
         pending.reconciled { usableCredit(id: $0.id) != nil }
     }

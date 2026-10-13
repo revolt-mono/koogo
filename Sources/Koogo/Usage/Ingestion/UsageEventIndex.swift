@@ -1,6 +1,5 @@
 import Foundation
 
-/// The surviving copy of every request id seen in one log, or across logs.
 struct UsageEventIndex: Sendable {
     private struct Entry: Sendable {
         let id: UsageEventID
@@ -14,7 +13,6 @@ struct UsageEventIndex: Sendable {
             Date(timeIntervalSinceReferenceDate: secondsSinceReferenceDate)
         }
 
-        /// More output or metadata wins, then more tokens, then the earlier copy.
         func isSuperseded(by other: Self) -> Bool {
             let rank = (other.revision, other.processedTokens)
             let storedRank = (revision, processedTokens)
@@ -25,7 +23,6 @@ struct UsageEventIndex: Sendable {
     /// One survivor per id, ordered by id and sized exactly, so a log that stops growing holds no hash table.
     private var sealed: [Entry] = []
     private var pending: [Entry] = []
-    /// Models that entries point into; the first slot stands for none.
     private var models: [ModelID?] = [nil]
 
     init() {}
@@ -58,7 +55,6 @@ struct UsageEventIndex: Sendable {
         return sealed
     }
 
-    /// Queues the event for the next seal unless it predates the window.
     mutating func insert(_ event: UsageEvent, since windowStart: Date) {
         guard event.record.timestamp >= windowStart else {
             return

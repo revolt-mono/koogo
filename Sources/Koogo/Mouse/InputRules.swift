@@ -1,10 +1,6 @@
-/// What the event tap applies to each event: the user's settings resolved against the frontmost app.
 struct InputRules: Equatable {
-    /// What a notch scrolls, and what holding Option changes.
     enum NotchMode: UInt32, CaseIterable {
-        /// The wheel step, with Option passed through.
         case standard
-        /// The wheel step; Option drops to one line and is hidden from the app.
         case optionPrecision
         /// One line; Option raises it to the wheel step and is hidden, so terminals don't read alt-scroll.
         case lineByLine
@@ -52,7 +48,6 @@ extension InputRules {
     }
 }
 
-/// One click of a wheel: exactly one axis moves. Diagonal and zero deltas are no notch.
 struct WheelNotch: Equatable {
     enum Axis: Equatable {
         case vertical
@@ -82,7 +77,6 @@ extension WheelNotch {
 
 struct ScrollStep: Equatable {
     let axis: WheelNotch.Axis
-    /// Signed lines on the notch's axis.
     let lines: Int32
     let stripsOption: Bool
 }

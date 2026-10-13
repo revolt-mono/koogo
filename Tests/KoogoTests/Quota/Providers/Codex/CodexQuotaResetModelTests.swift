@@ -205,7 +205,6 @@ final class CodexQuotaResetModelTests: XCTestCase {
         XCTAssertEqual(source.consumed.withLock { $0 }, [attempt])
     }
 
-    /// A model pair whose first Codex reading has landed.
     @MainActor
     private func loadModels(
         _ source: ScriptedCodexResetSource,

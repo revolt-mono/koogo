@@ -2,7 +2,6 @@ import Darwin
 import Foundation
 import Synchronization
 
-/// Every log under the scanned roots, kept parsed between refreshes.
 struct LogStore {
     private struct Entry: Sendable {
         let provider: Provider
@@ -114,7 +113,6 @@ struct LogStore {
         )
     }
 
-    /// Visits every matching regular file under the root, skipping hidden entries below it.
     private static func walk(_ root: UsageLogRoot, _ body: (String, UsageFileMetadata) -> Void) {
         var paths: [UnsafeMutablePointer<CChar>?] = [strdup(root.url.path), nil]
         defer { free(paths[0]) }

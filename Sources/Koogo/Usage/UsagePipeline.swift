@@ -6,7 +6,6 @@ struct UsageReport: Sendable, Encodable {
     let snapshot: UsageSnapshot
 }
 
-/// Log files to a usage report: discover, read, parse, dedup, aggregate, name.
 actor UsagePipeline {
     private struct LastRun {
         let intervals: UsagePeriodIntervals
@@ -28,7 +27,6 @@ actor UsagePipeline {
         self.calendar = calendar
     }
 
-    /// Summarizes the requested providers whose tool is installed.
     func run(at date: Date, providers requested: [Provider]) -> UsageReport {
         let started = ContinuousClock.now
         let intervals = UsagePeriodIntervals(containing: date, calendar: calendar)

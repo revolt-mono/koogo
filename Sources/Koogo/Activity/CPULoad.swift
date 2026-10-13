@@ -32,7 +32,6 @@ struct CPUCores: Equatable, Sendable {
     }
 }
 
-/// The share of time the cpu spent on user and kernel work between two tick readings.
 struct CPULoad: Equatable, Sendable {
     let user: Double
     let system: Double

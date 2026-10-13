@@ -1,6 +1,5 @@
 import Foundation
 
-/// One admitted log on disk, kept current between refreshes.
 protocol TrackedLog: Sendable {
     var events: UsageEventIndex { get }
     var tally: LogTally { get }

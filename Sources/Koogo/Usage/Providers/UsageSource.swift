@@ -1,6 +1,5 @@
 import Foundation
 
-/// Everything the pipeline needs from one provider's tool: where its logs are, how to read them, and what to call its models. One adapter per provider, registered by `Provider.usageSource`.
 protocol UsageSource: Sendable {
     /// Directories under the tool's home that hold logs.
     var logDirectories: [String] { get }

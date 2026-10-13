@@ -19,7 +19,6 @@ struct ToolStreams {
         _ = try await input.write(data)
     }
 
-    /// Output that ends before `match` accepts a line means the tool closed without replying.
     mutating func first<Value>(_ match: (Data) throws -> Value?) async throws -> Value {
         while let line = try await lines.next() {
             if let value = try match(Data(line.utf8)) {

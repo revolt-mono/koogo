@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Every model the scenes share, injected together so a view cannot run without one.
 struct AppModels {
     let preferences: ProviderPreferences
     let usage: UsageModel

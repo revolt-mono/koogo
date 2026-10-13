@@ -67,7 +67,6 @@ struct UsageSnapshotBuilder {
         }
     }
 
-    /// Names each model through its provider's source; a model the source does not know shows its id.
     func snapshot(sources: EnumMap<Provider, any UsageSource>) -> UsageSnapshot {
         var providers: [Provider: ProviderUsageSnapshot] = [:]
         for case (let provider, let accumulator?) in accumulators.entries {

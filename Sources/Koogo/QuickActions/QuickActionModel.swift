@@ -25,7 +25,6 @@ final class QuickActionModel<Targets: Sendable> {
         self.action = action
     }
 
-    /// What a click does now: run a ready action, rescan after a failure, or nothing.
     var activate: (@MainActor () -> Void)? {
         switch phase {
         case .ready: perform

@@ -2,7 +2,6 @@ import CryptoKit
 import Foundation
 import os
 
-/// Display names from Pi's model store and the user's custom model file.
 struct PiModelCatalog: Sendable {
     private struct StoredModel: Decodable {
         let id: String
@@ -73,7 +72,6 @@ struct PiModelCatalog: Sendable {
         return true
     }
 
-    /// The catalog name, or the bare model id for models the catalog does not list.
     func name(of model: ModelID) -> String? {
         names[model] ?? model.rawValue.split(separator: "/", maxSplits: 1).last.map(String.init)
     }

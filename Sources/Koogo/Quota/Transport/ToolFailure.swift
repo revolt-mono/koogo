@@ -1,6 +1,4 @@
-/// Why a tool session gave no answer. Every transport error is one of these, so a caller classifies failures once.
 enum ToolFailure: Error, Equatable, Sendable {
-    /// No candidate path holds an executable.
     case notFound
     case timedOut
     case cancelled

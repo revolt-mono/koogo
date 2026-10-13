@@ -75,7 +75,6 @@ func makeQuotaModel(
     QuotaModel(sources: QuotaSources(codex: codex, claude: claude, grok: grok), now: now)
 }
 
-/// Waits for the process whose pid a script wrote to the marker to exit.
 func waitForExit(
     pidIn marker: URL,
     file: StaticString = #filePath,
@@ -86,7 +85,6 @@ func waitForExit(
     try await waitUntil(timeout: .seconds(3), file: file, line: line) { kill(pid, 0) == -1 && errno == ESRCH }
 }
 
-/// A directory for one scripted tool. The prologue records how the tool was launched: its arguments and working directory.
 struct ScriptedToolWorkspace {
     let root: URL
 

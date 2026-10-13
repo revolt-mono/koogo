@@ -2,7 +2,6 @@ import Foundation
 import Observation
 import os
 
-/// Where a provider's quota stands between reads.
 enum QuotaStatus: Equatable, Sendable {
     case unread
     case reading(last: QuotaReading?)
@@ -55,7 +54,6 @@ final class QuotaModel {
         }
     }
 
-    /// Reads each provider regardless of the cooldown, never doubling a read in flight.
     func reload(_ providers: some Sequence<QuotaProvider>) {
         for provider in providers {
             let source = sources[provider]

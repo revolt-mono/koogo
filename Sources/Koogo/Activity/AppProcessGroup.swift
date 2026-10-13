@@ -19,10 +19,8 @@ struct ProcessScan: Equatable, Sendable {
     let taken: SuspendingClock.Instant
 }
 
-/// How a group presents itself: launch services' name and bundle for an app, else what its executable path says.
 struct AppIdentity: Equatable, Sendable {
     let name: String
-    /// An app bundle or a bare executable; both yield an icon.
     let iconPath: String
 
     init(executablePath: String) {
@@ -61,7 +59,6 @@ struct AppProcessGroup: Identifiable, Equatable, Sendable {
     /// Share of the span the gpu spent on the group's work.
     let gpu: Double
 
-    /// Force quits an app with its helpers; any other group gets every member killed, and one already gone is no failure. The next sample shows what remains.
     func forceTerminate() {
         if NSRunningApplication(processIdentifier: id)?.forceTerminate() == true { return }
         for pid in members where Darwin.kill(pid, SIGKILL) != 0 && errno != ESRCH {
@@ -117,7 +114,6 @@ extension ProcessScan {
     }()
     private static let absoluteTimeZero = SuspendingClock.now - duration(ofTicks: mach_absolute_time())
 
-    /// Every process of the current user that still answers; ones exiting mid-scan are skipped.
     static func read() throws -> ProcessScan {
         guard let pids = LibProc.pids(ownedBy: getuid()) else { throw ActivityReadFailure.processes }
         let taken = SuspendingClock.now

@@ -21,7 +21,6 @@ func activitySample(
     )
 }
 
-/// A charging battery; `properties` overrides keys at the top level.
 func batteryState(draw: Double = 10, properties: [String: Any] = [:]) -> BatteryState? {
     BatteryState(properties: batteryProperties(draw: draw).merging(properties) { _, override in override })
 }

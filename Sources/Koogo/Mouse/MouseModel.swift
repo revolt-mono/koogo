@@ -5,7 +5,6 @@ enum MouseStatus: Equatable {
     case off
     case needsAccessibility
     case active
-    /// Trusted and on, yet the event tap couldn't install or has stopped.
     case stopped
 
     init(isEnabled: Bool, isTrusted: Bool, isTapRunning: Bool) {
@@ -19,7 +18,6 @@ enum MouseStatus: Equatable {
     }
 }
 
-/// Remaps mouse input system-wide. Owns the user's settings and keeps the event tap in line with them, Accessibility trust, and the frontmost app.
 @MainActor
 @Observable
 final class MouseModel {

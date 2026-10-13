@@ -19,7 +19,6 @@ protocol CodexQuotaResetSource: QuotaSource {
     func consume(_ attempt: CodexQuotaResetAttempt) async -> CodexQuotaResetResult
 }
 
-/// One send of an attempt. A retry follows an unconfirmed send, which may already have landed.
 enum CodexQuotaResetSubmission: Equatable {
     case first(CodexQuotaResetAttempt)
     case retry(CodexQuotaResetAttempt)
@@ -31,7 +30,6 @@ enum CodexQuotaResetSubmission: Equatable {
     }
 }
 
-/// The steps of spending one banked reset, with the rules for moving between them.
 enum CodexQuotaResetFlow: Equatable {
     case idle
     case confirming(CodexQuotaResetAttempt, rejection: ToolFailure? = nil)
@@ -55,7 +53,6 @@ enum CodexQuotaResetFlow: Equatable {
         }
     }
 
-    /// A confirmation lives only while its credit is usable.
     func reconciled(usable: (QuotaSnapshot.ResetCredit) -> Bool) -> Self {
         if case .confirming(let attempt, _) = self, !usable(attempt.credit) {
             return .idle

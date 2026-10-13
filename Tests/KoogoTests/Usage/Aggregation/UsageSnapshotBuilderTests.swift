@@ -223,7 +223,6 @@ extension UsageSnapshotBuilderTests {
     }
 }
 
-/// A source that names every model alike, so sorting cannot lean on names.
 private struct SameNameUsageSource: UsageSource {
     let logDirectories: [String] = []
     let logFormat = UsageLogFormat(match: .fileExtension(".jsonl")) { _, _ in nil }

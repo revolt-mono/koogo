@@ -1,6 +1,5 @@
 import Foundation
 
-/// A number and its unit, kept apart so a headline can set them in different sizes.
 struct Measure: Equatable {
     let value: String
     let unit: String

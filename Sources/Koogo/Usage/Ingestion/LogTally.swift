@@ -1,6 +1,5 @@
 import Foundation
 
-/// Lines a log dropped: malformed ones by count, unpriced ones by model and latest timestamp.
 struct LogTally: Sendable {
     private(set) var malformedLines = 0
     private var unpricedModels: [ModelID: Date] = [:]
