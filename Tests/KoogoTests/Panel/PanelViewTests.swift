@@ -6,7 +6,7 @@ import XCTest
 
 final class PanelViewTests: XCTestCase {
     @MainActor
-    func testOpeningThePanelRefreshesUsageAndQuotaForEveryShownProviderWithQuotaOnAndSamplesNoActivity() async throws {
+    func testOpeningThePanelRefreshesUsageAndQuotaForEveryShownProviderAndSamplesNoActivity() async throws {
         let workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
         try workspace.write(codexLog(input: 700, output: 300), to: workspace.codexSessions.appending(path: "log.jsonl"))
         let defaults = try makeIsolatedDefaults()
@@ -16,48 +16,39 @@ final class PanelViewTests: XCTestCase {
             return activitySample()
         }
 
-        for disabled: Set<QuotaProvider> in [
-            [], [.codex], [.claude], [.grok], [.claude, .grok], [.codex, .claude, .grok],
-        ] {
-            let preferences = ProviderPreferences(defaults: try makeIsolatedDefaults())
-            for provider in disabled {
-                preferences[quota: provider] = false
-            }
-            preferences[usage: .codex] = false
-            let pipeline = UsagePipeline(home: workspace.root, calendar: usageTestCalendar)
-            let usage = UsageModel(pipeline: pipeline, now: { usageTestTimestamp })
-            let quota = QuotaModel(
-                sources: QuotaSources(
-                    codex: CodexQuotaSource(executableCandidates: []),
-                    claude: ClaudeQuotaSource(executableCandidates: []),
-                    grok: GrokQuotaSource(executableCandidates: [])
+        let preferences = ProviderPreferences(defaults: defaults)
+        preferences[usage: .codex] = false
+        let pipeline = UsagePipeline(home: workspace.root, calendar: usageTestCalendar)
+        let usage = UsageModel(pipeline: pipeline, now: { usageTestTimestamp })
+        let quota = QuotaModel(
+            sources: QuotaSources(
+                codex: CodexQuotaSource(executableCandidates: []),
+                claude: ClaudeQuotaSource(executableCandidates: []),
+                grok: GrokQuotaSource(executableCandidates: [])
+            )
+        )
+        let host = NSHostingView(
+            rootView: PanelView().environment(
+                panelModels(
+                    preferences: preferences,
+                    usage: usage,
+                    quota: quota,
+                    activity: activity,
+                    defaults: defaults
                 )
             )
-            let host = NSHostingView(
-                rootView: PanelView().environment(
-                    panelModels(
-                        preferences: preferences,
-                        usage: usage,
-                        quota: quota,
-                        activity: activity,
-                        defaults: defaults
-                    )
-                )
-            )
-            host.layoutSubtreeIfNeeded()
-            try await waitUntil { usage.snapshot != nil }
-            XCTAssertNil(usage.snapshot?.providers[.codex])
-            XCTAssertEqual(usage.snapshot?.providers[.claude]?.periods[.today].total.processedTokens, 0)
+        )
+        host.layoutSubtreeIfNeeded()
+        try await waitUntil { usage.snapshot != nil }
+        XCTAssertNil(usage.snapshot?.providers[.codex])
+        XCTAssertEqual(usage.snapshot?.providers[.claude]?.periods[.today].total.processedTokens, 0)
 
-            try await waitUntil { QuotaProvider.allCases.allSatisfy { !quota.statuses[$0].isBusy } }
-            for provider in QuotaProvider.allCases {
-                let isShown = provider != .codex && !disabled.contains(provider)
-                let expected: QuotaReading? = isShown ? .unavailable(.binaryNotFound) : nil
-                XCTAssertEqual(quota.statuses[provider].latest, expected, "\(provider)")
-            }
-            XCTAssertEqual(activitySamples.value, 0)
-            withExtendedLifetime(host) {}
-        }
+        try await waitUntil { QuotaProvider.allCases.allSatisfy { !quota.statuses[$0].isBusy } }
+        XCTAssertEqual(quota.statuses[.codex], .unread)
+        XCTAssertEqual(quota.statuses[.claude].latest, .unavailable(.binaryNotFound))
+        XCTAssertEqual(quota.statuses[.grok].latest, .unavailable(.binaryNotFound))
+        XCTAssertEqual(activitySamples.value, 0)
+        withExtendedLifetime(host) {}
     }
 }
 

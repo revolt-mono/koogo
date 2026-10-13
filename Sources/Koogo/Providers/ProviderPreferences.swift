@@ -7,11 +7,10 @@ final class ProviderPreferences {
     private struct Stored: Codable {
         var order: [Provider]
         var usageDisabled: Set<Provider>
-        var quotaDisabled: Set<QuotaProvider>
     }
 
     private let storage: PersistedValue<Stored>
-    /// Disabled sets are stored so a provider added later starts on.
+    /// The disabled set is stored so a provider added later starts on.
     private var stored: Stored {
         didSet { storage.save(stored) }
     }
@@ -37,23 +36,9 @@ final class ProviderPreferences {
         }
     }
 
-    subscript(quota provider: QuotaProvider) -> Bool {
-        get { !stored.quotaDisabled.contains(provider) }
-        set {
-            if newValue {
-                stored.quotaDisabled.remove(provider)
-            } else {
-                stored.quotaDisabled.insert(provider)
-            }
-        }
-    }
-
     /// The quota a provider's usage card shows. Quota renders inside that card, so a provider hidden from usage fetches none.
     func quotaProvider(for provider: Provider) -> QuotaProvider? {
-        guard self[usage: provider], let quota = provider.quota, self[quota: quota] else {
-            return nil
-        }
-        return quota
+        self[usage: provider] ? provider.quota : nil
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -63,8 +48,7 @@ final class ProviderPreferences {
         let storedOrder = (loaded?.order ?? []).filter { seen.insert($0).inserted }
         stored = Stored(
             order: storedOrder + Provider.allCases.filter { !storedOrder.contains($0) },
-            usageDisabled: loaded?.usageDisabled ?? [],
-            quotaDisabled: loaded?.quotaDisabled ?? []
+            usageDisabled: loaded?.usageDisabled ?? []
         )
     }
 

@@ -44,10 +44,6 @@ struct SettingsView: View {
                     Section("Providers") {
                         ProviderUsageToggles()
                     }
-
-                    Section("Fetch Quota") {
-                        ProviderQuotaToggles()
-                    }
                 }
             }
 
@@ -68,7 +64,7 @@ struct SettingsView: View {
     }
 }
 
-/// Every tab shares one size, a little taller than Providers, so switching tabs never resizes the window; longer tabs scroll.
+/// Every tab shares one size so switching tabs never resizes the window; longer tabs scroll.
 private struct SettingsForm<Content: View>: View {
     @ViewBuilder let content: Content
 
@@ -77,7 +73,7 @@ private struct SettingsForm<Content: View>: View {
             content
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 462)
+        .frame(width: 440, height: 500)
     }
 }
 

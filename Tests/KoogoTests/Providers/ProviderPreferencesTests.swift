@@ -25,23 +25,21 @@ final class ProviderPreferencesTests: XCTestCase {
         XCTAssertEqual(ProviderPreferences(defaults: defaults).order, [.grok, .piAgent, .codex, .claude])
     }
 
-    func testSwitchesPersistIndependentlyAndLeaveTheOtherFeatureOn() throws {
+    func testHidingAProviderPersistsAndDropsItsQuota() throws {
         let defaults = try makeIsolatedDefaults()
         let preferences = ProviderPreferences(defaults: defaults)
 
         preferences[usage: .codex] = false
-        preferences[quota: .grok] = false
 
         XCTAssertEqual(preferences.usageProviders, [.claude, .piAgent, .grok])
-        XCTAssertEqual(preferences.quotaProviders, [.claude], "a provider hidden from usage fetches no quota")
-        XCTAssertTrue(preferences[quota: .codex])
+        XCTAssertEqual(preferences.quotaProviders, [.claude, .grok], "a provider hidden from usage fetches no quota")
 
         let relaunched = ProviderPreferences(defaults: defaults)
         XCTAssertEqual(relaunched.usageProviders, [.claude, .piAgent, .grok])
-        XCTAssertEqual(relaunched.quotaProviders, [.claude])
+        XCTAssertEqual(relaunched.quotaProviders, [.claude, .grok])
         relaunched[usage: .codex] = true
         XCTAssertEqual(ProviderPreferences(defaults: defaults).usageProviders, Provider.allCases)
-        XCTAssertEqual(ProviderPreferences(defaults: defaults).quotaProviders, [.codex, .claude])
+        XCTAssertEqual(ProviderPreferences(defaults: defaults).quotaProviders, [.codex, .claude, .grok])
     }
 
     func testUndecodableStorageFallsBackToDefaults() throws {
