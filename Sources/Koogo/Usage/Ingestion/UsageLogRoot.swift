@@ -14,10 +14,10 @@ struct UsageLogFormat: Sendable {
     }
 
     let match: Match
-    let open: @Sendable (_ path: String, _ windowStart: Date) -> (any TrackedLog)?
+    let open: @Sendable (_ path: String, _ observed: UsageFileMetadata, _ windowStart: Date) -> (any TrackedLog)?
 
     static func jsonLines<Parser: UsageLogParser>(_: Parser.Type) -> Self {
-        Self(match: .fileExtension(".jsonl")) { ParsedLog<Parser>($0, since: $1) }
+        Self(match: .fileExtension(".jsonl")) { ParsedLog<Parser>($0, observed: $1, since: $2) }
     }
 }
 

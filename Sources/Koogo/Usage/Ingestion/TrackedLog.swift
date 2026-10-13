@@ -38,7 +38,7 @@ struct ParsedLines<Parser: UsageLogParser>: LineConsumer, Sendable {
             case nil: break
             }
         } catch {
-            tally.countMalformedLines(1)
+            tally.noteMalformedLine()
         }
     }
 
@@ -56,11 +56,8 @@ struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
     var events: UsageEventIndex { lines.events }
     var tally: LogTally { lines.tally }
 
-    init?(_ path: String, since windowStart: Date) {
-        guard let file = AppendOnlyFile(path) else {
-            return nil
-        }
-        self.file = file
+    init?(_ path: String, observed metadata: UsageFileMetadata, since windowStart: Date) {
+        file = AppendOnlyFile(path, observed: metadata)
         lines = ParsedLines(since: windowStart)
         guard lines.read(&self.file) != .unreadable else {
             return nil

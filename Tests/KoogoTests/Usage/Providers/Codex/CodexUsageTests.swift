@@ -129,18 +129,15 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(event.record.processedTokens, 55)
     }
 
-    func testCodexRejectsMalformedContextWindowsWithoutUpdatingBaseline() throws {
-        for contextWindow in ["\"1000\"", "true", "9223372036854775808"] {
+    func testCodexRejectsMalformedOutputTokensWithoutUpdatingBaseline() throws {
+        for outputTokens in ["\"20\"", "true", "18446744073709551616"] {
             var parser = try codexParserInTurn()
             let request = codexUsage(input: 100, output: 20)
             let line = codexTokenCount(last: request, total: request)
 
             XCTAssertThrowsError(
                 try parse(
-                    line.replacingOccurrences(
-                        of: "\"model_context_window\":1000",
-                        with: "\"model_context_window\":\(contextWindow)"
-                    ),
+                    line.replacingOccurrences(of: "\"output_tokens\":20", with: "\"output_tokens\":\(outputTokens)"),
                     with: &parser
                 )
             )
@@ -298,7 +295,6 @@ private func codexTokenUsage(
             cachedInput: cached,
             cacheWrite: cacheWrite,
             output: output,
-            reasoningOutput: 0,
             processed: uncached + cached + cacheWrite + output
         )
     else {

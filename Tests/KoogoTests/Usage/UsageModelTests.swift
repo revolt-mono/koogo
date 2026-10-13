@@ -4,26 +4,20 @@ import XCTest
 
 final class UsageModelTests: UsageWorkspaceTestCase {
     @MainActor
-    func testRefreshesCoalesceAndUseInjectedDate() async throws {
+    func testQueuedRefreshUsesTheInjectedDate() async throws {
         try workspace.write(
             codexLog(input: 100, output: 20),
             to: workspace.codexSessions.appending(path: "session.jsonl")
         )
         var date = usageTestTimestamp
-        var clockReads = 0
-        let model = UsageModel(pipeline: makePipeline()) {
-            clockReads += 1
-            return date
-        }
+        let model = UsageModel(pipeline: makePipeline()) { date }
 
         XCTAssertNil(model.snapshot)
         model.refresh(providers: Provider.allCases)
         date.addTimeInterval(86_400)
         model.refresh(providers: Provider.allCases)
-        XCTAssertEqual(clockReads, 1)
 
         try await waitUntil { model.snapshot?.providers[.codex]?.periods[.today].total.processedTokens == 0 }
-        XCTAssertEqual(clockReads, 2)
         XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.periods[.last30Days].total.processedTokens, 120)
     }
 

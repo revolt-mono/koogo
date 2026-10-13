@@ -225,7 +225,7 @@ extension UsageSnapshotBuilderTests {
 
 private struct SameNameUsageSource: UsageSource {
     let logDirectories: [String] = []
-    let logFormat = UsageLogFormat(match: .fileExtension(".jsonl")) { _, _ in nil }
+    let logFormat = UsageLogFormat(match: .fileExtension(".jsonl")) { _, _, _ in nil }
 
     func modelName(_ model: ModelID) -> String? {
         "Same name"

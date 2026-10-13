@@ -25,8 +25,6 @@ struct UsageEventIndex: Sendable {
     private var pending: [Entry] = []
     private var models: [ModelID?] = [nil]
 
-    init() {}
-
     var values: some Collection<UsageEvent> {
         entries.lazy.map { [models] entry in
             UsageEvent(

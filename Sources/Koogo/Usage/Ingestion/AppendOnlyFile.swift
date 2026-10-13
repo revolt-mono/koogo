@@ -25,14 +25,8 @@ struct AppendOnlyFile: Sendable {
     private var parsedTail = Data()
     private var needsRestart = false
 
-    init?(_ path: String) {
-        guard let file = try? FileDescriptor.open(FilePath(path), .readOnly) else {
-            return nil
-        }
-        defer { try? file.close() }
-        guard let metadata = UsageFileMetadata(fileDescriptor: file.rawValue) else {
-            return nil
-        }
+    /// Starts from a directory walk's view of the file; the first read checks that view against the file itself.
+    init(_ path: String, observed metadata: UsageFileMetadata) {
         self.path = path
         self.metadata = metadata
     }

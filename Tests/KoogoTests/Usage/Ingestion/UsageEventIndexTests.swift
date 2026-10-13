@@ -106,7 +106,7 @@ final class UsageEventIndexTests: XCTestCase {
         tally.noteUnpricedModel("kept", at: windowStart + 1, since: windowStart)
         tally.noteUnpricedModel("kept", at: windowStart, since: windowStart)
         tally.noteUnpricedModel("aging", at: windowStart, since: windowStart)
-        tally.countMalformedLines(1)
+        tally.noteMalformedLine()
 
         tally.discard(before: windowStart + 1)
 

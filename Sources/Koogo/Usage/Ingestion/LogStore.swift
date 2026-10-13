@@ -41,7 +41,7 @@ struct LogStore {
         }
 
         var seenPaths = Set<String>()
-        var newFiles: [(path: String, root: UsageLogRoot)] = []
+        var newFiles: [(path: String, metadata: UsageFileMetadata, root: UsageLogRoot)] = []
         for root in roots {
             Self.walk(root) { path, metadata in
                 guard metadata.modificationDate >= windowStart else {
@@ -51,7 +51,7 @@ struct LogStore {
                 if let fileChanged = entries[path]?.log.sync(observed: metadata) {
                     changed = fileChanged || changed
                 } else {
-                    newFiles.append((path, root))
+                    newFiles.append((path, metadata, root))
                 }
             }
         }
@@ -142,15 +142,15 @@ struct LogStore {
     }
 
     private static func open(
-        _ files: [(path: String, root: UsageLogRoot)],
+        _ files: [(path: String, metadata: UsageFileMetadata, root: UsageLogRoot)],
         since windowStart: Date
     ) -> [String: Entry] {
         let opened = Mutex<[String: Entry]>([:])
         let nextFile = Atomic(0)
         DispatchQueue.concurrentPerform(iterations: min(files.count, 4)) { _ in
             while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
-                let (path, root) = files[index]
-                guard let log = root.format.open(path, windowStart) else {
+                let (path, metadata, root) = files[index]
+                guard let log = root.format.open(path, metadata, windowStart) else {
                     continue
                 }
                 opened.withLock { $0[path] = Entry(provider: root.provider, log: log) }

@@ -101,10 +101,9 @@ private struct CodexTokenCount {
         guard kind != nil, let info = info?.nonNull else {
             return nil
         }
-        let (last, total, _) = try info.fields(
+        let (last, total) = try info.fields(
             JSONField("last_token_usage", CodexTokenUsage.init(_:)),
-            JSONField("total_token_usage", CodexTokenUsage.init(_:)),
-            .int64("model_context_window")
+            JSONField("total_token_usage", CodexTokenUsage.init(_:))
         )
         guard let last, let total else {
             throw MalformedUsageRecord()
@@ -121,17 +120,8 @@ struct CodexTokenUsage: Equatable, Sendable {
     let output: UInt64
     let processed: UInt64
 
-    init?(
-        input: UInt64,
-        cachedInput: UInt64,
-        cacheWrite: UInt64,
-        output: UInt64,
-        reasoningOutput: UInt64,
-        processed: UInt64
-    ) {
-        guard let cachedAndWritten = cachedInput.checkedAdding(cacheWrite), cachedAndWritten <= input,
-            reasoningOutput <= output
-        else {
+    init?(input: UInt64, cachedInput: UInt64, cacheWrite: UInt64, output: UInt64, processed: UInt64) {
+        guard let cachedAndWritten = cachedInput.checkedAdding(cacheWrite), cachedAndWritten <= input else {
             return nil
         }
         self.input = input
@@ -146,21 +136,19 @@ struct CodexTokenUsage: Equatable, Sendable {
     }
 
     fileprivate init(_ value: JSONValue) throws {
-        let (input, cachedInput, cacheWrite, output, reasoningOutput, processed) = try value.fields(
+        let (input, cachedInput, cacheWrite, output, processed) = try value.fields(
             .uint64("input_tokens"),
             .uint64("cached_input_tokens"),
             .uint64("cache_write_input_tokens"),
             .uint64("output_tokens"),
-            .uint64("reasoning_output_tokens"),
             .uint64("total_tokens")
         )
-        guard let input, let cachedInput, let output, let reasoningOutput, let processed,
+        guard let input, let cachedInput, let output, let processed,
             let usage = CodexTokenUsage(
                 input: input,
                 cachedInput: cachedInput,
                 cacheWrite: cacheWrite ?? 0,
                 output: output,
-                reasoningOutput: reasoningOutput,
                 processed: processed
             )
         else {

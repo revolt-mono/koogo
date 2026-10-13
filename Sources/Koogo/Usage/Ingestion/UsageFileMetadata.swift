@@ -11,14 +11,6 @@ struct UsageFileMetadata: Sendable {
     let size: UInt64
     let modificationDate: Date
 
-    init?(path: String) {
-        var status = Darwin.stat()
-        guard fstatat(AT_FDCWD, path, &status, 0) == 0 else {
-            return nil
-        }
-        self.init(status: status)
-    }
-
     init?(fileDescriptor: Int32) {
         var status = Darwin.stat()
         guard Darwin.fstat(fileDescriptor, &status) == 0 else {

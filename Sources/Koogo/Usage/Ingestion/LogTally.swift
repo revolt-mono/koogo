@@ -8,8 +8,8 @@ struct LogTally: Sendable {
         unpricedModels.keys
     }
 
-    mutating func countMalformedLines(_ count: Int) {
-        malformedLines += count
+    mutating func noteMalformedLine() {
+        malformedLines += 1
     }
 
     mutating func noteUnpricedModel(_ id: ModelID, at timestamp: Date, since windowStart: Date) {

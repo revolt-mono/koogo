@@ -38,12 +38,6 @@ extension JSONField where Value == UInt64 {
     }
 }
 
-extension JSONField where Value == Int64 {
-    static func int64(_ key: StaticString) -> Self {
-        Self(key) { try $0.integer() }
-    }
-}
-
 extension JSONField where Value == Decimal {
     static func decimal(_ key: StaticString) -> Self {
         Self(key) { try $0.decimal() }
@@ -109,23 +103,6 @@ extension JSONValue {
         return (
             try slots[0].flatMap(first.decode), try slots[1].flatMap(second.decode), try slots[2].flatMap(third.decode),
             try slots[3].flatMap(fourth.decode), try slots[4].flatMap(fifth.decode), try slots[5].flatMap(sixth.decode)
-        )
-    }
-
-    func fields<A, B, C, D, E, F, G>(
-        _ first: JSONField<A>,
-        _ second: JSONField<B>,
-        _ third: JSONField<C>,
-        _ fourth: JSONField<D>,
-        _ fifth: JSONField<E>,
-        _ sixth: JSONField<F>,
-        _ seventh: JSONField<G>
-    ) throws -> (A?, B?, C?, D?, E?, F?, G?) {
-        let slots = try slots(for: [first.key, second.key, third.key, fourth.key, fifth.key, sixth.key, seventh.key])
-        return (
-            try slots[0].flatMap(first.decode), try slots[1].flatMap(second.decode), try slots[2].flatMap(third.decode),
-            try slots[3].flatMap(fourth.decode), try slots[4].flatMap(fifth.decode), try slots[5].flatMap(sixth.decode),
-            try slots[6].flatMap(seventh.decode)
         )
     }
 
