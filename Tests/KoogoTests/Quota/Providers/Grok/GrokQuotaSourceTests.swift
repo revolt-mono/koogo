@@ -102,9 +102,15 @@ final class GrokQuotaSourceTests: XCTestCase {
         }
     }
 
-    func testBillingErrorsAndUnusableFieldsFailTheSession() async throws {
+    func testARefusedBillingReadMeansNoPlanWhileOtherErrorsAndUnusableFieldsFailTheSession() async throws {
+        let refused = #"{"id":2,"error":{"code":-32000,"message":"Authentication required"}}"#
+        let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
+        let executable = try workspace.makeAgent(billingResponse: refused)
+        let result = await GrokQuotaSource(executableCandidates: [executable]).load()
+        XCTAssertEqual(result, .unavailable(.noPlan))
+
         let responses = [
-            #"{"id":2,"error":{"code":-32000,"message":"Authentication required"}}"#,
+            #"{"id":2,"error":{"code":-32603,"message":"Internal error"}}"#,
             GrokQuotaTestWorkspace.response(config: #"{"creditUsagePercent":"invalid"}"#),
             GrokQuotaTestWorkspace.response(config: #"{"currentPeriod":{"end":"invalid"}}"#),
         ]
@@ -119,6 +125,7 @@ final class GrokQuotaSourceTests: XCTestCase {
     func testInitializationMustSucceedBeforeBilling() async throws {
         let responses = [
             #"{"id":1,"error":{"code":-32603}}"#,
+            #"{"id":1,"error":{"code":-32000,"message":"Authentication refresh failed"}}"#,
             #"{"id":1,"result":{"protocolVersion":2}}"#,
             #"{"id":1,"result":{}}"#,
         ]

@@ -148,6 +148,30 @@ final class CodexQuotaSourceTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.emptyLimits))
     }
 
+    func testARefusedReadMeansNoPlanWhileOtherErrorsFailTheSession() async throws {
+        let cases: [(Int, QuotaReading)] = [(-32600, .unavailable(.noPlan)), (-32603, .unavailable(.sessionFailed))]
+        for (code, expected) in cases {
+            let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+            let executable = try workspace.makeAppServer(
+                quotaResponse: #"{"id":2,"error":{"code":\#(code),"message":"chatgpt authentication required"}}"#
+            )
+            let result = await CodexQuotaSource(executableCandidates: [executable]).load()
+            XCTAssertEqual(result, expected, "\(code)")
+        }
+    }
+
+    func testARefusedHandshakeFailsTheSession() async throws {
+        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+        let executable = try makeTestExecutable(
+            in: workspace.root,
+            script: "#!/bin/sh\nIFS= read -r initialize\nprintf '%s\\n' '{\"id\":1,\"error\":{\"code\":-32600}}'\n"
+        )
+
+        let result = await CodexQuotaSource(executableCandidates: [executable]).load()
+
+        XCTAssertEqual(result, .unavailable(.sessionFailed))
+    }
+
     func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let executable = try makeTestExecutable(

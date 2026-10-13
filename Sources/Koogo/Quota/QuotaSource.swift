@@ -4,10 +4,9 @@ protocol QuotaSource: Sendable {
 }
 
 extension QuotaReading {
-    /// A tool that answers without limits reads as `emptyLimits`; a tool that fails reads as its classified reason.
-    init(_ read: () async throws(ToolFailure) -> QuotaSnapshot?) async {
+    init(_ read: () async throws(ToolFailure) -> QuotaReading) async {
         do {
-            self = try await read().map(Self.available) ?? .unavailable(.emptyLimits)
+            self = try await read()
         } catch {
             self = .unavailable(QuotaUnavailability(error))
         }

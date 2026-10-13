@@ -10,6 +10,7 @@ struct KoogoApp: App {
         let usageModel = UsageModel(pipeline: UsagePipeline())
         usageModel.refresh(providers: preferences.usageProviders)
         let quotaModel = QuotaModel()
+        quotaModel.refresh(preferences.quotaProviders)
         let updateModel = UpdateModel()
         updateModel.start()
         let sampler = ActivitySampler()

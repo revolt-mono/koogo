@@ -34,7 +34,7 @@ struct ClaudeQuotaSource: QuotaSource {
                 let reply = try await streams.first {
                     try Self.decoder.decode(ClaudeControlResponse.self, from: $0).reply
                 }
-                return reply.snapshot
+                return reply.reading
             }
         }
     }

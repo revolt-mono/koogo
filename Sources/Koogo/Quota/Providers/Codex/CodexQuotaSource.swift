@@ -21,8 +21,10 @@ struct CodexQuotaSource: CodexQuotaResetSource {
         await QuotaReading { () throws(ToolFailure) in
             do throws(CodexAppServer.CallError) {
                 let response: CodexQuotaResponse = try await appServer.call("account/rateLimits/read")
-                return response.snapshot
+                return QuotaReading(response.snapshot)
             } catch {
+                // The server rejects the request before any network call unless the login is a ChatGPT account.
+                if error == .unconfirmed(.rpc(code: -32600)) { return .unavailable(.noPlan) }
                 throw error.failure
             }
         }

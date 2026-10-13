@@ -19,13 +19,16 @@ struct ClaudeQuotaResponse: Decodable {
         let modelScoped: [Window]?
     }
 
-    /// Null for API-key sessions and while the usage endpoint cannot be reached.
+    /// False when plan limits do not apply to the login, such as an API key, Bedrock, or Vertex. The CLI decides this locally, so it holds offline.
+    let rateLimitsAvailable: Bool
+    /// Null while the usage endpoint cannot be reached.
     let rateLimits: RateLimits?
-    /// The claude.ai plan in lowercase, such as `pro`, `max`, `team`, or `enterprise`; null for API-key sessions.
+    /// The claude.ai plan in lowercase, such as `pro`, `max`, `team`, or `enterprise`.
     let subscriptionType: String?
 
-    var snapshot: QuotaSnapshot? {
-        guard let rateLimits else { return nil }
+    var reading: QuotaReading {
+        guard rateLimitsAvailable else { return .unavailable(.noPlan) }
+        guard let rateLimits else { return .unavailable(.emptyLimits) }
         let account = [
             rateLimits.fiveHour?.quotaWindow("Session"),
             rateLimits.sevenDay?.quotaWindow("Weekly"),
@@ -37,9 +40,11 @@ struct ClaudeQuotaResponse: Decodable {
             else { continue }
             named[name] = window
         }
-        return QuotaSnapshot(
-            plan: subscriptionType.map(\.capitalized),
-            windows: account + named.sorted { $0.key < $1.key }.map(\.value)
+        return QuotaReading(
+            QuotaSnapshot(
+                plan: subscriptionType.map(\.capitalized),
+                windows: account + named.sorted { $0.key < $1.key }.map(\.value)
+            )
         )
     }
 }

@@ -41,8 +41,15 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         XCTAssertEqual(request["request"] as? NSDictionary, ["subtype": "get_usage", "skip_behaviors": true])
     }
 
-    func testEmptyLimitsAreDistinctFromInvalidOrUnansweredOutput() async throws {
+    func testEmptyLimitsAreDistinctFromNoPlanAndFromInvalidOrUnansweredOutput() async throws {
         let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
+        for limits in ["null", ClaudeQuotaTestWorkspace.limits] {
+            let executable = try workspace.makeCLI(
+                output: ClaudeQuotaTestWorkspace.response(rateLimits: limits, available: false)
+            )
+            let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
+            XCTAssertEqual(result, .unavailable(.noPlan), limits)
+        }
         for limits in [
             "null", "{}",
             #"{"five_hour":{"utilization":null,"resets_at":null},"seven_day":null,"model_scoped":[]}"#,
@@ -55,6 +62,10 @@ final class ClaudeQuotaSourceTests: XCTestCase {
             "not json",
             #"{"type":"system","subtype":"init"}"#,
             #"{"type":"control_response","response":{"subtype":"error","request_id":"1","error":"nope"}}"#,
+            ClaudeQuotaTestWorkspace.response(rateLimits: "null").replacingOccurrences(
+                of: #""rate_limits_available":true,"#,
+                with: ""
+            ),
             ClaudeQuotaTestWorkspace.response(
                 rateLimits: #"{"five_hour":{"utilization":5,"resets_at":"not a date"}}"#
             ),

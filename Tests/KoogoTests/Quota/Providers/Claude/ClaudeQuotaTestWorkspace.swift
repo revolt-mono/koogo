@@ -30,11 +30,11 @@ struct ClaudeQuotaTestWorkspace {
         )
     }
 
-    static func response(rateLimits: String = limits) -> String {
+    static func response(rateLimits: String = limits, available: Bool = true) -> String {
         """
         {"type":"system","subtype":"init","session_id":"s"}
         {"type":"control_response","response":{"subtype":"success","request_id":"1",\
-        "response":{"session":{},"subscription_type":"max","rate_limits_available":true,\
+        "response":{"session":{},"subscription_type":"max","rate_limits_available":\(available),\
         "rate_limits":\(rateLimits),"behaviors":null}}}
         """
     }

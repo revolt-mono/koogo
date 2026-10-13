@@ -17,7 +17,7 @@ struct GrokQuotaSource: QuotaSource {
 
     func load() async -> QuotaReading {
         await QuotaReading { () throws(ToolFailure) in
-            let response: GrokQuotaResponse = try await tool.session(
+            try await tool.session(
                 ["--no-auto-update", "agent", "--no-leader", "stdio"],
                 in: URL(filePath: "/tmp", directoryHint: .isDirectory)
             ) { streams in
@@ -27,9 +27,17 @@ struct GrokQuotaSource: QuotaSource {
                     params: InitializeParams()
                 )
                 guard initialized.protocolVersion == 1 else { throw ToolFailure.invalidMessage }
-                return try await connection.request("_x.ai/billing", params: [String: String]())
+                do {
+                    let response: GrokQuotaResponse = try await connection.request(
+                        "_x.ai/billing",
+                        params: [String: String]()
+                    )
+                    return QuotaReading(response.snapshot)
+                } catch ToolFailure.rpc(code: -32000) {
+                    // The billing gate refuses the request before any network call unless the login is an xAI account.
+                    return .unavailable(.noPlan)
+                }
             }
-            return response.snapshot
         }
     }
 }

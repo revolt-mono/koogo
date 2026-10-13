@@ -51,6 +51,27 @@ final class QuotaModelTests: XCTestCase {
     }
 
     @MainActor
+    func testARefusedReadIsNotRetriedOnRefreshButIsOnReload() async throws {
+        let source = ScriptedQuotaSource([.unavailable(.noPlan), .unavailable(.emptyLimits), .available(.stub())])
+        let model = makeQuotaModel(claude: source)
+
+        model.refresh([.claude])
+        try await waitUntil { !model.statuses[.claude].isBusy }
+        model.refresh([.claude])
+        XCTAssertEqual(model.statuses[.claude].latest, .unavailable(.noPlan))
+        XCTAssertFalse(model.statuses[.claude].isBusy)
+        XCTAssertEqual(source.loads.withLock { $0 }, 1)
+
+        model.reload([.claude])
+        try await waitUntil { !model.statuses[.claude].isBusy }
+        XCTAssertEqual(model.statuses[.claude].latest, .unavailable(.emptyLimits))
+
+        model.refresh([.claude])
+        try await waitUntil { !model.statuses[.claude].isBusy }
+        XCTAssertEqual(model.statuses[.claude].latest, .available(.stub()))
+    }
+
+    @MainActor
     func testOnlyTheRequestedProvidersAreRead() async throws {
         let claude = ScriptedQuotaSource([.available(.stub())])
         let grok = ScriptedQuotaSource([])

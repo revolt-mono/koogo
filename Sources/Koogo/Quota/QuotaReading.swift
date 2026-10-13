@@ -2,12 +2,19 @@ enum QuotaUnavailability: String, Error, Encodable, Sendable {
     case binaryNotFound
     case timedOut
     case sessionFailed
+    /// The tool answered without limits to show.
     case emptyLimits
+    /// The tool decided locally that plan limits do not apply to the login, such as an API key.
+    case noPlan
 }
 
 enum QuotaReading: Equatable, Sendable {
     case available(QuotaSnapshot)
     case unavailable(QuotaUnavailability)
+
+    init(_ snapshot: QuotaSnapshot?) {
+        self = snapshot.map(Self.available) ?? .unavailable(.emptyLimits)
+    }
 
     var snapshot: QuotaSnapshot? {
         guard case .available(let snapshot) = self else { return nil }

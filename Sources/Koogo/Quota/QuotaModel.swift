@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import os
 
-/// Where a provider's quota stands between reads. A cooldown exists only after an available reading.
+/// Where a provider's quota stands between reads.
 enum QuotaStatus: Equatable, Sendable {
     case unread
     case reading(last: QuotaReading?)
@@ -19,19 +19,12 @@ enum QuotaStatus: Equatable, Sendable {
     var isBusy: Bool {
         if case .reading = self { true } else { false }
     }
-
-    func isFresh(at now: ContinuousClock.Instant, within cooldown: Duration) -> Bool {
-        guard case .read(.available, let readAt) = self else { return false }
-        return now < readAt + cooldown
-    }
 }
 
 /// The latest reading of every quota provider. One read per provider runs at a time; `read` is the only way in and out of the busy state.
 @MainActor
 @Observable
 final class QuotaModel {
-    private static let cooldown: Duration = .seconds(60)
-
     let sources: QuotaSources
     /// Wall-clock time for deadlines in readings; the cooldown runs on the monotonic clock so a clock step cannot stretch or skip it.
     let now: @MainActor () -> Date
@@ -44,7 +37,22 @@ final class QuotaModel {
     }
 
     func refresh(_ providers: some Sequence<QuotaProvider>) {
-        reload(providers.filter { !statuses[$0].isFresh(at: .now, within: Self.cooldown) })
+        let now = ContinuousClock.now
+        reload(
+            providers.filter { provider in
+                guard case .read(let reading, let readAt) = statuses[provider] else { return true }
+                return now >= readAt + Self.cooldown(after: reading)
+            }
+        )
+    }
+
+    /// Limits go stale after a minute. A login without a plan holds for a day, since only the user changes it. Failures are retried on the next refresh.
+    private static func cooldown(after reading: QuotaReading) -> Duration {
+        switch reading {
+        case .available: .seconds(60)
+        case .unavailable(.noPlan): .seconds(24 * 60 * 60)
+        case .unavailable: .zero
+        }
     }
 
     /// Reads each provider regardless of the cooldown, never doubling a read in flight.
