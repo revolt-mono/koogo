@@ -1,4 +1,5 @@
 @preconcurrency import ApplicationServices
+import os
 
 enum ScrollRewrite {
     /// Deliver the event, rewritten in place when it was a notch.
@@ -115,6 +116,7 @@ private struct OptionStrip {
             let optionReleased = CGEvent(source: source),
             let optionRestored = CGEvent(source: source)
         else {
+            Logger.mouse.error("couldn't build the option-stripped scroll events; option-held notches drop")
             return nil
         }
         optionReleased.type = .flagsChanged

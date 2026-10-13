@@ -6,16 +6,6 @@ enum MouseStatus: Equatable {
     case needsAccessibility
     case active
     case stopped
-
-    init(isEnabled: Bool, isTrusted: Bool, isTapRunning: Bool) {
-        self =
-            switch (isEnabled, isTrusted, isTapRunning) {
-            case (false, _, _): .off
-            case (true, false, _): .needsAccessibility
-            case (true, true, true): .active
-            case (true, true, false): .stopped
-            }
-    }
 }
 
 @MainActor
@@ -40,7 +30,12 @@ final class MouseModel {
     }
 
     var status: MouseStatus {
-        MouseStatus(isEnabled: settings.isEnabled, isTrusted: isTrusted, isTapRunning: tap.isRunning)
+        switch (settings.isEnabled, isTrusted, tap.isRunning) {
+        case (false, _, _): .off
+        case (true, false, _): .needsAccessibility
+        case (true, true, true): .active
+        case (true, true, false): .stopped
+        }
     }
 
     /// Touches neither Accessibility nor the tap until `start()`. Until the user saves settings, the installed terminals stand in as line-by-line apps.

@@ -144,6 +144,7 @@ private struct LookUpShortcut {
             let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: Self.keyCode, keyDown: true),
             let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: Self.keyCode, keyDown: false)
         else {
+            Logger.mouse.error("couldn't build the look up key events; button 4 passes through")
             return nil
         }
         keyDown.flags = [.maskCommand, .maskControl]

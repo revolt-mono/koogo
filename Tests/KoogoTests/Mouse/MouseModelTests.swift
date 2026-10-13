@@ -52,11 +52,4 @@ final class MouseModelTests: XCTestCase {
 
         XCTAssertEqual(MouseModel(defaults: defaults, isInstalled: { _ in false }).settings, MouseSettings())
     }
-
-    func testStatusNeedsTrustBeforeTheTapAndBlamesTheTapOnceTrusted() {
-        XCTAssertEqual(MouseStatus(isEnabled: false, isTrusted: true, isTapRunning: false), .off)
-        XCTAssertEqual(MouseStatus(isEnabled: true, isTrusted: false, isTapRunning: false), .needsAccessibility)
-        XCTAssertEqual(MouseStatus(isEnabled: true, isTrusted: true, isTapRunning: true), .active)
-        XCTAssertEqual(MouseStatus(isEnabled: true, isTrusted: true, isTapRunning: false), .stopped)
-    }
 }

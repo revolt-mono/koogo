@@ -49,7 +49,7 @@ extension InputRules {
 }
 
 struct WheelNotch: Equatable {
-    enum Axis: Equatable {
+    enum Axis {
         case vertical
         case horizontal
     }
