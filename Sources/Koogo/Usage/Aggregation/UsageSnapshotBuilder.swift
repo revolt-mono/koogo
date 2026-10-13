@@ -12,35 +12,30 @@ struct UsageSnapshotBuilder {
             usageByDay[day].values.reduce(UsagePeriodSnapshot(), +)
         }
 
-        func snapshot(
-            intervals: UsagePeriodIntervals,
-            splitsByModel: Bool,
-            modelName: (ModelID) -> String
-        ) -> ProviderUsageSnapshot {
-            let days = intervals.last30DayStarts.indices.reversed().compactMap { day in
-                usageByDay[day].isEmpty
-                    ? nil : UsageDaySnapshot(date: intervals.last30DayStarts[day], usage: total(day: day))
+        func snapshot(intervals: UsagePeriodIntervals, source: any UsageSource) -> ProviderUsageSnapshot {
+            let days = intervals.last30DayStarts.indices.reversed().map { day in
+                UsageDaySnapshot(date: intervals.last30DayStarts[day], usage: total(day: day))
             }
             return ProviderUsageSnapshot(
-                periods: EnumMap { period(dayCount: $0.dayCount, splitsByModel: splitsByModel, modelName: modelName) },
+                periods: EnumMap { period(dayCount: $0.dayCount, source: source) },
                 dailyLast30Days: UsageDailySnapshot(range: intervals.last30Days, days: days)
             )
         }
 
-        private func period(
-            dayCount: Int,
-            splitsByModel: Bool,
-            modelName: (ModelID) -> String
-        ) -> ProviderUsagePeriodSnapshot {
+        private func period(dayCount: Int, source: any UsageSource) -> ProviderUsagePeriodSnapshot {
             let usageByModel = usageByDay.prefix(dayCount).reduce(into: [:]) { $0.merge($1, uniquingKeysWith: +) }
             let models = usageByModel.filter { $0.value != UsagePeriodSnapshot() }.map { model, usage in
-                ModelUsageSnapshot(id: model, modelName: model.map(modelName) ?? "Unattributed", usage: usage)
+                ModelUsageSnapshot(
+                    id: model,
+                    modelName: model.map { source.modelName($0) ?? $0.rawValue } ?? "Unattributed",
+                    usage: usage
+                )
             }.sorted { lhs, rhs in
                 (rhs.usage.costUSD, lhs.id?.rawValue ?? "") < (lhs.usage.costUSD, rhs.id?.rawValue ?? "")
             }
             return ProviderUsagePeriodSnapshot(
                 total: usageByModel.values.reduce(UsagePeriodSnapshot(), +),
-                models: splitsByModel ? models : nil
+                models: source.splitsUsageByModel ? models : nil
             )
         }
     }
@@ -70,10 +65,7 @@ struct UsageSnapshotBuilder {
     func snapshot(sources: EnumMap<Provider, any UsageSource>) -> UsageSnapshot {
         var providers: [Provider: ProviderUsageSnapshot] = [:]
         for case (let provider, let accumulator?) in accumulators.entries {
-            let source = sources[provider]
-            providers[provider] = accumulator.snapshot(intervals: intervals, splitsByModel: source.splitsUsageByModel) {
-                source.modelName($0) ?? $0.rawValue
-            }
+            providers[provider] = accumulator.snapshot(intervals: intervals, source: sources[provider])
         }
         return UsageSnapshot(
             providers: providers,

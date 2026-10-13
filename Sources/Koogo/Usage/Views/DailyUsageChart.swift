@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 struct DailyUsageChart: View {
-    @Environment(\.calendar) private var calendar
     @Environment(\.displayScale) private var displayScale
 
     let usage: UsageDailySnapshot
@@ -10,11 +9,13 @@ struct DailyUsageChart: View {
     @State private var hoveredSlot: Int?
 
     var body: some View {
-        let days = Dictionary(usage.days.map { (slot(of: $0.date), $0) }) { _, newer in newer }
         let peakCost = usage.days.map(\.usage.costUSD).max() ?? 0
-        let heights = (0..<slot(of: usage.range.upperBound)).map { slot in
-            guard let day = days[slot], peakCost > 0 else { return 0.0 }
-            return NSDecimalNumber(decimal: day.usage.costUSD / peakCost).doubleValue
+        let heights = usage.days.map { day in
+            peakCost > 0 ? NSDecimalNumber(decimal: day.usage.costUSD / peakCost).doubleValue : 0
+        }
+        let hoveredDay = hoveredSlot.flatMap { slot in
+            usage.days.indices.contains(slot) && usage.days[slot].usage != UsagePeriodSnapshot()
+                ? usage.days[slot] : nil
         }
 
         GeometryReader { geometry in
@@ -29,9 +30,9 @@ struct DailyUsageChart: View {
                     hoveredSlot = if case .active(let point) = phase { Int(point.x / slotWidth) } else { nil }
                 }
                 .overlay {
-                    if let hoveredSlot, let day = days[hoveredSlot] {
+                    if let hoveredSlot, let hoveredDay {
                         ChartAnnotationLayout(anchorX: (CGFloat(hoveredSlot) + 0.5) * slotWidth) {
-                            UsageChartAnnotation(day: day)
+                            UsageChartAnnotation(day: hoveredDay)
                         }
                         .allowsHitTesting(false)
                     }
@@ -40,12 +41,6 @@ struct DailyUsageChart: View {
         .frame(height: 44)
         .accessibilityHidden(true)
         .motionAnimation(.smooth(duration: 0.35), value: usage)
-    }
-
-    /// Whole days from the start of the range, counted by day number so a day that starts after midnight still gets its own slot.
-    private func slot(of date: Date) -> Int {
-        let dayNumber = { calendar.ordinality(of: .day, in: .era, for: $0) ?? 0 }
-        return dayNumber(date) - dayNumber(usage.range.lowerBound)
     }
 }
 

@@ -117,7 +117,12 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(codex.periods[.today].total.processedTokens, 384)
         XCTAssertEqual(codex.periods[.last7Days].total.processedTokens, 480)
         XCTAssertEqual(codex.periods[.last30Days].total.processedTokens, 504)
-        XCTAssertEqual(codex.dailyLast30Days.days.map(\.usage.processedTokens), [8, 16, 32, 64, 384])
+        XCTAssertEqual(codex.dailyLast30Days.days.count, 30)
+        XCTAssertEqual(codex.dailyLast30Days.days.first?.date, Date(iso8601: "2026-08-03T00:00:00Z"))
+        XCTAssertEqual(
+            codex.dailyLast30Days.days.filter { $0.usage != UsagePeriodSnapshot() }.map(\.usage.processedTokens),
+            [8, 16, 32, 64, 384]
+        )
         XCTAssertEqual(
             codex.dailyLast30Days.days.map(\.usage).reduce(UsagePeriodSnapshot(), +),
             codex.periods[.last30Days].total
