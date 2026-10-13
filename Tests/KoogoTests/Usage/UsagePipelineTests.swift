@@ -95,7 +95,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         XCTAssertEqual(refreshed.snapshot.summary.last30Days.costChange, .increase(fraction: 5))
     }
 
-    func testFavoritesChangeAtMidnightWhileOlderTurnsStayIndexed() async throws {
+    func testTurnsLeavingTheWindowAtMidnightStayIndexed() async throws {
         for input in 1...2 {
             try workspace.write(
                 codexLog(
@@ -119,10 +119,9 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         let refreshed = await service.run(at: nextMidnight, providers: Provider.allCases)
 
         XCTAssertEqual(current.ingestion.events[.codex], 3)
-        XCTAssertEqual(current.snapshot.providers[.codex]?.favorite?.modelName, "GPT 5.6 Luna")
+        XCTAssertEqual(current.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 7)
         XCTAssertEqual(evening.snapshot, current.snapshot)
         XCTAssertEqual(refreshed.ingestion.events[.codex], 3)
-        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.favorite?.modelName, "GPT 5.6 Sol")
         XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 4)
     }
 
@@ -176,7 +175,6 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
         XCTAssertEqual(snapshot.summary.last30Days.costChange, .decrease(fraction: Decimal(1) / 2))
-        XCTAssertEqual(snapshot.providers[.codex]?.favorite?.modelName, "GPT 5.6 Sol")
     }
 
     func testRecordsBesideBilledOnesAreSkipped() async throws {
@@ -230,6 +228,5 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(report.ingestion.malformedLines, [.codex: 0, .claude: 0, .piAgent: 0, .grok: 0])
         XCTAssertEqual(report.ingestion.events, [.codex: 1, .claude: 1, .piAgent: 1, .grok: 0])
-        XCTAssertEqual(report.snapshot.providers[.piAgent]?.favorite?.reasoningEffort, "high")
     }
 }

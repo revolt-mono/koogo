@@ -22,6 +22,7 @@ final class GrokQuotaSourceTests: XCTestCase {
 
         let snapshot = try await GrokQuotaSource(executableCandidates: [executable]).load().get()
 
+        XCTAssertEqual(snapshot.plan, "SuperGrok Heavy")
         XCTAssertEqual(snapshot.windows.map(\.title), ["Weekly"])
         XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 3)
         XCTAssertEqual(
@@ -83,13 +84,15 @@ final class GrokQuotaSourceTests: XCTestCase {
     }
 
     func testMissingConfigIsUnavailableButAnEmptyConfigIsAnUntouchedAllowance() async throws {
-        let untouched = try XCTUnwrap(
-            QuotaSnapshot(windows: [QuotaWindow(title: "Usage limit", usedPercent: 0, resetsAt: nil)])
-        )
+        let untouched = { (plan: String?) in
+            QuotaSnapshot(plan: plan, windows: [QuotaWindow(title: "Usage limit", usedPercent: 0, resetsAt: nil)])!
+        }
         let cases: [(String, QuotaReading)] = [
             (#"{"id":2,"result":{}}"#, .unavailable(.emptyLimits)),
             (GrokQuotaTestWorkspace.response(config: "null"), .unavailable(.emptyLimits)),
-            (GrokQuotaTestWorkspace.response(config: "{}"), .available(untouched)),
+            (GrokQuotaTestWorkspace.response(config: "{}"), .available(untouched("SuperGrok Heavy"))),
+            (GrokQuotaTestWorkspace.response(config: "{}", tier: #"" ""#), .available(untouched(nil))),
+            (GrokQuotaTestWorkspace.response(config: "{}", tier: "null"), .available(untouched(nil))),
         ]
         for (response, expected) in cases {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())

@@ -34,12 +34,14 @@ struct QuotaSnapshot: Equatable, Sendable, Encodable {
         }
     }
 
+    let plan: String?
     let windows: [QuotaWindow]
     let credits: Credits?
     let resetCredits: ResetCredits?
 
-    init?(windows: [QuotaWindow], credits: Credits? = nil, resetCredits: ResetCredits? = nil) {
+    init?(plan: String? = nil, windows: [QuotaWindow], credits: Credits? = nil, resetCredits: ResetCredits? = nil) {
         guard !windows.isEmpty || credits != nil || resetCredits != nil else { return nil }
+        self.plan = plan?.trimmingCharacters(in: .whitespaces).nonEmpty
         self.windows = windows
         self.credits = credits
         self.resetCredits = resetCredits

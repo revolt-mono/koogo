@@ -56,8 +56,13 @@ private struct ProviderCards: View {
         ScrollView {
             VStack(spacing: PanelLayout.gap) {
                 ForEach(cards, id: \.provider) { card in
-                    ProviderUsageCard(provider: card.provider, usage: card.usage) {
-                        if let quota = preferences.quotaProvider(for: card.provider) {
+                    let quota = preferences.quotaProvider(for: card.provider)
+                    ProviderUsageCard(
+                        provider: card.provider,
+                        usage: card.usage,
+                        plan: quota.flatMap { quotaModel.statuses[$0].latest?.snapshot?.plan }
+                    ) {
+                        if let quota {
                             QuotaSection(provider: quota)
                         }
                     }

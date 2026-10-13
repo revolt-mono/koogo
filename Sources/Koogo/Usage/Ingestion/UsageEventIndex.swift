@@ -8,7 +8,7 @@ struct UsageEventIndex: Sendable {
         let processedTokens: UInt64
         let revision: UsageEvent.Revision
         let costUSD: Decimal
-        let turn: UInt32
+        let model: UInt32
 
         var timestamp: Date {
             Date(timeIntervalSinceReferenceDate: secondsSinceReferenceDate)
@@ -25,28 +25,20 @@ struct UsageEventIndex: Sendable {
     /// One survivor per id, ordered by id and sized exactly, so a log that stops growing holds no hash table.
     private var sealed: [Entry] = []
     private var pending: [Entry] = []
-    /// Model turns that entries point into; the first slot stands for none.
-    private var turns: [UsageRecord.ModelTurn?] = [nil]
+    /// Models that entries point into; the first slot stands for none.
+    private var models: [ModelID?] = [nil]
 
     init() {}
 
-    /// A sealed index of events that already lie inside the window.
-    init(_ events: some Sequence<UsageEvent>) {
-        for event in events {
-            insert(event, since: .distantPast)
-        }
-        seal()
-    }
-
     var values: some Collection<UsageEvent> {
-        entries.lazy.map { [turns] entry in
+        entries.lazy.map { [models] entry in
             UsageEvent(
                 id: entry.id,
                 record: UsageRecord(
                     timestamp: entry.timestamp,
                     processedTokens: entry.processedTokens,
                     costUSD: entry.costUSD,
-                    modelTurn: turns[Int(entry.turn)]
+                    model: models[Int(entry.model)]
                 ),
                 revision: entry.revision
             )
@@ -103,9 +95,9 @@ struct UsageEventIndex: Sendable {
 
     private mutating func entry(_ event: UsageEvent) -> Entry {
         let record = event.record
-        let turn = turns.firstIndex(of: record.modelTurn) ?? turns.endIndex
-        if turn == turns.endIndex {
-            turns.append(record.modelTurn)
+        let model = models.firstIndex(of: record.model) ?? models.endIndex
+        if model == models.endIndex {
+            models.append(record.model)
         }
         return Entry(
             id: event.id,
@@ -113,7 +105,7 @@ struct UsageEventIndex: Sendable {
             processedTokens: record.processedTokens,
             revision: event.revision,
             costUSD: record.costUSD,
-            turn: UInt32(turn)
+            model: UInt32(model)
         )
     }
 }

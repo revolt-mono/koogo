@@ -21,7 +21,7 @@ struct CodexQuotaTestWorkspace {
     ) -> String {
         let resetCredits = resetCount.map { #"{"availableCount":\#($0),"credits":\#(credits ?? "null")}"# } ?? "null"
         return """
-            {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":\(usedPercent),"windowDurationMins":\(windowMinutes),"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":\(resetCredits)}}
+            {"id":2,"result":{"rateLimits":{"limitId":"codex","planType":"prolite","primary":{"usedPercent":\(usedPercent),"windowDurationMins":\(windowMinutes),"resetsAt":1700000000},"secondary":null},"rateLimitsByLimitId":null,"rateLimitResetCredits":\(resetCredits)}}
             """
     }
 

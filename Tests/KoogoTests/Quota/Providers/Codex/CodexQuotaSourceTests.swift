@@ -30,6 +30,27 @@ final class CodexQuotaSourceTests: XCTestCase {
         )
         XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Session"]?.usedPercent, 10)
         XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Weekly"]?.usedPercent, 20)
+        XCTAssertNil(snapshot.plan)
+    }
+
+    func testPlanNamesFollowTheCodexTUIAndOtherCodesShowCapitalized() throws {
+        let cases: [(String, String)] = [
+            ("plus", "Plus"),
+            ("prolite", "Pro 100"),
+            ("team", "Business"),
+            ("mystery", "Mystery"),
+        ]
+        for (planType, expected) in cases {
+            let response = try JSONDecoder().decode(
+                CodexQuotaResponse.self,
+                from: Data(
+                    """
+                    {"rateLimits":{"planType":"\(planType)","primary":{"usedPercent":25,"windowDurationMins":300}}}
+                    """.utf8
+                )
+            )
+            XCTAssertEqual(response.snapshot?.plan, expected, planType)
+        }
     }
 
     func testFetchDropsEmptyIDsAndTitlesUnnamedWindowsByID() async throws {
@@ -60,6 +81,7 @@ final class CodexQuotaSourceTests: XCTestCase {
         let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
 
         XCTAssertEqual(snapshot.windows, [])
+        XCTAssertEqual(snapshot.plan, "Pro 100")
         XCTAssertEqual(snapshot.resetCredits?.availableCount, 0)
         XCTAssertEqual(snapshot.resetCredits?.credits, [])
     }

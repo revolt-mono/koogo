@@ -89,11 +89,13 @@ final class SystemReportTests: UsageWorkspaceTestCase {
 private let reportKeyPaths =
     [
         "generatedAt",
+        "quota.claude.snapshot.plan",
         "quota.claude.snapshot.windows[].resetsAt",
         "quota.claude.snapshot.windows[].title",
         "quota.claude.snapshot.windows[].usedPercent",
         "quota.claude.state",
         "quota.codex.snapshot.credits.balance.amount",
+        "quota.codex.snapshot.plan",
         "quota.codex.snapshot.resetCredits.availableCount",
         "quota.codex.snapshot.resetCredits.credits[].expiresAt",
         "quota.codex.snapshot.resetCredits.credits[].id",
@@ -102,6 +104,7 @@ private let reportKeyPaths =
         "quota.codex.snapshot.windows[].title",
         "quota.codex.snapshot.windows[].usedPercent",
         "quota.codex.state",
+        "quota.grok.snapshot.plan",
         "quota.grok.snapshot.windows[].resetsAt",
         "quota.grok.snapshot.windows[].title",
         "quota.grok.snapshot.windows[].usedPercent",
@@ -122,7 +125,6 @@ private let reportKeyPaths =
         "usage.ingestion.trackedFiles.grok",
         "usage.ingestion.trackedFiles.piAgent",
         "usage.ingestion.unpricedModels",
-        "usage.snapshot.providers.codex.favorite.reasoningEffort",
         "usage.snapshot.summary.last30Days.costChange.increase.fraction",
         "usage.snapshot.summary.last30Days.current.costUSD",
         "usage.snapshot.summary.last30Days.current.processedTokens",
@@ -136,7 +138,6 @@ private let reportKeyPaths =
             "dailyLast30Days.days[].usage.costUSD",
             "dailyLast30Days.days[].usage.processedTokens",
             "dailyLast30Days.range[]",
-            "favorite.modelName",
             "periods.last30Days.total.costUSD",
             "periods.last30Days.total.processedTokens",
             "periods.last7Days.total.costUSD",
@@ -154,7 +155,7 @@ private let reportKeyPaths =
     }
 
 private let codexQuotaResponse = """
-    {"id":2,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":25,\
+    {"id":2,"result":{"rateLimits":{"limitId":"codex","planType":"prolite","primary":{"usedPercent":25,\
     "windowDurationMins":300,"resetsAt":1787698800},"secondary":{"usedPercent":40,\
     "windowDurationMins":10080,"resetsAt":1788134400},"credits":{"hasCredits":true,"unlimited":false,\
     "balance":"1234.5"}},"rateLimitsByLimitId":{"codex_spark":{\

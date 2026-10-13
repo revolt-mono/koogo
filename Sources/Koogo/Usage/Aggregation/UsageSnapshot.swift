@@ -41,12 +41,6 @@ struct ModelUsageSnapshot: Equatable, Identifiable, Sendable, Encodable {
 }
 
 struct ProviderUsageSnapshot: Equatable, Sendable, Encodable {
-    struct Favorite: Equatable, Sendable, Encodable {
-        let modelName: String
-        let reasoningEffort: String?
-    }
-
-    let favorite: Favorite?
     let periods: EnumMap<UsagePeriod, ProviderUsagePeriodSnapshot>
     let dailyLast30Days: UsageDailySnapshot
 }

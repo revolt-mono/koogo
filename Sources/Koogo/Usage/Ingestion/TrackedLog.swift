@@ -10,7 +10,7 @@ protocol TrackedLog: Sendable {
 }
 
 struct ParsedLines<Parser: UsageLogParser>: LineConsumer, Sendable {
-    private(set) var parser = Parser()
+    private var parser = Parser()
     private(set) var events = UsageEventIndex()
     private(set) var tally = LogTally()
     private var windowStart: Date

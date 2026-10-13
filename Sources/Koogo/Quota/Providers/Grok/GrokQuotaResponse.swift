@@ -13,6 +13,8 @@ struct GrokQuotaResponse: Decodable {
     }
 
     let config: Config?
+    /// Already a display name, such as "SuperGrok Heavy" or "Free".
+    let subscriptionTier: String?
 
     var snapshot: QuotaSnapshot? {
         guard let config else { return nil }
@@ -22,8 +24,20 @@ struct GrokQuotaResponse: Decodable {
             case "USAGE_PERIOD_TYPE_MONTHLY": "Monthly limit"
             default: "Usage limit"
             }
-        return QuotaSnapshot(windows: [
-            QuotaWindow(title: title, usedPercent: config.creditUsagePercent ?? 0, resetsAt: config.currentPeriod?.end)
-        ])
+        return QuotaSnapshot(
+            plan: subscriptionTier,
+            windows: [
+                QuotaWindow(
+                    title: title,
+                    usedPercent: config.creditUsagePercent ?? 0,
+                    resetsAt: config.currentPeriod?.end
+                )
+            ]
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case config
+        case subscriptionTier = "subscription_tier"
     }
 }

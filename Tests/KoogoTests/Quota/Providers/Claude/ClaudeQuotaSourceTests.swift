@@ -9,6 +9,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         let executable = try workspace.makeCLI()
         let snapshot = try await ClaudeQuotaSource(executableCandidates: [executable]).load().get()
 
+        XCTAssertEqual(snapshot.plan, "Max")
         XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 12)
         XCTAssertEqual(snapshot.windows["Session"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800.125))
         XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 29)

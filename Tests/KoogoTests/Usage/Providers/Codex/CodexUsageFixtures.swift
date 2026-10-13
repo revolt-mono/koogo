@@ -20,9 +20,9 @@ func codexMeta(thread: String = "thread") -> String {
     """
 }
 
-func codexTurn(id: String = "turn", model: String = "gpt-5.6-sol", effort: String = "high") -> String {
+func codexTurn(id: String = "turn", model: String = "gpt-5.6-sol") -> String {
     """
-    {"timestamp":"2026-08-25T11:30:00.000Z","type":"turn_context","payload":{"turn_id":"\(id)","model":"\(model)","effort":"\(effort)"}}
+    {"timestamp":"2026-08-25T11:30:00.000Z","type":"turn_context","payload":{"turn_id":"\(id)","model":"\(model)","effort":"high"}}
     """
 }
 

@@ -1,8 +1,7 @@
-func claudeAssistant(model: String, usage: String, effort: String? = nil) -> String {
-    let effortField = effort.map { "\"effort\":\"\($0)\"," } ?? ""
-    return """
-        {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request",\(effortField)"message":{"id":"message","model":"\(model)","usage":{\(usage)}}}
-        """
+func claudeAssistant(model: String, usage: String) -> String {
+    """
+    {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"\(model)","usage":{\(usage)}}}
+    """
 }
 
 func claudeLog(output: Int) -> String {

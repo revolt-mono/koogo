@@ -4,7 +4,7 @@ import XCTest
 @testable import Koogo
 
 final class ClaudeUsageTests: UsageWorkspaceTestCase {
-    func testClaudeParsesCacheDurationsSpeedGeoSearchAndMissingEffort() throws {
+    func testClaudeParsesCacheDurationsSpeedGeoAndSearch() throws {
         var parser = ClaudeUsageLogParser()
         let line = claudeAssistant(
             model: "claude-opus-5",
@@ -18,7 +18,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(event.provider, .claude)
         XCTAssertEqual(event.record.processedTokens, 140)
         XCTAssertEqual(event.record.costUSD, Decimal(string: "0.0236245"))
-        XCTAssertNil(event.record.modelTurn?.reasoningEffort)
+        XCTAssertEqual(event.record.model, ModelID("claude-opus-5"))
     }
 
     func testClaudePreservesAggregateCacheCreationWithoutInventingDuration() throws {
@@ -106,7 +106,6 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
                 model: "claude-opus-5",
                 usage: tokens + #","cache_creation":{"ephemeral_5m_input_tokens":70}"#
             ),
-            claudeAssistant(model: "claude-opus-5", usage: tokens, effort: "high"),
         ] {
             var parser = ClaudeUsageLogParser()
             let bareCopy = try XCTUnwrap(parse(bare, with: &parser)?.event)
@@ -133,10 +132,6 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.providers[.claude]?.periods[.today].total.processedTokens, 50)
-        XCTAssertEqual(
-            snapshot.providers[.claude]?.favorite,
-            ProviderUsageSnapshot.Favorite(modelName: "Opus 5", reasoningEffort: nil)
-        )
     }
 
     func testClaudeQuotesMatchPublishedRates() throws {

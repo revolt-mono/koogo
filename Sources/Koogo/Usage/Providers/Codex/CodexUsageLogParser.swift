@@ -44,8 +44,8 @@ struct CodexUsageLogParser: UsageLogParser {
                 record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: lastUsage.processed,
-                    quote: quote,
-                    reasoningEffort: turn.reasoningEffort
+                    costUSD: quote.costUSD,
+                    model: quote.model
                 )
             )
         )
@@ -81,16 +81,14 @@ private enum CodexRecord {
 private struct CodexTurn {
     let id: String
     let model: ModelID
-    let reasoningEffort: String?
 
     init(_ payload: JSONValue) throws {
-        let (id, model, reasoningEffort) = try payload.fields(.string("turn_id"), .string("model"), .string("effort"))
+        let (id, model) = try payload.fields(.string("turn_id"), .string("model"))
         guard let id, let model else {
             throw MalformedUsageRecord()
         }
         self.id = id
         self.model = ModelID(model)
-        self.reasoningEffort = reasoningEffort
     }
 }
 

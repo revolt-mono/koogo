@@ -3,11 +3,12 @@ import SwiftUI
 struct ProviderUsageCard<Accessory: View>: View {
     let provider: Provider
     let usage: ProviderUsageSnapshot
+    let plan: String?
     @ViewBuilder let accessory: () -> Accessory
 
     var body: some View {
         PanelSection {
-            ProviderUsageHeader(provider: provider, favorite: usage.favorite)
+            ProviderUsageHeader(provider: provider, plan: plan)
         } content: {
             VStack(spacing: 12) {
                 accessory()
@@ -90,7 +91,7 @@ private struct ProviderUsageModelsView: View {
 
 private struct ProviderUsageHeader: View {
     let provider: Provider
-    let favorite: ProviderUsageSnapshot.Favorite?
+    let plan: String?
 
     var body: some View {
         HStack(spacing: 4) {
@@ -105,20 +106,14 @@ private struct ProviderUsageHeader: View {
             Text(provider.title)
                 .font(.system(size: 11, weight: .semibold))
 
-            if let favorite {
+            if let plan {
                 Spacer(minLength: 12)
 
-                Image("FavoriteHeart", bundle: .module)
-                    .resizable()
-                    .renderingMode(.original)
-                    .scaledToFit()
-                    .frame(width: 12)
-                    .accessibilityHidden(true)
-
-                Text(favorite.reasoningEffort.map { "\(favorite.modelName) in \($0)" } ?? favorite.modelName)
+                Text(plan)
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .accessibilityLabel("\(plan) plan")
             }
         }
     }

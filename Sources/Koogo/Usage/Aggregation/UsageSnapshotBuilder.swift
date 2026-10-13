@@ -1,53 +1,11 @@
 import Foundation
 
 struct UsageSnapshotBuilder {
-    private struct ModelUsage {
-        var occurrences = 0
-        var reasoningEfforts: [String: Int] = [:]
-
-        mutating func add(reasoningEffort: String?) {
-            occurrences += 1
-            if let reasoningEffort {
-                reasoningEfforts[reasoningEffort, default: 0] += 1
-            }
-        }
-    }
-
-    private struct FavoriteAccumulator {
-        var models: [ModelID: ModelUsage] = [:]
-
-        mutating func add(_ turn: UsageRecord.ModelTurn?) {
-            if let turn {
-                models[turn.model, default: ModelUsage()].add(reasoningEffort: turn.reasoningEffort)
-            }
-        }
-
-        /// An effort of "off" means reasoning was disabled, so the favorite names none.
-        func snapshot(modelName: (ModelID) -> String) -> ProviderUsageSnapshot.Favorite? {
-            guard
-                let (model, usage) = models.max(by: { lhs, rhs in
-                    (lhs.value.occurrences, rhs.key) < (rhs.value.occurrences, lhs.key)
-                })
-            else {
-                return nil
-            }
-            let effort = usage.reasoningEfforts.max { lhs, rhs in
-                (lhs.value, rhs.key) < (rhs.value, lhs.key)
-            }?.key
-            return ProviderUsageSnapshot.Favorite(
-                modelName: modelName(model),
-                reasoningEffort: effort == "off" ? nil : effort
-            )
-        }
-    }
-
     private struct ProviderAccumulator {
-        var favorite = FavoriteAccumulator()
         var usageByDay: [[ModelID?: UsagePeriodSnapshot]]
 
         mutating func add(_ usage: UsageRecord, day: Int) {
-            favorite.add(usage.modelTurn)
-            usageByDay[day][usage.modelTurn?.model, default: UsagePeriodSnapshot()].add(usage)
+            usageByDay[day][usage.model, default: UsagePeriodSnapshot()].add(usage)
         }
 
         func total(day: Int) -> UsagePeriodSnapshot {
@@ -64,7 +22,6 @@ struct UsageSnapshotBuilder {
                     ? nil : UsageDaySnapshot(date: intervals.last30DayStarts[day], usage: total(day: day))
             }
             return ProviderUsageSnapshot(
-                favorite: favorite.snapshot(modelName: modelName),
                 periods: EnumMap { period(dayCount: $0.dayCount, splitsByModel: splitsByModel, modelName: modelName) },
                 dailyLast30Days: UsageDailySnapshot(range: intervals.last30Days, days: days)
             )

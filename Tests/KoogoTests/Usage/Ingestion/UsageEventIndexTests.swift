@@ -119,7 +119,7 @@ final class UsageEventIndexTests: XCTestCase {
             timestamp: date,
             processedTokens: tokens,
             costUSD: 0,
-            modelTurn: nil
+            model: nil
         )
     }
 

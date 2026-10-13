@@ -2,60 +2,18 @@ import Foundation
 
 /// Reads the `turn_completed` updates that Grok appends to each session's `updates.jsonl`. Each one sums a whole prompt per model, subagents included.
 struct GrokUsageLogParser: UsageLogParser {
-    private var promptIndex: UInt64?
-    /// Billed turns of the surviving branch by prompt. A rewind abandons later prompts, which stay billed but no longer match the rewritten response history.
-    private(set) var promptTurns: [UInt64: UsageEventID] = [:]
-
-    mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
-        do {
-            guard let record = JSONValue(object: line), let params = try record.fields(.value("params")) else {
-                return nil
-            }
-            let (update, meta) = try params.fields(.value("update"), .value("_meta"))
-            guard let update else {
-                return nil
-            }
-            let (kind, updateMeta, rewindTarget, usage) = try update.fields(
-                .value("sessionUpdate"),
-                .value("_meta"),
-                .value("target_prompt_index"),
-                .value("usage")
-            )
-            guard let kind else {
-                return nil
-            }
-            switch kind {
-            case "user_message_chunk":
-                if let index = try updateMeta?.fields(.uint64("promptIndex")) {
-                    promptIndex = index
-                }
-            case "rewind_marker":
-                promptIndex = nil
-                guard let target = try? rewindTarget?.integer(UInt64.self) else {
-                    promptTurns.removeAll()
-                    throw MalformedUsageRecord()
-                }
-                promptTurns = promptTurns.filter { $0.key < target }
-            case "turn_completed":
-                defer { promptIndex = nil }
-                guard let usage = usage?.nonNull else {
-                    return nil
-                }
-                let outcome = try Self.completedTurn(GrokPromptUsage(usage), meta: meta)
-                if case .event(let event) = outcome, let promptIndex {
-                    promptTurns[promptIndex] = event.id
-                }
-                return outcome
-            default: break
-            }
+    func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
+        guard let record = JSONValue(object: line), let params = try record.fields(.value("params")) else {
             return nil
-        } catch {
-            promptIndex = nil
-            throw error
         }
-    }
-
-    private static func completedTurn(_ usage: GrokPromptUsage, meta: JSONValue?) throws -> UsageLineOutcome? {
+        let (update, meta) = try params.fields(.value("update"), .value("_meta"))
+        guard let update else {
+            return nil
+        }
+        let (kind, usage) = try update.fields(.kind("sessionUpdate") { $0.isString("turn_completed") }, .value("usage"))
+        guard kind != nil, let usage = usage?.nonNull else {
+            return nil
+        }
         guard let meta else {
             throw MalformedUsageRecord()
         }
@@ -64,13 +22,14 @@ struct GrokUsageLogParser: UsageLogParser {
             throw MalformedUsageRecord()
         }
         let timestamp = Date(unixMilliseconds: milliseconds)
-        guard let primaryModel = usage.primaryModel else {
+        let prompt = try GrokPromptUsage(usage)
+        guard let primaryModel = prompt.primaryModel else {
             // A cancelled prompt completes with no model rows and nothing billed.
-            guard usage.totalTokens == 0 else { throw MalformedUsageRecord() }
+            guard prompt.totalTokens == 0 else { throw MalformedUsageRecord() }
             return nil
         }
         var costUSD: Decimal = 0
-        for (model, tokens) in usage.modelUsage.sorted(by: { $0.key < $1.key }) {
+        for (model, tokens) in prompt.modelUsage.sorted(by: { $0.key < $1.key }) {
             guard let quote = GrokUsagePricing.quote(model: model, tokens: tokens) else {
                 return .unpricedModel(model, timestamp: timestamp)
             }
@@ -82,9 +41,9 @@ struct GrokUsageLogParser: UsageLogParser {
                 id: .grok(eventID: eventID, timestampMilliseconds: milliseconds),
                 record: UsageRecord(
                     timestamp: timestamp,
-                    processedTokens: usage.totalTokens,
+                    processedTokens: prompt.totalTokens,
                     costUSD: costUSD,
-                    modelTurn: .init(model: primaryModel, reasoningEffort: nil)
+                    model: primaryModel
                 )
             )
         )

@@ -21,6 +21,8 @@ struct ClaudeQuotaResponse: Decodable {
 
     /// Null for API-key sessions and while the usage endpoint cannot be reached.
     let rateLimits: RateLimits?
+    /// The claude.ai plan in lowercase, such as `pro`, `max`, `team`, or `enterprise`; null for API-key sessions.
+    let subscriptionType: String?
 
     var snapshot: QuotaSnapshot? {
         guard let rateLimits else { return nil }
@@ -30,12 +32,15 @@ struct ClaudeQuotaResponse: Decodable {
         ].compactMap { $0 }
         var named: [String: QuotaWindow] = [:]
         for entry in rateLimits.modelScoped ?? [] {
-            guard let name = entry.displayName?.trimmingCharacters(in: .whitespaces), !name.isEmpty,
+            guard let name = entry.displayName?.trimmingCharacters(in: .whitespaces).nonEmpty,
                 let window = entry.quotaWindow(name)
             else { continue }
             named[name] = window
         }
-        return QuotaSnapshot(windows: account + named.sorted { $0.key < $1.key }.map(\.value))
+        return QuotaSnapshot(
+            plan: subscriptionType.map(\.capitalized),
+            windows: account + named.sorted { $0.key < $1.key }.map(\.value)
+        )
     }
 }
 

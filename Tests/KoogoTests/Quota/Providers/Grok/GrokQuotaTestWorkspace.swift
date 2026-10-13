@@ -42,8 +42,9 @@ struct GrokQuotaTestWorkspace {
     static func response(
         config: String = """
         {"creditUsagePercent":25,"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","end":"2026-09-01T00:00:00Z"}}
-        """
+        """,
+        tier: String = #""SuperGrok Heavy""#
     ) -> String {
-        #"{"jsonrpc":"2.0","id":2,"result":{"config":\#(config)}}"#
+        #"{"jsonrpc":"2.0","id":2,"result":{"config":\#(config),"subscription_tier":\#(tier)}}"#
     }
 }

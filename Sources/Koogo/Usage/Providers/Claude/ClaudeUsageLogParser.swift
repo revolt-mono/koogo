@@ -12,9 +12,9 @@ struct ClaudeUsageLogParser: UsageLogParser {
         }
         guard
             let timestamp = reply.timestamp.flatMap(Date.init(iso8601:)),
-            let messageID = nonEmpty(reply.messageID),
-            let requestID = nonEmpty(reply.requestID),
-            let model = nonEmpty(reply.model).map(ModelID.init(_:))
+            let messageID = reply.messageID?.nonEmpty,
+            let requestID = reply.requestID?.nonEmpty,
+            let model = reply.model?.nonEmpty.map(ModelID.init(_:))
         else {
             throw MalformedUsageRecord()
         }
@@ -36,22 +36,21 @@ struct ClaudeUsageLogParser: UsageLogParser {
             return .unpricedModel(model, timestamp: timestamp)
         }
 
-        let reasoningEffort = nonEmpty(reply.effort)
         return .event(
             UsageEvent(
                 id: .claude(messageID: messageID, requestID: requestID),
                 record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: usage.tokens.processed,
-                    quote: quote,
-                    reasoningEffort: reasoningEffort
+                    costUSD: quote.costUSD,
+                    model: quote.model
                 ),
-                revision: Self.revision(of: usage, reasoningEffort: reasoningEffort)
+                revision: Self.revision(of: usage)
             )
         )
     }
 
-    private static func revision(of usage: ClaudeLoggedUsage, reasoningEffort: String?) -> UsageEvent.Revision {
+    private static func revision(of usage: ClaudeLoggedUsage) -> UsageEvent.Revision {
         let explicitCacheDuration: UInt8 =
             switch usage.tokens.cacheCreation {
             case .aggregate: 0
@@ -59,9 +58,7 @@ struct ClaudeUsageLogParser: UsageLogParser {
             }
         return UsageEvent.Revision(
             outputTokens: usage.tokens.output,
-            metadataCompleteness: (usage.speed == nil ? 0 : 1)
-                + explicitCacheDuration
-                + (reasoningEffort == nil ? 0 : 1)
+            metadataCompleteness: (usage.speed == nil ? 0 : 1) + explicitCacheDuration
         )
     }
 }
@@ -115,7 +112,6 @@ struct ClaudeBillableUsage: Sendable {
 private struct ClaudeAssistantReply {
     let timestamp: String?
     let requestID: String?
-    let effort: String?
     let messageID: String?
     let model: String?
     let usage: ClaudeLoggedUsage
@@ -124,11 +120,10 @@ private struct ClaudeAssistantReply {
         guard let record = JSONValue(object: line) else {
             return nil
         }
-        let (kind, timestamp, requestID, effort, message) = try record.fields(
+        let (kind, timestamp, requestID, message) = try record.fields(
             .kind("type") { $0.isString("assistant") },
             .string("timestamp"),
             .string("requestId"),
-            .string("effort"),
             .value("message")
         )
         guard kind != nil, let message else {
@@ -144,7 +139,6 @@ private struct ClaudeAssistantReply {
         }
         self.timestamp = timestamp
         self.requestID = requestID
-        self.effort = effort
         self.messageID = messageID
         self.model = model
         self.usage = usage
@@ -201,11 +195,4 @@ private struct ClaudeLoggedUsage {
         }
         return .byDuration(fiveMinute: fiveMinute ?? 0, oneHour: oneHour ?? 0)
     }
-}
-
-private func nonEmpty(_ value: String?) -> String? {
-    guard let value, !value.isEmpty else {
-        return nil
-    }
-    return value
 }

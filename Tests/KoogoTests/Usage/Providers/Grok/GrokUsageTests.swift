@@ -4,7 +4,7 @@ import XCTest
 @testable import Koogo
 
 final class GrokUsageTests: UsageWorkspaceTestCase {
-    func testParserPricesEveryModelAndFavorsTheMostCalledOne() throws {
+    func testParserPricesEveryModelAndBillsUnderTheMostCalledOne() throws {
         var parser = GrokUsageLogParser()
 
         let event = try XCTUnwrap(
@@ -20,9 +20,8 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(event.record.timestamp, usageTestTimestamp)
         XCTAssertEqual(event.record.processedTokens, 2_200_000)
         XCTAssertEqual(event.record.costUSD, 6)
-        XCTAssertEqual(event.record.modelTurn?.model, ModelID("grok-4.6-build"))
+        XCTAssertEqual(event.record.model, ModelID("grok-4.6-build"))
         XCTAssertEqual(GrokUsagePricing.displayName(of: ModelID("grok-4.6-build")), "Grok 4.6")
-        XCTAssertNil(event.record.modelTurn?.reasoningEffort)
     }
 
     func testParserIgnoresUpdatesWithoutUsage() {
@@ -60,7 +59,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
 
     func testServiceCountsEachTopLevelTurnOnce() async throws {
         let turn = grokTurn(eventID: "parent-1")
-        let parent = try writeSession("parent", updates: [turn])
+        try writeSession("parent", updates: [turn])
         try writeSession("fork", kind: "fork", updates: [turn, grokTurn(eventID: "fork-1")])
         try writeSession(
             "resumed",
@@ -70,7 +69,6 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
             ]
         )
         try writeSession("child", kind: "subagent", updates: [grokTurn(eventID: "child-1")])
-        try workspace.write(turn + "\n", to: parent.appending(path: "chat_history.jsonl"))
         try workspace.write(
             grokTurn(eventID: "orphan-1") + "\n",
             to: workspace.grokSessions.appending(path: "project/orphan/updates.jsonl")
@@ -83,7 +81,6 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         let grok = try XCTUnwrap(report.snapshot.providers[.grok])
         XCTAssertEqual(grok.periods[.today].total.processedTokens, 4_400_000)
         XCTAssertEqual(grok.periods[.today].total.costUSD, 8)
-        XCTAssertEqual(grok.favorite, ProviderUsageSnapshot.Favorite(modelName: "Grok 4.6", reasoningEffort: nil))
     }
 
     func testSessionIsCountedOnceItsSummaryAppears() async throws {
@@ -100,174 +97,6 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         )
         let after = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(after.ingestion.events[.grok], 1)
-    }
-
-    func testFavoriteUsesHistoricalEffortOncePerPrompt() async throws {
-        let history =
-            [grokHistoryUser(0)] + Array(repeating: grokAssistant("high"), count: 8)
-            + [grokHistoryUser(1), grokAssistant("low"), grokHistoryUser(2), grokAssistant("low")]
-        let session = try writeSession(
-            "efforts",
-            updates: (0..<3).flatMap { [grokUser($0), grokTurn(eventID: "event-\($0)")] },
-            history: history
-        )
-        try workspace.write(
-            #"{"current_model_id":"grok-4.6","reasoning_effort":"xhigh"}"#,
-            to: session.appending(path: "summary.json")
-        )
-
-        let report = await makePipeline().run(at: now, providers: Provider.allCases)
-
-        XCTAssertEqual(report.snapshot.providers[.grok]?.favorite?.reasoningEffort, "low")
-        XCTAssertEqual(report.ingestion.events[.grok], 3)
-        XCTAssertEqual(report.ingestion.malformedLines[.grok], 0)
-        XCTAssertEqual(report.snapshot.providers[.grok]?.periods[.today].total.processedTokens, 3_300_000)
-        XCTAssertEqual(report.snapshot.providers[.grok]?.periods[.today].total.costUSD, 6)
-    }
-
-    func testHistoryChangesRefreshUnchangedUsage() async throws {
-        let session = try writeSession("late-history", updates: [grokUser(0), grokTurn(eventID: "event")])
-        let historyURL = session.appending(path: "chat_history.jsonl")
-        let service = makePipeline()
-        let before = await service.run(at: now, providers: Provider.allCases).snapshot.providers[.grok]
-        XCTAssertNil(before?.favorite?.reasoningEffort)
-
-        try workspace.write(grokHistoryUser(0) + "\n" + grokAssistant("low"), to: historyURL)
-        let partial = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertNil(partial.snapshot.providers[.grok]?.favorite?.reasoningEffort)
-        try workspace.append("\n", to: historyURL)
-        let completed = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertEqual(completed.snapshot.providers[.grok]?.favorite?.reasoningEffort, "low")
-
-        try workspace.write(
-            grokHistoryUser(0) + "\n" + grokAssistant("max") + "\n",
-            to: historyURL,
-            modificationDate: now.addingTimeInterval(1)
-        )
-        let replaced = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertEqual(replaced.snapshot.providers[.grok]?.favorite?.reasoningEffort, "max")
-        XCTAssertEqual(replaced.ingestion.events[.grok], 1)
-        XCTAssertEqual(replaced.snapshot.providers[.grok]?.periods[.today].total, before?.periods[.today].total)
-
-        try FileManager.default.removeItem(at: historyURL)
-        let removed = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertNil(removed.snapshot.providers[.grok]?.favorite?.reasoningEffort)
-        XCTAssertEqual(removed.snapshot.providers[.grok]?.periods[.today].total, before?.periods[.today].total)
-    }
-
-    func testHistoryRequiresMatchingPromptAndPrimaryModel() async throws {
-        try writeSession(
-            "different-model",
-            updates: [
-                grokUser(0),
-                grokTurn(
-                    eventID: "event",
-                    models: ["grok-4.6-build": GrokModelRow(calls: 1), "grok-4.7-build-fast": GrokModelRow(calls: 8)]
-                ),
-            ],
-            history: [
-                grokAssistant("xhigh", model: "grok-4.7-build-fast"),
-                grokHistoryUser(0), grokAssistant("high"),
-                grokHistoryUser(1), grokAssistant("low", model: "grok-4.7-build-fast"),
-            ]
-        )
-
-        let report = await makePipeline().run(at: now, providers: Provider.allCases)
-
-        XCTAssertEqual(report.snapshot.providers[.grok]?.favorite?.modelName, "Grok 4.7 Fast")
-        XCTAssertNil(report.snapshot.providers[.grok]?.favorite?.reasoningEffort)
-        XCTAssertEqual(report.snapshot.providers[.grok]?.periods[.today].total.costUSD, 6)
-    }
-
-    func testRewindKeepsAbandonedTurnsAtTheirOwnEffort() async throws {
-        let session = try writeSession(
-            "rewound",
-            updates: [grokUser(0), grokTurn(eventID: "old")],
-            history: [grokHistoryUser(0), grokAssistant("low")]
-        )
-        let historyURL = session.appending(path: "chat_history.jsonl")
-        let pipeline = makePipeline()
-        let initial = await pipeline.run(at: now, providers: [.grok])
-        XCTAssertEqual(initial.snapshot.providers[.grok]?.favorite?.reasoningEffort, "low")
-
-        try workspace.append(
-            [
-                #"{"params":{"update":{"sessionUpdate":"rewind_marker","target_prompt_index":0}}}"#,
-                grokUser(0), grokTurn(eventID: "new", at: now + 1),
-                grokUser(1), grokTurn(eventID: "newer", at: now + 2),
-            ].joined(separator: "\n") + "\n",
-            to: session.appending(path: "updates.jsonl")
-        )
-        try workspace.write(
-            [grokHistoryUser(0), grokAssistant("high"), grokHistoryUser(1), grokAssistant("high")]
-                .joined(separator: "\n") + "\n",
-            to: historyURL
-        )
-        let rewound = await pipeline.run(at: now, providers: [.grok])
-
-        XCTAssertEqual(rewound.ingestion.events[.grok], 3)
-        XCTAssertEqual(rewound.snapshot.providers[.grok]?.favorite?.reasoningEffort, "high")
-    }
-
-    func testAppendedTurnUsesNewHistoryWithoutChangingPreviousEffort() async throws {
-        let session = try writeSession(
-            "appended",
-            updates: [grokUser(0), grokTurn(eventID: "first")],
-            history: [grokHistoryUser(0), grokAssistant("low")]
-        )
-        let historyURL = session.appending(path: "chat_history.jsonl")
-        let service = makePipeline()
-        let initial = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertEqual(initial.snapshot.providers[.grok]?.favorite?.reasoningEffort, "low")
-
-        try workspace.append(grokHistoryUser(1) + "\n" + grokAssistant("high") + "\n", to: historyURL)
-        let pending = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertEqual(pending.snapshot.providers[.grok]?.favorite?.reasoningEffort, "low")
-        try workspace.append(
-            grokUser(1) + "\n" + grokTurn(eventID: "second") + "\n",
-            to: session.appending(path: "updates.jsonl")
-        )
-        let completed = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertEqual(completed.snapshot.providers[.grok]?.favorite?.reasoningEffort, "high")
-        XCTAssertEqual(completed.ingestion.events[.grok], 2)
-        XCTAssertEqual(completed.snapshot.providers[.grok]?.periods[.today].total.costUSD, 4)
-    }
-
-    func testMalformedContextAndHistoryAreReportedWithoutDroppingUsage() async throws {
-        try writeSession(
-            "malformed-history",
-            updates: [
-                #"{"params":{"update":{"sessionUpdate":"user_message_chunk","_meta":{"promptIndex":"bad"}}}}"#,
-                grokUser(0), grokTurn(eventID: "event"),
-            ],
-            history: [
-                grokHistoryUser(0),
-                #"{"type":"assistant","model_id":"grok-4.6-build","reasoning_effort":42}"#,
-            ]
-        )
-
-        let report = await makePipeline().run(at: now, providers: Provider.allCases)
-
-        XCTAssertNil(report.snapshot.providers[.grok]?.favorite?.reasoningEffort)
-        XCTAssertEqual(report.ingestion.malformedLines[.grok], 2)
-        XCTAssertEqual(report.ingestion.events[.grok], 1)
-    }
-
-    func testForkDeduplicationKeepsTheCopyWithHistoricalEffort() async throws {
-        let updates = [grokUser(0), grokTurn(eventID: "shared-event")]
-        try writeSession("a-compacted", updates: updates)
-        try writeSession(
-            "z-fork",
-            kind: "fork",
-            updates: updates,
-            history: [grokHistoryUser(0), grokAssistant("high")]
-        )
-
-        let report = await makePipeline().run(at: now, providers: Provider.allCases)
-
-        XCTAssertEqual(report.snapshot.providers[.grok]?.favorite?.reasoningEffort, "high")
-        XCTAssertEqual(report.ingestion.events[.grok], 1)
-        XCTAssertEqual(report.snapshot.providers[.grok]?.periods[.today].total.costUSD, 2)
     }
 
     func testBuildModelsUseFlatStandardRatesAndFastDoublesThem() throws {
@@ -293,33 +122,13 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
 }
 
 private extension GrokUsageTests {
-    func grokUser(_ index: Int) -> String {
-        """
-        {"params":{"update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"hello"},"_meta":{"modelId":"grok-4.6","promptIndex":\(index)}}}}
-        """
-    }
-
-    func grokHistoryUser(_ index: Int) -> String {
-        #"{"type":"user","content":[{"type":"text","text":"hello"}],"prompt_index":\#(index)}"#
-    }
-
-    func grokAssistant(_ effort: String, model: String = "grok-4.6-build") -> String {
-        #"{"type":"assistant","content":"hello","model_id":"\#(model)","reasoning_effort":"\#(effort)"}"#
-    }
-
-    @discardableResult
-    func writeSession(_ id: String, kind: String? = nil, updates: [String], history: [String]? = nil) throws -> URL {
+    func writeSession(_ id: String, kind: String? = nil, updates: [String]) throws {
         let directory = workspace.grokSessions.appending(path: "project/\(id)", directoryHint: .isDirectory)
         let kindField = kind.map { ",\"session_kind\":\"\($0)\"" } ?? ""
         try workspace.write(
             "{\"info\":{\"id\":\"\(id)\",\"cwd\":\"/project\"}\(kindField)}",
             to: directory.appending(path: "summary.json")
         )
-        for (name, lines) in [("updates.jsonl", updates), ("chat_history.jsonl", history)] {
-            if let lines {
-                try workspace.write(lines.map { $0 + "\n" }.joined(), to: directory.appending(path: name))
-            }
-        }
-        return directory
+        try workspace.write(updates.map { $0 + "\n" }.joined(), to: directory.appending(path: "updates.jsonl"))
     }
 }

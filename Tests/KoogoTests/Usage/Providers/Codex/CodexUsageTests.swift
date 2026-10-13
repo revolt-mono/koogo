@@ -21,7 +21,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(first.record.processedTokens, 120)
         XCTAssertEqual(second.record.processedTokens, 180)
-        XCTAssertEqual(second.record.modelTurn?.reasoningEffort, "high")
+        XCTAssertEqual(second.record.model, ModelID("gpt-5.6-sol"))
     }
 
     func testCodexValidRequestSurvivesAnIncompletePreviousTokenCount() throws {
@@ -101,7 +101,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     }
 
     func testCodexSyntheticFillIsIgnored() throws {
-        var parser = try codexParserInTurn(effort: "medium")
+        var parser = try codexParserInTurn()
         let request = codexUsage(input: 100, output: 10)
         _ = try parse(codexTokenCount(last: request, total: request), with: &parser)
         let filled = codexUsage(input: 0, output: 0, total: 1_000)
@@ -127,7 +127,6 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         )
 
         XCTAssertEqual(event.record.processedTokens, 55)
-        XCTAssertEqual(event.record.modelTurn?.reasoningEffort, "medium")
     }
 
     func testCodexRejectsMalformedContextWindowsWithoutUpdatingBaseline() throws {
@@ -163,8 +162,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         let request = codexUsage(input: 100, output: 20)
         let event = try XCTUnwrap(parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
 
-        XCTAssertEqual(event.record.modelTurn?.model, ModelID("gpt-5.6-sol"))
-        XCTAssertEqual(event.record.modelTurn?.reasoningEffort, "high")
+        XCTAssertEqual(event.record.model, ModelID("gpt-5.6-sol"))
     }
 
     func testCodexPricesLoggedCacheWrites() throws {
@@ -177,7 +175,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             let event = try XCTUnwrap(parse(codexTokenCount(last: request, total: request), with: &parser)?.event)
 
             XCTAssertEqual(event.record.processedTokens, 120)
-            XCTAssertEqual(event.record.modelTurn?.model.rawValue, model)
+            XCTAssertEqual(event.record.model?.rawValue, model)
             XCTAssertEqual(event.record.costUSD, Decimal(string: expectedUSD), model)
         }
     }
@@ -281,10 +279,10 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     }
 }
 
-private func codexParserInTurn(model: String = "gpt-5.6-sol", effort: String = "high") throws -> CodexUsageLogParser {
+private func codexParserInTurn(model: String = "gpt-5.6-sol") throws -> CodexUsageLogParser {
     var parser = CodexUsageLogParser()
     _ = try parse(codexMeta(), with: &parser)
-    _ = try parse(codexTurn(model: model, effort: effort), with: &parser)
+    _ = try parse(codexTurn(model: model), with: &parser)
     return parser
 }
 

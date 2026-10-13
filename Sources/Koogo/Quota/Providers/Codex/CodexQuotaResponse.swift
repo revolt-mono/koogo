@@ -10,17 +10,37 @@ struct CodexQuotaResponse: Decodable, Sendable {
         let named = (rateLimitsByLimitID ?? [:])
             .filter { id, _ in !id.isEmpty && id != accountID }
             .map { id, rateLimit in
-                (id: id, name: rateLimit.limitName.flatMap { $0.isEmpty ? nil : $0 } ?? id, rateLimit: rateLimit)
+                (id: id, name: rateLimit.limitName?.nonEmpty ?? id, rateLimit: rateLimit)
             }
             .sorted {
                 let order = $0.name.localizedCaseInsensitiveCompare($1.name)
                 return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
             }
         return QuotaSnapshot(
+            plan: rateLimits.planType.map(Self.planName),
             windows: rateLimits.windows(named: nil) + named.flatMap { $0.rateLimit.windows(named: $0.name) },
             credits: rateLimits.credits?.snapshot,
             resetCredits: rateLimitResetCredits?.snapshot
         )
+    }
+
+    /// The labels the Codex TUI shows for its plan codes; a code outside this table shows capitalized.
+    private static func planName(_ planType: String) -> String {
+        switch planType {
+        case "free": "Free"
+        case "go": "Go"
+        case "plus": "Plus"
+        case "pro": "Pro 200"
+        case "prolite": "Pro 100"
+        case "promax": "Pro 500"
+        case "team", "self_serve_business_usage_based": "Business"
+        case "self_serve_business_prolite": "Business Premium"
+        case "business", "ent26", "enterprise_cbp_usage_based": "Enterprise"
+        case "enterprise_cbp_automation": "Enterprise (Automation)"
+        case "edu_plus": "Edu Plus"
+        case "edu_pro": "Edu Pro"
+        default: planType.capitalized
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -33,6 +53,7 @@ struct CodexQuotaResponse: Decodable, Sendable {
 private struct CodexRateLimitSnapshot: Decodable {
     let limitID: String?
     let limitName: String?
+    let planType: String?
     let primary: CodexRateLimitWindow?
     let secondary: CodexRateLimitWindow?
     let credits: CodexCredits?
@@ -50,6 +71,7 @@ private struct CodexRateLimitSnapshot: Decodable {
     private enum CodingKeys: String, CodingKey {
         case limitID = "limitId"
         case limitName
+        case planType
         case primary
         case secondary
         case credits

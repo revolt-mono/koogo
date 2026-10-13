@@ -18,44 +18,22 @@ struct ModelID: Hashable, Comparable, Sendable, Encodable, ExpressibleByStringLi
 }
 
 struct UsageRecord: Sendable {
-    struct ModelTurn: Equatable, Sendable {
-        let model: ModelID
-        let reasoningEffort: String?
-    }
-
     /// Held as seconds because `Date` has a resilient layout, which routes every copy of a record through runtime value witnesses.
     private let secondsSinceReferenceDate: TimeInterval
     let processedTokens: UInt64
     let costUSD: Decimal
-    let modelTurn: ModelTurn?
+    /// None for usage a log bills without naming a model, such as tool results or compaction.
+    let model: ModelID?
 
     var timestamp: Date {
         Date(timeIntervalSinceReferenceDate: secondsSinceReferenceDate)
     }
 
-    init(timestamp: Date, processedTokens: UInt64, costUSD: Decimal, modelTurn: ModelTurn?) {
+    init(timestamp: Date, processedTokens: UInt64, costUSD: Decimal, model: ModelID?) {
         secondsSinceReferenceDate = timestamp.timeIntervalSinceReferenceDate
         self.processedTokens = processedTokens
         self.costUSD = costUSD
-        self.modelTurn = modelTurn
-    }
-
-    init(timestamp: Date, processedTokens: UInt64, quote: UsageQuote, reasoningEffort: String?) {
-        self.init(
-            timestamp: timestamp,
-            processedTokens: processedTokens,
-            costUSD: quote.costUSD,
-            modelTurn: ModelTurn(model: quote.model, reasoningEffort: reasoningEffort)
-        )
-    }
-
-    func withReasoningEffort(_ reasoningEffort: String?) -> Self {
-        Self(
-            timestamp: timestamp,
-            processedTokens: processedTokens,
-            costUSD: costUSD,
-            modelTurn: modelTurn.map { ModelTurn(model: $0.model, reasoningEffort: reasoningEffort) }
-        )
+        self.model = model
     }
 }
 
@@ -110,7 +88,7 @@ struct UsageEventID: Hashable, Comparable, Sendable {
 }
 
 struct UsageEvent: Sendable {
-    /// Streamed replies grow their output, and rewritten lines can add speed, cache split, or reasoning effort.
+    /// Streamed replies grow their output, and rewritten lines can add speed or the cache split.
     struct Revision: Comparable, Sendable {
         let outputTokens: UInt64
         let metadataCompleteness: UInt8

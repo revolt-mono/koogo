@@ -1,25 +1,9 @@
 import Foundation
 
 struct PiUsageLogParser: UsageLogParser {
-    private var levelSlots: [String: UInt8] = [:]
-    private var levels: [String] = []
-
-    mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
-        guard let entry = try PiEntry(line) else {
-            return nil
-        }
-        let levelSlot =
-            if case .thinkingLevelChange(let level) = entry.kind {
-                try slot(of: level)
-            } else {
-                entry.parentID.flatMap { levelSlots[$0] }
-            }
-        if let levelSlot {
-            levelSlots[entry.id] = levelSlot
-        }
-        let thinking = levelSlot.map { levels[Int($0)] }
-        guard case .billed(let billed) = entry.kind,
-            billed.model != nil || billed.processedTokens > 0 || billed.costUSD > 0
+    func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
+        guard let entry = try PiEntry(line), let billed = entry.billed,
+            billed.processedTokens > 0 || billed.costUSD > 0
         else {
             return nil
         }
@@ -30,46 +14,25 @@ struct PiUsageLogParser: UsageLogParser {
                     timestamp: billed.timestamp,
                     processedTokens: billed.processedTokens,
                     costUSD: billed.costUSD,
-                    modelTurn: billed.model.map { UsageRecord.ModelTurn(model: $0, reasoningEffort: thinking) }
+                    model: billed.model
                 )
             )
         )
     }
-
-    /// A log naming more distinct levels than a slot can hold is malformed.
-    private mutating func slot(of level: String) throws -> UInt8 {
-        if let slot = levels.firstIndex(of: level) {
-            return UInt8(slot)
-        }
-        guard let slot = UInt8(exactly: levels.count) else {
-            throw MalformedUsageRecord()
-        }
-        levels.append(level)
-        return slot
-    }
 }
 
 private struct PiEntry {
-    enum Kind {
-        case thinkingLevelChange(String)
-        case billed(PiBilledEntry)
-        case other
-    }
-
     let id: String
-    let parentID: String?
-    let kind: Kind
+    let billed: PiBilledEntry?
 
     init?(_ line: UnsafeRawBufferPointer) throws {
         guard let record = JSONValue(object: line) else {
             return nil
         }
-        let (type, id, parentID, timestamp, thinkingLevel, message, usage) = try record.fields(
+        let (type, id, timestamp, message, usage) = try record.fields(
             .value("type"),
             .string("id"),
-            .string("parentId"),
             .string("timestamp"),
-            .value("thinkingLevel"),
             .value("message"),
             .value("usage")
         )
@@ -77,26 +40,18 @@ private struct PiEntry {
             throw MalformedUsageRecord()
         }
         self.id = id
-        self.parentID = parentID
         switch type {
-        case "thinking_level_change":
-            guard let level = try thinkingLevel?.string() else {
-                throw MalformedUsageRecord()
-            }
-            kind = .thinkingLevelChange(level)
         case "message":
             guard let message else {
                 throw MalformedUsageRecord()
             }
-            kind = try PiBilledEntry(message: message).map(Kind.billed) ?? .other
+            billed = try PiBilledEntry(message: message)
         case "compaction", "branch_summary":
-            kind =
-                try usage.flatMap {
-                    try PiBilledEntry(usage: $0, model: nil, timestamp: timestamp.flatMap(Date.init(iso8601:)))
-                }
-                .map(Kind.billed) ?? .other
+            billed = try usage.flatMap {
+                try PiBilledEntry(usage: $0, model: nil, timestamp: timestamp.flatMap(Date.init(iso8601:)))
+            }
         default:
-            kind = .other
+            billed = nil
         }
     }
 }

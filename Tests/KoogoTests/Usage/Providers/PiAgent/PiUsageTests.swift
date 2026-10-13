@@ -4,41 +4,36 @@ import XCTest
 @testable import Koogo
 
 final class PiUsageTests: UsageWorkspaceTestCase {
-    func testParserUsesBranchLocalThinkingAndLoggedUsage() throws {
+    func testParserUsesLoggedUsageAndNamesTheModel() throws {
         var parser = PiUsageLogParser()
         for record in [piSessionHeader, piThinking(id: "high", parentID: nil, level: "high"), piUser] {
             XCTAssertNil(try parse(record, with: &parser))
         }
-        let usage = { (cost: String) in piUsage(input: 40, output: 20, cacheRead: 30, cacheWrite: 10, cost: cost) }
-        let first = try XCTUnwrap(
+        let event = try XCTUnwrap(
             try parse(
-                piAssistant(id: "first", parentID: "user", model: "model-a", usage: usage("0.125")),
-                with: &parser
-            )?.event
-        )
-        XCTAssertNil(try parse(piThinking(id: "low", parentID: "high", level: "low"), with: &parser))
-        let lowBranch = try XCTUnwrap(
-            try parse(
-                piAssistant(id: "second", parentID: "low", model: "model-b", usage: usage("0.25")),
-                with: &parser
-            )?.event
-        )
-        let highBranch = try XCTUnwrap(
-            try parse(
-                piAssistant(id: "third", parentID: "first", model: "model-a", usage: usage("0.5")),
+                piAssistant(
+                    id: "first",
+                    parentID: "user",
+                    model: "model-a",
+                    usage: piUsage(input: 40, output: 20, cacheRead: 30, cacheWrite: 10, cost: "0.125")
+                ),
                 with: &parser
             )?.event
         )
 
-        XCTAssertEqual(first.record.timestamp, usageTestTimestamp)
-        XCTAssertEqual(first.record.processedTokens, 100)
-        XCTAssertEqual(first.record.costUSD, Decimal(string: "0.125"))
-        XCTAssertEqual(first.record.modelTurn?.reasoningEffort, "high")
-        XCTAssertEqual(lowBranch.record.modelTurn?.reasoningEffort, "low")
-        XCTAssertEqual(highBranch.record.modelTurn?.reasoningEffort, "high")
+        XCTAssertEqual(event.record.timestamp, usageTestTimestamp)
+        XCTAssertEqual(event.record.processedTokens, 100)
+        XCTAssertEqual(event.record.costUSD, Decimal(string: "0.125"))
+        XCTAssertEqual(event.record.model, ModelID("provider/model-a"))
+        XCTAssertNil(
+            try parse(
+                piAssistant(id: "free", parentID: "first", model: "model-a", usage: piUsage(input: 0, cost: "0")),
+                with: &parser
+            )
+        )
     }
 
-    func testParserIncludesAuxiliaryUsageWithoutFavoriteMetadata() throws {
+    func testParserIncludesAuxiliaryUsageWithoutAModel() throws {
         var parser = PiUsageLogParser()
         _ = try parse(piSessionHeader, with: &parser)
         let records = [
@@ -55,7 +50,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let events = try records.map { try XCTUnwrap(parse($0, with: &parser)?.event) }
 
         XCTAssertEqual(events.map(\.record.processedTokens), [10, 20, 30])
-        XCTAssertTrue(events.allSatisfy { $0.record.modelTurn == nil })
+        XCTAssertTrue(events.allSatisfy { $0.record.model == nil })
         XCTAssertEqual(events.map(\.record.costUSD).reduce(0, +), Decimal(string: "0.06"))
     }
 
@@ -66,32 +61,6 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             """
 
         XCTAssertEqual(try XCTUnwrap(parse(log, with: &parser)?.event).record.processedTokens, 125)
-    }
-
-    func testParserKeepsZeroUsageAssistantTurnsForFavorites() throws {
-        var parser = PiUsageLogParser()
-
-        let event = try XCTUnwrap(
-            try parse(
-                piAssistant(id: "free", parentID: nil, model: "free-model", usage: piUsage(input: 0, cost: "0")),
-                with: &parser
-            )?.event
-        )
-
-        XCTAssertEqual(event.record.processedTokens, 0)
-        XCTAssertEqual(
-            event.record.modelTurn?.model,
-            ModelID("provider/free-model")
-        )
-        let snapshot = usageSnapshot(
-            events: [event],
-            intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
-        )
-        XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.last30Days].total, UsagePeriodSnapshot())
-        XCTAssertEqual(
-            snapshot.providers[.piAgent]?.favorite,
-            ProviderUsageSnapshot.Favorite(modelName: "free-model", reasoningEffort: nil)
-        )
     }
 
     func testCatalogPrefersCustomNamesAndOverridesOverStoredNames() throws {
@@ -106,7 +75,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(names, ["Readable Model A", "Preferred Model B", "unnamed", "unknown"])
     }
 
-    func testServiceUsesLoggedCostsModelNamesAndTurnFavorites() async throws {
+    func testServiceUsesLoggedCostsAndModelNames() async throws {
         try writeModelCatalog()
         let contents = piSessionLog
         try workspace.write(contents, to: workspace.piSessions.appending(path: "project/session.jsonl"))
@@ -123,16 +92,9 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             models.map(\.usage.costUSD),
             [Decimal(string: "0.15"), Decimal(string: "0.03"), Decimal(string: "0.03")]
         )
-        XCTAssertEqual(
-            snapshot.providers[.piAgent]?.favorite,
-            ProviderUsageSnapshot.Favorite(
-                modelName: "Readable Model A",
-                reasoningEffort: "high"
-            )
-        )
     }
 
-    func testServiceRefreshesFavoriteWhenModelCatalogChanges() async throws {
+    func testServiceRefreshesModelNamesWhenTheCatalogChanges() async throws {
         try workspace.write(
             piSessionLog,
             to: workspace.piSessions.appending(path: "session.jsonl")
@@ -145,7 +107,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         )
         let service = makePipeline()
         let initial = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(initial.providers[.piAgent]?.favorite?.modelName, "Initial Name")
+        XCTAssertEqual(initial.providers[.piAgent]?.periods[.today].models?[1].modelName, "Initial Name")
 
         try workspace.write(
             """
@@ -155,7 +117,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         )
         let updated = await service.run(at: now, providers: Provider.allCases).snapshot
 
-        XCTAssertEqual(updated.providers[.piAgent]?.favorite?.modelName, "Updated Name")
+        XCTAssertEqual(updated.providers[.piAgent]?.periods[.today].models?[1].modelName, "Updated Name")
         let unchanged = await service.run(at: now, providers: Provider.allCases).snapshot
         XCTAssertEqual(unchanged, updated)
     }
@@ -168,16 +130,16 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let store = home.appending(path: "models-store.json")
         let service = makePipeline()
         let initial = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(initial.providers[.piAgent]?.favorite?.modelName, "Readable Model A")
+        XCTAssertEqual(initial.providers[.piAgent]?.periods[.today].models?[1].modelName, "Readable Model A")
 
         try workspace.write("{invalid", to: custom)
         let malformed = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(malformed.providers[.piAgent]?.favorite?.modelName, "Cached Model A")
+        XCTAssertEqual(malformed.providers[.piAgent]?.periods[.today].models?[1].modelName, "Cached Model A")
 
         try FileManager.default.removeItem(at: custom)
         try FileManager.default.removeItem(at: store)
         let deleted = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(deleted.providers[.piAgent]?.favorite?.modelName, "model-a")
+        XCTAssertEqual(deleted.providers[.piAgent]?.periods[.today].models?[1].modelName, "model-a")
 
         try writeModelCatalog()
         let restored = await service.run(at: now, providers: Provider.allCases).snapshot
@@ -220,7 +182,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         try workspace.write(piCustomModels, to: piHome.appending(path: "models.json"))
     }
 
-    func testPiThinkingPassesThroughRecordsInAnyLayout() throws {
+    func testPiRecordsInAnyLayoutPassThroughUntilABilledReply() throws {
         var parser = PiUsageLogParser()
         let records = [
             piThinking(id: "high", parentID: nil, level: "high"),
@@ -241,7 +203,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             )?.event
         )
 
-        XCTAssertEqual(event.record.modelTurn?.reasoningEffort, "high")
+        XCTAssertEqual(event.record.model, ModelID("provider/model-a"))
     }
 }
 

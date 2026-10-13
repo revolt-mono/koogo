@@ -86,7 +86,6 @@ func usageEvent(
     _ provider: Provider,
     id: Int = 0,
     model: String? = nil,
-    effort: String? = nil,
     processedTokens: UInt64,
     costUSD: Decimal,
     at eventDate: Date = usageTestTimestamp
@@ -95,7 +94,7 @@ func usageEvent(
         timestamp: eventDate,
         processedTokens: processedTokens,
         costUSD: costUSD,
-        modelTurn: model.map { UsageRecord.ModelTurn(model: ModelID($0), reasoningEffort: effort) }
+        model: model.map { ModelID($0) }
     )
     let eventID: UsageEventID =
         switch provider {
