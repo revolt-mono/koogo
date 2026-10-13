@@ -13,14 +13,6 @@ final class UpdateModel: NSObject {
 
     private(set) var isUpdateAvailable = false
 
-    var showsUpdateIndicator: Bool {
-        #if DEBUG
-        true
-        #else
-        isUpdateAvailable
-        #endif
-    }
-
     func start() {
         updaterController.startUpdater()
     }

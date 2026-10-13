@@ -57,7 +57,7 @@ private struct PanelToolbar: View {
 
             MouseIssueButton()
 
-            if updateModel.showsUpdateIndicator {
+            if updateModel.isUpdateAvailable {
                 UpdateAvailableButton()
             }
 
@@ -71,6 +71,6 @@ private struct PanelToolbar: View {
             .foregroundStyle(.secondary)
             .accessibilityLabel("Settings")
         }
-        .motionAnimation(.smooth(duration: 0.25), value: updateModel.showsUpdateIndicator)
+        .motionAnimation(.smooth(duration: 0.25), value: updateModel.isUpdateAvailable)
     }
 }
