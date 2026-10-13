@@ -115,7 +115,7 @@ extension ProcessScan {
     private static let absoluteTimeZero = SuspendingClock.now - duration(ofTicks: mach_absolute_time())
 
     static func read() throws -> ProcessScan {
-        guard let pids = LibProc.pids(ownedBy: getuid()) else { throw ActivityReadFailure.processes }
+        guard let pids = LibProc.pids() else { throw ActivityReadFailure.processes }
         let taken = SuspendingClock.now
         let gpuTimes = GPULoad.timePerProcess()
         return ProcessScan(records: pids.compactMap { record($0, gpuTime: gpuTimes[$0] ?? .zero) }, taken: taken)

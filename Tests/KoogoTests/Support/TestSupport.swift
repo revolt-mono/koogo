@@ -3,6 +3,16 @@ import Foundation
 import Synchronization
 import XCTest
 
+@testable import Koogo
+
+extension EnumMap: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (Key, Value)...) {
+        let values = Dictionary(uniqueKeysWithValues: elements)
+        precondition(values.count == Key.allCases.count, "a literal must cover every case")
+        self.init { values[$0]! }
+    }
+}
+
 extension XCTestCase {
     func makeTemporaryDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory

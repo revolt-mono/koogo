@@ -48,7 +48,7 @@ struct OrphanedAgentProcesses: Sendable {
 
     @concurrent
     static func running() async throws -> OrphanedAgentProcesses? {
-        guard let pids = LibProc.pids(ownedBy: getuid()) else { throw Failure.scan }
+        guard let pids = LibProc.pids() else { throw Failure.scan }
         return OrphanedAgentProcesses(pids.compactMap(orphanedAgentProcess))
     }
 

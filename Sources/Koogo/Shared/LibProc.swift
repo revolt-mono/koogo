@@ -1,8 +1,10 @@
 import Darwin
 
 enum LibProc {
-    static func pids(ownedBy uid: uid_t) -> [pid_t]? {
+    /// Every process of the current user.
+    static func pids() -> [pid_t]? {
         let type = UInt32(PROC_UID_ONLY)
+        let uid = getuid()
         let pidStride = Int32(MemoryLayout<pid_t>.stride)
         let listedBytes = proc_listpids(type, uid, nil, 0)
         guard listedBytes > 0 else { return nil }
