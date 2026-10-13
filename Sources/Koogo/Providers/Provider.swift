@@ -51,7 +51,7 @@ enum Provider: String, CaseIterable, Sendable, Codable, CodingKeyRepresentable {
     }
 }
 
-enum QuotaProvider: String, CaseIterable, Sendable, Codable, CodingKeyRepresentable {
+enum QuotaProvider: String, CaseIterable, Sendable, Encodable, CodingKeyRepresentable {
     case codex
     case claude
     case grok

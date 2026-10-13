@@ -40,7 +40,6 @@ struct UsagePage: View {
 private struct ProviderCards: View {
     private static let visibleCards = 3
 
-    @Environment(ProviderPreferences.self) private var preferences
     @Environment(QuotaModel.self) private var quotaModel
     @State private var cardHeights: [Provider: CGFloat] = [:]
 
@@ -56,7 +55,7 @@ private struct ProviderCards: View {
         ScrollView {
             VStack(spacing: PanelLayout.gap) {
                 ForEach(cards, id: \.provider) { card in
-                    let quota = preferences.quotaProvider(for: card.provider)
+                    let quota = card.provider.quota
                     ProviderUsageCard(
                         provider: card.provider,
                         usage: card.usage,

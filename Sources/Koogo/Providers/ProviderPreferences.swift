@@ -21,8 +21,9 @@ final class ProviderPreferences {
         order.filter { self[usage: $0] }
     }
 
+    /// Quota renders inside the usage card, so a provider hidden from usage fetches none.
     var quotaProviders: [QuotaProvider] {
-        order.compactMap(quotaProvider(for:))
+        usageProviders.compactMap(\.quota)
     }
 
     subscript(usage provider: Provider) -> Bool {
@@ -34,11 +35,6 @@ final class ProviderPreferences {
                 stored.usageDisabled.insert(provider)
             }
         }
-    }
-
-    /// The quota a provider's usage card shows. Quota renders inside that card, so a provider hidden from usage fetches none.
-    func quotaProvider(for provider: Provider) -> QuotaProvider? {
-        self[usage: provider] ? provider.quota : nil
     }
 
     init(defaults: UserDefaults = .standard) {

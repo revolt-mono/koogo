@@ -138,7 +138,7 @@ private struct CodexQuotaResetStatus: View {
             "Codex returned an error (code \(code))."
         case .notFound:
             "Codex wasn't found. Install Codex, then retry."
-        case .timedOut, .cancelled, .closed, .invalidMessage:
+        case .timedOut, .closed, .invalidMessage:
             "The Codex request failed. Try again."
         }
     }

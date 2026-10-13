@@ -30,7 +30,6 @@ struct CodexQuotaSource: CodexQuotaResetSource {
         }
     }
 
-    @concurrent
     func consume(_ attempt: CodexQuotaResetAttempt) async -> CodexQuotaResetResult {
         do {
             let response: ConsumeResponse = try await appServer.call(

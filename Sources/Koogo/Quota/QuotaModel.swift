@@ -25,14 +25,11 @@ enum QuotaStatus: Equatable, Sendable {
 @Observable
 final class QuotaModel {
     let sources: QuotaSources
-    /// Wall-clock time for deadlines in readings; the cooldown runs on the monotonic clock so a clock step cannot stretch or skip it.
-    let now: @MainActor () -> Date
 
     private(set) var statuses = EnumMap<QuotaProvider, QuotaStatus> { _ in .unread }
 
-    init(sources: QuotaSources = .production, now: @escaping @MainActor () -> Date = { .now }) {
+    init(sources: QuotaSources = .production) {
         self.sources = sources
-        self.now = now
     }
 
     func refresh(_ providers: some Sequence<QuotaProvider>) {

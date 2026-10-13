@@ -11,6 +11,8 @@ extension [QuotaWindow] {
     }
 }
 
+extension QuotaUnavailability: Error {}
+
 extension QuotaReading {
     func get() throws -> QuotaSnapshot {
         switch self {
@@ -69,10 +71,9 @@ final class ScriptedCodexResetSource: CodexQuotaResetSource {
 func makeQuotaModel(
     codex: any CodexQuotaResetSource = ScriptedCodexResetSource(),
     claude: any QuotaSource = ScriptedQuotaSource([]),
-    grok: any QuotaSource = ScriptedQuotaSource([]),
-    now: @escaping @MainActor () -> Date = { .now }
+    grok: any QuotaSource = ScriptedQuotaSource([])
 ) -> QuotaModel {
-    QuotaModel(sources: QuotaSources(codex: codex, claude: claude, grok: grok), now: now)
+    QuotaModel(sources: QuotaSources(codex: codex, claude: claude, grok: grok))
 }
 
 func waitForExit(

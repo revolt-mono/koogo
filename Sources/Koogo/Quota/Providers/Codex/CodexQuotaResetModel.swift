@@ -6,14 +6,17 @@ import Observation
 @Observable
 final class CodexQuotaResetModel {
     private let quota: QuotaModel
+    private let clock: @MainActor () -> Date
     private var pending = CodexQuotaResetFlow.idle
 
-    init(quota: QuotaModel) {
+    /// Credit expiry is judged on wall-clock time.
+    init(quota: QuotaModel, now: @escaping @MainActor () -> Date = { .now }) {
         self.quota = quota
+        clock = now
     }
 
     var now: Date {
-        quota.now()
+        clock()
     }
 
     var credits: QuotaSnapshot.ResetCredits? {
@@ -32,9 +35,8 @@ final class CodexQuotaResetModel {
         credits != nil || flow != .idle
     }
 
-    var canChoose: Bool {
-        guard !isBusy, case .available = quota.statuses[.codex].latest else { return false }
-        return flow.acceptsChoice
+    private var canChoose: Bool {
+        !isBusy && flow.acceptsChoice
     }
 
     func canUse(_ credit: QuotaSnapshot.ResetCredit) -> Bool {

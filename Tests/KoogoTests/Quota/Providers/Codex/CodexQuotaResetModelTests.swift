@@ -68,7 +68,8 @@ final class CodexQuotaResetModelTests: XCTestCase {
 
         XCTAssertEqual(model.flow, .completed(.reset))
         XCTAssertEqual(quota.statuses[.codex].latest, .unavailable(.sessionFailed))
-        XCTAssertFalse(model.canChoose)
+        model.begin(creditID: "credit-a")
+        XCTAssertEqual(model.flow, .completed(.reset), "a failed reread leaves no credit to choose")
 
         model.refresh()
         try await waitUntil { !model.isBusy }
@@ -97,7 +98,8 @@ final class CodexQuotaResetModelTests: XCTestCase {
         model.refresh()
         try await waitUntil { !model.isBusy }
         XCTAssertEqual(model.flow, .unconfirmed(attempt, .closed))
-        XCTAssertFalse(model.canChoose)
+        model.begin(creditID: "credit-a")
+        XCTAssertEqual(model.flow, .unconfirmed(attempt, .closed))
         XCTAssertEqual(source.consumed.withLock { $0 }, [attempt])
 
         model.submit()
@@ -135,7 +137,8 @@ final class CodexQuotaResetModelTests: XCTestCase {
         try await waitUntil { !model.isBusy }
         XCTAssertEqual(quota.statuses[.codex].latest, .unavailable(.timedOut))
         XCTAssertEqual(model.flow, .idle)
-        XCTAssertFalse(model.canChoose)
+        model.begin(creditID: "credit-a")
+        XCTAssertEqual(model.flow, .idle, "a failed reread leaves no credit to choose")
     }
 
     @MainActor
@@ -150,7 +153,8 @@ final class CodexQuotaResetModelTests: XCTestCase {
         model.submit()
         try await waitUntil { !model.isBusy }
         XCTAssertEqual(model.flow, .confirming(attempt, rejection: .rpc(code: -32601)))
-        XCTAssertFalse(model.canChoose)
+        model.begin(creditID: "credit-a")
+        XCTAssertEqual(model.flow, .confirming(attempt, rejection: .rpc(code: -32601)))
     }
 
     @MainActor
@@ -210,8 +214,8 @@ final class CodexQuotaResetModelTests: XCTestCase {
         _ source: ScriptedCodexResetSource,
         now: @escaping @MainActor () -> Date = { .now }
     ) async throws -> (quota: QuotaModel, reset: CodexQuotaResetModel) {
-        let quota = makeQuotaModel(codex: source, now: now)
-        let reset = CodexQuotaResetModel(quota: quota)
+        let quota = makeQuotaModel(codex: source)
+        let reset = CodexQuotaResetModel(quota: quota, now: now)
         quota.reload([.codex])
         try await waitUntil { !quota.statuses[.codex].isBusy }
         XCTAssertNotNil(quota.statuses[.codex].latest?.snapshot)

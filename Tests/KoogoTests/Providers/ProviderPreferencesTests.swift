@@ -51,4 +51,18 @@ final class ProviderPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.order, Provider.allCases)
         XCTAssertEqual(preferences.usageProviders, Provider.allCases)
     }
+
+    func testRepeatedStoredProvidersKeepTheirFirstSlot() throws {
+        let defaults = try makeIsolatedDefaults()
+        let stored: [String: Any] = ["order": ["grok", "codex", "grok"], "usageDisabled": [String]()]
+        defaults.set(
+            try PropertyListSerialization.data(fromPropertyList: stored, format: .binary, options: 0),
+            forKey: "provider-preferences"
+        )
+
+        let preferences = ProviderPreferences(defaults: defaults)
+
+        XCTAssertEqual(preferences.order, [.grok, .codex, .claude, .piAgent])
+        XCTAssertEqual(preferences.quotaProviders, [.grok, .codex, .claude])
+    }
 }

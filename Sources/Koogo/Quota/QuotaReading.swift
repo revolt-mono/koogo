@@ -1,4 +1,4 @@
-enum QuotaUnavailability: String, Error, Encodable, Sendable {
+enum QuotaUnavailability: String, Encodable, Sendable {
     case binaryNotFound
     case timedOut
     case sessionFailed
