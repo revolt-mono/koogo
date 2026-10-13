@@ -16,12 +16,7 @@ struct MountedDiskImage: Sendable {
         guard !wholeDiskID.isEmpty, isEjectable, deviceModel == "Disk Image" else { return nil }
 
         self.wholeDiskID = wholeDiskID
-        name =
-            if let volumeName, !volumeName.isEmpty {
-                volumeName
-            } else {
-                mountURL.lastPathComponent
-            }
+        name = volumeName?.nonEmpty ?? mountURL.lastPathComponent
         self.mountURL = mountURL
     }
 }
