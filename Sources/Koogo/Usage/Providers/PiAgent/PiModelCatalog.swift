@@ -1,4 +1,4 @@
-import CryptoKit
+import Darwin
 import Foundation
 import os
 
@@ -30,22 +30,43 @@ struct PiModelCatalog: Sendable {
         let providers: [String: CustomProvider]
     }
 
+    /// A file's inode and change time. The change time moves on every write, rename, or attribute change and cannot be set back.
+    private struct SourceVersion: Equatable {
+        let device: UInt64
+        let inode: UInt64
+        let changeSeconds: Int
+        let changeNanoseconds: Int
+
+        init?(_ url: URL) {
+            var status = Darwin.stat()
+            guard stat(url.path, &status) == 0 else {
+                return nil
+            }
+            device = UInt64(status.st_dev)
+            inode = UInt64(status.st_ino)
+            changeSeconds = status.st_ctimespec.tv_sec
+            changeNanoseconds = status.st_ctimespec.tv_nsec
+        }
+    }
+
     private var names: [ModelID: String] = [:]
-    private var sourceDigests: [SHA256.Digest?] = [nil, nil]
+    private var sourceVersions: [SourceVersion?] = [nil, nil]
 
     static func modelID(provider: String, model: String) -> ModelID {
         ModelID("\(provider)/\(model)")
     }
 
-    /// Rereads both files when their bytes changed. Returns true when any name changed.
+    /// Rereads both files when either one changed on disk. Returns true when any name changed.
     mutating func refresh(home: URL) -> Bool {
-        let store = try? Data(contentsOf: home.appending(path: "models-store.json", directoryHint: .notDirectory))
-        let custom = try? Data(contentsOf: home.appending(path: "models.json", directoryHint: .notDirectory))
-        let digests = [store, custom].map { $0.map { SHA256.hash(data: $0) } }
-        guard digests != sourceDigests else {
+        let storeURL = home.appending(path: "models-store.json", directoryHint: .notDirectory)
+        let customURL = home.appending(path: "models.json", directoryHint: .notDirectory)
+        let versions = [storeURL, customURL].map(SourceVersion.init)
+        guard versions != sourceVersions else {
             return false
         }
-        sourceDigests = digests
+        sourceVersions = versions
+        let store = try? Data(contentsOf: storeURL)
+        let custom = try? Data(contentsOf: customURL)
         var names: [ModelID: String] = [:]
         for (provider, configuration) in Self.decode([String: StoredProvider].self, from: store) ?? [:] {
             for model in configuration.models {
