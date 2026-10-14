@@ -51,7 +51,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
             ]
         )
 
-        let report = await makePipeline().run(at: now, providers: Provider.allCases)
+        let report = await makePipeline().run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.events[.grok], 0)
         XCTAssertEqual(report.ingestion.unpricedModels, ["grok-9-build"])
@@ -64,7 +64,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         try writeSession(
             "resumed",
             updates: [
-                grokTurn(eventID: "resumed-0", at: now.addingTimeInterval(-60)),
+                grokTurn(eventID: "resumed-0", at: usageTestTimestamp.addingTimeInterval(-60)),
                 grokTurn(eventID: "resumed-0"),
             ]
         )
@@ -74,7 +74,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
             to: workspace.grokSessions.appending(path: "project/orphan/updates.jsonl")
         )
 
-        let report = await makePipeline().run(at: now, providers: Provider.allCases)
+        let report = await makePipeline().run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.trackedFiles[.grok], 3)
         XCTAssertEqual(report.ingestion.events[.grok], 4)
@@ -88,7 +88,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         try workspace.write(grokTurn(eventID: "late-1") + "\n", to: session.appending(path: "updates.jsonl"))
         let service = makePipeline()
 
-        let before = await service.run(at: now, providers: Provider.allCases)
+        let before = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(before.ingestion.events[.grok], 0)
 
         try workspace.write(

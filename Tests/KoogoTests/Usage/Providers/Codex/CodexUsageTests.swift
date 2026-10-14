@@ -211,7 +211,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             to: workspace.codexSessions.appending(path: "session.jsonl")
         )
 
-        let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
+        let snapshot = await makePipeline().run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.todayTokens(.codex), 120)
     }

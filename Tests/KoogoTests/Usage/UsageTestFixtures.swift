@@ -71,7 +71,6 @@ struct UsageTestWorkspace {
 
 class UsageWorkspaceTestCase: XCTestCase {
     private(set) var workspace: UsageTestWorkspace!
-    let now = usageTestTimestamp
 
     override func setUpWithError() throws {
         workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
@@ -90,7 +89,7 @@ class UsageWorkspaceTestCase: XCTestCase {
     ) async throws -> UsageReport {
         let deadline = ContinuousClock.now + .seconds(5)
         while true {
-            let report = await pipeline.run(at: now, providers: Provider.allCases)
+            let report = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
             if isCurrent(report) {
                 return report
             }

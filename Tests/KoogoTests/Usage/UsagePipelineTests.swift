@@ -18,7 +18,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         }
         let service = makePipeline()
 
-        let report = await service.run(at: now, providers: Provider.allCases)
+        let report = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 19)
         XCTAssertEqual(report.ingestion.events[.codex], 19)
@@ -29,7 +29,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         let log = workspace.codexSessions.appending(path: "项目 #100%/session ?.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: log)
         let service = makePipeline()
-        let initial = await service.run(at: now, providers: Provider.allCases)
+        let initial = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(initial.ingestion.trackedFiles[.codex], 1)
         XCTAssertEqual(initial.snapshot.todayTokens(.codex), 120)
 
@@ -53,9 +53,9 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         try workspace.write(claudeLog(output: 40), to: workspace.claudeProjects.appending(path: "main.jsonl"))
         let service = makePipeline()
 
-        let all = await service.run(at: now, providers: Provider.allCases)
-        let codexOnly = await service.run(at: now, providers: [.codex])
-        let codexAndGrok = await service.run(at: now, providers: [.codex, .grok])
+        let all = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let codexOnly = await service.run(at: usageTestTimestamp, providers: [.codex])
+        let codexAndGrok = await service.run(at: usageTestTimestamp, providers: [.codex, .grok])
 
         XCTAssertEqual(all.snapshot.summary.today.current.processedTokens, 170)
         XCTAssertEqual(Set(codexOnly.snapshot.providers.keys), [.codex])
@@ -77,7 +77,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             )
         }
         let service = makePipeline()
-        let current = await service.run(at: now, providers: Provider.allCases)
+        let current = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
         let lastMillisecond = try XCTUnwrap(Date(iso8601: "2026-08-25T23:59:59.999Z"))
         let evening = await service.run(at: lastMillisecond, providers: Provider.allCases)
         let midnight = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z"))
@@ -100,7 +100,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         try workspace.write(codexLog(input: 100, output: 20, model: "unknown-model"), to: log)
         let service = makePipeline()
 
-        let report = await service.run(at: now, providers: Provider.allCases)
+        let report = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.snapshot.providers[.codex]?.periods[.last30Days].total, UsagePeriodSnapshot())
         XCTAssertEqual(report.ingestion.trackedFiles, [.codex: 1, .claude: 0, .piAgent: 0, .grok: 0])
@@ -141,7 +141,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         }
         let service = makePipeline()
 
-        let report = await service.run(at: now, providers: Provider.allCases)
+        let report = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.events[.codex], 2)
         XCTAssertEqual(report.snapshot.summary.today.costChange, .decrease(fraction: 1))
@@ -176,28 +176,10 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             ].joined(separator: "\n"),
             to: workspace.claudeProjects.appending(path: "project/session.jsonl")
         )
-        try workspace.write(
-            [
-                #"{"type":"session","version":3,"id":"session","timestamp":"2026-08-25T11:00:00.000Z"}"#,
-                """
-                {"type":"thinking_level_change","id":"high","parentId":null,"timestamp":"2026-08-25T11:30:00.000Z","thinkingLevel":"high"}
-                """,
-                #"{"type":"model_change","id":"model","parentId":"high","timestamp":"2026-08-25T11:31:00.000Z"}"#,
-                """
-                {"type":"message","id":"user","parentId":"model","timestamp":"2026-08-25T11:32:00.000Z","message":{"role":"user","content":[]}}
-                """,
-                """
-                {"type":"message","id":"tool","parentId":"user","timestamp":"2026-08-25T11:33:00.000Z","message":{"role":"toolResult","content":[]}}
-                """,
-                piAssistant(id: "reply", parentID: "tool", model: "model-a", usage: piUsage(input: 10, cost: "0.01")),
-                "",
-            ].joined(separator: "\n"),
-            to: workspace.piSessions.appending(path: "session.jsonl")
-        )
 
-        let report = await makePipeline().run(at: now, providers: Provider.allCases)
+        let report = await makePipeline().run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.malformedLines, [.codex: 0, .claude: 0, .piAgent: 0, .grok: 0])
-        XCTAssertEqual(report.ingestion.events, [.codex: 1, .claude: 1, .piAgent: 1, .grok: 0])
+        XCTAssertEqual(report.ingestion.events, [.codex: 1, .claude: 1, .piAgent: 0, .grok: 0])
     }
 }

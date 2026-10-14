@@ -80,7 +80,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let contents = piSessionLog
         try workspace.write(contents, to: workspace.piSessions.appending(path: "project/session.jsonl"))
         try workspace.write(contents, to: workspace.piSessions.appending(path: "copy/session.jsonl"))
-        let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
+        let snapshot = await makePipeline().run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.todayTokens(.piAgent), 210)
         XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd, Decimal(string: "0.21"))
@@ -106,7 +106,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             to: workspace.home(of: .piAgent).appending(path: "models-store.json")
         )
         let service = makePipeline()
-        let initial = await service.run(at: now, providers: Provider.allCases).snapshot
+        let initial = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(initial.providers[.piAgent]?.periods[.today].models?[1].modelName, "Initial Name")
 
         try workspace.write(
@@ -115,10 +115,10 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             """,
             to: workspace.home(of: .piAgent).appending(path: "models-store.json")
         )
-        let updated = await service.run(at: now, providers: Provider.allCases).snapshot
+        let updated = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(updated.providers[.piAgent]?.periods[.today].models?[1].modelName, "Updated Name")
-        let unchanged = await service.run(at: now, providers: Provider.allCases).snapshot
+        let unchanged = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(unchanged, updated)
     }
 
@@ -129,20 +129,20 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let custom = home.appending(path: "models.json")
         let store = home.appending(path: "models-store.json")
         let service = makePipeline()
-        let initial = await service.run(at: now, providers: Provider.allCases).snapshot
+        let initial = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(initial.providers[.piAgent]?.periods[.today].models?[1].modelName, "Readable Model A")
 
         try workspace.write("{invalid", to: custom)
-        let malformed = await service.run(at: now, providers: Provider.allCases).snapshot
+        let malformed = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(malformed.providers[.piAgent]?.periods[.today].models?[1].modelName, "Cached Model A")
 
         try FileManager.default.removeItem(at: custom)
         try FileManager.default.removeItem(at: store)
-        let deleted = await service.run(at: now, providers: Provider.allCases).snapshot
+        let deleted = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(deleted.providers[.piAgent]?.periods[.today].models?[1].modelName, "model-a")
 
         try writeModelCatalog()
-        let restored = await service.run(at: now, providers: Provider.allCases).snapshot
+        let restored = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(restored, initial)
     }
 
@@ -150,7 +150,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         try workspace.write(piSessionLog, to: workspace.piSessions.appending(path: "original.jsonl"))
         let service = makePipeline()
 
-        let original = await service.run(at: now, providers: Provider.allCases).snapshot
+        let original = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(original.todayTokens(.piAgent), 210)
 
         let forkHeader = piSessionHeader.replacingOccurrences(
@@ -169,7 +169,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         try workspace.write(fork, to: workspace.piSessions.appending(path: "fork.jsonl"))
 
         let incremental = try await refresh(service) { $0.ingestion.trackedFiles[.piAgent] == 2 }.snapshot
-        let cold = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
+        let cold = await makePipeline().run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         for snapshot in [incremental, cold] {
             XCTAssertEqual(snapshot.todayTokens(.piAgent), 280)
             XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd, Decimal(string: "0.28"))
@@ -185,11 +185,15 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     func testPiRecordsInAnyLayoutPassThroughUntilABilledReply() throws {
         var parser = PiUsageLogParser()
         let records = [
+            #"{"type":"session","version":3,"id":"session","timestamp":"2026-08-25T11:00:00.000Z"}"#,
             piThinking(id: "high", parentID: nil, level: "high"),
             #"{"type":"model_change","id":"model","parentId":"high","timestamp":"2026-08-25T11:40:00.000Z"}"#,
             #"{"id":"reordered","parentId":"model","type":"custom","timestamp":"2026-08-25T11:41:00.000Z"}"#,
             """
             {"type":"message","id":"us\\u0065r","parentId":"reordered","timestamp":"2026-08-25T11:45:00.000Z","message":{"role":"user","content":[]}}
+            """,
+            """
+            {"type":"message","id":"tool","parentId":"user","timestamp":"2026-08-25T11:46:00.000Z","message":{"role":"toolResult","content":[]}}
             """,
         ]
         for record in records {
@@ -198,7 +202,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
 
         let event = try XCTUnwrap(
             try parse(
-                piAssistant(id: "reply", parentID: "user", model: "model-a", usage: piUsage(input: 10, cost: "0.01")),
+                piAssistant(id: "reply", parentID: "tool", model: "model-a", usage: piUsage(input: 10, cost: "0.01")),
                 with: &parser
             )?.event
         )

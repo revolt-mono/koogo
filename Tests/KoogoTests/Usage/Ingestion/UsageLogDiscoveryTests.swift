@@ -13,7 +13,7 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         )
         let service = makePipeline()
 
-        let snapshot = await service.run(at: now, providers: Provider.allCases).snapshot
+        let snapshot = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.providers[.codex]?.periods[.last30Days].total, UsagePeriodSnapshot())
     }
@@ -25,7 +25,7 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         try FileManager.default.createSymbolicLink(at: workspace.codexSessions, withDestinationURL: target)
         let service = makePipeline()
 
-        let report = await service.run(at: now, providers: Provider.allCases)
+        let report = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 1)
         XCTAssertEqual(report.snapshot.todayTokens(.codex), 120)
@@ -51,19 +51,19 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         try FileManager.default.removeItem(at: workspace.codexSessions)
         try FileManager.default.createSymbolicLink(at: workspace.codexSessions, withDestinationURL: first)
         let service = makePipeline()
-        let initial = await service.run(at: now, providers: Provider.allCases)
+        let initial = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(initial.snapshot.todayTokens(.codex), 120)
 
         try FileManager.default.removeItem(at: workspace.codexSessions)
         try FileManager.default.createSymbolicLink(at: workspace.codexSessions, withDestinationURL: second)
-        let retargeted = await service.run(at: now, providers: Provider.allCases)
+        let retargeted = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(retargeted.snapshot.todayTokens(.codex), 50)
     }
 
     func testDirectoriesThatAppearMoveInOrVanishLaterAreFollowed() async throws {
         let service = makePipeline()
-        _ = await service.run(at: now, providers: Provider.allCases)
+        _ = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         try workspace.write(
             claudeLog(output: 40),
@@ -90,7 +90,7 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         let hidden = workspace.codexSessions.appending(path: ".cache/deep", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: hidden, withIntermediateDirectories: true)
         let service = makePipeline()
-        _ = await service.run(at: now, providers: Provider.allCases)
+        _ = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         try workspace.write(codexLog(input: 100, output: 20, thread: "cached"), to: hidden.appending(path: "a.jsonl"))
         try workspace.write(
@@ -107,11 +107,11 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         let archived = workspace.codexArchivedSessions
         try FileManager.default.removeItem(at: archived)
         let service = makePipeline()
-        let missing = await service.run(at: now, providers: Provider.allCases)
+        let missing = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(missing.ingestion.logRoots.first { $0.path == archived.path }?.exists, false)
 
         try FileManager.default.createDirectory(at: archived, withIntermediateDirectories: true)
-        let appeared = await service.run(at: now, providers: Provider.allCases)
+        let appeared = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(appeared.ingestion.logRoots.first { $0.path == archived.path }?.exists, true)
     }
@@ -127,7 +127,7 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         )
         let service = makePipeline()
 
-        let report = await service.run(at: now, providers: Provider.allCases)
+        let report = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 0)
     }

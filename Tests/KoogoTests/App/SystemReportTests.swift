@@ -19,7 +19,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
                 claude: ClaudeQuotaSource(executableCandidates: []),
                 grok: GrokQuotaSource(executableCandidates: [])
             ),
-            at: now
+            at: usageTestTimestamp
         )
         let report = try XCTUnwrap(
             try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -79,7 +79,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
                 claude: ClaudeQuotaSource(executableCandidates: [claudeExecutable]),
                 grok: GrokQuotaSource(executableCandidates: [grokExecutable])
             ),
-            at: now
+            at: usageTestTimestamp
         )
 
         XCTAssertEqual(keyPaths(of: try JSONSerialization.jsonObject(with: data)).sorted(), reportKeyPaths.sorted())

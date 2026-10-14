@@ -129,7 +129,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             to: workspace.claudeProjects.appending(path: "project/agent/copy.jsonl")
         )
 
-        let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
+        let snapshot = await makePipeline().run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.todayTokens(.claude), 50)
     }
