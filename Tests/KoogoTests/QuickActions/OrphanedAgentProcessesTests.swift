@@ -5,24 +5,24 @@ import XCTest
 
 final class OrphanedAgentProcessesTests: XCTestCase {
     private let identity = ProcessIdentity(pid: 42, startTicks: 0)
+    private let claudePath = "/Users/me/.local/share/claude/versions/2.1.284"
 
-    func testOrphanedAgentProcessRecognizesAgentExecutablesReparentedToLaunchd() {
+    func testOrphanedAgentProcessRecognizesAgentExecutablesWithoutATerminal() {
         let orphans = [
-            "/Users/me/.local/share/claude/versions/2.1.284",
+            claudePath,
             "/Users/me/.codex/packages/standalone/releases/0.158.0-aarch64-apple-darwin/bin/codex",
             "/Users/me/.grok/downloads/grok-1.0.45-macos-aarch64",
-        ].map { OrphanedAgentProcess(identity, parentPID: 1, executablePath: $0)?.provider }
+        ].map { orphan(parentPID: 1, executablePath: $0)?.provider }
 
         XCTAssertEqual(orphans, [.claude, .codex, .grok])
-        XCTAssertNil(
-            OrphanedAgentProcess(
-                identity,
-                parentPID: 900,
-                executablePath: "/Users/me/.local/share/claude/versions/2.1.284"
-            )
-        )
-        XCTAssertNil(OrphanedAgentProcess(identity, parentPID: 1, executablePath: "/opt/tool/versions/2.1.284"))
-        XCTAssertNil(OrphanedAgentProcess(identity, parentPID: 1, executablePath: "/Users/me/.local/share/claude/node"))
+        XCTAssertNotNil(orphan(parentPID: 900, executablePath: claudePath), "daemon children count without launchd")
+        XCTAssertNil(orphan(parentPID: 1, executablePath: "/opt/tool/versions/2.1.284"))
+        XCTAssertNil(orphan(parentPID: 1, executablePath: "/Users/me/.local/share/claude/node"))
+    }
+
+    func testOrphanedAgentProcessSkipsTerminalSessionsAndOwnQuotaReads() {
+        XCTAssertNil(orphan(parentPID: 1, terminalDevice: 0x1000_0003, executablePath: claudePath))
+        XCTAssertNil(orphan(parentPID: ProcessInfo.processInfo.processIdentifier, executablePath: claudePath))
     }
 
     func testOrphanedAgentProcessesIsNilWhenEmpty() {
@@ -31,17 +31,24 @@ final class OrphanedAgentProcessesTests: XCTestCase {
 
     func testOrphanedAgentProcessesSummarizesCountsPerProviderInOrder() throws {
         let processes = OrphanedAgentProcesses([
-            try orphan(pid: 7, executablePath: "/Users/me/.codex/bin/codex"),
-            try orphan(pid: 5, executablePath: "/Users/me/.local/share/claude/versions/2.1.284"),
-            try orphan(pid: 3, executablePath: "/Users/me/.codex/bin/codex"),
+            try XCTUnwrap(orphan(parentPID: 1, executablePath: "/Users/me/.codex/bin/codex")),
+            try XCTUnwrap(orphan(parentPID: 1, executablePath: claudePath)),
+            try XCTUnwrap(orphan(parentPID: 1, executablePath: "/Users/me/.codex/bin/codex")),
         ])
 
         XCTAssertEqual(processes?.summary, "2 codex, 1 claude")
     }
 
-    private func orphan(pid: pid_t, executablePath: String) throws -> OrphanedAgentProcess {
-        try XCTUnwrap(
-            OrphanedAgentProcess(ProcessIdentity(pid: pid, startTicks: 0), parentPID: 1, executablePath: executablePath)
+    private func orphan(
+        parentPID: pid_t,
+        terminalDevice: UInt32 = OrphanedAgentProcess.noTerminal,
+        executablePath: String
+    ) -> OrphanedAgentProcess? {
+        OrphanedAgentProcess(
+            identity,
+            parentPID: parentPID,
+            terminalDevice: terminalDevice,
+            executablePath: executablePath
         )
     }
 }

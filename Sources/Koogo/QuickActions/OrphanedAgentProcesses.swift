@@ -1,13 +1,20 @@
 import Darwin
 import Foundation
 
-/// An agent process whose launching terminal is gone, so launchd now parents it.
+/// An agent process no terminal session is driving: daemons, pty hosts, spares, and leftovers from closed terminals.
 struct OrphanedAgentProcess: Sendable {
+    /// `e_tdev` of a process without a controlling terminal.
+    static let noTerminal = UInt32.max
+
     fileprivate let identity: ProcessIdentity
     let provider: Provider
 
-    init?(_ identity: ProcessIdentity, parentPID: pid_t, executablePath: String) {
-        guard parentPID == 1, let provider = Provider.allCases.first(where: { $0.ownsProcess(at: executablePath) })
+    /// Skips processes attached to a terminal and the agent clis this app runs for quota reads.
+    init?(_ identity: ProcessIdentity, parentPID: pid_t, terminalDevice: UInt32, executablePath: String) {
+        guard
+            terminalDevice == Self.noTerminal,
+            parentPID != ProcessInfo.processInfo.processIdentifier,
+            let provider = Provider.allCases.first(where: { $0.ownsProcess(at: executablePath) })
         else { return nil }
         self.identity = identity
         self.provider = provider
@@ -59,7 +66,12 @@ struct OrphanedAgentProcesses: Sendable {
             let executablePath = LibProc.executablePath(of: pid),
             let identity = LibProc.identity(of: pid)
         else { return nil }
-        return OrphanedAgentProcess(identity, parentPID: pid_t(info.pbi_ppid), executablePath: executablePath)
+        return OrphanedAgentProcess(
+            identity,
+            parentPID: pid_t(info.pbi_ppid),
+            terminalDevice: info.e_tdev,
+            executablePath: executablePath
+        )
     }
 
     func forceTerminate() throws {
