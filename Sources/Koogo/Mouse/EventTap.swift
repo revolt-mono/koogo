@@ -109,13 +109,10 @@ final class EventTap {
         let pass = Unmanaged.passUnretained(event)
         switch type {
         case .scrollWheel:
-            switch rewriter.rewrite(event, rules: rules.load(ordering: .relaxed)) {
+            switch rewriter.rewrite(event, rules: rules.load(ordering: .relaxed), post: { $0.post(via: proxy) }) {
             case .deliver:
                 return pass
             case .drop:
-                return nil
-            case .post(let stripped):
-                stripped.post(via: proxy)
                 return nil
             }
         case .otherMouseDown, .otherMouseUp:

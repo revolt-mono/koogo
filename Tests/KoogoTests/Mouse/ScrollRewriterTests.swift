@@ -16,18 +16,18 @@ final class ScrollRewriterTests: XCTestCase {
         lineByLine.notchMode = .lineByLine
         let inTerminal = try scrollEvent(verticalDelta: 1)
 
-        XCTAssertTrue(rewriter.rewrite(vertical, rules: rules).isDeliver)
+        XCTAssertEqual(rewriter.rewrite(vertical, rules: rules, post: unexpectedReplacement), .deliver)
         XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis1), -3)
         XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis2), 0)
         XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventFixedPtDeltaAxis1), -3 * 65_536)
         XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventPointDeltaAxis1), -48)
 
-        XCTAssertTrue(rewriter.rewrite(horizontal, rules: rules).isDeliver)
+        XCTAssertEqual(rewriter.rewrite(horizontal, rules: rules, post: unexpectedReplacement), .deliver)
         XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis1), 0)
         XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis2), 3)
         XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventPointDeltaAxis2), 48)
 
-        XCTAssertTrue(rewriter.rewrite(inTerminal, rules: lineByLine).isDeliver)
+        XCTAssertEqual(rewriter.rewrite(inTerminal, rules: lineByLine, post: unexpectedReplacement), .deliver)
         XCTAssertEqual(inTerminal.getIntegerValueField(.scrollWheelEventDeltaAxis1), -1)
     }
 
@@ -39,14 +39,15 @@ final class ScrollRewriterTests: XCTestCase {
             let event = try scrollEvent(verticalDelta: 1)
             event.setIntegerValueField(field, value: 1)
 
-            XCTAssertTrue(rewriter.rewrite(event, rules: rules).isDeliver)
+            XCTAssertEqual(rewriter.rewrite(event, rules: rules, post: unexpectedReplacement), .deliver)
             XCTAssertEqual(event.getIntegerValueField(.scrollWheelEventDeltaAxis1), 1)
         }
     }
 
     func testDiagonalAndZeroWheelEventsDrop() throws {
-        XCTAssertTrue(rewriter.rewrite(try scrollEvent(verticalDelta: 1, horizontalDelta: 1), rules: rules).isDrop)
-        XCTAssertTrue(rewriter.rewrite(try scrollEvent(), rules: rules).isDrop)
+        for event in [try scrollEvent(verticalDelta: 1, horizontalDelta: 1), try scrollEvent()] {
+            XCTAssertEqual(rewriter.rewrite(event, rules: rules, post: unexpectedReplacement), .drop)
+        }
     }
 
     func testOptionPrecisionPostsAOneLineNotchBetweenOptionReleaseAndRestore() throws {
@@ -55,18 +56,21 @@ final class ScrollRewriterTests: XCTestCase {
         event.timestamp = 1234
         event.location = CGPoint(x: 40, y: 60)
 
-        let stripped = try XCTUnwrap(rewriter.rewrite(event, rules: precision).stripped)
+        var posted: [PostedEvent] = []
+        XCTAssertEqual(rewriter.rewrite(event, rules: precision) { posted.append(PostedEvent($0)) }, .drop)
+        XCTAssertEqual(posted.map(\.type), [.flagsChanged, .scrollWheel, .flagsChanged])
+        let released = try XCTUnwrap(posted.first)
+        let notch = try XCTUnwrap(posted.dropFirst().first)
+        let restored = try XCTUnwrap(posted.last)
 
-        XCTAssertEqual(stripped.notch.getIntegerValueField(.scrollWheelEventDeltaAxis1), -1)
-        XCTAssertEqual(stripped.notch.flags, [.maskShift])
-        XCTAssertEqual(stripped.notch.timestamp, 1234)
-        XCTAssertEqual(stripped.notch.location, CGPoint(x: 40, y: 60))
-        XCTAssertEqual(stripped.optionReleased.type, .flagsChanged)
-        XCTAssertEqual(stripped.optionReleased.flags, [.maskShift])
-        XCTAssertEqual(stripped.optionReleased.getIntegerValueField(.keyboardEventKeycode), 0x3D)
-        XCTAssertEqual(stripped.optionRestored.type, .flagsChanged)
-        XCTAssertEqual(stripped.optionRestored.flags, event.flags)
-        XCTAssertEqual(stripped.optionRestored.timestamp, 1234)
+        XCTAssertEqual(notch.verticalLines, -1)
+        XCTAssertEqual(notch.flags, [.maskShift])
+        XCTAssertEqual(notch.timestamp, 1234)
+        XCTAssertEqual(notch.location, CGPoint(x: 40, y: 60))
+        XCTAssertEqual(released.flags, [.maskShift])
+        XCTAssertEqual(released.keyCode, 0x3D)
+        XCTAssertEqual(restored.flags, event.flags)
+        XCTAssertEqual(restored.timestamp, 1234)
         XCTAssertEqual(
             event.getIntegerValueField(.scrollWheelEventDeltaAxis1),
             1,
@@ -78,13 +82,94 @@ final class ScrollRewriterTests: XCTestCase {
         let event = try scrollEvent(horizontalDelta: 1)
         event.flags = [.maskAlternate]
 
-        let stripped = try XCTUnwrap(rewriter.rewrite(event, rules: precision).stripped)
+        var posted: [PostedEvent] = []
+        XCTAssertEqual(rewriter.rewrite(event, rules: precision) { posted.append(PostedEvent($0)) }, .drop)
+        XCTAssertEqual(posted.map(\.type), [.flagsChanged, .scrollWheel, .flagsChanged])
+        let notch = try XCTUnwrap(posted.dropFirst().first)
 
-        XCTAssertEqual(stripped.notch.getIntegerValueField(.scrollWheelEventDeltaAxis1), 0)
-        XCTAssertEqual(stripped.notch.getIntegerValueField(.scrollWheelEventDeltaAxis2), -1)
-        XCTAssertFalse(stripped.notch.flags.contains(.maskAlternate))
-        XCTAssertEqual(stripped.optionReleased.getIntegerValueField(.keyboardEventKeycode), 0x3A)
-        XCTAssertEqual(stripped.optionRestored.flags, [.maskAlternate])
+        XCTAssertEqual(notch.verticalLines, 0)
+        XCTAssertEqual(notch.horizontalLines, -1)
+        XCTAssertFalse(notch.flags.contains(.maskAlternate))
+        XCTAssertEqual(posted.first?.keyCode, 0x3A)
+        XCTAssertEqual(posted.last?.flags, [.maskAlternate])
+    }
+
+    func testEarlierPostedEventsKeepTheirMetadataAfterAnotherRewrite() throws {
+        let first = try scrollEvent(verticalDelta: 1)
+        first.flags = [.maskAlternate, .maskShift]
+        first.timestamp = 1234
+        first.location = CGPoint(x: 40, y: 60)
+        var posted: [PostedEvent] = []
+        XCTAssertEqual(rewriter.rewrite(first, rules: precision) { posted.append(PostedEvent($0)) }, .drop)
+        XCTAssertEqual(posted.count, 3)
+
+        let second = try scrollEvent(verticalDelta: -1)
+        second.flags = [.maskAlternate, .maskCommand]
+        second.timestamp = 5678
+        second.location = CGPoint(x: 80, y: 100)
+        XCTAssertEqual(rewriter.rewrite(second, rules: precision) { posted.append(PostedEvent($0)) }, .drop)
+        XCTAssertEqual(posted.count, 6)
+        let firstNotch = try XCTUnwrap(posted.dropFirst().first)
+        let secondNotch = try XCTUnwrap(posted.dropFirst(4).first)
+
+        XCTAssertEqual(firstNotch.verticalLines, -1)
+        XCTAssertEqual(firstNotch.flags, [.maskShift])
+        XCTAssertEqual(firstNotch.timestamp, 1234)
+        XCTAssertEqual(firstNotch.location, CGPoint(x: 40, y: 60))
+        XCTAssertEqual(posted.dropFirst(2).first?.flags, first.flags)
+        XCTAssertEqual(secondNotch.verticalLines, 1)
+        XCTAssertEqual(secondNotch.flags, [.maskCommand])
+        XCTAssertEqual(secondNotch.timestamp, 5678)
+        XCTAssertEqual(secondNotch.location, CGPoint(x: 80, y: 100))
+    }
+
+    func testNonpostingRewritesCannotChangeTheBorrowedReplacement() throws {
+        let option = try scrollEvent(verticalDelta: 1)
+        option.flags = [.maskAlternate]
+        option.timestamp = 1234
+        let ordinary = try scrollEvent(verticalDelta: -1)
+        var posted: [PostedEvent] = []
+
+        XCTAssertEqual(
+            rewriter.rewrite(option, rules: precision) { event in
+                XCTAssertEqual(rewriter.rewrite(ordinary, rules: rules, post: unexpectedReplacement), .deliver)
+                posted.append(PostedEvent(event))
+            },
+            .drop
+        )
+
+        XCTAssertEqual(posted.map(\.type), [.flagsChanged, .scrollWheel, .flagsChanged])
+        XCTAssertEqual(posted.map(\.timestamp), [1234, 1234, 1234])
+        XCTAssertEqual(posted.dropFirst().first?.verticalLines, -1)
+        XCTAssertEqual(posted.last?.flags, [.maskAlternate])
+    }
+
+    func testPostingAdaptersCannotRetainBorrowedEvents() async throws {
+        let allowed = try await compileKoogoClient(
+            """
+            import ApplicationServices
+            func verify(_ event: CGEvent, _ rules: InputRules, _ proxy: CGEventTapProxy) {
+                _ = ScrollRewriter().rewrite(event, rules: rules) { posted in posted.post(via: proxy) }
+            }
+            """
+        )
+        XCTAssertEqual(allowed.status, 0, allowed.diagnostics)
+
+        for (transfer, expected) in [
+            ("posted", "is consuming"), ("consume posted", "is borrowed and cannot be consumed"),
+        ] {
+            let escaped = try await compileKoogoClient(
+                """
+                import ApplicationServices
+                func verify(_ event: CGEvent, _ rules: InputRules) {
+                    var retained: PostedScrollEvent?
+                    _ = ScrollRewriter().rewrite(event, rules: rules) { posted in retained = \(transfer) }
+                }
+                """
+            )
+            XCTAssertNotEqual(escaped.status, 0)
+            XCTAssertTrue(escaped.diagnostics.contains(expected), escaped.diagnostics)
+        }
     }
 
     /// The tap callback runs inside every scroll on the system; macOS disables a tap that answers late.
@@ -96,23 +181,25 @@ final class ScrollRewriterTests: XCTestCase {
         let continuous = try scrollEvent(verticalDelta: 1)
         continuous.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
         let atomic = Atomic(precision)
-        _ = rewriter.rewrite(optionNotch, rules: precision)
+        _ = rewriter.rewrite(optionNotch, rules: precision, post: { _ in })
 
         var remaining = 1_000
+        var posted = 0
         // A `for in` over a range allocates per step in unoptimized builds.
         let count = allocations {
             while remaining > 0 {
                 remaining -= 1
                 let rules = atomic.load(ordering: .relaxed)
                 notch.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: 1)
-                _ = rewriter.rewrite(notch, rules: rules)
-                _ = rewriter.rewrite(optionNotch, rules: rules)
-                _ = rewriter.rewrite(diagonal, rules: rules)
-                _ = rewriter.rewrite(continuous, rules: rules)
+                _ = rewriter.rewrite(notch, rules: rules) { _ in posted += 1 }
+                _ = rewriter.rewrite(optionNotch, rules: rules) { _ in posted += 1 }
+                _ = rewriter.rewrite(diagonal, rules: rules) { _ in posted += 1 }
+                _ = rewriter.rewrite(continuous, rules: rules) { _ in posted += 1 }
             }
         }
 
         XCTAssertEqual(count, 0)
+        XCTAssertEqual(posted, 3_000)
     }
 
     private var precision: InputRules {
@@ -122,17 +209,27 @@ final class ScrollRewriterTests: XCTestCase {
     }
 }
 
-extension ScrollRewrite {
-    fileprivate var isDeliver: Bool {
-        if case .deliver = self { true } else { false }
-    }
+private func unexpectedReplacement(_: borrowing PostedScrollEvent) {
+    XCTFail("unexpected replacement")
+}
 
-    fileprivate var isDrop: Bool {
-        if case .drop = self { true } else { false }
-    }
+private struct PostedEvent {
+    let type: CGEventType
+    let flags: CGEventFlags
+    let timestamp: CGEventTimestamp
+    let location: CGPoint
+    let verticalLines: Int64
+    let horizontalLines: Int64
+    let keyCode: Int64
 
-    fileprivate var stripped: StrippedNotch? {
-        if case .post(let stripped) = self { stripped } else { nil }
+    init(_ event: borrowing PostedScrollEvent) {
+        type = event.type
+        flags = event.flags
+        timestamp = event.timestamp
+        location = event.location
+        verticalLines = event.integerValue(for: .scrollWheelEventDeltaAxis1)
+        horizontalLines = event.integerValue(for: .scrollWheelEventDeltaAxis2)
+        keyCode = event.integerValue(for: .keyboardEventKeycode)
     }
 }
 

@@ -1,12 +1,32 @@
 @preconcurrency import ApplicationServices
 import os
 
-enum ScrollRewrite {
+enum ScrollRewrite: Equatable {
     /// Deliver the event, rewritten in place when it was a notch.
     case deliver
     case drop
-    /// Drop the event and post these in its place.
-    case post(StrippedNotch)
+}
+
+/// A posting adapter borrows this view only for its synchronous call; the reusable event stays private.
+struct PostedScrollEvent: ~Copyable {
+    private let event: CGEvent
+
+    fileprivate init(_ event: CGEvent) {
+        self.event = event
+    }
+
+    var type: CGEventType { event.type }
+    var flags: CGEventFlags { event.flags }
+    var timestamp: CGEventTimestamp { event.timestamp }
+    var location: CGPoint { event.location }
+
+    func integerValue(for field: CGEventField) -> Int64 {
+        event.getIntegerValueField(field)
+    }
+
+    func post(via proxy: CGEventTapProxy) {
+        event.tapPostEvent(proxy)
+    }
 }
 
 /// Rewrites one wheel notch per call on the tap thread. Reuses the events it posts, so it never allocates and must stay on one thread.
@@ -21,7 +41,8 @@ final class ScrollRewriter {
         optionStrip = OptionStrip(source: source)
     }
 
-    func rewrite(_ event: CGEvent, rules: InputRules) -> ScrollRewrite {
+    /// Posts replacements synchronously before returning `.drop`.
+    func rewrite(_ event: CGEvent, rules: InputRules, post: (borrowing PostedScrollEvent) -> Void) -> ScrollRewrite {
         guard Self.isWheelNotchEvent(event) else {
             return .deliver
         }
@@ -42,7 +63,8 @@ final class ScrollRewriter {
         guard let optionStrip else {
             return .drop
         }
-        return .post(optionStrip.strip(step, from: event))
+        optionStrip.post(step, from: event, using: post)
+        return .drop
     }
 
     /// Trackpad and Magic Mouse scrolling is continuous or phased; wheel notches are neither.
@@ -67,26 +89,6 @@ final class ScrollRewriter {
         event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: linesX * pixelsPerLine)
         event.setIntegerValueField(.scrollWheelEventPointDeltaAxis3, value: 0)
         event.setIntegerValueField(.scrollWheelEventScrollCount, value: 1)
-    }
-}
-
-/// An Option-free notch between an Option release and restore. A notch returned from the tap would arrive after both posted flag changes, so all three are posted and the original is dropped.
-struct StrippedNotch {
-    let optionReleased: CGEvent
-    let notch: CGEvent
-    let optionRestored: CGEvent
-
-    /// Borrows the strip's reusable events, so a notch is valid only until the next rewrite.
-    fileprivate init(optionReleased: CGEvent, notch: CGEvent, optionRestored: CGEvent) {
-        self.optionReleased = optionReleased
-        self.notch = notch
-        self.optionRestored = optionRestored
-    }
-
-    func post(via proxy: CGEventTapProxy) {
-        optionReleased.tapPostEvent(proxy)
-        notch.tapPostEvent(proxy)
-        optionRestored.tapPostEvent(proxy)
     }
 }
 
@@ -134,7 +136,8 @@ private struct OptionStrip {
         self.optionRestored = optionRestored
     }
 
-    func strip(_ step: ScrollStep, from event: CGEvent) -> StrippedNotch {
+    /// A notch returned from the tap would arrive after both posted Option changes.
+    func post(_ step: ScrollStep, from event: CGEvent, using post: (borrowing PostedScrollEvent) -> Void) {
         let originalFlags = event.flags
         let strippedFlags = originalFlags.subtracting(Self.allOptionFlags)
         let optionKey = Int64(originalFlags.contains(Self.rightOptionFlag) ? Self.rightOptionKey : Self.leftOptionKey)
@@ -151,6 +154,8 @@ private struct OptionStrip {
         optionRestored.flags = originalFlags
         optionRestored.timestamp = event.timestamp
         optionRestored.setIntegerValueField(.keyboardEventKeycode, value: optionKey)
-        return StrippedNotch(optionReleased: optionReleased, notch: notch, optionRestored: optionRestored)
+        post(PostedScrollEvent(optionReleased))
+        post(PostedScrollEvent(notch))
+        post(PostedScrollEvent(optionRestored))
     }
 }
