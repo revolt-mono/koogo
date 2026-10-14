@@ -125,3 +125,8 @@ private struct AnimatedNumericText: View {
             .onDisappear { isOnScreen = false }
     }
 }
+
+private extension Color {
+    static let riseFill = Color(red: 0, green: 128 / 255, blue: 9 / 255).opacity(0.6)
+    static let flatFill = Color.secondary.opacity(0.6)
+}

@@ -111,3 +111,17 @@ private struct TodoSubmitButton: View {
         .buttonBorderShape(.capsule)
     }
 }
+
+private extension View {
+    func onMouseDownOutside(perform action: @escaping @MainActor (NSView) -> Void) -> some View {
+        background {
+            LocalEventMonitor(events: [.leftMouseDown, .rightMouseDown]) { event, view in
+                if !event.isInside(view) {
+                    action(view)
+                }
+                return event
+            }
+            .allowsHitTesting(false)
+        }
+    }
+}
