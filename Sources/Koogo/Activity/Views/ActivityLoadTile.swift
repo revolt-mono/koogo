@@ -5,7 +5,7 @@ struct ActivityLoadTile: View {
     let subtitle: String
     let headline: Measure
     let details: KeyValuePairs<String, String>
-    let trend: ActivityTrend
+    let trend: [Double]
 
     var body: some View {
         PanelSection {

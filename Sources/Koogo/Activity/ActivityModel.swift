@@ -1,23 +1,11 @@
 import Observation
 import os
 
-/// One metric over the recent samples, oldest first, as fractions of its scale.
-struct ActivityTrend {
-    let values: [Double]
-}
-
-extension ActivityTrend {
-    init(scalingToPeak readings: [Double]) {
-        let peak = readings.max() ?? 0
-        self.init(values: peak > 0 ? readings.map { $0 / peak } : readings)
-    }
-}
-
 /// As many samples as the widest chart shows. `monitor` is the only producer and runs exactly as long as the task the shown page holds.
 @MainActor
 @Observable
 final class ActivityModel {
-    nonisolated static let historyLength = 64
+    static let historyLength = 64
 
     private let interval: Duration
     private let sample: @Sendable () async throws -> ActivitySample
@@ -26,11 +14,15 @@ final class ActivityModel {
 
     var latest: ActivitySample? { samples.last }
 
-    var cpuTrend: ActivityTrend { ActivityTrend(values: samples.map(\.cpu.total)) }
+    var cpuTrend: [Double] { samples.map(\.cpu.total) }
 
-    var gpuTrend: ActivityTrend { ActivityTrend(values: samples.compactMap { $0.gpu?.utilization }) }
+    var gpuTrend: [Double] { samples.compactMap { $0.gpu?.utilization } }
 
-    var drawTrend: ActivityTrend { ActivityTrend(scalingToPeak: samples.compactMap { $0.battery?.draw }) }
+    var drawTrend: [Double] {
+        let draws = samples.compactMap { $0.battery?.draw }
+        let peak = draws.max() ?? 0
+        return peak > 0 ? draws.map { $0 / peak } : draws
+    }
 
     init(interval: Duration = .seconds(3), sample: @escaping @Sendable () async throws -> ActivitySample) {
         self.interval = interval

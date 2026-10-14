@@ -39,7 +39,7 @@ struct ActivityPage: View {
 private struct CPUSection: View {
     let load: CPULoad
     let cores: CPUCores
-    let trend: ActivityTrend
+    let trend: [Double]
 
     var body: some View {
         ActivityLoadTile(
@@ -59,7 +59,7 @@ private struct CPUSection: View {
 
 private struct GPUSection: View {
     let load: GPULoad
-    let trend: ActivityTrend
+    let trend: [Double]
 
     var body: some View {
         ActivityLoadTile(
@@ -102,7 +102,7 @@ private struct MemorySection: View {
 
 private struct BatterySection: View {
     let state: BatteryState
-    let drawTrend: ActivityTrend
+    let drawTrend: [Double]
 
     var body: some View {
         PanelSection("Battery", subtitle: supply) {
@@ -117,7 +117,7 @@ private struct BatterySection: View {
                     ])
                 }
 
-                if !drawTrend.values.isEmpty {
+                if !drawTrend.isEmpty {
                     ActivityTrendChart(trend: drawTrend)
                 }
             }

@@ -35,9 +35,9 @@ final class ActivityModelTests: XCTestCase {
         try await waitUntil { model.samples.count == 3 }
         task.cancel()
 
-        XCTAssertEqual(model.cpuTrend.values, [0.2, 0.6, 0.4])
-        XCTAssertEqual(model.gpuTrend.values, [0.9, 0.3])
-        XCTAssertEqual(model.drawTrend.values, [0.25, 1])
+        XCTAssertEqual(model.cpuTrend, [0.2, 0.6, 0.4])
+        XCTAssertEqual(model.gpuTrend, [0.9, 0.3])
+        XCTAssertEqual(model.drawTrend, [0.25, 1])
     }
 
     func testAFailedSampleLeavesTheLastOneAndSamplingGoesOn() async throws {
@@ -54,7 +54,7 @@ final class ActivityModelTests: XCTestCase {
         defer { task.cancel() }
 
         try await waitUntil { model.samples.count == 2 }
-        XCTAssertEqual(model.cpuTrend.values, [0.1, 0.3])
+        XCTAssertEqual(model.cpuTrend, [0.1, 0.3])
         XCTAssertGreaterThanOrEqual(calls.value, 3)
     }
 }

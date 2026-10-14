@@ -1,12 +1,13 @@
 import SwiftUI
 
 struct ActivityTrendChart: View {
-    let trend: ActivityTrend
+    /// Recent samples, oldest first, as fractions of the chart's height.
+    let trend: [Double]
 
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
-        TrendBars(values: trend.values, displayScale: displayScale)
+        TrendBars(values: trend, displayScale: displayScale)
             .fill(.panelLabel)
             .frame(height: 32)
             .accessibilityHidden(true)

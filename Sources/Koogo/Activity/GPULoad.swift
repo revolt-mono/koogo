@@ -18,7 +18,7 @@ struct GPULoad: Sendable {
         forEachAccelerator { accelerator in
             var entryID: UInt64 = 0
             guard
-                load == nil, IORegistryEntryGetRegistryEntryID(accelerator, &entryID) == KERN_SUCCESS,
+                IORegistryEntryGetRegistryEntryID(accelerator, &entryID) == KERN_SUCCESS,
                 entryID == registryID,
                 let statistics = property(accelerator, "PerformanceStatistics") as? [String: Any],
                 let utilization = statistics["Device Utilization %"] as? Double,
