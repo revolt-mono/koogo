@@ -7,12 +7,13 @@ struct BreakReminderControl: View {
 
     var body: some View {
         ZStack {
-            if isOnScreen, case .running = reminderModel.status {
+            let status = reminderModel.countdown.status(at: .now)
+            if isOnScreen, case .running = status {
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
                     button(status: reminderModel.countdown.status(at: timeline.date))
                 }
             } else {
-                button(status: reminderModel.status)
+                button(status: status)
             }
         }
         .onAppear {

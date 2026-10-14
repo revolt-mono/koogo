@@ -49,6 +49,7 @@ struct TodoTextInput: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let textView = context.coordinator.textView
+        context.coordinator.text = $text
         textView.onSubmit = onSubmit
         textView.onCancel = onCancel
         if textView.string != text {
@@ -82,7 +83,7 @@ struct TodoTextInput: NSViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
-        private let text: Binding<String>
+        var text: Binding<String>
         fileprivate let textView = TodoTextView(usingTextLayoutManager: false)
         var didRequestFocus = false
 

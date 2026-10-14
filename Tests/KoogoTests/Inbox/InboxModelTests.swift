@@ -75,6 +75,28 @@ final class InboxModelTests: XCTestCase {
         XCTAssertTrue(InboxModel(defaults: defaults).todos.isEmpty)
     }
 
+    func testOneUndecodableTodoLeavesTheOthersInPlace() throws {
+        let defaults = try makeIsolatedDefaults()
+        let model = InboxModel(defaults: defaults)
+        model.add(try todoText("keep"), priority: .normal)
+        var items = try XCTUnwrap(
+            PropertyListSerialization.propertyList(
+                from: try XCTUnwrap(defaults.data(forKey: "inbox-todo-items")),
+                format: nil
+            ) as? [[String: Any]]
+        )
+        var broken = items[0]
+        broken["id"] = UUID().uuidString
+        broken["text"] = ""
+        items.append(broken)
+        defaults.set(
+            try PropertyListSerialization.data(fromPropertyList: items, format: .binary, options: 0),
+            forKey: "inbox-todo-items"
+        )
+
+        XCTAssertEqual(InboxModel(defaults: defaults).todos, model.todos)
+    }
+
     func testOpenSummaryListsUrgentThenNormalThenBacklog() throws {
         let model = InboxModel(defaults: try makeIsolatedDefaults())
         model.add(try todoText("later"), priority: .backlog)

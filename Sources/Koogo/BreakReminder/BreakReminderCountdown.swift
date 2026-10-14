@@ -59,10 +59,11 @@ enum BreakReminderCountdown: Codable, Equatable {
         }
     }
 
-    var isValid: Bool {
+    /// A stored countdown is usable when its remaining time fits in its interval.
+    func isValid(at date: Date) -> Bool {
         switch self {
-        case .scheduled(_, let deadline):
-            deadline.timeIntervalSinceReferenceDate.isFinite
+        case .scheduled(let interval, let deadline):
+            deadline.timeIntervalSince(date) <= interval.duration
         case .paused(let interval, let remaining):
             remaining > 0 && remaining <= interval.duration
         }

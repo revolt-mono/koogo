@@ -21,10 +21,6 @@ final class BreakReminderModel {
 
     private(set) var isBusy = false
 
-    var status: BreakReminderStatus {
-        countdown.status(at: now())
-    }
-
     init(
         notifications: any BreakReminderNotifications,
         defaults: UserDefaults = .standard,
@@ -34,7 +30,7 @@ final class BreakReminderModel {
         storage = PersistedValue(key: "break-reminder-state", defaults: defaults)
         self.now = now
         let stored = storage.load()
-        countdown = if let stored, stored.isValid { stored } else { .initial }
+        countdown = if let stored, stored.isValid(at: now()) { stored } else { .initial }
     }
 
     func perform(_ action: BreakReminderCountdown.Action) async -> BreakReminderIssue? {

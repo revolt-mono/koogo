@@ -125,6 +125,9 @@ private struct LaunchAtLoginToggle: View {
         do {
             if launches {
                 try SMAppService.mainApp.register()
+                if SMAppService.mainApp.status == .requiresApproval {
+                    SMAppService.openSystemSettingsLoginItems()
+                }
             } else {
                 try SMAppService.mainApp.unregister()
             }

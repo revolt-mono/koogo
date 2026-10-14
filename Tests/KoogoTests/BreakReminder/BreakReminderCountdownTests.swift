@@ -51,14 +51,24 @@ final class BreakReminderCountdownTests: XCTestCase {
         XCTAssertEqual(expired.change(for: .setInterval(.twoHours), at: now), .pause(.twoHours, remaining: 7_200))
     }
 
-    func testValidityBoundsPausedRemainingByTheInterval() {
-        XCTAssertTrue(BreakReminderCountdown.paused(interval: .oneHour, remaining: 3_600).isValid)
-        XCTAssertFalse(BreakReminderCountdown.paused(interval: .oneHour, remaining: 3_601).isValid)
-        XCTAssertFalse(BreakReminderCountdown.paused(interval: .oneHour, remaining: 0).isValid)
-        XCTAssertTrue(BreakReminderCountdown.scheduled(interval: .oneHour, deadline: .distantPast).isValid)
+    func testValidityBoundsRemainingByTheInterval() {
+        XCTAssertTrue(BreakReminderCountdown.paused(interval: .oneHour, remaining: 3_600).isValid(at: now))
+        XCTAssertFalse(BreakReminderCountdown.paused(interval: .oneHour, remaining: 3_601).isValid(at: now))
+        XCTAssertFalse(BreakReminderCountdown.paused(interval: .oneHour, remaining: 0).isValid(at: now))
+        XCTAssertTrue(BreakReminderCountdown.scheduled(interval: .oneHour, deadline: .distantPast).isValid(at: now))
+        XCTAssertTrue(
+            BreakReminderCountdown.scheduled(interval: .oneHour, deadline: now.addingTimeInterval(3_600)).isValid(
+                at: now
+            )
+        )
+        XCTAssertFalse(
+            BreakReminderCountdown.scheduled(interval: .oneHour, deadline: now.addingTimeInterval(3_601)).isValid(
+                at: now
+            )
+        )
         XCTAssertFalse(
             BreakReminderCountdown.scheduled(interval: .oneHour, deadline: Date(timeIntervalSinceReferenceDate: .nan))
-                .isValid
+                .isValid(at: now)
         )
     }
 
