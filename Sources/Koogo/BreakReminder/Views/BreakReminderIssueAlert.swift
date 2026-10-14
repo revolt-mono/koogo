@@ -4,7 +4,7 @@ extension View {
     func breakReminderIssueAlert(_ issue: Binding<BreakReminderIssue?>) -> some View {
         alert(
             issue.wrappedValue?.title ?? "Break Reminder",
-            isPresented: issue.isPresent(),
+            isPresented: issue.isPresent,
             presenting: issue.wrappedValue
         ) { _ in
             Button("OK", role: .cancel) {}

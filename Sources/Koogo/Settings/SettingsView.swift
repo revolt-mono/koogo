@@ -112,7 +112,7 @@ private struct LaunchAtLoginToggle: View {
         }
         .alert(
             "Couldn't Change Login Setting",
-            isPresented: $failure.isPresent(),
+            isPresented: $failure.isPresent,
             presenting: failure
         ) { _ in
             Button("OK", role: .cancel) {}
