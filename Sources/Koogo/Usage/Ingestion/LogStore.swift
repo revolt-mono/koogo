@@ -11,39 +11,21 @@ struct LogStore {
     private var entries: [String: Entry] = [:]
     private var logRoots: [UsageIngestionStats.LogRoot] = []
     private var windowStart = Date.distantPast
+    private var watcher: LogDirectoryWatcher?
 
-    /// Brings the store in line with the files under the roots. Returns true when events may have changed.
+    /// Brings the store in line with the files under the roots, walking only the directories FSEvents reported unless the roots or the window changed. Returns true when events may have changed.
     mutating func sync(roots: [UsageLogRoot], since windowStart: Date) -> Bool {
-        var changed = false
-        if windowStart < self.windowStart {
-            entries.removeAll(keepingCapacity: true)
-            changed = true
-        } else if windowStart > self.windowStart {
-            var index = entries.startIndex
-            while index != entries.endIndex {
-                entries.values[index].log.discard(before: windowStart)
-                entries.formIndex(after: &index)
-            }
-            changed = true
-        }
-        self.windowStart = windowStart
+        let windowMoved = moveWindow(to: windowStart)
+        let rootsChanged = updateRoots(roots)
+        let reported = takeReportedChanges(for: roots)
+        let changes = windowMoved || rootsChanged ? .everything : reported
+        let walks = Self.walks(of: roots, for: changes)
 
-        let logRoots = roots.map {
-            UsageIngestionStats.LogRoot(
-                provider: $0.provider,
-                path: $0.url.path,
-                exists: FileManager.default.fileExists(atPath: $0.url.path)
-            )
-        }
-        if logRoots != self.logRoots {
-            self.logRoots = logRoots
-            changed = true
-        }
-
+        var changed = windowMoved || rootsChanged
         var seenPaths = Set<String>()
         var newFiles: [(path: String, metadata: UsageFileMetadata, root: UsageLogRoot)] = []
-        for root in roots {
-            Self.walk(root) { path, metadata in
+        for (root, directory) in walks {
+            Self.walk(root, from: directory) { path, metadata in
                 guard metadata.modificationDate >= windowStart else {
                     return
                 }
@@ -60,7 +42,16 @@ struct LogStore {
             entries[path] = entry
             changed = true
         }
-        for path in entries.keys.filter({ !seenPaths.contains($0) }) {
+        let gone = entries.keys.filter { path in
+            guard !seenPaths.contains(path) else {
+                return false
+            }
+            guard case .directories = changes else {
+                return true
+            }
+            return walks.contains { path.hasPrefix($0.directory + "/") }
+        }
+        for path in gone {
             entries[path] = nil
             changed = true
         }
@@ -113,19 +104,82 @@ struct LogStore {
         )
     }
 
-    private static func walk(_ root: UsageLogRoot, _ body: (String, UsageFileMetadata) -> Void) {
-        var paths: [UnsafeMutablePointer<CChar>?] = [strdup(root.url.path), nil]
+    private mutating func moveWindow(to windowStart: Date) -> Bool {
+        guard windowStart != self.windowStart else {
+            return false
+        }
+        if windowStart < self.windowStart {
+            entries.removeAll(keepingCapacity: true)
+        } else {
+            var index = entries.startIndex
+            while index != entries.endIndex {
+                entries.values[index].log.discard(before: windowStart)
+                entries.formIndex(after: &index)
+            }
+        }
+        self.windowStart = windowStart
+        return true
+    }
+
+    private mutating func updateRoots(_ roots: [UsageLogRoot]) -> Bool {
+        let logRoots = roots.map {
+            UsageIngestionStats.LogRoot(
+                provider: $0.provider,
+                path: $0.path,
+                exists: FileManager.default.fileExists(atPath: $0.path)
+            )
+        }
+        defer { self.logRoots = logRoots }
+        return logRoots != self.logRoots
+    }
+
+    /// What FSEvents reported since the last sync, or everything when no watcher covered that span on these roots. A replacement watcher starts before the walk, so a write during the walk reaches the next sync.
+    private mutating func takeReportedChanges(for roots: [UsageLogRoot]) -> LogDirectoryWatcher.Changes {
+        let paths = roots.map(\.path)
+        guard let watcher, watcher.watches(paths) else {
+            watcher = LogDirectoryWatcher(roots: paths)
+            return .everything
+        }
+        return watcher.takeChanges()
+    }
+
+    /// Pairs each directory to walk with the root it lies under, skipping any directory inside another.
+    private static func walks(
+        of roots: [UsageLogRoot],
+        for changes: LogDirectoryWatcher.Changes
+    ) -> [(root: UsageLogRoot, directory: String)] {
+        guard case .directories(let directories) = changes else {
+            return roots.map { ($0, $0.path) }
+        }
+        var walks: [(root: UsageLogRoot, directory: String)] = []
+        for directory in directories.sorted() where !walks.contains(where: { directory.hasPrefix($0.directory + "/") })
+        {
+            if let root = roots.first(where: { directory == $0.path || directory.hasPrefix($0.path + "/") }) {
+                walks.append((root, directory))
+            }
+        }
+        return walks
+    }
+
+    /// Visits the regular files under `directory`, which lies inside `root`, skipping hidden entries as a walk from the root would.
+    private static func walk(_ root: UsageLogRoot, from directory: String, _ body: (String, UsageFileMetadata) -> Void)
+    {
+        let isRoot = directory == root.path
+        guard isRoot || !isHidden(directory, under: root.path) else {
+            return
+        }
+        var paths: [UnsafeMutablePointer<CChar>?] = [strdup(directory), nil]
         defer { free(paths[0]) }
-        guard let stream = fts_open(&paths, FTS_PHYSICAL | FTS_COMFOLLOW | FTS_NOCHDIR, nil) else {
+        guard let stream = fts_open(&paths, FTS_PHYSICAL | FTS_NOCHDIR | (isRoot ? FTS_COMFOLLOW : 0), nil) else {
             return
         }
         defer { fts_close(stream) }
         while let entry = fts_read(stream) {
             let info = Int32(entry.pointee.fts_info)
             let status = entry.pointee.fts_statp.pointee
-            let isHidden =
-                entry.pointee.fts_name == CChar(UInt8(ascii: ".")) || status.st_flags & UInt32(UF_HIDDEN) != 0
-            if entry.pointee.fts_level > 0, isHidden {
+            if entry.pointee.fts_level > 0,
+                isHidden(firstByte: UInt8(bitPattern: entry.pointee.fts_name), status: status)
+            {
                 if info == FTS_D {
                     fts_set(stream, entry, FTS_SKIP)
                 }
@@ -139,6 +193,23 @@ struct LogStore {
                 body(path, metadata)
             }
         }
+    }
+
+    /// Whether a directory below the root, or any directory between them, is hidden. A missing directory counts as hidden, since it holds nothing to walk.
+    private static func isHidden(_ directory: String, under root: String) -> Bool {
+        var path = root
+        for component in directory.dropFirst(root.count + 1).split(separator: "/") {
+            path += "/" + component
+            var status = Darwin.stat()
+            guard lstat(path, &status) == 0, !isHidden(firstByte: component.utf8.first ?? 0, status: status) else {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func isHidden(firstByte: UInt8, status: Darwin.stat) -> Bool {
+        firstByte == UInt8(ascii: ".") || status.st_flags & UInt32(UF_HIDDEN) != 0
     }
 
     private static func open(

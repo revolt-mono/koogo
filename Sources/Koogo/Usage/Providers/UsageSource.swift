@@ -19,7 +19,7 @@ extension UsageSource {
         logDirectories.map {
             UsageLogRoot(
                 provider: provider,
-                url: provider.home(under: root).appending(path: $0, directoryHint: .isDirectory),
+                path: provider.home(under: root).appending(path: $0, directoryHint: .isDirectory).path,
                 format: logFormat
             )
         }

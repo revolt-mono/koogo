@@ -23,6 +23,6 @@ struct UsageLogFormat: Sendable {
 
 struct UsageLogRoot: Sendable {
     let provider: Provider
-    let url: URL
+    let path: String
     let format: UsageLogFormat
 }
