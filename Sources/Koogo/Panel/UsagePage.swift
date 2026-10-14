@@ -27,7 +27,7 @@ struct UsagePage: View {
                 }
 
                 ProviderCards(
-                    cards: preferences.usageProviders.compactMap { provider in
+                    cards: preferences.order.compactMap { provider in
                         snapshot.providers[provider].map { (provider: provider, usage: $0) }
                     },
                     heightLimit: max(maxHeight - headerHeight - Self.cardsGap, 0)

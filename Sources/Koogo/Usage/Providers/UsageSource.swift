@@ -14,16 +14,6 @@ extension UsageSource {
     var splitsUsageByModel: Bool { true }
 
     mutating func refresh(home: URL) -> Bool { false }
-
-    func logRoots(of provider: Provider, home root: URL) -> [UsageLogRoot] {
-        logDirectories.map {
-            UsageLogRoot(
-                provider: provider,
-                path: provider.home(under: root).appending(path: $0, directoryHint: .isDirectory).path,
-                format: logFormat
-            )
-        }
-    }
 }
 
 extension Provider {
@@ -33,6 +23,17 @@ extension Provider {
         case .claude: ClaudeUsageSource()
         case .piAgent: PiUsageSource()
         case .grok: GrokUsageSource()
+        }
+    }
+
+    func logRoots(under root: URL) -> [UsageLogRoot] {
+        let source = usageSource
+        return source.logDirectories.map {
+            UsageLogRoot(
+                provider: self,
+                path: home(under: root).appending(path: $0, directoryHint: .isDirectory).path,
+                format: source.logFormat
+            )
         }
     }
 }

@@ -15,7 +15,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
         try workspace.write(turns.joined(), to: workspace.codexSessions.appending(path: "session.jsonl"))
         var store = LogStore()
         _ = store.sync(
-            roots: CodexUsageSource().logRoots(of: .codex, home: workspace.root),
+            roots: Provider.codex.logRoots(under: workspace.root),
             since: usageTestTimestamp.addingTimeInterval(-86_400)
         )
 
@@ -51,7 +51,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
                 to: workspace.claudeProjects.appending(path: "project/session-\(file).jsonl")
             )
         }
-        let roots = ClaudeUsageSource().logRoots(of: .claude, home: workspace.root)
+        let roots = Provider.claude.logRoots(under: workspace.root)
 
         let before = allocatedHeapBytes()
         var store = LogStore()

@@ -2,7 +2,8 @@ import Darwin
 import Foundation
 import Synchronization
 
-struct LogStore {
+/// Owns one FSEvents inbox, so copies would split the reported changes between them.
+struct LogStore: ~Copyable {
     private struct Entry: Sendable {
         let provider: Provider
         var log: any TrackedLog

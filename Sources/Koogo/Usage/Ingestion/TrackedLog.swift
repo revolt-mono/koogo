@@ -8,7 +8,7 @@ protocol TrackedLog: Sendable {
     mutating func discard(before windowStart: Date)
 }
 
-struct ParsedLines<Parser: UsageLogParser>: LineConsumer, Sendable {
+private struct ParsedLines<Parser: UsageLogParser>: LineConsumer, Sendable {
     private var parser = Parser()
     private(set) var events = UsageEventIndex()
     private(set) var tally = LogTally()
@@ -71,7 +71,7 @@ struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
         guard file.observe(metadata) else {
             return false
         }
-        return lines.read(&file) != .nothingNew
+        return lines.read(&file) == .readLines
     }
 
     mutating func discard(before windowStart: Date) {

@@ -4,7 +4,9 @@ import System
 
 enum FileRead {
     case nothingNew
+    /// Lines reached the consumer or it restarted, whether or not the read then finished.
     case readLines
+    /// Nothing reached the consumer; the next sync retries.
     case unreadable
 }
 
@@ -24,6 +26,8 @@ struct AppendOnlyFile: Sendable {
     private var parsedOffset: UInt64 = 0
     private var parsedTail = Data()
     private var needsRestart = false
+    /// The last read ended short of the file's size, so the next observation resumes it even when the file looks unchanged.
+    private var stoppedEarly = false
 
     /// Starts from a directory walk's view of the file; the first read checks that view against the file itself.
     init(_ path: String, observed metadata: UsageFileMetadata) {
@@ -41,7 +45,7 @@ struct AppendOnlyFile: Sendable {
             needsRestart = true
             return true
         }
-        return observed.size > metadata.size
+        return stoppedEarly || observed.size > metadata.size
     }
 
     mutating func read(into consumer: inout some LineConsumer) -> FileRead {
@@ -63,13 +67,13 @@ struct AppendOnlyFile: Sendable {
             needsRestart = false
         }
         let startOffset = parsedOffset
-        if parsedOffset < current.size {
-            guard readLines(file, in: parsedOffset..<current.size, into: &consumer) else {
-                return .unreadable
-            }
-        }
+        let finished = parsedOffset >= current.size || readLines(file, in: parsedOffset..<current.size, into: &consumer)
         metadata = current
-        return restarted || parsedOffset > startOffset ? .readLines : .nothingNew
+        stoppedEarly = !finished
+        if restarted || parsedOffset > startOffset {
+            return .readLines
+        }
+        return finished ? .nothingNew : .unreadable
     }
 
     private mutating func readLines(

@@ -22,11 +22,12 @@ struct UsagePeriodIntervals: Equatable, Sendable {
         guard let todayInterval = calendar.dateInterval(of: .day, for: date) else {
             preconditionFailure("calendar must provide day intervals")
         }
+        let dayCount = UsagePeriod.last30Days.dayCount
         last30DayStarts = Array(
             sequence(first: todayInterval.start) { calendar.startOfDay(for: $0.addingTimeInterval(-1)) }
-                .prefix(30)
+                .prefix(dayCount)
         )
-        last30Days = last30DayStarts[29]..<todayInterval.end
+        last30Days = last30DayStarts[dayCount - 1]..<todayInterval.end
     }
 
     func last30DayIndex(containing date: Date) -> Int? {

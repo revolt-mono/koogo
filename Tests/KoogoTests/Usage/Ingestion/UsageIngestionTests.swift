@@ -96,6 +96,35 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         XCTAssertEqual(snapshot.todayTokens(.codex), 120)
     }
 
+    func testAppendThatCannotBeReadReportsNoChangeUntilItCanBe() throws {
+        let log = workspace.codexSessions.appending(path: "session.jsonl")
+        try workspace.write(codexLog(input: 100, output: 20), to: log)
+        var parsed = try XCTUnwrap(
+            ParsedLog<CodexUsageLogParser>(log.path, observed: try metadata(of: log), since: .distantPast)
+        )
+        try workspace.append(
+            codexTokenCount(
+                last: codexUsage(input: 50, output: 10),
+                total: codexUsage(input: 150, output: 30),
+                at: "2026-08-25T13:00:00.000Z"
+            ) + "\n",
+            to: log
+        )
+
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: log.path)
+        XCTAssertFalse(parsed.sync(observed: try metadata(of: log)))
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: log.path)
+        XCTAssertTrue(parsed.sync(observed: try metadata(of: log)))
+        XCTAssertEqual(parsed.events.count, 2)
+    }
+
+    private func metadata(of url: URL) throws -> UsageFileMetadata {
+        var status = Darwin.stat()
+        XCTAssertEqual(stat(url.path, &status), 0)
+        return try XCTUnwrap(UsageFileMetadata(status: status))
+    }
+
     func testSameSizeRewriteWithNewModificationDateIsReread() async throws {
         let log = workspace.codexSessions.appending(path: "session.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: log)

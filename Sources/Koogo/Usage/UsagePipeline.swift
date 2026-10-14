@@ -33,7 +33,7 @@ actor UsagePipeline {
         let providers = Provider.allCases.filter {
             requested.contains($0) && FileManager.default.fileExists(atPath: $0.home(under: home).path)
         }
-        let roots = providers.flatMap { sources[$0].logRoots(of: $0, home: home) }
+        let roots = providers.flatMap { $0.logRoots(under: home) }
         let logsChanged = store.sync(roots: roots, since: intervals.last30Days.lowerBound)
         var namesChanged = false
         for provider in providers {
