@@ -1,16 +1,22 @@
 import Foundation
 
 struct UsageEventIndex: Sendable {
+    /// Fields run from widest to narrowest, with the revision split, so the narrow ones share the identity's padding: 56 bytes a stride instead of 72.
     private struct Entry: Sendable {
-        let id: UsageEventID
         let secondsSinceReferenceDate: TimeInterval
         let processedTokens: UInt64
-        let revision: UsageEvent.Revision
-        let costUSD: Decimal
+        let cost: Picodollars
+        let outputTokens: UInt64
+        let id: UsageEventID
+        let metadataCompleteness: UInt8
         let model: UInt32
 
         var timestamp: Date {
             Date(timeIntervalSinceReferenceDate: secondsSinceReferenceDate)
+        }
+
+        var revision: UsageEvent.Revision {
+            UsageEvent.Revision(outputTokens: outputTokens, metadataCompleteness: metadataCompleteness)
         }
 
         func isSuperseded(by other: Self) -> Bool {
@@ -32,7 +38,7 @@ struct UsageEventIndex: Sendable {
                 record: UsageRecord(
                     timestamp: entry.timestamp,
                     processedTokens: entry.processedTokens,
-                    costUSD: entry.costUSD,
+                    cost: entry.cost,
                     model: models[Int(entry.model)]
                 ),
                 revision: entry.revision
@@ -94,11 +100,12 @@ struct UsageEventIndex: Sendable {
             models.append(record.model)
         }
         return Entry(
-            id: event.id,
             secondsSinceReferenceDate: record.timestamp.timeIntervalSinceReferenceDate,
             processedTokens: record.processedTokens,
-            revision: event.revision,
-            costUSD: record.costUSD,
+            cost: record.cost,
+            outputTokens: event.revision.outputTokens,
+            id: event.id,
+            metadataCompleteness: event.revision.metadataCompleteness,
             model: UInt32(model)
         )
     }

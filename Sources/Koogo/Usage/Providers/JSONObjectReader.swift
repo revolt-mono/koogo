@@ -165,33 +165,80 @@ struct JSONValue {
         isNull ? nil : self
     }
 
-    func integer<T: FixedWidthInteger & Decodable>(_: T.Type = T.self) throws -> T? {
+    func uint64() throws -> UInt64? {
         guard !isNull else {
             return nil
         }
         guard bytes.first != UInt8(ascii: "0") || bytes.count == 1 else {
-            return try JSONDecoder().decode(T.self, from: Data(bytes))
+            return try JSONDecoder().decode(UInt64.self, from: Data(bytes))
         }
-        var value: T = 0
+        var value: UInt64 = 0
         for byte in bytes {
             let (tens, overflow) = value.multipliedReportingOverflow(by: 10)
-            let (next, carry) = tens.addingReportingOverflow(T(truncatingIfNeeded: byte &- UInt8(ascii: "0")))
+            let (next, carry) = tens.addingReportingOverflow(UInt64(byte &- UInt8(ascii: "0")))
             guard Self.isDigit(byte), !overflow, !carry else {
-                return try JSONDecoder().decode(T.self, from: Data(bytes))
+                return try JSONDecoder().decode(UInt64.self, from: Data(bytes))
             }
             value = next
         }
         return value
     }
 
-    func decimal() throws -> Decimal? {
+    /// Reads a non-negative number of US dollars, rounded half up to whole picodollars.
+    func usd() throws -> Picodollars? {
         guard !isNull else {
             return nil
         }
-        guard isNumber, let text = String(bytes: bytes, encoding: .ascii), let value = Decimal(string: text) else {
+        guard isNumber, bytes.first != UInt8(ascii: "-") else {
             throw MalformedUsageRecord()
         }
-        return value
+        let mantissaEnd = bytes.firstIndex { $0 == UInt8(ascii: "e") || $0 == UInt8(ascii: "E") } ?? bytes.count
+        var significand: UInt64 = 0
+        var exponent = 12
+        var isFraction = false
+        for byte in bytes[..<mantissaEnd] {
+            if byte == UInt8(ascii: ".") {
+                isFraction = true
+                continue
+            }
+            let (tens, overflow) = significand.multipliedReportingOverflow(by: 10)
+            let (next, carry) = tens.addingReportingOverflow(UInt64(byte - UInt8(ascii: "0")))
+            guard !overflow, !carry else {
+                throw MalformedUsageRecord()
+            }
+            significand = next
+            exponent -= isFraction ? 1 : 0
+        }
+        if mantissaEnd < bytes.count {
+            var digits = bytes[(mantissaEnd + 1)...]
+            let isNegative = digits.first == UInt8(ascii: "-")
+            if isNegative || digits.first == UInt8(ascii: "+") {
+                digits.removeFirst()
+            }
+            let written = digits.reduce(0) { min($0 * 10 + Int($1 - UInt8(ascii: "0")), 1_000) }
+            exponent += isNegative ? -written : written
+        }
+        return try Self.picodollars(significand, timesTenToThe: exponent)
+    }
+
+    private static func picodollars(_ significand: UInt64, timesTenToThe exponent: Int) throws -> Picodollars {
+        guard significand > 0, exponent > -20 else {
+            return .zero
+        }
+        guard exponent < 0 else {
+            var picodollars = significand
+            for _ in 0..<exponent {
+                let (scaled, overflow) = picodollars.multipliedReportingOverflow(by: 10)
+                guard !overflow else {
+                    throw MalformedUsageRecord()
+                }
+                picodollars = scaled
+            }
+            return Picodollars(picodollars)
+        }
+        let divisor = (0 ..< -exponent).reduce(UInt64(1)) { power, _ in power * 10 }
+        let (quotient, remainder) = significand.quotientAndRemainder(dividingBy: divisor)
+        return Picodollars(remainder >= divisor - remainder ? quotient + 1 : quotient)
     }
 
     func object() throws -> JSONObjectReader {
@@ -201,7 +248,6 @@ struct JSONValue {
         return object
     }
 
-    /// Whether the bytes spell a JSON number; `Decimal(string:)` alone would accept trailing text.
     private var isNumber: Bool {
         var index = 0
         func skipDigits() -> Bool {

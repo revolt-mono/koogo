@@ -8,7 +8,7 @@ final class UsageEventIndexMemoryTests: XCTestCase {
             throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to measure retained heap.")
         }
         var index = UsageEventIndex()
-        let usage = UsageRecord(timestamp: usageTestTimestamp, processedTokens: 1, costUSD: 0, model: nil)
+        let usage = UsageRecord(timestamp: usageTestTimestamp, processedTokens: 1, cost: .zero, model: nil)
         let before = allocatedHeapBytes()
 
         for number in 0..<50_000 {

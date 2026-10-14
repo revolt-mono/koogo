@@ -15,14 +15,5 @@ struct MalformedUsageRecord: Error {}
 
 struct UsageQuote: Sendable {
     let model: ModelID
-    let costUSD: Decimal
-
-    init(model: ModelID, costNanodollars: Decimal) {
-        self.model = model
-        costUSD = Decimal(
-            sign: costNanodollars.sign,
-            exponent: costNanodollars.exponent - 9,
-            significand: costNanodollars.significand
-        )
-    }
+    let cost: Picodollars
 }

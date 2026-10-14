@@ -80,6 +80,27 @@ final class JSONObjectReaderTests: XCTestCase {
         }
     }
 
+    func testLoggedDollarsRoundHalfUpToWholePicodollars() throws {
+        var parser = PiUsageLogParser()
+        for (cost, picodollars) in [
+            ("0.125", UInt64(125_000_000_000)),
+            ("1.2e-5", 12_000_000),
+            ("12E+1", 120_000_000_000_000),
+            ("0.0000000000015", 2),
+            ("0.0000000000014999", 1),
+            ("0.12345678901234567", 123_456_789_012),
+            ("1e-40", 0),
+        ] {
+            let line = piAssistant(id: "reply", parentID: nil, model: "model-a", usage: piUsage(input: 1, cost: cost))
+            let event = try XCTUnwrap(parse(line, with: &parser)?.event, cost)
+            XCTAssertEqual(event.record.cost, Picodollars(picodollars), cost)
+        }
+        for cost in ["-0.01", "1e30", "0.12345678901234567890123"] {
+            let line = piAssistant(id: "reply", parentID: nil, model: "model-a", usage: piUsage(input: 1, cost: cost))
+            XCTAssertThrowsError(try parse(line, with: &parser), cost)
+        }
+    }
+
     func testMalformedReadValuesMakeARecordMalformed() {
         var parser = PiUsageLogParser()
         for usage in [

@@ -23,7 +23,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(event.record.timestamp, usageTestTimestamp)
         XCTAssertEqual(event.record.processedTokens, 100)
-        XCTAssertEqual(event.record.costUSD, Decimal(string: "0.125"))
+        XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.125"))
         XCTAssertEqual(event.record.model, ModelID("provider/model-a"))
         XCTAssertNil(
             try parse(
@@ -51,7 +51,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(events.map(\.record.processedTokens), [10, 20, 30])
         XCTAssertTrue(events.allSatisfy { $0.record.model == nil })
-        XCTAssertEqual(events.map(\.record.costUSD).reduce(0, +), Decimal(string: "0.06"))
+        XCTAssertEqual(events.map(\.record.cost.usd).reduce(0, +), Decimal(string: "0.06"))
     }
 
     func testParserUsesProviderTotalTokens() throws {
@@ -82,14 +82,14 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         try workspace.write(contents, to: workspace.piSessions.appending(path: "copy/session.jsonl"))
         let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
-        XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.processedTokens, 210)
-        XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.costUSD, Decimal(string: "0.21"))
+        XCTAssertEqual(snapshot.todayTokens(.piAgent), 210)
+        XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd, Decimal(string: "0.21"))
         let models = try XCTUnwrap(snapshot.providers[.piAgent]?.periods[.today].models)
         XCTAssertEqual(models.map(\.id), [nil, ModelID("provider/model-a"), ModelID("provider/model-b")])
         XCTAssertEqual(models.map(\.modelName), ["Unattributed", "Readable Model A", "Preferred Model B"])
         XCTAssertEqual(models.map(\.usage.processedTokens), [150, 30, 30])
         XCTAssertEqual(
-            models.map(\.usage.costUSD),
+            models.map(\.usage.cost.usd),
             [Decimal(string: "0.15"), Decimal(string: "0.03"), Decimal(string: "0.03")]
         )
     }
@@ -151,7 +151,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let service = makePipeline()
 
         let original = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(original.providers[.piAgent]?.periods[.today].total.processedTokens, 210)
+        XCTAssertEqual(original.todayTokens(.piAgent), 210)
 
         let forkHeader = piSessionHeader.replacingOccurrences(
             of: "\"id\":\"session\"",
@@ -168,11 +168,11 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             + "\n"
         try workspace.write(fork, to: workspace.piSessions.appending(path: "fork.jsonl"))
 
-        let incremental = await service.run(at: now, providers: Provider.allCases).snapshot
+        let incremental = try await refresh(service) { $0.ingestion.trackedFiles[.piAgent] == 2 }.snapshot
         let cold = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
         for snapshot in [incremental, cold] {
-            XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.processedTokens, 280)
-            XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.costUSD, Decimal(string: "0.28"))
+            XCTAssertEqual(snapshot.todayTokens(.piAgent), 280)
+            XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd, Decimal(string: "0.28"))
         }
     }
 

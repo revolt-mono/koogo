@@ -4,33 +4,30 @@ enum ClaudeUsagePricing {
     private static let longPromptThreshold: UInt64 = 100_000
 
     private struct Rates: Sendable {
-        let input: Decimal
-        let cacheRead: Decimal
-        let output: Decimal
-        let cacheWriteFiveMinute: Decimal
-        let cacheWriteOneHour: Decimal
+        let input: Picodollars
+        let cacheRead: Picodollars
+        let output: Picodollars
+        let cacheWriteFiveMinute: Picodollars
+        let cacheWriteOneHour: Picodollars
 
-        init(input: Decimal, cacheRead: Decimal, output: Decimal) {
-            self.input = input
-            self.cacheRead = cacheRead
-            self.output = output
-            cacheWriteFiveMinute = input * 5 / 4
-            cacheWriteOneHour = input * 2
+        /// Takes rates in nanodollars per token.
+        init(input: UInt64, cacheRead: UInt64, output: UInt64) {
+            self.input = Picodollars(nanodollars: input)
+            self.cacheRead = Picodollars(nanodollars: cacheRead)
+            self.output = Picodollars(nanodollars: output)
+            cacheWriteFiveMinute = self.input.scaled(by: 5, over: 4)
+            cacheWriteOneHour = self.input * 2
         }
 
-        func costNanodollars(for tokens: ClaudeTokenUsage) -> Decimal {
+        func cost(of tokens: ClaudeTokenUsage) -> Picodollars {
             let cacheCreationCost =
                 switch tokens.cacheCreation {
                 case .aggregate(let amount):
-                    Decimal(amount) * cacheWriteFiveMinute
+                    cacheWriteFiveMinute * amount
                 case .byDuration(let fiveMinute, let oneHour):
-                    Decimal(fiveMinute) * cacheWriteFiveMinute
-                        + Decimal(oneHour) * cacheWriteOneHour
+                    cacheWriteFiveMinute * fiveMinute + cacheWriteOneHour * oneHour
                 }
-            return Decimal(tokens.input) * input
-                + Decimal(tokens.cacheRead) * cacheRead
-                + cacheCreationCost
-                + Decimal(tokens.output) * output
+            return input * tokens.input + cacheRead * tokens.cacheRead + cacheCreationCost + output * tokens.output
         }
     }
 
@@ -123,31 +120,33 @@ enum ClaudeUsagePricing {
         ),
     ]
 
-    static func quote(model: ModelID, usage: ClaudeBillableUsage) -> UsageQuote? {
-        let model: ModelID =
-            switch model {
+    static func quote(model logged: ModelID, usage: ClaudeBillableUsage) -> UsageQuote? {
+        let canonical: ModelID =
+            switch logged {
             case "claude-opus-4-5": "claude-opus-4-5-20251101"
             case "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
-            default: model
+            default: logged
             }
-        guard let price = prices[model] else {
+        // Quoting the table's own key lets every log share one copy of the model name.
+        guard let index = prices.index(forKey: canonical) else {
             return nil
         }
+        let (model, price) = prices[index]
 
         let promptTokens = usage.tokens.processed - usage.tokens.output
         let rates = promptTokens > longPromptThreshold ? price.longPromptRates ?? price.rates : price.rates
         guard usage.options.isSubset(of: price.options) else {
             return nil
         }
-        let costNanodollars = usage.options.reduce(rates.costNanodollars(for: usage.tokens)) { cost, option in
+        let tokenCost = usage.options.reduce(rates.cost(of: usage.tokens)) { cost, option in
             switch option {
             case .fastMode: cost * 2
-            case .usInference: cost * 11 / 10
+            case .usInference: cost.scaled(by: 11, over: 10)
             }
         }
         return UsageQuote(
             model: model,
-            costNanodollars: costNanodollars + Decimal(usage.webSearchRequests) * 10_000_000
+            cost: tokenCost + Picodollars(nanodollars: 10_000_000) * usage.webSearchRequests
         )
     }
 

@@ -42,7 +42,7 @@ struct ClaudeUsageLogParser: UsageLogParser {
                 record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: usage.tokens.processed,
-                    costUSD: quote.costUSD,
+                    cost: quote.cost,
                     model: quote.model
                 ),
                 revision: Self.revision(of: usage)

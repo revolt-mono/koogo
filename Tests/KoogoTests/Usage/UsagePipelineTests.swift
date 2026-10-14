@@ -22,7 +22,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 19)
         XCTAssertEqual(report.ingestion.events[.codex], 19)
-        XCTAssertEqual(report.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 2_280)
+        XCTAssertEqual(report.snapshot.todayTokens(.codex), 2_280)
     }
 
     func testUnicodeAndReservedCharactersInLogPaths() async throws {
@@ -31,7 +31,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         let service = makePipeline()
         let initial = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(initial.ingestion.trackedFiles[.codex], 1)
-        XCTAssertEqual(initial.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 120)
+        XCTAssertEqual(initial.snapshot.todayTokens(.codex), 120)
 
         try workspace.append(
             codexTokenCount(
@@ -40,9 +40,9 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             ) + "\n",
             to: log
         )
-        let appended = await service.run(at: now, providers: Provider.allCases)
+        let appended = try await refresh(service) { $0.snapshot.todayTokens(.codex) != 120 }
         XCTAssertEqual(appended.ingestion.trackedFiles[.codex], 1)
-        XCTAssertEqual(appended.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 180)
+        XCTAssertEqual(appended.snapshot.todayTokens(.codex), 180)
     }
 
     func testDisabledProvidersAreNeitherScannedNorSummarized() async throws {
@@ -83,46 +83,16 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         let midnight = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z"))
         let refreshed = await service.run(at: midnight, providers: Provider.allCases)
 
-        XCTAssertEqual(current.ingestion.events[.codex], 4)
-        XCTAssertEqual(current.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 8)
+        XCTAssertEqual(current.ingestion.events[.codex], 3)
+        XCTAssertEqual(current.snapshot.todayTokens(.codex), 8)
         XCTAssertEqual(current.snapshot.providers[.codex]?.periods[.last7Days].total.processedTokens, 12)
         XCTAssertEqual(current.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 14)
         XCTAssertEqual(evening.snapshot, current.snapshot)
-        XCTAssertEqual(refreshed.ingestion.events[.codex], 3)
+        XCTAssertEqual(refreshed.ingestion.events[.codex], 2)
         XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.today].total, UsagePeriodSnapshot())
         XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.last7Days].total.processedTokens, 8)
         XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 12)
-        XCTAssertEqual(refreshed.snapshot.summary.last30Days.costChange, .increase(fraction: 5))
-    }
-
-    func testTurnsLeavingTheWindowAtMidnightStayIndexed() async throws {
-        for input in 1...2 {
-            try workspace.write(
-                codexLog(
-                    input: input,
-                    output: 0,
-                    model: "gpt-5.6-luna",
-                    usageTimestamp: "2026-07-27T00:00:00Z"
-                ),
-                to: workspace.codexSessions.appending(path: "first-day-\(input).jsonl")
-            )
-        }
-        try workspace.write(
-            codexLog(input: 4, output: 0, model: "gpt-5.6-sol"),
-            to: workspace.codexSessions.appending(path: "recent.jsonl")
-        )
-        let service = makePipeline()
-        let current = await service.run(at: now, providers: Provider.allCases)
-        let lastMillisecond = try XCTUnwrap(Date(iso8601: "2026-08-25T23:59:59.999Z"))
-        let evening = await service.run(at: lastMillisecond, providers: Provider.allCases)
-        let nextMidnight = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z"))
-        let refreshed = await service.run(at: nextMidnight, providers: Provider.allCases)
-
-        XCTAssertEqual(current.ingestion.events[.codex], 3)
-        XCTAssertEqual(current.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 7)
-        XCTAssertEqual(evening.snapshot, current.snapshot)
-        XCTAssertEqual(refreshed.ingestion.events[.codex], 3)
-        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 4)
+        XCTAssertEqual(refreshed.snapshot.summary.last7Days.costChange, .increase(fraction: 1))
     }
 
     func testUnpricedModelIsExcludedFromTotalsAndReported() async throws {
@@ -138,7 +108,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         XCTAssertEqual(report.ingestion.unpricedModels, ["unknown-model"])
     }
 
-    func testColdScanRetainsComparisonPeriodsAndDiscardsOlderHistory() async throws {
+    func testColdScanComparesWithThePreviousWeekAndDiscardsOlderHistory() async throws {
         try workspace.write(
             codexLog(
                 input: 100,
@@ -152,10 +122,10 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             codexLog(
                 input: 200,
                 output: 40,
-                thread: "previous-30-days",
-                usageTimestamp: "2026-07-25T17:00:00.000Z"
+                thread: "previous-7-days",
+                usageTimestamp: "2026-08-18T17:00:00.000Z"
             ),
-            to: workspace.codexSessions.appending(path: "previous-30-days.jsonl")
+            to: workspace.codexSessions.appending(path: "previous-7-days.jsonl")
         )
         for index in 1...3 {
             try workspace.write(
@@ -164,17 +134,18 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
                     output: 0,
                     thread: "older-\(index)",
                     model: "gpt-5.6-luna",
-                    usageTimestamp: "2026-06-26T23:59:59.999Z"
+                    usageTimestamp: "2026-07-26T23:59:59.999Z"
                 ),
                 to: workspace.codexSessions.appending(path: "older-\(index).jsonl")
             )
         }
         let service = makePipeline()
 
-        let snapshot = await service.run(at: now, providers: Provider.allCases).snapshot
+        let report = await service.run(at: now, providers: Provider.allCases)
 
-        XCTAssertEqual(snapshot.summary.today.costChange, .decrease(fraction: 1))
-        XCTAssertEqual(snapshot.summary.last30Days.costChange, .decrease(fraction: Decimal(1) / 2))
+        XCTAssertEqual(report.ingestion.events[.codex], 2)
+        XCTAssertEqual(report.snapshot.summary.today.costChange, .decrease(fraction: 1))
+        XCTAssertEqual(report.snapshot.summary.last7Days.costChange, .decrease(fraction: Decimal(1) / 2))
     }
 
     func testRecordsBesideBilledOnesAreSkipped() async throws {

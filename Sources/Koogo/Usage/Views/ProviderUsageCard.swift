@@ -135,7 +135,7 @@ private struct ProviderUsageRow: View {
                 Text("\(usage.processedTokens.formatted(.compactTokens)) tokens ·")
                     .foregroundStyle(.secondary)
 
-                Text(usage.costUSD.formatted(.usd))
+                Text(usage.cost.usd.formatted(.usd))
                     .foregroundStyle(.primary)
             }
             .lineLimit(1)

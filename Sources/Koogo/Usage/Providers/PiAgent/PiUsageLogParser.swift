@@ -3,7 +3,7 @@ import Foundation
 struct PiUsageLogParser: UsageLogParser {
     func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         guard let entry = try PiEntry(line), let billed = entry.billed,
-            billed.processedTokens > 0 || billed.costUSD > 0
+            billed.processedTokens > 0 || billed.cost > .zero
         else {
             return nil
         }
@@ -13,7 +13,7 @@ struct PiUsageLogParser: UsageLogParser {
                 record: UsageRecord(
                     timestamp: billed.timestamp,
                     processedTokens: billed.processedTokens,
-                    costUSD: billed.costUSD,
+                    cost: billed.cost,
                     model: billed.model
                 )
             )
@@ -58,7 +58,7 @@ private struct PiEntry {
 
 private struct PiBilledEntry {
     let processedTokens: UInt64
-    let costUSD: Decimal
+    let cost: Picodollars
     let model: ModelID?
     let timestamp: Date
 
@@ -66,15 +66,15 @@ private struct PiBilledEntry {
         guard let usage = usage.nonNull else {
             return nil
         }
-        let (processedTokens, costUSD) = try usage.fields(
+        let (processedTokens, cost) = try usage.fields(
             .uint64("totalTokens"),
-            JSONField("cost") { try $0.fields(.decimal("total")) }
+            JSONField("cost") { try $0.fields(.usd("total")) }
         )
-        guard let processedTokens, let costUSD, costUSD >= 0, let timestamp else {
+        guard let processedTokens, let cost, let timestamp else {
             throw MalformedUsageRecord()
         }
         self.processedTokens = processedTokens
-        self.costUSD = costUSD
+        self.cost = cost
         self.model = model
         self.timestamp = timestamp
     }
@@ -105,7 +105,7 @@ private struct PiBilledEntry {
         default:
             return nil
         }
-        let timestamp = try milliseconds?.integer(UInt64.self).map(Date.init(unixMilliseconds:))
+        let timestamp = try milliseconds?.uint64().map(Date.init(unixMilliseconds:))
         try self.init(usage: usage, model: reference, timestamp: timestamp)
     }
 }

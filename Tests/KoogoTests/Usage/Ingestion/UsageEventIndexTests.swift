@@ -118,7 +118,7 @@ final class UsageEventIndexTests: XCTestCase {
         UsageRecord(
             timestamp: date,
             processedTokens: tokens,
-            costUSD: 0,
+            cost: .zero,
             model: nil
         )
     }

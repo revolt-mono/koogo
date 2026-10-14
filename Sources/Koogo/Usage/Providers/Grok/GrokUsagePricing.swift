@@ -2,13 +2,26 @@ import Foundation
 
 enum GrokUsagePricing {
     private struct ModelPrice: Sendable {
-        let displayName: String
-        let input: Decimal
-        let cachedInput: Decimal
-        let output: Decimal
+        private(set) var displayName: String
+        private(set) var input: Picodollars
+        private(set) var cachedInput: Picodollars
+        private(set) var output: Picodollars
+
+        /// Takes rates in nanodollars per token.
+        init(displayName: String, input: UInt64, cachedInput: UInt64, output: UInt64) {
+            self.displayName = displayName
+            self.input = Picodollars(nanodollars: input)
+            self.cachedInput = Picodollars(nanodollars: cachedInput)
+            self.output = Picodollars(nanodollars: output)
+        }
 
         var fast: Self {
-            Self(displayName: "\(displayName) Fast", input: input * 2, cachedInput: cachedInput * 2, output: output * 2)
+            var fast = self
+            fast.displayName += " Fast"
+            fast.input = input * 2
+            fast.cachedInput = cachedInput * 2
+            fast.output = output * 2
+            return fast
         }
     }
 
@@ -21,16 +34,12 @@ enum GrokUsagePricing {
         "grok-4.5": ModelPrice(displayName: "Grok 4.5", input: 2_000, cachedInput: 300, output: 6_000),
     ]
 
-    static func quote(model: ModelID, tokens: GrokTokenUsage) -> UsageQuote? {
+    static func cost(of tokens: GrokTokenUsage, model: ModelID) -> Picodollars? {
         guard let price = price(of: model) else {
             return nil
         }
-        let costNanodollars =
-            Decimal(tokens.uncachedInput) * price.input
-            + Decimal(tokens.cachedInput) * price.cachedInput
-            + Decimal(tokens.output) * price.output
-
-        return UsageQuote(model: model, costNanodollars: costNanodollars)
+        return price.input * tokens.uncachedInput + price.cachedInput * tokens.cachedInput + price.output
+            * tokens.output
     }
 
     static func displayName(of model: ModelID) -> String? {

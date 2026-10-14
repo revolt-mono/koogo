@@ -173,7 +173,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
 
             XCTAssertEqual(event.record.processedTokens, 120)
             XCTAssertEqual(event.record.model?.rawValue, model)
-            XCTAssertEqual(event.record.costUSD, Decimal(string: expectedUSD), model)
+            XCTAssertEqual(event.record.cost.usd, Decimal(string: expectedUSD), model)
         }
     }
 
@@ -213,7 +213,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
 
         let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
-        XCTAssertEqual(snapshot.providers[.codex]?.periods[.today].total.processedTokens, 120)
+        XCTAssertEqual(snapshot.todayTokens(.codex), 120)
     }
 
     func testCodexQuotesMatchPublishedRates() throws {
@@ -251,7 +251,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             let quote = try XCTUnwrap(CodexUsagePricing.quote(model: ModelID(model), tokens: tokens), model)
             XCTAssertEqual(quote.model, ModelID(model))
             XCTAssertEqual(CodexUsagePricing.displayName(of: quote.model), name)
-            XCTAssertEqual(quote.costUSD, Decimal(string: expectedUSD), model)
+            XCTAssertEqual(quote.cost.usd, Decimal(string: expectedUSD), model)
         }
     }
 
@@ -263,8 +263,8 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
             CodexUsagePricing.quote(model: "gpt-5.6-sol", tokens: codexTokenUsage(uncached: 272_001))
         )
 
-        XCTAssertEqual(atBoundary.costUSD, Decimal(string: "1.36"))
-        XCTAssertEqual(long.costUSD, Decimal(string: "2.72001"))
+        XCTAssertEqual(atBoundary.cost.usd, Decimal(string: "1.36"))
+        XCTAssertEqual(long.cost.usd, Decimal(string: "2.72001"))
     }
 
     func testCodexAliasResolvesToCanonicalModel() throws {

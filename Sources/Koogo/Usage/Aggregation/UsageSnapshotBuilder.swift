@@ -8,13 +8,13 @@ struct UsageSnapshotBuilder {
             usageByDay[day][usage.model, default: UsagePeriodSnapshot()].add(usage)
         }
 
-        func total(day: Int) -> UsagePeriodSnapshot {
-            usageByDay[day].values.reduce(UsagePeriodSnapshot(), +)
+        func total(days: Range<Int>) -> UsagePeriodSnapshot {
+            usageByDay[days].lazy.flatMap(\.values).reduce(UsagePeriodSnapshot(), +)
         }
 
         func snapshot(intervals: UsagePeriodIntervals, source: any UsageSource) -> ProviderUsageSnapshot {
             let days = intervals.last30DayStarts.indices.reversed().map { day in
-                UsageDaySnapshot(date: intervals.last30DayStarts[day], usage: total(day: day))
+                UsageDaySnapshot(date: intervals.last30DayStarts[day], usage: total(days: day..<day + 1))
             }
             return ProviderUsageSnapshot(
                 periods: EnumMap { period(dayCount: $0.dayCount, source: source) },
@@ -31,7 +31,7 @@ struct UsageSnapshotBuilder {
                     usage: usage
                 )
             }.sorted { lhs, rhs in
-                (rhs.usage.costUSD, lhs.id?.rawValue ?? "") < (lhs.usage.costUSD, rhs.id?.rawValue ?? "")
+                (rhs.usage.cost, lhs.id?.rawValue ?? "") < (lhs.usage.cost, rhs.id?.rawValue ?? "")
             }
             return ProviderUsagePeriodSnapshot(
                 total: usageByModel.values.reduce(UsagePeriodSnapshot(), +),
@@ -42,7 +42,6 @@ struct UsageSnapshotBuilder {
 
     private let intervals: UsagePeriodIntervals
     private var accumulators: EnumMap<Provider, ProviderAccumulator?>
-    private var previous30Days = UsagePeriodSnapshot()
 
     init(providers: Set<Provider>, intervals: UsagePeriodIntervals) {
         self.intervals = intervals
@@ -51,14 +50,8 @@ struct UsageSnapshotBuilder {
     }
 
     mutating func add(_ event: UsageEvent) {
-        guard accumulators[event.provider] != nil else {
-            return
-        }
-        let usage = event.record
-        if let day = intervals.last30DayIndex(containing: usage.timestamp) {
-            accumulators[event.provider]?.add(usage, day: day)
-        } else if intervals.previous30Days.contains(usage.timestamp) {
-            previous30Days.add(usage)
+        if let day = intervals.last30DayIndex(containing: event.record.timestamp) {
+            accumulators[event.provider]?.add(event.record, day: day)
         }
     }
 
@@ -67,10 +60,16 @@ struct UsageSnapshotBuilder {
         for case (let provider, let accumulator?) in accumulators.entries {
             providers[provider] = accumulator.snapshot(intervals: intervals, source: sources[provider])
         }
+        func total(days: Range<Int>) -> UsagePeriodSnapshot {
+            accumulators.entries.compactMap { $1?.total(days: days) }.reduce(UsagePeriodSnapshot(), +)
+        }
+        func comparison(_ period: UsagePeriod) -> UsageSummaryPeriodSnapshot {
+            let days = period.dayCount
+            return UsageSummaryPeriodSnapshot(current: total(days: 0..<days), previous: total(days: days..<2 * days))
+        }
         return UsageSnapshot(
-            providers: providers,
-            previousDay: accumulators.entries.compactMap { $1?.total(day: 1) }.reduce(UsagePeriodSnapshot(), +),
-            previous30Days: previous30Days
+            summary: UsageSummarySnapshot(today: comparison(.today), last7Days: comparison(.last7Days)),
+            providers: providers
         )
     }
 }

@@ -34,13 +34,13 @@ extension JSONField where Value == String {
 
 extension JSONField where Value == UInt64 {
     static func uint64(_ key: StaticString) -> Self {
-        Self(key) { try $0.integer() }
+        Self(key) { try $0.uint64() }
     }
 }
 
-extension JSONField where Value == Decimal {
-    static func decimal(_ key: StaticString) -> Self {
-        Self(key) { try $0.decimal() }
+extension JSONField where Value == Picodollars {
+    static func usd(_ key: StaticString) -> Self {
+        Self(key) { try $0.usd() }
     }
 }
 
@@ -88,21 +88,6 @@ extension JSONValue {
         return (
             try slots[0].flatMap(first.decode), try slots[1].flatMap(second.decode), try slots[2].flatMap(third.decode),
             try slots[3].flatMap(fourth.decode), try slots[4].flatMap(fifth.decode)
-        )
-    }
-
-    func fields<A, B, C, D, E, F>(
-        _ first: JSONField<A>,
-        _ second: JSONField<B>,
-        _ third: JSONField<C>,
-        _ fourth: JSONField<D>,
-        _ fifth: JSONField<E>,
-        _ sixth: JSONField<F>
-    ) throws -> (A?, B?, C?, D?, E?, F?) {
-        let slots = try slots(for: [first.key, second.key, third.key, fourth.key, fifth.key, sixth.key])
-        return (
-            try slots[0].flatMap(first.decode), try slots[1].flatMap(second.decode), try slots[2].flatMap(third.decode),
-            try slots[3].flatMap(fourth.decode), try slots[4].flatMap(fifth.decode), try slots[5].flatMap(sixth.decode)
         )
     }
 

@@ -28,12 +28,12 @@ struct GrokUsageLogParser: UsageLogParser {
             guard prompt.totalTokens == 0 else { throw MalformedUsageRecord() }
             return nil
         }
-        var costUSD: Decimal = 0
+        var cost = Picodollars.zero
         for (model, tokens) in prompt.modelUsage.sorted(by: { $0.key < $1.key }) {
-            guard let quote = GrokUsagePricing.quote(model: model, tokens: tokens) else {
+            guard let modelCost = GrokUsagePricing.cost(of: tokens, model: model) else {
                 return .unpricedModel(model, timestamp: timestamp)
             }
-            costUSD += quote.costUSD
+            cost += modelCost
         }
 
         return .event(
@@ -42,7 +42,7 @@ struct GrokUsageLogParser: UsageLogParser {
                 record: UsageRecord(
                     timestamp: timestamp,
                     processedTokens: prompt.totalTokens,
-                    costUSD: costUSD,
+                    cost: cost,
                     model: primaryModel
                 )
             )

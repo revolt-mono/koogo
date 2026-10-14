@@ -6,7 +6,7 @@ struct UsageSummaryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             UsageSummaryPeriod(title: UsagePeriod.today.title, usage: summary.today)
-            UsageSummaryPeriod(title: UsagePeriod.last30Days.title, usage: summary.last30Days)
+            UsageSummaryPeriod(title: UsagePeriod.last7Days.title, usage: summary.last7Days)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -57,7 +57,7 @@ private struct UsageSummaryCost: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            AnimatedNumericText(text: usage.current.costUSD.formatted(.usd))
+            AnimatedNumericText(text: usage.current.cost.usd.formatted(.usd))
             UsageCostChangeCapsule(change: usage.costChange)
         }
     }

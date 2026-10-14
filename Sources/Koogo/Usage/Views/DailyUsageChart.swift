@@ -9,9 +9,9 @@ struct DailyUsageChart: View {
     @State private var hoveredSlot: Int?
 
     var body: some View {
-        let peakCost = usage.days.map(\.usage.costUSD).max() ?? 0
+        let peakCost = usage.days.map(\.usage.cost.usd).max() ?? 0
         let heights = usage.days.map { day in
-            peakCost > 0 ? NSDecimalNumber(decimal: day.usage.costUSD / peakCost).doubleValue : 0
+            peakCost > 0 ? NSDecimalNumber(decimal: day.usage.cost.usd / peakCost).doubleValue : 0
         }
         let hoveredDay = hoveredSlot.flatMap { slot in
             usage.days.indices.contains(slot) && usage.days[slot].usage != UsagePeriodSnapshot()
@@ -120,7 +120,7 @@ private struct UsageChartAnnotation: View {
                 .foregroundStyle(.panelLabel)
 
             Text(
-                "\(day.usage.costUSD.formatted(.usd)) · "
+                "\(day.usage.cost.usd.formatted(.usd)) · "
                     + "\(day.usage.processedTokens.formatted(.compactTokens)) tokens"
             )
             .foregroundStyle(Color(nsColor: .secondaryLabelColor))

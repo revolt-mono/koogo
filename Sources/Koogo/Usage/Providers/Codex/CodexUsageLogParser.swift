@@ -23,28 +23,27 @@ struct CodexUsageLogParser: UsageLogParser {
     }
 
     private mutating func bill(_ tokenCount: CodexTokenCount, at loggedTimestamp: String) throws -> UsageLineOutcome? {
-        let lastUsage = tokenCount.last
-        let totalUsage = tokenCount.total
+        defer { previousTotalUsage = tokenCount.total }
 
-        defer { previousTotalUsage = totalUsage }
-
-        guard lastUsage.input > 0 || lastUsage.output > 0, previousTotalUsage != totalUsage, let turn else {
+        guard tokenCount.last.input > 0 || tokenCount.last.output > 0, previousTotalUsage != tokenCount.total,
+            let turn
+        else {
             return nil
         }
         guard let timestamp = Date(iso8601: loggedTimestamp) else {
             throw MalformedUsageRecord()
         }
-        guard let quote = CodexUsagePricing.quote(model: turn.model, tokens: lastUsage) else {
+        guard let quote = CodexUsagePricing.quote(model: turn.model, tokens: tokenCount.last) else {
             return .unpricedModel(turn.model, timestamp: timestamp)
         }
 
         return .event(
             UsageEvent(
-                id: .codex(turnID: turn.id, cumulativeTotal: totalUsage.processed),
+                id: .codex(turnID: turn.id, cumulativeTotal: tokenCount.total.processed),
                 record: UsageRecord(
                     timestamp: timestamp,
-                    processedTokens: lastUsage.processed,
-                    costUSD: quote.costUSD,
+                    processedTokens: tokenCount.last.processed,
+                    cost: quote.cost,
                     model: quote.model
                 )
             )

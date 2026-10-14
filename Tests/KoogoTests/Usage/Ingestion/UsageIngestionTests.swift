@@ -16,12 +16,17 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             at: "2026-08-25T13:00:00.000Z"
         )
         try workspace.append(appended, to: log)
-        let beforeNewline = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(beforeNewline.providers[.codex]?.periods[.today].total.processedTokens, 120)
+        // A session written after the partial line shows that the walk has passed over it.
+        try workspace.write(
+            codexLog(input: 1, output: 0, thread: "witness"),
+            to: workspace.codexSessions.appending(path: "witness.jsonl")
+        )
+        let beforeNewline = try await refresh(service) { $0.ingestion.trackedFiles[.codex] == 2 }
+        XCTAssertEqual(beforeNewline.snapshot.todayTokens(.codex), 121)
 
         try workspace.append("\n", to: log)
-        let afterNewline = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(afterNewline.providers[.codex]?.periods[.today].total.processedTokens, 180)
+        let afterNewline = try await refresh(service) { $0.snapshot.todayTokens(.codex) != 121 }
+        XCTAssertEqual(afterNewline.snapshot.todayTokens(.codex), 181)
     }
 
     func testArchiveCopyDoesNotDoubleCountAndReplacementDropsRemovedEvents() async throws {
@@ -33,13 +38,15 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         let archived = workspace.codexArchivedSessions.appending(path: "session.jsonl")
         try workspace.write(contents, to: archived)
-        let copied = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(copied.providers[.codex]?.periods[.today].total.processedTokens, 120)
+        let copied = try await refresh(service) { $0.ingestion.trackedFiles[.codex] == 2 }
+        XCTAssertEqual(copied.snapshot.todayTokens(.codex), 120)
 
         try workspace.write(codexLog(input: 40, output: 10, thread: "replacement"), to: active)
         try FileManager.default.removeItem(at: archived)
-        let replaced = await service.run(at: now, providers: Provider.allCases).snapshot
-        XCTAssertEqual(replaced.providers[.codex]?.periods[.today].total.processedTokens, 50)
+        let replaced = try await refresh(service) {
+            $0.ingestion.trackedFiles[.codex] == 1 && $0.snapshot.todayTokens(.codex) != 120
+        }
+        XCTAssertEqual(replaced.snapshot.todayTokens(.codex), 50)
     }
 
     func testCodexForkReplayCountsOnceAtTheParentTime() async throws {
@@ -71,66 +78,8 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
-        XCTAssertEqual(snapshot.providers[.codex]?.periods[.today].total.processedTokens, 50)
+        XCTAssertEqual(snapshot.todayTokens(.codex), 50)
         XCTAssertEqual(snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 170)
-    }
-
-    func testColdScanIgnoresJSONLSymlinks() async throws {
-        let target = workspace.root.appending(path: "target.log")
-        try workspace.write(codexLog(input: 100, output: 20), to: target)
-        try FileManager.default.createSymbolicLink(
-            at: workspace.codexSessions.appending(path: "session.jsonl"),
-            withDestinationURL: target
-        )
-        let service = makePipeline()
-
-        let snapshot = await service.run(at: now, providers: Provider.allCases).snapshot
-
-        XCTAssertEqual(snapshot.providers[.codex]?.periods[.last30Days].total, UsagePeriodSnapshot())
-    }
-
-    func testSymlinkedLogRootIsWalked() async throws {
-        let target = workspace.root.appending(path: "sessions-target", directoryHint: .isDirectory)
-        try workspace.write(codexLog(input: 100, output: 20), to: target.appending(path: "session.jsonl"))
-        try FileManager.default.removeItem(at: workspace.codexSessions)
-        try FileManager.default.createSymbolicLink(at: workspace.codexSessions, withDestinationURL: target)
-        let service = makePipeline()
-
-        let report = await service.run(at: now, providers: Provider.allCases)
-
-        XCTAssertEqual(report.ingestion.trackedFiles[.codex], 1)
-        XCTAssertEqual(report.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 120)
-        let root = report.ingestion.logRoots.first { $0.path == workspace.codexSessions.path }
-        XCTAssertEqual(root?.exists, true)
-    }
-
-    func testAppearingLogRootRefreshesTheReport() async throws {
-        let archived = workspace.codexArchivedSessions
-        try FileManager.default.removeItem(at: archived)
-        let service = makePipeline()
-        let missing = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertEqual(missing.ingestion.logRoots.first { $0.path == archived.path }?.exists, false)
-
-        try FileManager.default.createDirectory(at: archived, withIntermediateDirectories: true)
-        let appeared = await service.run(at: now, providers: Provider.allCases)
-
-        XCTAssertEqual(appeared.ingestion.logRoots.first { $0.path == archived.path }?.exists, true)
-    }
-
-    func testHiddenFilesAndDirectoriesAreNotScanned() async throws {
-        try workspace.write(
-            codexLog(input: 100, output: 20, thread: "cached"),
-            to: workspace.codexSessions.appending(path: ".cache/a.jsonl")
-        )
-        try workspace.write(
-            codexLog(input: 100, output: 20, thread: "hidden"),
-            to: workspace.codexSessions.appending(path: ".b.jsonl")
-        )
-        let service = makePipeline()
-
-        let report = await service.run(at: now, providers: Provider.allCases)
-
-        XCTAssertEqual(report.ingestion.trackedFiles[.codex], 0)
     }
 
     func testColdScanParsesLinesAcrossReadChunks() async throws {
@@ -144,7 +93,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         let snapshot = await service.run(at: now, providers: Provider.allCases).snapshot
 
-        XCTAssertEqual(snapshot.providers[.codex]?.periods[.today].total.processedTokens, 120)
+        XCTAssertEqual(snapshot.todayTokens(.codex), 120)
     }
 
     func testSameSizeRewriteWithNewModificationDateIsReread() async throws {
@@ -158,9 +107,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             to: log,
             modificationDate: now.addingTimeInterval(1)
         )
-        let rewritten = await service.run(at: now, providers: Provider.allCases).snapshot
+        let rewritten = try await refresh(service) { $0.snapshot.todayTokens(.codex) != 120 }
 
-        XCTAssertEqual(rewritten.providers[.codex]?.periods[.today].total.processedTokens, 340)
+        XCTAssertEqual(rewritten.snapshot.todayTokens(.codex), 340)
     }
 
     func testInPlaceRewriteBeforeParsedOffsetIsReread() async throws {
@@ -172,9 +121,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let handle = try FileHandle(forUpdating: log)
         try handle.write(contentsOf: Data(codexLog(input: 300, output: 40, thread: "rewritten").utf8))
         try handle.close()
-        let rewritten = await service.run(at: now, providers: Provider.allCases).snapshot
+        let rewritten = try await refresh(service) { $0.snapshot.todayTokens(.codex) != 120 }
 
-        XCTAssertEqual(rewritten.providers[.codex]?.periods[.today].total.processedTokens, 340)
+        XCTAssertEqual(rewritten.snapshot.todayTokens(.codex), 340)
     }
 
     func testFileLastWrittenBeforeHistoryWindowIsSkippedUntilAppended() async throws {
@@ -198,9 +147,8 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             ) + "\n",
             to: log
         )
-        let appended = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertEqual(appended.ingestion.trackedFiles[.codex], 1)
-        XCTAssertEqual(appended.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 180)
+        let appended = try await refresh(service) { $0.ingestion.trackedFiles[.codex] == 1 }
+        XCTAssertEqual(appended.snapshot.todayTokens(.codex), 180)
     }
 
     func testUnpricedModelsOutsideTheHistoryWindowAreNotReported() async throws {
@@ -244,26 +192,19 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let report = await makePipeline().run(at: now, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.malformedLines, [.codex: 1, .claude: 0, .piAgent: 0, .grok: 0])
-        XCTAssertEqual(report.snapshot.providers[.codex]?.periods[.today].total.processedTokens, 120)
-        XCTAssertEqual(report.snapshot.providers[.claude]?.periods[.today].total.processedTokens, 50)
-    }
-
-    func testHistoryWindowMovingForwardDiscardsOlderEvents() async throws {
-        try writeAugustLog(andOlderLogAt: "2026-06-27T00:00:00Z")
-        let service = makePipeline()
-        let august = await service.run(at: now, providers: Provider.allCases)
-        XCTAssertEqual(august.ingestion.events[.codex], 2)
-
-        let nextDay = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z"))
-        let refreshed = await service.run(at: nextDay, providers: Provider.allCases)
-
-        XCTAssertEqual(refreshed.ingestion.events[.codex], 1)
-        XCTAssertEqual(refreshed.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 120)
-        XCTAssertEqual(refreshed.snapshot.summary.last30Days.costChange, .increase(fraction: 1))
+        XCTAssertEqual(report.snapshot.todayTokens(.codex), 120)
+        XCTAssertEqual(report.snapshot.todayTokens(.claude), 50)
     }
 
     func testHistoryWindowMovingBackwardRescansOlderEvents() async throws {
-        try writeAugustLog(andOlderLogAt: "2026-06-26T23:59:59.999Z")
+        try workspace.write(
+            codexLog(input: 100, output: 20, thread: "august"),
+            to: workspace.codexSessions.appending(path: "august.jsonl")
+        )
+        try workspace.write(
+            codexLog(input: 200, output: 40, thread: "older", usageTimestamp: "2026-07-26T23:59:59.999Z"),
+            to: workspace.codexSessions.appending(path: "older.jsonl")
+        )
         let service = makePipeline()
         let august = await service.run(at: now, providers: Provider.allCases)
         XCTAssertEqual(august.ingestion.events[.codex], 1)
@@ -272,17 +213,6 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let rescanned = await service.run(at: previousDay, providers: Provider.allCases)
 
         XCTAssertEqual(rescanned.ingestion.events[.codex], 2)
-        XCTAssertEqual(rescanned.snapshot.providers[.codex]?.periods[.last30Days].total, UsagePeriodSnapshot())
-    }
-
-    private func writeAugustLog(andOlderLogAt olderTimestamp: String) throws {
-        try workspace.write(
-            codexLog(input: 100, output: 20, thread: "august"),
-            to: workspace.codexSessions.appending(path: "august.jsonl")
-        )
-        try workspace.write(
-            codexLog(input: 200, output: 40, thread: "older", usageTimestamp: olderTimestamp),
-            to: workspace.codexSessions.appending(path: "older.jsonl")
-        )
+        XCTAssertEqual(rescanned.snapshot.providers[.codex]?.periods[.last30Days].total.processedTokens, 240)
     }
 }

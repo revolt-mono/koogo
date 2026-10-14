@@ -42,11 +42,11 @@ final class UsageSummaryMemoryTests: XCTestCase {
         let period = UsageSummaryPeriodSnapshot(
             current: UsagePeriodSnapshot(
                 processedTokens: UInt64(12_340_000 + step * 87_321),
-                costUSD: Decimal(12_400 + step * 13) / 100
+                cost: picodollars(Decimal(12_400 + step * 13) / 100)
             ),
-            previous: UsagePeriodSnapshot(processedTokens: 0, costUSD: 105)
+            previous: UsagePeriodSnapshot(processedTokens: 0, cost: picodollars(105))
         )
-        return UsageSummaryView(summary: UsageSummarySnapshot(today: period, last30Days: period))
+        return UsageSummaryView(summary: UsageSummarySnapshot(today: period, last7Days: period))
             .fontDesign(.rounded)
     }
 }

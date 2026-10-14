@@ -4,36 +4,38 @@ enum CodexUsagePricing {
     private static let longContextThreshold: UInt64 = 272_000
 
     private struct Rates: Sendable {
-        let input: Decimal
-        let cachedInput: Decimal
-        let output: Decimal
-        /// Nil for models that cannot write cache, so a request that wrote cache stays unpriced.
-        let cacheWrite: Decimal?
+        private(set) var input: Picodollars
+        private(set) var cachedInput: Picodollars
+        private(set) var output: Picodollars
+        let supportsCacheWrite: Bool
 
-        init(input: Decimal, cachedInput: Decimal, output: Decimal, supportsCacheWrite: Bool) {
-            self.input = input
-            self.cachedInput = cachedInput
-            self.output = output
-            cacheWrite = supportsCacheWrite ? input * 5 / 4 : nil
+        /// Takes rates in nanodollars per token.
+        init(input: UInt64, cachedInput: UInt64, output: UInt64, supportsCacheWrite: Bool) {
+            self.input = Picodollars(nanodollars: input)
+            self.cachedInput = Picodollars(nanodollars: cachedInput)
+            self.output = Picodollars(nanodollars: output)
+            self.supportsCacheWrite = supportsCacheWrite
+        }
+
+        /// Nil for models that cannot write cache, so a request that wrote cache stays unpriced.
+        var cacheWrite: Picodollars? {
+            supportsCacheWrite ? input.scaled(by: 5, over: 4) : nil
         }
 
         var longContext: Rates {
-            Rates(
-                input: input * 2,
-                cachedInput: cachedInput * 2,
-                output: output * 3 / 2,
-                supportsCacheWrite: cacheWrite != nil
-            )
+            var rates = self
+            rates.input = input * 2
+            rates.cachedInput = cachedInput * 2
+            rates.output = output.scaled(by: 3, over: 2)
+            return rates
         }
 
-        func costNanodollars(for tokens: CodexTokenUsage) -> Decimal? {
-            guard let cacheWrite = tokens.cacheWrite == 0 ? 0 : cacheWrite else {
+        func cost(of tokens: CodexTokenUsage) -> Picodollars? {
+            guard let cacheWrite = tokens.cacheWrite == 0 ? .zero : cacheWrite else {
                 return nil
             }
-            return Decimal(tokens.uncachedInput) * input
-                + Decimal(tokens.cachedInput) * cachedInput
-                + Decimal(tokens.cacheWrite) * cacheWrite
-                + Decimal(tokens.output) * output
+            return input * tokens.uncachedInput + cachedInput * tokens.cachedInput + cacheWrite * tokens.cacheWrite
+                + output * tokens.output
         }
     }
 
@@ -41,12 +43,12 @@ enum CodexUsagePricing {
         case flat(Rates)
         case tiered(Rates)
 
-        func costNanodollars(for tokens: CodexTokenUsage) -> Decimal? {
+        func cost(of tokens: CodexTokenUsage) -> Picodollars? {
             switch self {
             case .flat(let rates):
-                rates.costNanodollars(for: tokens)
+                rates.cost(of: tokens)
             case .tiered(let rates):
-                (tokens.input > longContextThreshold ? rates.longContext : rates).costNanodollars(for: tokens)
+                (tokens.input > longContextThreshold ? rates.longContext : rates).cost(of: tokens)
             }
         }
     }
@@ -113,16 +115,17 @@ enum CodexUsagePricing {
     ]
 
     static func quote(model: ModelID, tokens: CodexTokenUsage) -> UsageQuote? {
-        let model: ModelID = model == "gpt-5.6" ? "gpt-5.6-sol" : model
-        guard
-            let price = prices[model],
-            let costNanodollars = price.rates.costNanodollars(for: tokens)
-        else {
+        // Quoting the table's own key lets every log share one copy of the model name.
+        guard let index = prices.index(forKey: model == "gpt-5.6" ? "gpt-5.6-sol" : model) else {
+            return nil
+        }
+        let (model, price) = prices[index]
+        guard let cost = price.rates.cost(of: tokens) else {
             return nil
         }
 
         // Codex rollout logs do not reliably record service tiers, so usage uses standard rates.
-        return UsageQuote(model: model, costNanodollars: costNanodollars)
+        return UsageQuote(model: model, cost: cost)
     }
 
     static func displayName(of model: ModelID) -> String? {

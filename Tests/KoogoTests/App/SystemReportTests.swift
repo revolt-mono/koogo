@@ -125,30 +125,30 @@ private let reportKeyPaths =
         "usage.ingestion.trackedFiles.grok",
         "usage.ingestion.trackedFiles.piAgent",
         "usage.ingestion.unpricedModels",
-        "usage.snapshot.summary.last30Days.costChange.increase.fraction",
-        "usage.snapshot.summary.last30Days.current.costUSD",
-        "usage.snapshot.summary.last30Days.current.processedTokens",
+        "usage.snapshot.summary.last7Days.costChange.increase.fraction",
+        "usage.snapshot.summary.last7Days.current.cost",
+        "usage.snapshot.summary.last7Days.current.processedTokens",
         "usage.snapshot.summary.today.costChange.increase.fraction",
-        "usage.snapshot.summary.today.current.costUSD",
+        "usage.snapshot.summary.today.current.cost",
         "usage.snapshot.summary.today.current.processedTokens",
     ]
     + ["claude", "codex", "grok", "piAgent"].flatMap { provider in
         [
             "dailyLast30Days.days[].date",
-            "dailyLast30Days.days[].usage.costUSD",
+            "dailyLast30Days.days[].usage.cost",
             "dailyLast30Days.days[].usage.processedTokens",
             "dailyLast30Days.range[]",
-            "periods.last30Days.total.costUSD",
+            "periods.last30Days.total.cost",
             "periods.last30Days.total.processedTokens",
-            "periods.last7Days.total.costUSD",
+            "periods.last7Days.total.cost",
             "periods.last7Days.total.processedTokens",
-            "periods.today.total.costUSD",
+            "periods.today.total.cost",
             "periods.today.total.processedTokens",
         ].map { "usage.snapshot.providers.\(provider).\($0)" }
     }
     + ["claude", "codex", "piAgent"].flatMap { provider in
         ["today", "last7Days", "last30Days"].flatMap { period in
-            ["id.rawValue", "modelName", "usage.costUSD", "usage.processedTokens"].map {
+            ["id.rawValue", "modelName", "usage.cost", "usage.processedTokens"].map {
                 "usage.snapshot.providers.\(provider).periods.\(period).models[].\($0)"
             }
         }

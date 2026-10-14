@@ -17,7 +17,7 @@ final class UsageModelTests: UsageWorkspaceTestCase {
         date.addTimeInterval(86_400)
         model.refresh(providers: Provider.allCases)
 
-        try await waitUntil { model.snapshot?.providers[.codex]?.periods[.today].total.processedTokens == 0 }
+        try await waitUntil { model.snapshot?.todayTokens(.codex) == 0 }
         XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.periods[.last30Days].total.processedTokens, 120)
     }
 

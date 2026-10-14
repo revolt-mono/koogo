@@ -13,32 +13,36 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             ],
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
         )
-        XCTAssertEqual(snapshot.providers[.codex]?.periods[.today].total.costUSD, Decimal(string: "0.009"))
-        XCTAssertEqual(snapshot.providers[.codex]?.periods[.last30Days].total.costUSD, Decimal(string: "0.009"))
-        XCTAssertEqual(snapshot.providers[.claude]?.periods[.today].total.costUSD, Decimal(string: "0.005"))
-        XCTAssertEqual(snapshot.summary.today.current.costUSD, Decimal(string: "0.014"))
+        XCTAssertEqual(snapshot.providers[.codex]?.periods[.today].total.cost.usd, Decimal(string: "0.009"))
+        XCTAssertEqual(snapshot.providers[.codex]?.periods[.last30Days].total.cost.usd, Decimal(string: "0.009"))
+        XCTAssertEqual(snapshot.providers[.claude]?.periods[.today].total.cost.usd, Decimal(string: "0.005"))
+        XCTAssertEqual(snapshot.summary.today.current.cost.usd, Decimal(string: "0.014"))
     }
 
-    func testTokenTotalsSaturateInsteadOfOverflowing() {
+    func testTotalsSaturateInsteadOfOverflowing() {
+        let record = UsageRecord(
+            timestamp: usageTestTimestamp,
+            processedTokens: .max,
+            cost: Picodollars(.max),
+            model: nil
+        )
         let snapshot = usageSnapshot(
-            events: [
-                usageEvent(.piAgent, id: 1, processedTokens: .max, costUSD: 0),
-                usageEvent(.piAgent, id: 2, processedTokens: 1, costUSD: 0),
-            ],
+            events: ["1", "2"].map { UsageEvent(id: .piAgent(entryID: $0), record: record) },
             intervals: UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar)
         )
-        XCTAssertEqual(snapshot.summary.last30Days.current.processedTokens, .max)
+        XCTAssertEqual(snapshot.summary.last7Days.current.processedTokens, .max)
+        XCTAssertEqual(snapshot.summary.last7Days.current.cost, Picodollars(.max))
     }
 
     func testCostChangeUsesStockStyleZeroBaseline() {
         for (current, previous, expected) in [
-            (Decimal(5), Decimal(0), UsageCostChange.increase(fraction: 1)),
-            (Decimal(0), Decimal(5), .decrease(fraction: 1)),
-            (Decimal(0), Decimal(0), .unchanged),
-            (Decimal(15), Decimal(10), .increase(fraction: Decimal(1) / 2)),
-            (Decimal(5), Decimal(10), .decrease(fraction: Decimal(1) / 2)),
+            (UInt64(5), UInt64(0), UsageCostChange.increase(fraction: 1)),
+            (0, 5, .decrease(fraction: 1)),
+            (0, 0, .unchanged),
+            (15, 10, .increase(fraction: Decimal(1) / 2)),
+            (5, 10, .decrease(fraction: Decimal(1) / 2)),
         ] {
-            let change = UsageCostChange(currentUSD: current, previousUSD: previous)
+            let change = UsageCostChange(current: Picodollars(current), previous: Picodollars(previous))
             XCTAssertEqual(change, expected)
         }
     }
@@ -59,31 +63,30 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(snapshot.summary.today.costChange, .increase(fraction: 1))
     }
 
-    func testPrevious30DaysExcludesCurrentWindowBoundary() throws {
+    func testPrevious7DaysEndWhereTheCurrentWeekStarts() throws {
         let now = try XCTUnwrap(Date(iso8601: "2026-03-31T12:00:00Z"))
+        let rows: [(String, Decimal)] = [
+            ("2026-03-17T23:59:59Z", 1),
+            ("2026-03-18T00:00:00Z", 0.005),
+            ("2026-03-24T23:59:59Z", 0.005),
+            ("2026-03-25T00:00:00Z", 0.05),
+        ]
 
         let snapshot = usageSnapshot(
-            events: [
+            events: try rows.enumerated().map { index, row in
                 usageEvent(
                     .codex,
-                    id: 1,
+                    id: index,
                     processedTokens: 1_000,
-                    costUSD: 0.005,
-                    at: try XCTUnwrap(Date(iso8601: "2026-03-01T23:59:59Z"))
-                ),
-                usageEvent(
-                    .codex,
-                    id: 2,
-                    processedTokens: 10_000,
-                    costUSD: 0.05,
-                    at: try XCTUnwrap(Date(iso8601: "2026-03-02T00:00:00Z"))
-                ),
-            ],
+                    costUSD: row.1,
+                    at: try XCTUnwrap(Date(iso8601: row.0))
+                )
+            },
             intervals: UsagePeriodIntervals(containing: now, calendar: usageTestCalendar)
         )
 
-        XCTAssertEqual(snapshot.summary.last30Days.current.costUSD, Decimal(string: "0.05"))
-        XCTAssertEqual(snapshot.summary.last30Days.costChange, .increase(fraction: 9))
+        XCTAssertEqual(snapshot.summary.last7Days.current.cost.usd, Decimal(string: "0.05"))
+        XCTAssertEqual(snapshot.summary.last7Days.costChange, .increase(fraction: 4))
     }
 
     func testSnapshotUsesRollingWindowsAndMidnightBoundaries() throws {
@@ -129,8 +132,8 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         )
         XCTAssertEqual(codex.dailyLast30Days.range.lowerBound, Date(iso8601: "2026-08-03T00:00:00Z"))
         XCTAssertEqual(codex.dailyLast30Days.range.upperBound, Date(iso8601: "2026-09-02T00:00:00Z"))
-        XCTAssertEqual(snapshot.summary.last30Days.current, codex.periods[.last30Days].total)
-        XCTAssertEqual(snapshot.summary.last30Days.costChange, .increase(fraction: 83))
+        XCTAssertEqual(snapshot.summary.last7Days.current, codex.periods[.last7Days].total)
+        XCTAssertEqual(snapshot.summary.last7Days.costChange, .increase(fraction: 29))
         XCTAssertEqual(snapshot.summary.today.costChange, .increase(fraction: 5))
     }
 }
@@ -170,7 +173,7 @@ extension UsageSnapshotBuilderTests {
                 let models = try XCTUnwrap(usage.periods[period].models)
                 XCTAssertEqual(models.map(\.id), [ModelID("model-b"), ModelID("model-a")])
                 XCTAssertEqual(models.map(\.usage.processedTokens), tokens)
-                XCTAssertEqual(models.map(\.usage.costUSD), tokens.map { Decimal($0) / 100 })
+                XCTAssertEqual(models.map(\.usage.cost.usd), tokens.map { Decimal($0) / 100 })
                 XCTAssertEqual(models.map(\.usage).reduce(UsagePeriodSnapshot(), +), usage.periods[period].total)
             }
         }
@@ -222,7 +225,7 @@ extension UsageSnapshotBuilderTests {
         )
         let models = try XCTUnwrap(snapshot.providers[.claude]?.periods[.today].models)
         XCTAssertEqual(models.map(\.id), [ModelID("search")])
-        XCTAssertEqual(models.map(\.usage.costUSD), [Decimal(string: "0.01")])
+        XCTAssertEqual(models.map(\.usage.cost.usd), [Decimal(string: "0.01")])
         XCTAssertEqual(models.map(\.usage.processedTokens), [0])
         XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].models, [])
     }

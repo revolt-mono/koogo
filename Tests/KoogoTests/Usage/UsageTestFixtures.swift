@@ -80,6 +80,33 @@ class UsageWorkspaceTestCase: XCTestCase {
     func makePipeline() -> UsagePipeline {
         UsagePipeline(home: workspace.root, calendar: usageTestCalendar)
     }
+
+    /// Refreshes until the report shows a change. FSEvents tells the pipeline about a write some milliseconds after it lands.
+    func refresh(
+        _ pipeline: UsagePipeline,
+        until isCurrent: (UsageReport) -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws -> UsageReport {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while true {
+            let report = await pipeline.run(at: now, providers: Provider.allCases)
+            if isCurrent(report) {
+                return report
+            }
+            guard ContinuousClock.now < deadline else {
+                XCTFail("the pipeline never reported the change", file: file, line: line)
+                return report
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+}
+
+extension UsageSnapshot {
+    func todayTokens(_ provider: Provider) -> UInt64? {
+        providers[provider]?.periods[.today].total.processedTokens
+    }
 }
 
 func usageEvent(
@@ -93,7 +120,7 @@ func usageEvent(
     let record = UsageRecord(
         timestamp: eventDate,
         processedTokens: processedTokens,
-        costUSD: costUSD,
+        cost: picodollars(costUSD),
         model: model.map { ModelID($0) }
     )
     let eventID: UsageEventID =
@@ -104,6 +131,10 @@ func usageEvent(
         case .grok: .grok(eventID: "event-\(id)", timestampMilliseconds: grokMilliseconds(eventDate))
         }
     return UsageEvent(id: eventID, record: record)
+}
+
+func picodollars(_ usd: Decimal) -> Picodollars {
+    Picodollars(NSDecimalNumber(decimal: usd * 1_000_000_000_000).uint64Value)
 }
 
 func grokMilliseconds(_ date: Date) -> UInt64 {

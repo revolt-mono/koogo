@@ -17,7 +17,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(event.provider, .claude)
         XCTAssertEqual(event.record.processedTokens, 140)
-        XCTAssertEqual(event.record.costUSD, Decimal(string: "0.0236245"))
+        XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.0236245"))
         XCTAssertEqual(event.record.model, ModelID("claude-opus-5"))
     }
 
@@ -31,7 +31,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         let event = try XCTUnwrap(parse(line, with: &parser)?.event)
 
         XCTAssertEqual(event.record.processedTokens, 120)
-        XCTAssertEqual(event.record.costUSD, Decimal(string: "0.0014875"))
+        XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.0014875"))
     }
 
     func testClaudeRejectsInconsistentCacheSplit() {
@@ -131,7 +131,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
 
         let snapshot = await makePipeline().run(at: now, providers: Provider.allCases).snapshot
 
-        XCTAssertEqual(snapshot.providers[.claude]?.periods[.today].total.processedTokens, 50)
+        XCTAssertEqual(snapshot.todayTokens(.claude), 50)
     }
 
     func testClaudeQuotesMatchPublishedRates() throws {
@@ -177,8 +177,15 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: ModelID(model), usage: usage), model)
             XCTAssertEqual(quote.model, ModelID(model))
             XCTAssertEqual(ClaudeUsagePricing.displayName(of: quote.model), name)
-            XCTAssertEqual(quote.costUSD, Decimal(string: expectedUSD), model)
+            XCTAssertEqual(quote.cost.usd, Decimal(string: expectedUSD), model)
         }
+    }
+
+    func testAbsurdTokenCountsSaturateTheCostInsteadOfTrapping() throws {
+        let usage = claudeBillableUsage(uncachedInput: .max / 2, output: 1, options: [.fastMode, .usInference])
+        let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: "claude-opus-5", usage: usage))
+
+        XCTAssertEqual(quote.cost, Picodollars(.max))
     }
 
     func testClaudeSnapshotIDsAndAliasesStartAt45() throws {
@@ -193,8 +200,8 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             ClaudeUsagePricing.quote(model: "claude-sonnet-4-5", usage: usage)
         )
 
-        XCTAssertEqual(snapshot.costUSD, Decimal(string: "0.00045"))
-        XCTAssertEqual(snapshot.costUSD, alias.costUSD)
+        XCTAssertEqual(snapshot.cost.usd, Decimal(string: "0.00045"))
+        XCTAssertEqual(snapshot.cost.usd, alias.cost.usd)
         XCTAssertEqual(alias.model, ModelID("claude-sonnet-4-5-20250929"))
         XCTAssertEqual(ClaudeUsagePricing.displayName(of: alias.model), "Sonnet 4.5")
         XCTAssertNotNil(ClaudeUsagePricing.quote(model: "claude-opus-4-5", usage: usage))

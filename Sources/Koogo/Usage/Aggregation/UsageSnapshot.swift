@@ -2,17 +2,17 @@ import Foundation
 
 struct UsagePeriodSnapshot: Equatable, Sendable, Encodable {
     private(set) var processedTokens: UInt64 = 0
-    private(set) var costUSD: Decimal = 0
+    private(set) var cost = Picodollars.zero
 
     mutating func add(_ usage: UsageRecord) {
         processedTokens = processedTokens.saturatingAdding(usage.processedTokens)
-        costUSD += usage.costUSD
+        cost += usage.cost
     }
 
     static func + (lhs: Self, rhs: Self) -> Self {
         UsagePeriodSnapshot(
             processedTokens: lhs.processedTokens.saturatingAdding(rhs.processedTokens),
-            costUSD: lhs.costUSD + rhs.costUSD
+            cost: lhs.cost + rhs.cost
         )
     }
 }
@@ -49,15 +49,15 @@ enum UsageCostChange: Equatable, Sendable, Encodable {
     case decrease(fraction: Decimal)
     case unchanged
 
-    init(currentUSD: Decimal, previousUSD: Decimal) {
+    init(current: Picodollars, previous: Picodollars) {
+        let current = Decimal(current.rawValue)
+        let previous = Decimal(previous.rawValue)
         self =
-            switch (currentUSD, previousUSD) {
+            switch (current, previous) {
             case (0, 0): .unchanged
             case (_, 0): .increase(fraction: 1)
-            case (let current, let previous) where current > previous:
-                .increase(fraction: (current - previous) / previous)
-            case (let current, let previous) where current < previous:
-                .decrease(fraction: (previous - current) / previous)
+            case _ where current > previous: .increase(fraction: (current - previous) / previous)
+            case _ where current < previous: .decrease(fraction: (previous - current) / previous)
             default: .unchanged
             }
     }
@@ -67,39 +67,18 @@ struct UsageSummaryPeriodSnapshot: Equatable, Sendable, Encodable {
     let current: UsagePeriodSnapshot
     let costChange: UsageCostChange
 
-    init(
-        current: UsagePeriodSnapshot,
-        previous: UsagePeriodSnapshot
-    ) {
+    init(current: UsagePeriodSnapshot, previous: UsagePeriodSnapshot) {
         self.current = current
-        costChange = UsageCostChange(currentUSD: current.costUSD, previousUSD: previous.costUSD)
+        costChange = UsageCostChange(current: current.cost, previous: previous.cost)
     }
 }
 
 struct UsageSummarySnapshot: Equatable, Sendable, Encodable {
     let today: UsageSummaryPeriodSnapshot
-    let last30Days: UsageSummaryPeriodSnapshot
+    let last7Days: UsageSummaryPeriodSnapshot
 }
 
 struct UsageSnapshot: Equatable, Sendable, Encodable {
     let summary: UsageSummarySnapshot
     let providers: [Provider: ProviderUsageSnapshot]
-
-    init(
-        providers: [Provider: ProviderUsageSnapshot],
-        previousDay: UsagePeriodSnapshot,
-        previous30Days: UsagePeriodSnapshot
-    ) {
-        summary = UsageSummarySnapshot(
-            today: UsageSummaryPeriodSnapshot(
-                current: providers.values.map { $0.periods[.today].total }.reduce(UsagePeriodSnapshot(), +),
-                previous: previousDay
-            ),
-            last30Days: UsageSummaryPeriodSnapshot(
-                current: providers.values.map { $0.periods[.last30Days].total }.reduce(UsagePeriodSnapshot(), +),
-                previous: previous30Days
-            )
-        )
-        self.providers = providers
-    }
 }

@@ -19,7 +19,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(event.record.timestamp, usageTestTimestamp)
         XCTAssertEqual(event.record.processedTokens, 2_200_000)
-        XCTAssertEqual(event.record.costUSD, 6)
+        XCTAssertEqual(event.record.cost.usd, 6)
         XCTAssertEqual(event.record.model, ModelID("grok-4.6-build"))
         XCTAssertEqual(GrokUsagePricing.displayName(of: ModelID("grok-4.6-build")), "Grok 4.6")
     }
@@ -80,7 +80,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(report.ingestion.events[.grok], 4)
         let grok = try XCTUnwrap(report.snapshot.providers[.grok])
         XCTAssertEqual(grok.periods[.today].total.processedTokens, 4_400_000)
-        XCTAssertEqual(grok.periods[.today].total.costUSD, 8)
+        XCTAssertEqual(grok.periods[.today].total.cost.usd, 8)
     }
 
     func testSessionIsCountedOnceItsSummaryAppears() async throws {
@@ -95,7 +95,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
             "{\"info\":{\"id\":\"late\",\"cwd\":\"/project\"}}",
             to: session.appending(path: "summary.json")
         )
-        let after = await service.run(at: now, providers: Provider.allCases)
+        let after = try await refresh(service) { $0.ingestion.events[.grok] != 0 }
         XCTAssertEqual(after.ingestion.events[.grok], 1)
     }
 
@@ -103,21 +103,17 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         let tokens = try XCTUnwrap(
             GrokTokenUsage(input: 1_000_000, cachedInput: 400_000, output: 100_000, modelCalls: 1)
         )
-        let build = try XCTUnwrap(GrokUsagePricing.quote(model: "grok-4.6-build", tokens: tokens))
-        let fast = try XCTUnwrap(GrokUsagePricing.quote(model: "grok-4.7-build-fast", tokens: tokens))
+        func usd(_ model: ModelID) -> Decimal? {
+            GrokUsagePricing.cost(of: tokens, model: model)?.usd
+        }
 
-        XCTAssertEqual(build.model, ModelID("grok-4.6-build"))
-        XCTAssertEqual(build.costUSD, 2)
-        XCTAssertEqual(GrokUsagePricing.quote(model: "grok-4.6", tokens: tokens)?.costUSD, 2)
-        XCTAssertEqual(fast.model, ModelID("grok-4.7-build-fast"))
-        XCTAssertEqual(GrokUsagePricing.displayName(of: fast.model), "Grok 4.7 Fast")
-        XCTAssertEqual(fast.costUSD, 4)
-        XCTAssertEqual(
-            GrokUsagePricing.quote(model: "grok-4.5-build", tokens: tokens)?.costUSD,
-            Decimal(string: "1.92")
-        )
-        XCTAssertNil(GrokUsagePricing.quote(model: "grok-9-build", tokens: tokens))
-        XCTAssertNil(GrokUsagePricing.quote(model: "grok-4.6-fast", tokens: tokens))
+        XCTAssertEqual(usd("grok-4.6-build"), 2)
+        XCTAssertEqual(usd("grok-4.6"), 2)
+        XCTAssertEqual(usd("grok-4.7-build-fast"), 4)
+        XCTAssertEqual(GrokUsagePricing.displayName(of: "grok-4.7-build-fast"), "Grok 4.7 Fast")
+        XCTAssertEqual(usd("grok-4.5-build"), Decimal(string: "1.92"))
+        XCTAssertNil(usd("grok-9-build"))
+        XCTAssertNil(usd("grok-4.6-fast"))
     }
 }
 

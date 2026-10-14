@@ -21,7 +21,7 @@ struct UsageRecord: Sendable {
     /// Held as seconds because `Date` has a resilient layout, which routes every copy of a record through runtime value witnesses.
     private let secondsSinceReferenceDate: TimeInterval
     let processedTokens: UInt64
-    let costUSD: Decimal
+    let cost: Picodollars
     /// None for usage a log bills without naming a model, such as tool results or compaction.
     let model: ModelID?
 
@@ -29,10 +29,10 @@ struct UsageRecord: Sendable {
         Date(timeIntervalSinceReferenceDate: secondsSinceReferenceDate)
     }
 
-    init(timestamp: Date, processedTokens: UInt64, costUSD: Decimal, model: ModelID?) {
+    init(timestamp: Date, processedTokens: UInt64, cost: Picodollars, model: ModelID?) {
         secondsSinceReferenceDate = timestamp.timeIntervalSinceReferenceDate
         self.processedTokens = processedTokens
-        self.costUSD = costUSD
+        self.cost = cost
         self.model = model
     }
 }
