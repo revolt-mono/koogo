@@ -30,19 +30,10 @@ final class GrokQuotaSourceTests: XCTestCase {
             1_790_533_996.478,
             accuracy: 0.001
         )
-        let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8).split(separator: "\n")
+        let arguments = try String(contentsOf: workspace.tool.argumentsFile, encoding: .utf8).split(separator: "\n")
         XCTAssertEqual(arguments, ["--no-auto-update", "agent", "--no-leader", "stdio"])
-        let directory = try String(contentsOf: workspace.directoryFile, encoding: .utf8).trimmingCharacters(
-            in: .newlines
-        )
-        XCTAssertEqual(
-            URL(filePath: directory).resolvingSymlinksInPath(),
-            URL(filePath: "/tmp").resolvingSymlinksInPath()
-        )
-        let lines = try String(contentsOf: workspace.requestsFile, encoding: .utf8).split(separator: "\n")
-        let requests = try lines.map { line in
-            try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
-        }
+        XCTAssertEqual(try workspace.tool.workingDirectory(), URL(filePath: "/tmp").resolvingSymlinksInPath())
+        let requests = try jsonObjects(in: workspace.tool.requestsFile)
         XCTAssertEqual(requests.count, 2)
         XCTAssertEqual(requests.map { $0["method"] as? String }, ["initialize", "_x.ai/billing"])
         XCTAssertEqual(requests.map { $0["id"] as? Int }, [1, 2])
@@ -134,8 +125,7 @@ final class GrokQuotaSourceTests: XCTestCase {
             let executable = try workspace.makeAgent(initializeResponse: response)
             let result = await GrokQuotaSource(executableCandidates: [executable]).load()
             XCTAssertEqual(result, .unavailable(.sessionFailed))
-            let requests = try String(contentsOf: workspace.requestsFile, encoding: .utf8).split(separator: "\n")
-            XCTAssertEqual(requests.count, 1)
+            XCTAssertEqual(try jsonObjects(in: workspace.tool.requestsFile).count, 1)
         }
     }
 }

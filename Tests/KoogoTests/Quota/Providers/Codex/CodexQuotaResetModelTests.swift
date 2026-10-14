@@ -223,15 +223,9 @@ final class CodexQuotaResetModelTests: XCTestCase {
     }
 }
 
-private let creditA = QuotaSnapshot.ResetCredit(
-    id: "credit-a",
-    title: "Usage reset",
-    expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
-)
-
 private func snapshot(
     usedPercent: Int = 25,
-    credits: [QuotaSnapshot.ResetCredit]? = [creditA]
+    credits: [QuotaSnapshot.ResetCredit]? = [.stub]
 ) -> QuotaSnapshot {
     QuotaSnapshot(
         windows: [QuotaWindow(title: "Session", usedPercent: Double(usedPercent), resetsAt: nil)],

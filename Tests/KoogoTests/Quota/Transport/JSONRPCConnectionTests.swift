@@ -34,10 +34,7 @@ final class JSONRPCConnectionTests: XCTestCase {
         }
 
         XCTAssertEqual(values, [10, 20])
-        let lines = try String(contentsOf: transcript, encoding: .utf8).split(separator: "\n")
-        let requests = try lines.map {
-            try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])
-        }
+        let requests = try jsonObjects(in: transcript)
         XCTAssertEqual(requests.count, 3)
         XCTAssertEqual(requests.map { $0["method"] as? String }, ["first", "ready", "second"])
         XCTAssertEqual(requests.map { $0["id"] as? Int }, [1, nil, 2])

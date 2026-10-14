@@ -17,7 +17,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         XCTAssertEqual(snapshot.windows.map(\.title), ["Session", "Weekly", "Fable"])
         XCTAssertEqual(snapshot.windows["Fable"]?.usedPercent, 63)
         XCTAssertEqual(snapshot.windows["Fable"]?.resetsAt, Date(timeIntervalSince1970: 1_788_307_200))
-        let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8)
+        let arguments = try String(contentsOf: workspace.tool.argumentsFile, encoding: .utf8)
         XCTAssertEqual(
             arguments.components(separatedBy: "\n"),
             [
@@ -26,16 +26,10 @@ final class ClaudeQuotaSourceTests: XCTestCase {
                 "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "",
             ]
         )
-        let directory = try String(contentsOf: workspace.directoryFile, encoding: .utf8).trimmingCharacters(
-            in: .newlines
-        )
-        XCTAssertEqual(
-            URL(filePath: directory).resolvingSymlinksInPath(),
-            URL(filePath: "/tmp").resolvingSymlinksInPath()
-        )
-        let lines = try String(contentsOf: workspace.requestsFile, encoding: .utf8).split(separator: "\n")
-        XCTAssertEqual(lines.count, 1)
-        let request = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(lines[0].utf8)) as? [String: Any])
+        XCTAssertEqual(try workspace.tool.workingDirectory(), URL(filePath: "/tmp").resolvingSymlinksInPath())
+        let requests = try jsonObjects(in: workspace.tool.requestsFile)
+        XCTAssertEqual(requests.count, 1)
+        let request = requests[0]
         XCTAssertEqual(request["type"] as? String, "control_request")
         XCTAssertEqual(request["request_id"] as? String, "1")
         XCTAssertEqual(request["request"] as? NSDictionary, ["subtype": "get_usage", "skip_behaviors": true])

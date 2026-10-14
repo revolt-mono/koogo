@@ -8,9 +8,6 @@ struct GrokQuotaTestWorkspace {
     }
 
     var root: URL { tool.root }
-    var requestsFile: URL { tool.requestsFile }
-    var argumentsFile: URL { tool.argumentsFile }
-    var directoryFile: URL { tool.directoryFile }
 
     func makeAgent(
         billingResponse: String = response(),
@@ -22,18 +19,18 @@ struct GrokQuotaTestWorkspace {
             script: """
                 \(tool.prologue)
                 IFS= read -r request || exit 1
-                printf '%s\\n' "$request" > '\(requestsFile.path)'
+                printf '%s\\n' "$request" > '\(tool.requestsFile.path)'
                 /bin/cat <<'INITIALIZE'
                 \(initializeResponse)
                 INITIALIZE
                 IFS= read -r request || exit 1
-                printf '%s\\n' "$request" >> '\(requestsFile.path)'
+                printf '%s\\n' "$request" >> '\(tool.requestsFile.path)'
                 \(beforeBilling)
                 /bin/cat <<'BILLING'
                 \(billingResponse)
                 BILLING
                 while IFS= read -r request; do
-                  printf '%s\\n' "$request" >> '\(requestsFile.path)'
+                  printf '%s\\n' "$request" >> '\(tool.requestsFile.path)'
                 done
                 """
         )

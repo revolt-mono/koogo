@@ -18,6 +18,9 @@ struct CommandLineTool: Sendable {
         return options
     }()
 
+    /// Holds no project settings, so a tool run here reads only its user-level configuration.
+    static let neutralDirectory = URL(filePath: "/tmp", directoryHint: .isDirectory)
+
     private let candidates: [URL]
     private let timeout: Duration
 

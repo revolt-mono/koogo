@@ -22,6 +22,14 @@ extension QuotaReading {
     }
 }
 
+extension QuotaSnapshot.ResetCredit {
+    static let stub = QuotaSnapshot.ResetCredit(
+        id: "credit-a",
+        title: "Usage reset",
+        expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
+    )
+}
+
 extension QuotaSnapshot {
     static func stub(_ usedPercent: Int = 50) -> QuotaSnapshot {
         QuotaSnapshot(windows: [
@@ -101,7 +109,15 @@ struct ScriptedToolWorkspace {
         """
     }
 
-    func lines(in file: URL) throws -> [Substring] {
-        try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
+    /// The directory the tool ran in, with symlinks resolved.
+    func workingDirectory() throws -> URL {
+        let path = try String(contentsOf: directoryFile, encoding: .utf8).trimmingCharacters(in: .newlines)
+        return URL(filePath: path).resolvingSymlinksInPath()
+    }
+}
+
+func jsonObjects(in file: URL) throws -> [[String: Any]] {
+    try String(contentsOf: file, encoding: .utf8).split(separator: "\n").map { line in
+        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
     }
 }

@@ -28,7 +28,10 @@ final class CodexQuotaResetModel {
     }
 
     var flow: CodexQuotaResetFlow {
-        pending.reconciled { usableCredit(id: $0.id) != nil }
+        if case .confirming(let attempt, _) = pending, usableCredit(id: attempt.credit.id) == nil {
+            return .idle
+        }
+        return pending
     }
 
     var hasResetActivity: Bool {

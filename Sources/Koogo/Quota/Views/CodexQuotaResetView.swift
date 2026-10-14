@@ -158,10 +158,11 @@ private struct CodexQuotaResetCreditRow: View {
                     Text(credit.title)
                         .fontWeight(.semibold)
                     if let expiration = credit.expiresAt {
+                        let now = model.now
                         let date = expiration.formatted(date: .abbreviated, time: .shortened)
-                        Text(credit.canUse(at: model.now) ? "Expires \(date)" : "Expired \(date)")
+                        Text(credit.canUse(at: now) ? "Expires \(date)" : "Expired \(date)")
                             .foregroundStyle(
-                                expiration.timeIntervalSince(model.now) <= Self.expiryWarning
+                                expiration.timeIntervalSince(now) <= Self.expiryWarning
                                     ? Color.orange : .secondary
                             )
                     } else {

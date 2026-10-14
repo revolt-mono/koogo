@@ -27,7 +27,7 @@ struct ClaudeQuotaSource: QuotaSource {
         await QuotaReading { () throws(ToolFailure) in
             try await tool.session(
                 Self.arguments,
-                in: URL(filePath: "/tmp", directoryHint: .isDirectory)
+                in: CommandLineTool.neutralDirectory
             ) { streams in
                 // The CLI shuts down and skips network reads once its input closes, so the request must stay open until the reply arrives.
                 try await streams.write(Self.request)
@@ -42,13 +42,7 @@ struct ClaudeQuotaSource: QuotaSource {
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            guard let date = Date(iso8601: try container.decode(String.self)) else {
-                throw DecodingError.dataCorruptedError(in: container, debugDescription: "not an ISO 8601 date")
-            }
-            return date
-        }
+        decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
 }

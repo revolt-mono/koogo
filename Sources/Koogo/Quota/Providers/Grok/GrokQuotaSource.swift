@@ -19,7 +19,7 @@ struct GrokQuotaSource: QuotaSource {
         await QuotaReading { () throws(ToolFailure) in
             try await tool.session(
                 ["--no-auto-update", "agent", "--no-leader", "stdio"],
-                in: URL(filePath: "/tmp", directoryHint: .isDirectory)
+                in: CommandLineTool.neutralDirectory
             ) { streams in
                 var connection = JSONRPCConnection(streams, dateDecodingStrategy: .iso8601)
                 let initialized: InitializeResponse = try await connection.request(

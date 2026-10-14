@@ -53,13 +53,6 @@ enum CodexQuotaResetFlow: Equatable {
         }
     }
 
-    func reconciled(usable: (QuotaSnapshot.ResetCredit) -> Bool) -> Self {
-        if case .confirming(let attempt, _) = self, !usable(attempt.credit) {
-            return .idle
-        }
-        return self
-    }
-
     /// Where a submission lands. A rejected retry stays unconfirmed, since the first send may still have landed.
     static func settled(_ submission: CodexQuotaResetSubmission, _ result: CodexQuotaResetResult) -> Self {
         switch (result, submission) {

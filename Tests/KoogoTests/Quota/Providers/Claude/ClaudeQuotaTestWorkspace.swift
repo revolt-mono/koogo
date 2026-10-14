@@ -8,9 +8,6 @@ struct ClaudeQuotaTestWorkspace {
     }
 
     var root: URL { tool.root }
-    var requestsFile: URL { tool.requestsFile }
-    var argumentsFile: URL { tool.argumentsFile }
-    var directoryFile: URL { tool.directoryFile }
 
     func makeCLI(
         output: String = response(),
@@ -22,7 +19,7 @@ struct ClaudeQuotaTestWorkspace {
                 \(tool.prologue)
                 \(beforeOutput)
                 IFS= read -r request || exit 1
-                printf '%s\\n' "$request" > '\(requestsFile.path)'
+                printf '%s\\n' "$request" > '\(tool.requestsFile.path)'
                 /bin/cat <<'OUTPUT'
                 \(output)
                 OUTPUT

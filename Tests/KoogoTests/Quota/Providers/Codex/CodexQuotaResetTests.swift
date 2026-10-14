@@ -61,10 +61,9 @@ final class CodexQuotaResetTests: XCTestCase {
             let result = await CodexQuotaSource(executableCandidates: [executable]).consume(attempt)
             XCTAssertEqual(result, .success(expected))
         }
-        let requests = try workspace.tool.lines(in: workspace.consumeRequestsFile)
+        let requests = try jsonObjects(in: workspace.consumeRequestsFile)
         XCTAssertEqual(requests.count, 4)
-        for line in requests {
-            let request = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
+        for request in requests {
             XCTAssertEqual(request["method"] as? String, "account/rateLimitResetCredit/consume")
             let params = try XCTUnwrap(request["params"] as? [String: String])
             XCTAssertEqual(params, ["creditId": "credit-a", "idempotencyKey": attempt.idempotencyKey.uuidString])
@@ -111,6 +110,8 @@ final class CodexQuotaResetTests: XCTestCase {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let initializing = try workspace.makeAppServer(onStart: "while :; do :; done")
         let consuming = try workspace.makeAppServer(onConsume: "while :; do :; done")
+        // macOS vets a new executable on its first launch, which can outlast the timeout below.
+        _ = await CodexQuotaSource(executableCandidates: [consuming]).load()
 
         let rejected = await CodexQuotaSource(executableCandidates: [initializing], timeout: .milliseconds(500))
             .consume(resetAttempt())
@@ -128,11 +129,5 @@ final class CodexQuotaResetTests: XCTestCase {
 }
 
 private func resetAttempt() -> CodexQuotaResetAttempt {
-    CodexQuotaResetAttempt(
-        credit: QuotaSnapshot.ResetCredit(
-            id: "credit-a",
-            title: "Usage reset",
-            expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
-        )
-    )
+    CodexQuotaResetAttempt(credit: .stub)
 }
