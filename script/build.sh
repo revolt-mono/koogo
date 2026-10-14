@@ -8,7 +8,6 @@ MIN_SYSTEM_VERSION="26.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
 BUILD_NUMBER="$(git -C "$ROOT_DIR" rev-list --count HEAD)"
 DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode-beta.app/Contents/Developer}"
-SDK_NAME="macosx"
 
 export DEVELOPER_DIR
 export MACOSX_DEPLOYMENT_TARGET="$MIN_SYSTEM_VERSION"
@@ -19,8 +18,8 @@ XCODE_VERSION="$(xcodebuild -version)"
   exit 1
 }
 
-SDKROOT="$(xcrun --sdk "$SDK_NAME" --show-sdk-path)"
-SDK_VERSION="$(xcrun --sdk "$SDK_NAME" --show-sdk-version)"
+SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
 export SDKROOT
 
 [[ "$SDK_VERSION" == "27."* ]] || {
@@ -35,10 +34,9 @@ esac
 
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-$("$ROOT_DIR/script/setup_signing.sh")}"
 
-xcrun swift build \
-  --package-path "$ROOT_DIR" \
-  --configuration "$CONFIGURATION" \
-  --sdk "$SDKROOT" \
+SWIFT_BUILD=(xcrun swift build --package-path "$ROOT_DIR" --configuration "$CONFIGURATION" --sdk "$SDKROOT")
+
+"${SWIFT_BUILD[@]}" \
   -Xlinker -platform_version \
   -Xlinker macos \
   -Xlinker "$MIN_SYSTEM_VERSION" \
@@ -47,11 +45,7 @@ xcrun swift build \
   -Xlinker @executable_path/../Frameworks \
   --product "$APP_NAME"
 
-BUILD_DIR="$(xcrun swift build \
-  --package-path "$ROOT_DIR" \
-  --configuration "$CONFIGURATION" \
-  --sdk "$SDKROOT" \
-  --show-bin-path)"
+BUILD_DIR="$("${SWIFT_BUILD[@]}" --show-bin-path)"
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -64,7 +58,6 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
 cp "$BUILD_DIR/$APP_NAME" "$MACOS_DIR/$APP_NAME"
 ditto "$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle" "$RESOURCES_DIR/${APP_NAME}_${APP_NAME}.bundle"
 ditto "$BUILD_DIR/Sparkle.framework" "$FRAMEWORKS_DIR/Sparkle.framework"
-chmod +x "$MACOS_DIR/$APP_NAME"
 xcrun actool \
   --compile "$RESOURCES_DIR" \
   --platform macosx \

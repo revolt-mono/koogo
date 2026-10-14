@@ -8,8 +8,8 @@ final class InboxModelTests: XCTestCase {
     func testAddPutsTheNewestTodoFirstWithItsPriority() throws {
         let model = InboxModel(defaults: try makeIsolatedDefaults())
 
-        model.add(try XCTUnwrap(TodoText("older")), priority: .backlog)
-        model.add(try XCTUnwrap(TodoText("newer")), priority: .urgent)
+        model.add(try todoText("older"), priority: .backlog)
+        model.add(try todoText("newer"), priority: .urgent)
 
         XCTAssertEqual(model.todos.map(\.text.value), ["newer", "older"])
         XCTAssertEqual(model.todos.map(\.priority), [.urgent, .backlog])
@@ -18,8 +18,8 @@ final class InboxModelTests: XCTestCase {
 
     func testClearCompletedKeepsOpenTodos() throws {
         let model = InboxModel(defaults: try makeIsolatedDefaults())
-        model.add(try XCTUnwrap(TodoText("done")), priority: .normal)
-        model.add(try XCTUnwrap(TodoText("open")), priority: .normal)
+        model.add(try todoText("done"), priority: .normal)
+        model.add(try todoText("open"), priority: .normal)
         let done = try XCTUnwrap(model.todos.last)
         model.toggleCompleted(done.id)
 
@@ -30,8 +30,8 @@ final class InboxModelTests: XCTestCase {
 
     func testDeleteRemovesOnlyTheGivenTodo() throws {
         let model = InboxModel(defaults: try makeIsolatedDefaults())
-        model.add(try XCTUnwrap(TodoText("keep")), priority: .normal)
-        model.add(try XCTUnwrap(TodoText("remove")), priority: .normal)
+        model.add(try todoText("keep"), priority: .normal)
+        model.add(try todoText("remove"), priority: .normal)
 
         model.delete(try XCTUnwrap(model.todos.first).id)
 
@@ -40,8 +40,8 @@ final class InboxModelTests: XCTestCase {
 
     func testIntentsChangeOneTodoAndIgnoreAMissingID() throws {
         let model = InboxModel(defaults: try makeIsolatedDefaults())
-        model.add(try XCTUnwrap(TodoText("untouched")), priority: .normal)
-        model.add(try XCTUnwrap(TodoText("target")), priority: .normal)
+        model.add(try todoText("untouched"), priority: .normal)
+        model.add(try todoText("target"), priority: .normal)
         let target = try XCTUnwrap(model.todos.first)
         let untouched = try XCTUnwrap(model.todos.last)
 
@@ -56,10 +56,10 @@ final class InboxModelTests: XCTestCase {
     func testChangesPersistAcrossModelInstances() throws {
         let defaults = try makeIsolatedDefaults()
         let model = InboxModel(defaults: defaults)
-        model.add(try XCTUnwrap(TodoText("first")), priority: .normal)
-        model.add(try XCTUnwrap(TodoText("second")), priority: .backlog)
+        model.add(try todoText("first"), priority: .normal)
+        model.add(try todoText("second"), priority: .backlog)
         let first = try XCTUnwrap(model.todos.last)
-        let updatedText = try XCTUnwrap(TodoText("updated"))
+        let updatedText = try todoText("updated")
         model.toggleCompleted(first.id)
         model.setPriority(.urgent, of: first.id)
         model.setText(updatedText, of: first.id)
@@ -77,19 +77,19 @@ final class InboxModelTests: XCTestCase {
 
     func testOpenSummaryListsUrgentThenNormalThenBacklog() throws {
         let model = InboxModel(defaults: try makeIsolatedDefaults())
-        model.add(try XCTUnwrap(TodoText("later")), priority: .backlog)
-        model.add(try XCTUnwrap(TodoText("soon")), priority: .normal)
-        model.add(try XCTUnwrap(TodoText("now")), priority: .urgent)
-        model.add(try XCTUnwrap(TodoText("also soon")), priority: .normal)
+        model.add(try todoText("later"), priority: .backlog)
+        model.add(try todoText("soon"), priority: .normal)
+        model.add(try todoText("now"), priority: .urgent)
+        model.add(try todoText("also soon"), priority: .normal)
 
         XCTAssertEqual(model.openSummary, "1 urgent, 2 normal, 1 backlog")
     }
 
     func testOpenSummarySkipsCompletedTodosAndZeroCounts() throws {
         let model = InboxModel(defaults: try makeIsolatedDefaults())
-        model.add(try XCTUnwrap(TodoText("shipped")), priority: .urgent)
-        model.add(try XCTUnwrap(TodoText("later")), priority: .backlog)
-        model.add(try XCTUnwrap(TodoText("someday")), priority: .backlog)
+        model.add(try todoText("shipped"), priority: .urgent)
+        model.add(try todoText("later"), priority: .backlog)
+        model.add(try todoText("someday"), priority: .backlog)
         model.toggleCompleted(try XCTUnwrap(model.todos.first { $0.priority == .urgent }).id)
 
         XCTAssertEqual(model.openSummary, "2 backlog")
@@ -98,4 +98,8 @@ final class InboxModelTests: XCTestCase {
     func testOpenSummaryOfAnEmptyInboxSaysNoOpenTodos() throws {
         XCTAssertEqual(InboxModel(defaults: try makeIsolatedDefaults()).openSummary, "no open todos")
     }
+}
+
+private func todoText(_ value: String) throws -> TodoText {
+    try XCTUnwrap(TodoText(value))
 }

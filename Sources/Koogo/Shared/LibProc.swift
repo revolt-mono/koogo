@@ -1,6 +1,11 @@
 import Darwin
 
 enum LibProc {
+    /// Returns false only when the process may still be running; one already gone counts as killed.
+    static func forceKill(_ pid: pid_t) -> Bool {
+        Darwin.kill(pid, SIGKILL) == 0 || errno == ESRCH
+    }
+
     /// Every process of the current user.
     static func pids() -> [pid_t]? {
         let type = UInt32(PROC_UID_ONLY)

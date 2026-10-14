@@ -2,7 +2,7 @@ import Darwin
 import IOKit
 import Metal
 
-/// The accelerator's utilization from the IOAccelerator performance statistics. Rendering and tiling are the two stages apple gpus report separately.
+/// Rendering and tiling are the two stages apple gpus report separately.
 struct GPULoad: Sendable {
     let name: String
     let utilization: Double

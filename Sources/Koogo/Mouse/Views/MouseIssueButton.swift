@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Names a mouse remapping problem and applies its remedy on click. A tap that stays down while trust reads as granted usually means a stale grant, which only System Settings can renew.
+/// A tap that stays down while trust reads as granted usually means a stale grant, which only System Settings can renew.
 struct MouseIssueButton: View {
     private static let accessibilityPane = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"

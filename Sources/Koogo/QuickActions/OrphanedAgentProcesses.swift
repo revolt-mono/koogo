@@ -64,7 +64,7 @@ struct OrphanedAgentProcesses: Sendable {
     func forceTerminate() throws {
         // A pid can be reused between the scan and the click; only signal processes that still match.
         for process in values where Self.orphanedAgentProcess(process.pid) != nil {
-            guard Darwin.kill(process.pid, SIGKILL) == 0 || errno == ESRCH else {
+            guard LibProc.forceKill(process.pid) else {
                 throw Failure.termination(process)
             }
         }

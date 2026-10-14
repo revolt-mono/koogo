@@ -30,7 +30,7 @@ enum BreakReminderStatus: Equatable {
     }
 }
 
-enum BreakReminderIssue: Error, Equatable {
+enum BreakReminderIssue: Error {
     case notificationsDisabled
     case schedulingFailed
 }

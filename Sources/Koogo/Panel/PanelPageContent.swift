@@ -3,7 +3,7 @@ import SwiftUI
 struct PanelPageContent<Value, Content: View>: View {
     let value: Value?
     let loadingText: String
-    @ViewBuilder let content: (Value) -> Content
+    let content: (Value) -> Content
 
     init(_ value: Value?, loading loadingText: String, @ViewBuilder content: @escaping (Value) -> Content) {
         self.value = value

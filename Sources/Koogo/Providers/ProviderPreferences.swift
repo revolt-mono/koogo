@@ -6,11 +6,11 @@ import Observation
 final class ProviderPreferences {
     private struct Stored: Codable {
         var order: [Provider]
+        /// Stored as the disabled set so a provider added later starts on.
         var usageDisabled: Set<Provider>
     }
 
     private let storage: PersistedValue<Stored>
-    /// The disabled set is stored so a provider added later starts on.
     private var stored: Stored {
         didSet { storage.save(stored) }
     }

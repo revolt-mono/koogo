@@ -61,12 +61,12 @@ struct AppProcessGroup: Identifiable, Sendable {
 
     func forceTerminate() {
         if NSRunningApplication(processIdentifier: id)?.forceTerminate() == true { return }
-        for pid in members where Darwin.kill(pid, SIGKILL) != 0 && errno != ESRCH {
+        for pid in members where !LibProc.forceKill(pid) {
             Logger.activity.error("force terminate failed pid=\(pid) errno=\(errno)")
         }
     }
 
-    /// The twenty heaviest groups by responsible process. A group whose responsible process is out of sight takes its identity from its lowest pid; a process launched since the earlier scan counts all its time, and one otherwise absent from it has no load yet.
+    /// A group whose responsible process is out of sight takes its identity from its lowest pid; a process launched since the earlier scan counts all its time, and one otherwise absent from it has no load yet.
     static func heaviest(
         in scan: ProcessScan,
         since previous: ProcessScan,

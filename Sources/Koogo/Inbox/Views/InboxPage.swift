@@ -123,10 +123,7 @@ private struct TodoRow: View {
     }
 
     private func finishEditing(_ result: TodoInlineEditor.Result) {
-        switch result {
-        case .discarded:
-            break
-        case .saved(let text):
+        if case .saved(let text) = result {
             inboxModel.setText(text, of: todo.id)
         }
         isEditing = false

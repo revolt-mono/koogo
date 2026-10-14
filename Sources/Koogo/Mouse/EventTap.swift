@@ -34,7 +34,7 @@ final class EventTap {
         isRunning = false
     }
 
-    /// What macOS calls on the tap's thread for each event. A closure written inside a main actor method would inherit that isolation and trap there.
+    /// Declared outside any main actor method, whose isolation a closure would inherit and then trap on the tap's thread.
     nonisolated static let callback: CGEventTapCallBack = { proxy, type, event, userInfo in
         guard let userInfo else {
             return Unmanaged.passUnretained(event)

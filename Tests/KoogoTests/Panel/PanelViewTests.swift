@@ -27,21 +27,22 @@ final class PanelViewTests: XCTestCase {
                 grok: GrokQuotaSource(executableCandidates: [])
             )
         )
-        let host = NSHostingView(
-            rootView: PanelView().environment(
-                panelModels(
-                    preferences: preferences,
-                    usage: usage,
-                    quota: quota,
-                    activity: activity,
-                    defaults: defaults
-                )
-            )
+        let models = AppModels(
+            preferences: preferences,
+            usage: usage,
+            quota: quota,
+            codexReset: CodexQuotaResetModel(quota: quota),
+            update: UpdateModel(),
+            breakReminder: BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults),
+            inbox: InboxModel(defaults: defaults),
+            activity: activity,
+            mouse: MouseModel(defaults: defaults, isInstalled: { _ in false })
         )
+        let host = NSHostingView(rootView: PanelView().environment(models))
         host.layoutSubtreeIfNeeded()
         try await waitUntil { usage.snapshot != nil }
         XCTAssertNil(usage.snapshot?.providers[.codex])
-        XCTAssertEqual(usage.snapshot?.providers[.claude]?.periods[.today].total.processedTokens, 0)
+        XCTAssertEqual(usage.snapshot?.todayTokens(.claude), 0)
 
         try await waitUntil { QuotaProvider.allCases.allSatisfy { !quota.statuses[$0].isBusy } }
         XCTAssertEqual(quota.statuses[.codex], .unread)
@@ -50,25 +51,4 @@ final class PanelViewTests: XCTestCase {
         XCTAssertEqual(activitySamples.value, 0)
         withExtendedLifetime(host) {}
     }
-}
-
-@MainActor
-private func panelModels(
-    preferences: ProviderPreferences,
-    usage: UsageModel,
-    quota: QuotaModel,
-    activity: ActivityModel,
-    defaults: UserDefaults
-) -> AppModels {
-    AppModels(
-        preferences: preferences,
-        usage: usage,
-        quota: quota,
-        codexReset: CodexQuotaResetModel(quota: quota),
-        update: UpdateModel(),
-        breakReminder: BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults),
-        inbox: InboxModel(defaults: defaults),
-        activity: activity,
-        mouse: MouseModel(defaults: defaults, isInstalled: { _ in false })
-    )
 }

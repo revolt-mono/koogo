@@ -1,7 +1,7 @@
 import AppKit
 import Observation
 
-enum MouseStatus: Equatable {
+enum MouseStatus {
     case off
     case needsAccessibility
     case active
