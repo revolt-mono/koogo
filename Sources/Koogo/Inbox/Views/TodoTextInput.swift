@@ -31,22 +31,17 @@ struct TodoTextInput: NSViewRepresentable {
         textView.drawsBackground = false
         textView.isRichText = false
         textView.allowsUndo = true
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
-        textView.minSize = .zero
         textView.maxSize = NSSize(
             width: CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
         )
         textView.textContainerInset = Self.textInset
         textView.textContainer?.lineFragmentPadding = 0
-        textView.textContainer?.widthTracksTextView = true
 
         let scrollView = NSScrollView()
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.documentView = textView
         return scrollView
@@ -88,7 +83,7 @@ struct TodoTextInput: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         private let text: Binding<String>
-        fileprivate let textView = TodoTextView()
+        fileprivate let textView = TodoTextView(usingTextLayoutManager: false)
         var didRequestFocus = false
 
         init(text: Binding<String>) {
@@ -104,20 +99,6 @@ struct TodoTextInput: NSViewRepresentable {
 private final class TodoTextView: NSTextView {
     var onSubmit: () -> Void = {}
     var onCancel: () -> Void = {}
-
-    init() {
-        let textStorage = NSTextStorage()
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer()
-        textStorage.addLayoutManager(layoutManager)
-        layoutManager.addTextContainer(textContainer)
-        super.init(frame: .zero, textContainer: textContainer)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is unavailable")
-    }
 
     override func keyDown(with event: NSEvent) {
         guard !hasMarkedText() else {

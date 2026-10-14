@@ -13,10 +13,6 @@ enum PanelPage: Int, CaseIterable {
         case .inbox: "Inbox"
         }
     }
-
-    func stepped(by step: Int) -> PanelPage? {
-        PanelPage(rawValue: rawValue + step)
-    }
 }
 
 /// A paging scroll across the pages, so a swipe moves the pages with the fingers and the system snaps them; a wheel click or a dot steps a whole page. The pages are built once up front and stay, so a swipe never builds or lays out a page. The usage page sets the height and the others fill it, so a switch never resizes the window.
@@ -68,7 +64,7 @@ struct PanelPager: View {
                 guard let window = view.window, event.window === window else { return event }
                 switch WheelPaging(event) {
                 case .step(let step):
-                    if let page = shown?.stepped(by: step) { show(page) }
+                    if let shown, let page = PanelPage(rawValue: shown.rawValue + step) { show(page) }
                     return nil
                 case .drop:
                     return nil

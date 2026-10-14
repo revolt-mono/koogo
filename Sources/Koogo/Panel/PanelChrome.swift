@@ -55,13 +55,11 @@ struct PanelProgressViewStyle: ProgressViewStyle {
     static let height: CGFloat = 5
 
     func makeBody(configuration: Configuration) -> some View {
-        GeometryReader { geometry in
-            Color.panelLabel
-                .frame(width: geometry.size.width * (configuration.fractionCompleted ?? 0))
-        }
-        .frame(height: Self.height)
-        .background(Color.panelLabel.opacity(0.10))
-        .clipShape(Capsule())
+        Color.panelLabel
+            .scaleEffect(x: configuration.fractionCompleted ?? 0, anchor: .leading)
+            .frame(height: Self.height)
+            .background(Color.panelLabel.opacity(0.10))
+            .clipShape(Capsule())
     }
 }
 

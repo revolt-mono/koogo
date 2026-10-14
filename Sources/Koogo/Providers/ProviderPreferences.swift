@@ -41,9 +41,8 @@ final class ProviderPreferences {
         storage = PersistedValue(key: "provider-preferences", defaults: defaults)
         let loaded = storage.load()
         var seen = Set<Provider>()
-        let storedOrder = (loaded?.order ?? []).filter { seen.insert($0).inserted }
         stored = Stored(
-            order: storedOrder + Provider.allCases.filter { !storedOrder.contains($0) },
+            order: ((loaded?.order ?? []) + Provider.allCases).filter { seen.insert($0).inserted },
             usageDisabled: loaded?.usageDisabled ?? []
         )
     }

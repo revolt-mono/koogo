@@ -13,13 +13,9 @@ struct TodoPrioritySelector: View {
                 Button {
                     selection = priority
                 } label: {
-                    TodoPriorityOption(
-                        priority: priority,
-                        isSelected: isSelected,
-                        progress: isSelected ? 1 : 0
-                    )
-                    // Inside the label so the morph animates even when the pressed button re-renders in its gesture's transaction.
-                    .motionAnimation(.spring(response: 0.42, dampingFraction: 0.86), value: isSelected)
+                    TodoPriorityOption(priority: priority, isSelected: isSelected)
+                        // Inside the label so the morph animates even when the pressed button re-renders in its gesture's transaction.
+                        .motionAnimation(.spring(response: 0.42, dampingFraction: 0.86), value: isSelected)
                 }
                 .buttonStyle(TodoPriorityButtonStyle())
                 .focused($focusedPriority, equals: priority)
@@ -80,6 +76,12 @@ private struct TodoPriorityOption: View, Animatable {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
+
+    init(priority: TodoPriority, isSelected: Bool) {
+        self.priority = priority
+        self.isSelected = isSelected
+        progress = isSelected ? 1 : 0
+    }
 
     nonisolated var animatableData: CGFloat {
         get { progress }
