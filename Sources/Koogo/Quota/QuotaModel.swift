@@ -24,7 +24,7 @@ enum QuotaStatus: Equatable, Sendable {
 @MainActor
 @Observable
 final class QuotaModel {
-    let sources: QuotaSources
+    private let sources: QuotaSources
 
     private(set) var statuses = EnumMap<QuotaProvider, QuotaStatus> { _ in .unread }
 
@@ -54,13 +54,26 @@ final class QuotaModel {
     func reload(_ providers: some Sequence<QuotaProvider>) {
         for provider in providers {
             let source = sources[provider]
-            read(provider) { await source.load() }
+            _ = read(provider) { await source.load() }
+        }
+    }
+
+    /// Spends a Codex reset and rereads the limits in one busy span, so the settled result lands together with the reading. Returns false, doing nothing, while Codex is busy.
+    func resetCodex(
+        _ attempt: CodexQuotaResetAttempt,
+        settle: @escaping @MainActor (CodexQuotaResetResult) -> Void
+    ) -> Bool {
+        let source = sources.codex
+        return read(.codex) {
+            let result = await source.consume(attempt)
+            let reading = await source.load()
+            settle(result)
+            return reading
         }
     }
 
     /// Holds the provider busy while the work runs, then records its reading. Returns false, doing nothing, while a read is in flight. The work runs on the main actor, so state it settles lands together with the reading.
-    @discardableResult
-    func read(_ provider: QuotaProvider, _ work: @escaping @MainActor () async -> QuotaReading) -> Bool {
+    private func read(_ provider: QuotaProvider, _ work: @escaping @MainActor () async -> QuotaReading) -> Bool {
         guard !statuses[provider].isBusy else {
             return false
         }

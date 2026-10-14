@@ -1,11 +1,11 @@
 import Foundation
 
-struct JSONRPCConnection {
+struct JSONRPCConnection: ~Copyable {
     private var streams: ToolStreams
     private let decoder: JSONDecoder
     private var nextID = 1
 
-    init(_ streams: ToolStreams, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy) {
+    init(_ streams: consuming ToolStreams, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy) {
         self.streams = streams
         decoder = JSONDecoder()
         decoder.dateDecodingStrategy = dateDecodingStrategy

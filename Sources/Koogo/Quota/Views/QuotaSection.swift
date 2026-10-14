@@ -2,12 +2,19 @@ import SwiftUI
 
 struct QuotaSection: View {
     @Environment(QuotaModel.self) private var quotaModel
+    @Environment(CodexQuotaResetModel.self) private var resetModel
     let provider: QuotaProvider
 
     var body: some View {
         switch quotaModel.statuses[provider].latest {
         case .unavailable:
-            EmptyView()
+            // A reset whose reread failed still needs its retry prompt.
+            if provider == .codex, resetModel.hasResetActivity {
+                VStack(spacing: 16) {
+                    CodexQuotaResetView()
+                    Divider()
+                }
+            }
         case nil:
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
@@ -23,7 +30,7 @@ struct QuotaSection: View {
         case .available(let snapshot):
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
-                    ForEach(snapshot.windows, id: \.title) { window in
+                    ForEach(Array(snapshot.windows.enumerated()), id: \.offset) { _, window in
                         QuotaWindowRow(provider: provider.provider, window: window)
                     }
                     if let credits = snapshot.credits {

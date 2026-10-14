@@ -8,7 +8,8 @@ extension QuotaUnavailability {
             switch failure {
             case .notFound: .binaryNotFound
             case .timedOut: .timedOut
-            case .closed, .invalidMessage, .rpc: .sessionFailed
+            case .closed, .rpc: .sessionFailed
+            case .invalidMessage: .invalidMessage
             }
     }
 }

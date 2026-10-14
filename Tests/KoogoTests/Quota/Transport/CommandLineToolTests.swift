@@ -18,7 +18,8 @@ final class CommandLineToolTests: XCTestCase {
 
         let output = try await CommandLineTool(candidates: [executable], timeout: .seconds(3))
             .session([]) { streams in
-                try await streams.first { $0 }
+                var streams = streams
+                return try await streams.first { $0 }
             }
         let fields = try XCTUnwrap(String(bytes: output, encoding: .utf8)).split(
             separator: "|",
@@ -51,7 +52,8 @@ final class CommandLineToolTests: XCTestCase {
 
         let reply = try await CommandLineTool(candidates: [executable], timeout: .seconds(1))
             .session([]) { streams in
-                try await streams.first { $0 }
+                var streams = streams
+                return try await streams.first { $0 }
             }
 
         XCTAssertEqual(reply, Data("reply".utf8))

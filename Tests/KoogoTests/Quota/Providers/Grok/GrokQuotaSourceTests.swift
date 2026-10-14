@@ -99,31 +99,31 @@ final class GrokQuotaSourceTests: XCTestCase {
         let result = await GrokQuotaSource(executableCandidates: [executable]).load()
         XCTAssertEqual(result, .unavailable(.noPlan))
 
-        let responses = [
-            #"{"id":2,"error":{"code":-32603,"message":"Internal error"}}"#,
-            GrokQuotaTestWorkspace.response(config: #"{"creditUsagePercent":"invalid"}"#),
-            GrokQuotaTestWorkspace.response(config: #"{"currentPeriod":{"end":"invalid"}}"#),
+        let responses: [(String, QuotaUnavailability)] = [
+            (#"{"id":2,"error":{"code":-32603,"message":"Internal error"}}"#, .sessionFailed),
+            (GrokQuotaTestWorkspace.response(config: #"{"creditUsagePercent":"invalid"}"#), .invalidMessage),
+            (GrokQuotaTestWorkspace.response(config: #"{"currentPeriod":{"end":"invalid"}}"#), .invalidMessage),
         ]
-        for response in responses {
+        for (response, reason) in responses {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(billingResponse: response)
             let result = await GrokQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result, .unavailable(.sessionFailed))
+            XCTAssertEqual(result, .unavailable(reason), response)
         }
     }
 
     func testInitializationMustSucceedBeforeBilling() async throws {
-        let responses = [
-            #"{"id":1,"error":{"code":-32603}}"#,
-            #"{"id":1,"error":{"code":-32000,"message":"Authentication refresh failed"}}"#,
-            #"{"id":1,"result":{"protocolVersion":2}}"#,
-            #"{"id":1,"result":{}}"#,
+        let responses: [(String, QuotaUnavailability)] = [
+            (#"{"id":1,"error":{"code":-32603}}"#, .sessionFailed),
+            (#"{"id":1,"error":{"code":-32000,"message":"Authentication refresh failed"}}"#, .sessionFailed),
+            (#"{"id":1,"result":{"protocolVersion":2}}"#, .invalidMessage),
+            (#"{"id":1,"result":{}}"#, .invalidMessage),
         ]
-        for response in responses {
+        for (response, reason) in responses {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(initializeResponse: response)
             let result = await GrokQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result, .unavailable(.sessionFailed))
+            XCTAssertEqual(result, .unavailable(reason), response)
             XCTAssertEqual(try jsonObjects(in: workspace.requestsFile).count, 1)
         }
     }

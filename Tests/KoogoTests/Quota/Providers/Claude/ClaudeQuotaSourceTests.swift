@@ -51,21 +51,31 @@ final class ClaudeQuotaSourceTests: XCTestCase {
             let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
             XCTAssertEqual(result, .unavailable(.emptyLimits), limits)
         }
-        for output in [
-            "not json",
-            #"{"type":"system","subtype":"init"}"#,
-            #"{"type":"control_response","response":{"subtype":"error","request_id":"1","error":"nope"}}"#,
-            ClaudeQuotaTestWorkspace.response(rateLimits: "null").replacingOccurrences(
-                of: #""rate_limits_available":true,"#,
-                with: ""
+        let outputs: [(String, QuotaUnavailability)] = [
+            ("not json", .invalidMessage),
+            (#"{"type":"system","subtype":"init"}"#, .sessionFailed),
+            (
+                #"{"type":"control_response","response":{"subtype":"error","request_id":"1","error":"nope"}}"#,
+                .invalidMessage
             ),
-            ClaudeQuotaTestWorkspace.response(
-                rateLimits: #"{"five_hour":{"utilization":5,"resets_at":"not a date"}}"#
+            (
+                ClaudeQuotaTestWorkspace.response(rateLimits: "null").replacingOccurrences(
+                    of: #""rate_limits_available":true,"#,
+                    with: ""
+                ),
+                .invalidMessage
             ),
-        ] {
+            (
+                ClaudeQuotaTestWorkspace.response(
+                    rateLimits: #"{"five_hour":{"utilization":5,"resets_at":"not a date"}}"#
+                ),
+                .invalidMessage
+            ),
+        ]
+        for (output, reason) in outputs {
             let executable = try workspace.makeCLI(output: output)
             let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
-            XCTAssertEqual(result, .unavailable(.sessionFailed), output)
+            XCTAssertEqual(result, .unavailable(reason), output)
         }
         let executable = try workspace.makeCLI(beforeOutput: "exit 1")
         let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()

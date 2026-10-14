@@ -62,12 +62,8 @@ final class CodexQuotaResetModel {
 
     func submit() {
         guard let submission = flow.submission else { return }
-        let source = quota.sources.codex
-        let started = quota.read(.codex) {
-            let result = await source.consume(submission.attempt)
-            let reading = await source.load()
+        let started = quota.resetCodex(submission.attempt) { result in
             self.pending = .settled(submission, result)
-            return reading
         }
         if started {
             pending = .submitting(submission)

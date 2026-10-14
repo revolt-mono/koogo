@@ -1,6 +1,7 @@
 import Foundation
 import Subprocess
 import System
+import os
 
 struct CommandLineTool: Sendable {
     private static let installDirectories = [
@@ -39,7 +40,7 @@ struct CommandLineTool: Sendable {
     /// Runs one conversation over the tool's standard streams. A decoding error or oversized output inside the session is an invalid message; any other error means the tool closed the conversation.
     func session<Value: Sendable>(
         _ arguments: [String],
-        _ session: @escaping @Sendable (inout ToolStreams) async throws -> Value
+        _ session: @escaping @Sendable (consuming ToolStreams) async throws -> Value
     ) async throws(ToolFailure) -> Value {
         guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) })
         else { throw .notFound }
@@ -53,6 +54,9 @@ struct CommandLineTool: Sendable {
         } catch let error as SubprocessError where error.code == .outputLimitExceeded {
             throw .invalidMessage
         } catch {
+            Logger.quota.warning(
+                "\(executable.lastPathComponent, privacy: .public) session closed: \(error, privacy: .public)"
+            )
             throw .closed
         }
     }
@@ -60,7 +64,7 @@ struct CommandLineTool: Sendable {
     private func converse<Value: Sendable>(
         with executable: URL,
         _ arguments: [String],
-        _ session: @escaping @Sendable (inout ToolStreams) async throws -> Value
+        _ session: @escaping @Sendable (consuming ToolStreams) async throws -> Value
     ) async throws -> Value {
         // A fixed environment keeps the launching shell's switches, such as a Claude Code session's CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, out of the tool. HOME and USER locate its credentials.
         let searchPath = ([executable.deletingLastPathComponent()] + Self.installDirectories).map(\.path)
@@ -80,8 +84,9 @@ struct CommandLineTool: Sendable {
         ) { execution in
             try await withThrowingTaskGroup(of: Value.self) { group in
                 group.addTask {
-                    var streams = ToolStreams(input: execution.standardInputWriter, output: execution.standardOutput)
-                    return try await session(&streams)
+                    try await session(
+                        ToolStreams(input: execution.standardInputWriter, output: execution.standardOutput)
+                    )
                 }
                 group.addTask {
                     try await Task.sleep(for: timeout)
