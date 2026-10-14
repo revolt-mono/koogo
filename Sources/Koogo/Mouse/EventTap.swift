@@ -61,13 +61,12 @@ final class EventTap {
             return nil
         }
 
-        nonisolated(unsafe) let installed = port
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
         let thread = Thread { [self, source] in
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
             CFRunLoopRun()
             Task { @MainActor in
-                stopped(installed)
+                stopped()
             }
         }
         thread.name = "Koogo Event Tap"
@@ -76,10 +75,7 @@ final class EventTap {
         return port
     }
 
-    private func stopped(_ stoppedPort: CFMachPort) {
-        guard port === stoppedPort else {
-            return
-        }
+    private func stopped() {
         Logger.mouse.warning("event tap stopped")
         port = nil
         isRunning = false
