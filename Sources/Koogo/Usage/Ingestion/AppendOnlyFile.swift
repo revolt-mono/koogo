@@ -10,12 +10,6 @@ enum FileRead {
     case unreadable
 }
 
-protocol LineConsumer {
-    /// The file no longer continues the bytes consumed so far; drop everything derived from them.
-    mutating func restart()
-    mutating func consume(_ line: UnsafeRawBufferPointer)
-}
-
 /// Incremental reader of a newline-delimited file. Complete lines are handed out once; a partial trailing line waits for its newline. A replaced or truncated file restarts from its first byte.
 struct AppendOnlyFile: Sendable {
     private static var parsedTailSize: Int { 64 }
@@ -48,7 +42,8 @@ struct AppendOnlyFile: Sendable {
         return stoppedEarly || observed.size > metadata.size
     }
 
-    mutating func read(into consumer: inout some LineConsumer) -> FileRead {
+    /// `restart` runs when the file no longer continues the bytes consumed so far; drop everything derived from them.
+    mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> FileRead {
         guard let file = try? FileDescriptor.open(FilePath(path), .readOnly) else {
             return .unreadable
         }
@@ -61,13 +56,14 @@ struct AppendOnlyFile: Sendable {
             needsRestart || current.identity != metadata.identity || current.size < parsedOffset
             || !parsedTailMatches(file)
         if restarted {
-            consumer.restart()
+            restart()
             parsedOffset = 0
             parsedTail = Data()
             needsRestart = false
         }
         let startOffset = parsedOffset
-        let finished = parsedOffset >= current.size || readLines(file, in: parsedOffset..<current.size, into: &consumer)
+        let finished =
+            parsedOffset >= current.size || readLines(file, in: parsedOffset..<current.size, consume: consume)
         metadata = current
         stoppedEarly = !finished
         if restarted || parsedOffset > startOffset {
@@ -79,7 +75,7 @@ struct AppendOnlyFile: Sendable {
     private mutating func readLines(
         _ file: FileDescriptor,
         in offsets: Range<UInt64>,
-        into consumer: inout some LineConsumer
+        consume: (UnsafeRawBufferPointer) -> Void
     ) -> Bool {
         var buffer = Self.mapPages(byteCount: min(offsets.count, Self.readSize))
         defer { Self.unmapPages(buffer) }
@@ -104,7 +100,7 @@ struct AppendOnlyFile: Sendable {
             }
             readOffset += UInt64(count)
             pending += count
-            let parsed = handOutCompleteLines(UnsafeRawBufferPointer(rebasing: buffer[..<pending]), into: &consumer)
+            let parsed = handOutCompleteLines(UnsafeRawBufferPointer(rebasing: buffer[..<pending]), consume: consume)
             parsedOffset += UInt64(parsed)
             pending -= parsed
             if let base = buffer.baseAddress, parsed > 0 {
@@ -130,7 +126,7 @@ struct AppendOnlyFile: Sendable {
 
     private mutating func handOutCompleteLines(
         _ bytes: UnsafeRawBufferPointer,
-        into consumer: inout some LineConsumer
+        consume: (UnsafeRawBufferPointer) -> Void
     ) -> Int {
         guard let base = bytes.baseAddress else {
             return 0
@@ -138,7 +134,7 @@ struct AppendOnlyFile: Sendable {
         var lineStart = 0
         while let newline = memchr(base + lineStart, 0x0A, bytes.count - lineStart) {
             let lineEnd = base.distance(to: newline)
-            consumer.consume(UnsafeRawBufferPointer(rebasing: bytes[lineStart..<lineEnd]))
+            consume(UnsafeRawBufferPointer(rebasing: bytes[lineStart..<lineEnd]))
             lineStart = lineEnd + 1
         }
         if lineStart > 0 {

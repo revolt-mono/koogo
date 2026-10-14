@@ -11,10 +11,11 @@ final class UsageEventIndexMemoryTests: XCTestCase {
         let usage = UsageRecord(timestamp: usageTestTimestamp, processedTokens: 1, cost: .zero, model: nil)
         let before = allocatedHeapBytes()
 
-        for number in 0..<50_000 {
-            index.insert(UsageEvent(id: .piAgent(entryID: String(number)), record: usage))
+        index.update { batch in
+            for number in 0..<50_000 {
+                batch.insert(UsageEvent(id: .piAgent(entryID: String(number)), record: usage))
+            }
         }
-        index.seal()
 
         XCTAssertLessThan(allocatedHeapBytes() - before, 24 * 1_024 * 1_024)
         XCTAssertEqual(index.count, 50_000)

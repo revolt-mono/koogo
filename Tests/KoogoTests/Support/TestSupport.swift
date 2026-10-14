@@ -32,6 +32,49 @@ extension XCTestCase {
         }
         return defaults
     }
+
+    func compileKoogoClient(_ source: String) async throws -> (status: Int32, diagnostics: String) {
+        let directory = try makeTemporaryDirectory()
+        let sourceURL = directory.appending(path: "Contract.swift")
+        let diagnosticsURL = directory.appending(path: "diagnostics")
+        try "@testable import Koogo\n\(source)".write(to: sourceURL, atomically: true, encoding: .utf8)
+        let executable = try makeTestExecutable(
+            in: directory,
+            script: """
+                #!/bin/sh
+                export DEVELOPER_DIR="$1"
+                diagnostics="$2"
+                shift 2
+                /usr/bin/xcrun swiftc "$@" > "$diagnostics" 2>&1
+                printf '%s\\n' "$?"
+                """
+        )
+
+        let products = Bundle(for: type(of: self)).bundleURL.deletingLastPathComponent()
+        let repository = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let shims = repository.appending(path: ".build/checkouts/swift-subprocess/Sources/_SubprocessCShims/include")
+        #if arch(arm64)
+        let target = "arm64-apple-macos26.0"
+        #else
+        let target = "x86_64-apple-macos26.0"
+        #endif
+        let developer =
+            ProcessInfo.processInfo.environment["DEVELOPER_DIR"]
+            ?? "/Applications/Xcode-beta.app/Contents/Developer"
+        let arguments = [
+            developer, diagnosticsURL.path, "-c", "-swift-version", "6", "-target", target,
+            "-I", products.path, "-F", products.path, "-F", products.appending(path: "PackageFrameworks").path,
+            "-Xcc", "-fmodule-map-file=\(shims.appending(path: "module.modulemap").path)",
+            sourceURL.path, "-o", directory.appending(path: "Contract.o").path,
+        ]
+        let compiler = CommandLineTool(candidates: [executable], timeout: .seconds(30))
+        let status = try await compiler.session(arguments) { streams in
+            var streams = streams
+            return try await streams.first { String(bytes: $0, encoding: .utf8).flatMap { Int32($0) } }
+        }
+        return (status, try String(contentsOf: diagnosticsURL, encoding: .utf8))
+    }
 }
 
 func makeTestExecutable(in directory: URL, script: String) throws -> URL {

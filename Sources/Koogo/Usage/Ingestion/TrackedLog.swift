@@ -8,61 +8,17 @@ protocol TrackedLog: Sendable {
     mutating func discard(before windowStart: Date)
 }
 
-private struct ParsedLines<Parser: UsageLogParser>: LineConsumer, Sendable {
-    private var parser = Parser()
-    private(set) var events = UsageEventIndex()
-    private(set) var tally = LogTally()
-    private var windowStart: Date
-
-    init(since windowStart: Date) {
-        self.windowStart = windowStart
-    }
-
-    mutating func read(_ file: inout AppendOnlyFile) -> FileRead {
-        let read = file.read(into: &self)
-        events.seal()
-        return read
-    }
-
-    mutating func restart() {
-        parser = Parser()
-        events = UsageEventIndex()
-        tally = LogTally()
-    }
-
-    mutating func consume(_ line: UnsafeRawBufferPointer) {
-        do {
-            switch try parser.parse(line) {
-            case .event(let event) where event.record.timestamp >= windowStart:
-                events.insert(event)
-            case .unpricedModel(let id, let timestamp) where timestamp >= windowStart:
-                tally.noteUnpricedModel(id, at: timestamp)
-            case .event, .unpricedModel, nil:
-                break
-            }
-        } catch {
-            tally.noteMalformedLine()
-        }
-    }
-
-    mutating func discard(before windowStart: Date) {
-        self.windowStart = windowStart
-        events.discard(before: windowStart)
-        tally.discard(before: windowStart)
-    }
-}
-
 struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
     private var file: AppendOnlyFile
-    private var lines: ParsedLines<Parser>
-
-    var events: UsageEventIndex { lines.events }
-    var tally: LogTally { lines.tally }
+    private var parser = Parser()
+    private var windowStart: Date
+    private(set) var events = UsageEventIndex()
+    private(set) var tally = LogTally()
 
     init?(_ path: String, observed metadata: UsageFileMetadata, since windowStart: Date) {
         file = AppendOnlyFile(path, observed: metadata)
-        lines = ParsedLines(since: windowStart)
-        guard lines.read(&self.file) != .unreadable else {
+        self.windowStart = windowStart
+        guard read() != .unreadable else {
             return nil
         }
     }
@@ -71,10 +27,38 @@ struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
         guard file.observe(metadata) else {
             return false
         }
-        return lines.read(&file) == .readLines
+        return read() == .readLines
     }
 
     mutating func discard(before windowStart: Date) {
-        lines.discard(before: windowStart)
+        self.windowStart = windowStart
+        events.discard(before: windowStart)
+        tally.discard(before: windowStart)
+    }
+
+    private mutating func read() -> FileRead {
+        events.update { batch in
+            file.read(
+                restart: {
+                    parser = Parser()
+                    batch.removeAll()
+                    tally = LogTally()
+                },
+                consume: { line in
+                    do {
+                        switch try parser.parse(line) {
+                        case .event(let event) where event.record.timestamp >= windowStart:
+                            batch.insert(event)
+                        case .unpricedModel(let id, let timestamp) where timestamp >= windowStart:
+                            tally.noteUnpricedModel(id, at: timestamp)
+                        case .event, .unpricedModel, nil:
+                            break
+                        }
+                    } catch {
+                        tally.noteMalformedLine()
+                    }
+                }
+            )
+        }
     }
 }

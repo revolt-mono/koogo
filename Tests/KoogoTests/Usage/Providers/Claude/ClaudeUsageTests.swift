@@ -113,10 +113,11 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
 
             for copies in [[bareCopy, detailedCopy], [detailedCopy, bareCopy]] {
                 var index = UsageEventIndex()
-                for copy in copies {
-                    index.insert(copy)
+                index.update { batch in
+                    for copy in copies {
+                        batch.insert(copy)
+                    }
                 }
-                index.seal()
                 XCTAssertEqual(index.values.map(\.record.processedTokens), [120], detailed)
             }
         }

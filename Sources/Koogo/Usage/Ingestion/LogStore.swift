@@ -85,16 +85,17 @@ struct LogStore: ~Copyable {
             visit(event)
         }
         var shared = UsageEventIndex()
-        for log in logs {
-            for event in log.events.values {
-                if sharedHashes.contains(event.id.hashValue) {
-                    shared.insert(event)
-                } else {
-                    countAndVisit(event)
+        shared.update { batch in
+            for log in logs {
+                for event in log.events.values {
+                    if sharedHashes.contains(event.id.hashValue) {
+                        batch.insert(event)
+                    } else {
+                        countAndVisit(event)
+                    }
                 }
             }
         }
-        shared.seal()
         shared.values.forEach(countAndVisit)
         return UsageIngestionStats(
             logRoots: logRoots,

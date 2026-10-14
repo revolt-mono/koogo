@@ -1,6 +1,18 @@
 import Foundation
 
 struct UsageEventIndex: Sendable {
+    struct Batch: ~Copyable {
+        fileprivate var index: UsageEventIndex
+
+        mutating func insert(_ event: UsageEvent) {
+            index.pending.append(index.entry(event))
+        }
+
+        mutating func removeAll() {
+            index = UsageEventIndex()
+        }
+    }
+
     /// Fields run from widest to narrowest, with the revision split, so the narrow ones share the identity's padding: 56 bytes a stride instead of 72.
     private struct Entry: Sendable {
         let secondsSinceReferenceDate: TimeInterval
@@ -32,7 +44,7 @@ struct UsageEventIndex: Sendable {
     private var models: [ModelID?] = [nil]
 
     var values: some Collection<UsageEvent> {
-        entries.lazy.map { [models] entry in
+        sealed.lazy.map { [models] entry in
             UsageEvent(
                 id: entry.id,
                 record: UsageRecord(
@@ -47,24 +59,24 @@ struct UsageEventIndex: Sendable {
     }
 
     var keys: some Collection<UsageEventID> {
-        entries.lazy.map(\.id)
+        sealed.lazy.map(\.id)
     }
 
     var count: Int {
-        entries.count
+        sealed.count
     }
 
-    private var entries: [Entry] {
-        precondition(pending.isEmpty, "seal the index before reading it")
-        return sealed
+    /// Publishes a deduplicated batch on return or throw. The batch cannot be copied or read while being built.
+    mutating func update<Result>(_ body: (inout Batch) throws -> Result) rethrows -> Result {
+        var batch = Batch(index: consume self)
+        defer {
+            batch.index.seal()
+            self = batch.index
+        }
+        return try body(&batch)
     }
 
-    mutating func insert(_ event: UsageEvent) {
-        pending.append(entry(event))
-    }
-
-    /// Keeps the surviving copy of each id among the sealed and pending events, which readers require.
-    mutating func seal() {
+    private mutating func seal() {
         guard !pending.isEmpty else {
             return
         }
@@ -86,7 +98,6 @@ struct UsageEventIndex: Sendable {
     }
 
     mutating func discard(before windowStart: Date) {
-        precondition(pending.isEmpty, "seal the index before discarding from it")
         sealed.removeAll { $0.timestamp < windowStart }
     }
 
