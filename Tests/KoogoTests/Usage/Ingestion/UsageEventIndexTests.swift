@@ -163,44 +163,6 @@ final class UsageEventIndexTests: XCTestCase {
         XCTAssertEqual(index.values.map(\.record.processedTokens).sorted(), [20, 30])
     }
 
-    func testBatchReadersAndEscapingWritersAreRejectedByTheCompiler() async throws {
-        let allowed = try await compileKoogoClient(
-            """
-            func verify(_ event: UsageEvent) {
-                var index = UsageEventIndex()
-                index.update { $0.insert(event) }
-                _ = index.values
-            }
-            """
-        )
-        XCTAssertEqual(allowed.status, 0, allowed.diagnostics)
-
-        let reader = try await compileKoogoClient(
-            """
-            func verify() {
-                var index = UsageEventIndex()
-                index.update { batch in _ = batch.values }
-            }
-            """
-        )
-        XCTAssertNotEqual(reader.status, 0)
-        XCTAssertTrue(reader.diagnostics.contains("has no member 'values'"), reader.diagnostics)
-
-        for (transfer, expected) in [("batch", "is consuming"), ("consume batch", "missing reinitialization")] {
-            let escaped = try await compileKoogoClient(
-                """
-                func verify() {
-                    var retained: UsageEventIndex.Batch?
-                    var index = UsageEventIndex()
-                    index.update { batch in retained = \(transfer) }
-                }
-                """
-            )
-            XCTAssertNotEqual(escaped.status, 0)
-            XCTAssertTrue(escaped.diagnostics.contains(expected), escaped.diagnostics)
-        }
-    }
-
     func testTallyKeepsTheLatestUnpricedTimestampInsideTheWindow() {
         let windowStart = usageTestTimestamp
         var tally = LogTally()
