@@ -62,9 +62,7 @@ struct ClaudeControlResponse: Decodable {
         get throws {
             guard type == "control_response", let response else { return nil }
             guard response.subtype == "success", let reply = response.response else {
-                throw DecodingError.dataCorrupted(
-                    DecodingError.Context(codingPath: [], debugDescription: "the usage request failed")
-                )
+                throw ToolFailure.invalidMessage
             }
             return reply
         }

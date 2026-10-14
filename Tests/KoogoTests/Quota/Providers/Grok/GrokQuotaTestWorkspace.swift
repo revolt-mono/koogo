@@ -1,13 +1,7 @@
 import Foundation
 
-struct GrokQuotaTestWorkspace {
-    let tool: ScriptedToolWorkspace
-
-    init(root: URL) {
-        tool = ScriptedToolWorkspace(root: root)
-    }
-
-    var root: URL { tool.root }
+struct GrokQuotaTestWorkspace: ScriptedToolWorkspace {
+    let root: URL
 
     func makeAgent(
         billingResponse: String = response(),
@@ -17,20 +11,20 @@ struct GrokQuotaTestWorkspace {
         try makeTestExecutable(
             in: root,
             script: """
-                \(tool.prologue)
+                \(prologue)
                 IFS= read -r request || exit 1
-                printf '%s\\n' "$request" > '\(tool.requestsFile.path)'
+                printf '%s\\n' "$request" > '\(requestsFile.path)'
                 /bin/cat <<'INITIALIZE'
                 \(initializeResponse)
                 INITIALIZE
                 IFS= read -r request || exit 1
-                printf '%s\\n' "$request" >> '\(tool.requestsFile.path)'
+                printf '%s\\n' "$request" >> '\(requestsFile.path)'
                 \(beforeBilling)
                 /bin/cat <<'BILLING'
                 \(billingResponse)
                 BILLING
                 while IFS= read -r request; do
-                  printf '%s\\n' "$request" >> '\(tool.requestsFile.path)'
+                  printf '%s\\n' "$request" >> '\(requestsFile.path)'
                 done
                 """
         )

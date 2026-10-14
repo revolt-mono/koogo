@@ -24,11 +24,8 @@ struct ClaudeQuotaSource: QuotaSource {
     }
 
     func load() async -> QuotaReading {
-        await QuotaReading { () throws(ToolFailure) in
-            try await tool.session(
-                Self.arguments,
-                in: CommandLineTool.neutralDirectory
-            ) { streams in
+        do throws(ToolFailure) {
+            return try await tool.session(Self.arguments) { streams in
                 // The CLI shuts down and skips network reads once its input closes, so the request must stay open until the reply arrives.
                 try await streams.write(Self.request)
                 let reply = try await streams.first {
@@ -36,6 +33,8 @@ struct ClaudeQuotaSource: QuotaSource {
                 }
                 return reply.reading
             }
+        } catch {
+            return .unavailable(QuotaUnavailability(error))
         }
     }
 

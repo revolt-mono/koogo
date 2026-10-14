@@ -1,13 +1,7 @@
 import Foundation
 
-struct ClaudeQuotaTestWorkspace {
-    let tool: ScriptedToolWorkspace
-
-    init(root: URL) {
-        tool = ScriptedToolWorkspace(root: root)
-    }
-
-    var root: URL { tool.root }
+struct ClaudeQuotaTestWorkspace: ScriptedToolWorkspace {
+    let root: URL
 
     func makeCLI(
         output: String = response(),
@@ -16,10 +10,10 @@ struct ClaudeQuotaTestWorkspace {
         try makeTestExecutable(
             in: root,
             script: """
-                \(tool.prologue)
+                \(prologue)
                 \(beforeOutput)
                 IFS= read -r request || exit 1
-                printf '%s\\n' "$request" > '\(tool.requestsFile.path)'
+                printf '%s\\n' "$request" > '\(requestsFile.path)'
                 /bin/cat <<'OUTPUT'
                 \(output)
                 OUTPUT

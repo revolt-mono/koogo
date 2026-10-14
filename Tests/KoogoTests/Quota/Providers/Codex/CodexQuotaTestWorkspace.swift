@@ -1,13 +1,7 @@
 import Foundation
 
-struct CodexQuotaTestWorkspace {
-    let tool: ScriptedToolWorkspace
-
-    init(root: URL) {
-        tool = ScriptedToolWorkspace(root: root)
-    }
-
-    var root: URL { tool.root }
+struct CodexQuotaTestWorkspace: ScriptedToolWorkspace {
+    let root: URL
 
     static let resetCredit = """
         {"id":"credit-a","resetType":"codexRateLimits","status":"available","grantedAt":1700000000,"expiresAt":4102444800,"title":"Usage reset","description":"Reset eligible usage limits"}
@@ -40,7 +34,7 @@ struct CodexQuotaTestWorkspace {
         return try makeTestExecutable(
             in: root,
             script: """
-                \(tool.prologue)
+                \(prologue)
                 \(onStart)
                 while IFS= read -r request; do
                   case "$request" in

@@ -19,7 +19,7 @@ struct CommandLineTool: Sendable {
     }()
 
     /// Holds no project settings, so a tool run here reads only its user-level configuration.
-    static let neutralDirectory = URL(filePath: "/tmp", directoryHint: .isDirectory)
+    private static let workingDirectory = FilePath("/tmp")
 
     private let candidates: [URL]
     private let timeout: Duration
@@ -39,14 +39,13 @@ struct CommandLineTool: Sendable {
     /// Runs one conversation over the tool's standard streams. A decoding error or oversized output inside the session is an invalid message; any other error means the tool closed the conversation.
     func session<Value: Sendable>(
         _ arguments: [String],
-        in directory: URL? = nil,
         _ session: @escaping @Sendable (inout ToolStreams) async throws -> Value
     ) async throws(ToolFailure) -> Value {
         guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) })
         else { throw .notFound }
         Self.brokenPipesIgnored
         do {
-            return try await converse(with: executable, arguments, in: directory, session)
+            return try await converse(with: executable, arguments, session)
         } catch let failure as ToolFailure {
             throw failure
         } catch is DecodingError {
@@ -61,7 +60,6 @@ struct CommandLineTool: Sendable {
     private func converse<Value: Sendable>(
         with executable: URL,
         _ arguments: [String],
-        in directory: URL?,
         _ session: @escaping @Sendable (inout ToolStreams) async throws -> Value
     ) async throws -> Value {
         // A fixed environment keeps the launching shell's switches, such as a Claude Code session's CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, out of the tool. HOME and USER locate its credentials.
@@ -74,7 +72,7 @@ struct CommandLineTool: Sendable {
                 "USER": NSUserName(),
                 "PATH": (searchPath + ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]).joined(separator: ":"),
             ]),
-            workingDirectory: directory.map { FilePath($0.path) },
+            workingDirectory: Self.workingDirectory,
             platformOptions: Self.platformOptions,
             input: .inputWriter,
             output: .sequence,

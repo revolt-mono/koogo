@@ -2,16 +2,6 @@ protocol QuotaSource: Sendable {
     func load() async -> QuotaReading
 }
 
-extension QuotaReading {
-    init(_ read: () async throws(ToolFailure) -> QuotaReading) async {
-        do {
-            self = try await read()
-        } catch {
-            self = .unavailable(QuotaUnavailability(error))
-        }
-    }
-}
-
 extension QuotaUnavailability {
     init(_ failure: ToolFailure) {
         self =

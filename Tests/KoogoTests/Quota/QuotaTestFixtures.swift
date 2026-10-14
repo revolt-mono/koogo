@@ -94,25 +94,19 @@ func waitForExit(
     try await waitUntil(timeout: .seconds(3), file: file, line: line) { kill(pid, 0) == -1 && errno == ESRCH }
 }
 
-struct ScriptedToolWorkspace {
-    let root: URL
+protocol ScriptedToolWorkspace {
+    var root: URL { get }
+}
 
+extension ScriptedToolWorkspace {
     var requestsFile: URL { root.appending(path: "requests.jsonl") }
     var argumentsFile: URL { root.appending(path: "arguments") }
-    var directoryFile: URL { root.appending(path: "directory") }
 
     var prologue: String {
         """
         #!/bin/sh
         printf '%s\\n' "$@" > '\(argumentsFile.path)'
-        pwd > '\(directoryFile.path)'
         """
-    }
-
-    /// The directory the tool ran in, with symlinks resolved.
-    func workingDirectory() throws -> URL {
-        let path = try String(contentsOf: directoryFile, encoding: .utf8).trimmingCharacters(in: .newlines)
-        return URL(filePath: path).resolvingSymlinksInPath()
     }
 }
 

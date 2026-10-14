@@ -1,4 +1,4 @@
-enum ToolFailure: Error, Equatable, Sendable {
+enum ToolFailure: Error, Equatable {
     case notFound
     case timedOut
     /// The tool exited, never ran, or closed its output before replying.

@@ -16,11 +16,8 @@ struct GrokQuotaSource: QuotaSource {
     }
 
     func load() async -> QuotaReading {
-        await QuotaReading { () throws(ToolFailure) in
-            try await tool.session(
-                ["--no-auto-update", "agent", "--no-leader", "stdio"],
-                in: CommandLineTool.neutralDirectory
-            ) { streams in
+        do throws(ToolFailure) {
+            return try await tool.session(["--no-auto-update", "agent", "--no-leader", "stdio"]) { streams in
                 var connection = JSONRPCConnection(streams, dateDecodingStrategy: .iso8601)
                 let initialized: InitializeResponse = try await connection.request(
                     "initialize",
@@ -38,6 +35,8 @@ struct GrokQuotaSource: QuotaSource {
                     return .unavailable(.noPlan)
                 }
             }
+        } catch {
+            return .unavailable(QuotaUnavailability(error))
         }
     }
 }
