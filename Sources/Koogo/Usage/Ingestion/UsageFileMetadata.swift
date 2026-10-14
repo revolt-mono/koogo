@@ -5,6 +5,11 @@ struct UsageFileMetadata: Sendable {
     struct Identity: Equatable, Sendable {
         let device: UInt64
         let inode: UInt64
+
+        init(_ status: Darwin.stat) {
+            device = UInt64(status.st_dev)
+            inode = UInt64(status.st_ino)
+        }
     }
 
     let identity: Identity
@@ -23,10 +28,7 @@ struct UsageFileMetadata: Sendable {
         guard status.st_size >= 0, status.st_mode & S_IFMT == S_IFREG else {
             return nil
         }
-        identity = Identity(
-            device: UInt64(status.st_dev),
-            inode: UInt64(status.st_ino)
-        )
+        identity = Identity(status)
         size = UInt64(status.st_size)
         modificationDate = Date(
             timeIntervalSince1970: TimeInterval(status.st_mtimespec.tv_sec)

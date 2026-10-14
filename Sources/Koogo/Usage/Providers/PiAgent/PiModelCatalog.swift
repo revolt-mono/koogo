@@ -32,8 +32,7 @@ struct PiModelCatalog: Sendable {
 
     /// A file's inode and change time. The change time moves on every write, rename, or attribute change and cannot be set back.
     private struct SourceVersion: Equatable {
-        let device: UInt64
-        let inode: UInt64
+        let identity: UsageFileMetadata.Identity
         let changeSeconds: Int
         let changeNanoseconds: Int
 
@@ -42,8 +41,7 @@ struct PiModelCatalog: Sendable {
             guard stat(url.path, &status) == 0 else {
                 return nil
             }
-            device = UInt64(status.st_dev)
-            inode = UInt64(status.st_ino)
+            identity = UsageFileMetadata.Identity(status)
             changeSeconds = status.st_ctimespec.tv_sec
             changeNanoseconds = status.st_ctimespec.tv_nsec
         }
