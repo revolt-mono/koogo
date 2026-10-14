@@ -33,9 +33,12 @@ struct ParsedLines<Parser: UsageLogParser>: LineConsumer, Sendable {
     mutating func consume(_ line: UnsafeRawBufferPointer) {
         do {
             switch try parser.parse(line) {
-            case .event(let event): events.insert(event, since: windowStart)
-            case .unpricedModel(let id, let timestamp): tally.noteUnpricedModel(id, at: timestamp, since: windowStart)
-            case nil: break
+            case .event(let event) where event.record.timestamp >= windowStart:
+                events.insert(event)
+            case .unpricedModel(let id, let timestamp) where timestamp >= windowStart:
+                tally.noteUnpricedModel(id, at: timestamp)
+            case .event, .unpricedModel, nil:
+                break
             }
         } catch {
             tally.noteMalformedLine()

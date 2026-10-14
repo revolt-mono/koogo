@@ -13,15 +13,9 @@ final class UsageEventIndexTests: XCTestCase {
 
         for id in ids {
             var index = UsageEventIndex()
-            index.insert(
-                UsageEvent(id: id, record: record(tokens: 10, at: usageTestTimestamp + 1)),
-                since: .distantPast
-            )
-            index.insert(UsageEvent(id: id, record: record(tokens: 10)), since: .distantPast)
-            index.insert(
-                UsageEvent(id: id, record: record(tokens: 10, at: usageTestTimestamp + 2)),
-                since: .distantPast
-            )
+            index.insert(UsageEvent(id: id, record: record(tokens: 10, at: usageTestTimestamp + 1)))
+            index.insert(UsageEvent(id: id, record: record(tokens: 10)))
+            index.insert(UsageEvent(id: id, record: record(tokens: 10, at: usageTestTimestamp + 2)))
             index.seal()
 
             XCTAssertEqual(index.values.map(\.record.timestamp), [usageTestTimestamp], "\(id)")
@@ -44,12 +38,12 @@ final class UsageEventIndexTests: XCTestCase {
 
         for (partial, complete) in zip(ladder, ladder.dropFirst()) {
             var completeFirst = UsageEventIndex()
-            completeFirst.insert(complete, since: .distantPast)
-            completeFirst.insert(partial, since: .distantPast)
+            completeFirst.insert(complete)
+            completeFirst.insert(partial)
             completeFirst.seal()
             var partialFirst = UsageEventIndex()
-            partialFirst.insert(partial, since: .distantPast)
-            partialFirst.insert(complete, since: .distantPast)
+            partialFirst.insert(partial)
+            partialFirst.insert(complete)
             partialFirst.seal()
 
             for index in [completeFirst, partialFirst] {
@@ -63,17 +57,14 @@ final class UsageEventIndexTests: XCTestCase {
     func testSealedCopiesYieldOnlyToMoreCompleteOnes() {
         var index = UsageEventIndex()
         for id in 0..<8 {
-            index.insert(usageEvent(.claude, id: id, processedTokens: 10, costUSD: 0), since: .distantPast)
+            index.insert(usageEvent(.claude, id: id, processedTokens: 10, costUSD: 0))
         }
         index.seal()
 
         for id in 0..<8 {
-            index.insert(
-                usageEvent(.claude, id: id, processedTokens: id.isMultiple(of: 2) ? 50 : 5, costUSD: 0),
-                since: .distantPast
-            )
+            index.insert(usageEvent(.claude, id: id, processedTokens: id.isMultiple(of: 2) ? 50 : 5, costUSD: 0))
         }
-        index.insert(usageEvent(.claude, id: 8, processedTokens: 1, costUSD: 0), since: .distantPast)
+        index.insert(usageEvent(.claude, id: 8, processedTokens: 1, costUSD: 0))
         index.seal()
 
         XCTAssertEqual(
@@ -82,15 +73,14 @@ final class UsageEventIndexTests: XCTestCase {
         )
     }
 
-    func testInsertSkipsEventsBeforeTheWindowAndDiscardDropsThem() {
+    func testDiscardDropsEventsBeforeTheWindow() {
         let windowStart = usageTestTimestamp
         let old = windowStart.addingTimeInterval(-1)
         var index = UsageEventIndex()
-        index.insert(usageEvent(.codex, id: 1, processedTokens: 1, costUSD: 0, at: old), since: windowStart)
         for (id, provider) in Provider.allCases.enumerated() {
-            index.insert(usageEvent(provider, id: id, processedTokens: 2, costUSD: 0, at: old), since: .distantPast)
+            index.insert(usageEvent(provider, id: id, processedTokens: 2, costUSD: 0, at: old))
         }
-        index.insert(usageEvent(.codex, id: 100, processedTokens: 4, costUSD: 0), since: windowStart)
+        index.insert(usageEvent(.codex, id: 100, processedTokens: 4, costUSD: 0))
         index.seal()
         XCTAssertEqual(index.count, 5)
 
@@ -102,10 +92,10 @@ final class UsageEventIndexTests: XCTestCase {
     func testTallyKeepsTheLatestUnpricedTimestampInsideTheWindow() {
         let windowStart = usageTestTimestamp
         var tally = LogTally()
-        tally.noteUnpricedModel("old", at: windowStart - 1, since: windowStart)
-        tally.noteUnpricedModel("kept", at: windowStart + 1, since: windowStart)
-        tally.noteUnpricedModel("kept", at: windowStart, since: windowStart)
-        tally.noteUnpricedModel("aging", at: windowStart, since: windowStart)
+        tally.noteUnpricedModel("old", at: windowStart - 1)
+        tally.noteUnpricedModel("kept", at: windowStart + 1)
+        tally.noteUnpricedModel("kept", at: windowStart)
+        tally.noteUnpricedModel("aging", at: windowStart)
         tally.noteMalformedLine()
 
         tally.discard(before: windowStart + 1)

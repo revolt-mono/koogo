@@ -12,7 +12,7 @@ final class UsageEventIndexMemoryTests: XCTestCase {
         let before = allocatedHeapBytes()
 
         for number in 0..<50_000 {
-            index.insert(UsageEvent(id: .piAgent(entryID: String(number)), record: usage), since: .distantPast)
+            index.insert(UsageEvent(id: .piAgent(entryID: String(number)), record: usage))
         }
         index.seal()
 

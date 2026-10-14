@@ -87,7 +87,7 @@ struct LogStore {
         for log in logs {
             for event in log.events.values {
                 if sharedHashes.contains(event.id.hashValue) {
-                    shared.insert(event, since: windowStart)
+                    shared.insert(event)
                 } else {
                     countAndVisit(event)
                 }

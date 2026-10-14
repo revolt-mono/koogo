@@ -59,10 +59,7 @@ struct UsageEventIndex: Sendable {
         return sealed
     }
 
-    mutating func insert(_ event: UsageEvent, since windowStart: Date) {
-        guard event.record.timestamp >= windowStart else {
-            return
-        }
+    mutating func insert(_ event: UsageEvent) {
         pending.append(entry(event))
     }
 
@@ -89,7 +86,7 @@ struct UsageEventIndex: Sendable {
     }
 
     mutating func discard(before windowStart: Date) {
-        seal()
+        precondition(pending.isEmpty, "seal the index before discarding from it")
         sealed.removeAll { $0.timestamp < windowStart }
     }
 

@@ -12,10 +12,7 @@ struct LogTally: Sendable {
         malformedLines += 1
     }
 
-    mutating func noteUnpricedModel(_ id: ModelID, at timestamp: Date, since windowStart: Date) {
-        guard timestamp >= windowStart else {
-            return
-        }
+    mutating func noteUnpricedModel(_ id: ModelID, at timestamp: Date) {
         unpricedModels[id] = max(unpricedModels[id] ?? .distantPast, timestamp)
     }
 
