@@ -35,7 +35,7 @@ final class AppProcessGroupTests: XCTestCase {
 
         XCTAssertEqual(groups.map(\.id), [200, 100, 300])
         XCTAssertEqual(groups.map(\.name), ["Slack", "Chromium", "zsh"])
-        XCTAssertEqual(groups.map(\.members), [[200], [100, 101, 102], [300]])
+        XCTAssertEqual(groups.map { $0.members.map(\.pid) }, [[200], [100, 101, 102], [300]])
         XCTAssertEqual(groups.map(\.footprint), [100, 90, 5])
         XCTAssertEqual(groups.map(\.cpu), [0, 0.5, 0])
         XCTAssertEqual(groups.map(\.gpu), [0.2, 0, 0])
@@ -163,10 +163,11 @@ final class AppProcessGroupTests: XCTestCase {
         child.arguments = ["10"]
         try child.run()
         addTeardownBlock { child.terminate() }
+        let identity = try XCTUnwrap(LibProc.identity(of: child.processIdentifier))
         let scan = ProcessScan(
             records: [
                 record(pid: 2_147_483_000, responsiblePID: 1, path: "/bin/sleep", footprint: 1),
-                record(pid: child.processIdentifier, responsiblePID: 1, path: "/bin/sleep", footprint: 1),
+                record(identity: identity, responsiblePID: 1, path: "/bin/sleep", footprint: 1),
             ],
             taken: start
         )
@@ -178,6 +179,26 @@ final class AppProcessGroupTests: XCTestCase {
         XCTAssertEqual(child.terminationReason, .uncaughtSignal)
     }
 
+    func testForceTerminatingSparesAProcessThatTookOverAScannedPID() async throws {
+        let child = Process()
+        child.executableURL = URL(filePath: "/bin/sleep")
+        child.arguments = ["10"]
+        try child.run()
+        addTeardownBlock { child.terminate() }
+        let identity = try XCTUnwrap(LibProc.identity(of: child.processIdentifier))
+        let earlierOwner = ProcessIdentity(pid: identity.pid, startTicks: identity.startTicks - 1)
+        let scan = ProcessScan(
+            records: [record(identity: earlierOwner, responsiblePID: 1, path: "/bin/sleep", footprint: 1)],
+            taken: start
+        )
+        let group = try XCTUnwrap(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first)
+
+        group.forceTerminate()
+
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(child.isRunning)
+    }
+
     private func record(
         pid: pid_t,
         responsiblePID: pid_t,
@@ -187,8 +208,28 @@ final class AppProcessGroupTests: XCTestCase {
         cpuTime: Duration = .zero,
         gpuTime: Duration = .zero
     ) -> ProcessRecord {
+        record(
+            identity: ProcessIdentity(pid: pid, startTicks: 0),
+            responsiblePID: responsiblePID,
+            path: path,
+            footprint: footprint,
+            launched: launched,
+            cpuTime: cpuTime,
+            gpuTime: gpuTime
+        )
+    }
+
+    private func record(
+        identity: ProcessIdentity,
+        responsiblePID: pid_t,
+        path: String,
+        footprint: UInt64,
+        launched: SuspendingClock.Instant? = nil,
+        cpuTime: Duration = .zero,
+        gpuTime: Duration = .zero
+    ) -> ProcessRecord {
         ProcessRecord(
-            pid: pid,
+            identity: identity,
             responsiblePID: responsiblePID,
             executablePath: path,
             launched: launched ?? start - .seconds(60),

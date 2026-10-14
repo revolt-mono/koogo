@@ -11,7 +11,7 @@ struct CPUTicks: Sendable {
         var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size / MemoryLayout<integer_t>.size)
         let status = withUnsafeMutablePointer(to: &info) { pointer in
             pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+                host_statistics(MachHost.port, HOST_CPU_LOAD_INFO, $0, &count)
             }
         }
         guard status == KERN_SUCCESS else { throw ActivityReadFailure.cpu }
@@ -26,9 +26,10 @@ struct CPUCores: Sendable {
     let efficiency: Int
 
     static func read() throws -> CPUCores {
-        guard let performance: Int = Sysctl.value("hw.perflevel0.physicalcpu") ?? Sysctl.value("hw.physicalcpu")
+        guard let performance: Int32 = Sysctl.value("hw.perflevel0.physicalcpu") ?? Sysctl.value("hw.physicalcpu")
         else { throw ActivityReadFailure.cpu }
-        return CPUCores(performance: performance, efficiency: Sysctl.value("hw.perflevel1.physicalcpu") ?? 0)
+        let efficiency: Int32 = Sysctl.value("hw.perflevel1.physicalcpu") ?? 0
+        return CPUCores(performance: Int(performance), efficiency: Int(efficiency))
     }
 }
 

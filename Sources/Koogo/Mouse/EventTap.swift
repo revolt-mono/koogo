@@ -8,9 +8,18 @@ import os
 @MainActor
 @Observable
 final class EventTap {
-    private(set) var isRunning = false
+    private enum State: Equatable {
+        case notInstalled
+        case paused(CFMachPort)
+        case running(CFMachPort)
+    }
 
-    @ObservationIgnored private var port: CFMachPort?
+    private var state = State.notInstalled
+
+    var isRunning: Bool {
+        if case .running = state { true } else { false }
+    }
+
     private let rules = Atomic(InputRules(MouseSettings(), frontmostApp: nil))
     private nonisolated(unsafe) let rewriter = ScrollRewriter()
     private let lookUp = LookUpShortcut()
@@ -18,20 +27,24 @@ final class EventTap {
     /// Installs on the first run and again after the tap stops; installing needs Accessibility trust.
     func run(_ rules: InputRules) {
         self.rules.store(rules, ordering: .relaxed)
-        if port == nil {
-            port = install()
+        let port: CFMachPort? =
+            switch state {
+            case .notInstalled: install()
+            case .paused(let port), .running(let port): port
+            }
+        guard let port else {
+            return
         }
-        if let port {
-            CGEvent.tapEnable(tap: port, enable: true)
-        }
-        isRunning = port != nil
+        CGEvent.tapEnable(tap: port, enable: true)
+        state = .running(port)
     }
 
     func pause() {
-        if let port {
-            CGEvent.tapEnable(tap: port, enable: false)
+        guard case .running(let port) = state else {
+            return
         }
-        isRunning = false
+        CGEvent.tapEnable(tap: port, enable: false)
+        state = .paused(port)
     }
 
     /// Declared outside any main actor method, whose isolation a closure would inherit and then trap on the tap's thread.
@@ -77,12 +90,11 @@ final class EventTap {
 
     private func stopped() {
         Logger.mouse.warning("event tap stopped")
-        port = nil
-        isRunning = false
+        state = .notInstalled
     }
 
     private func resume() {
-        guard isRunning, let port else {
+        guard case .running(let port) = state else {
             return
         }
         Logger.mouse.notice("event tap re-enabled after macOS disabled it")
@@ -117,6 +129,7 @@ final class EventTap {
             }
             return nil
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            // The one allocation on this path: the tap is already off, and the main actor stays the only writer of the state, so a pause can't race the re-enable.
             Task { @MainActor in
                 resume()
             }

@@ -4,13 +4,15 @@ import os
 
 /// One running process of the current user and the process macOS holds responsible for it. Cpu and gpu time accumulate since launch, so only their differences between two scans are loads.
 struct ProcessRecord: Sendable {
-    let pid: pid_t
+    let identity: ProcessIdentity
     let responsiblePID: pid_t
     let executablePath: String
     let launched: SuspendingClock.Instant
     let footprint: UInt64
     let cpuTime: Duration
     let gpuTime: Duration
+
+    var pid: pid_t { identity.pid }
 }
 
 /// Timed on the suspending clock, which pauses in sleep like the mach absolute time rusage stamps launches with.
@@ -52,7 +54,7 @@ struct AppProcessGroup: Identifiable, Sendable {
     let name: String
     let iconPath: String
     /// Every process in the group, since the responsible one may be out of reach.
-    let members: [pid_t]
+    let members: [ProcessIdentity]
     let footprint: UInt64
     /// Cores' worth of cpu time between the two scans; one busy core reads as 1.
     let cpu: Double
@@ -60,9 +62,12 @@ struct AppProcessGroup: Identifiable, Sendable {
     let gpu: Double
 
     func forceTerminate() {
-        if NSRunningApplication(processIdentifier: id)?.forceTerminate() == true { return }
-        for pid in members where !LibProc.forceKill(pid) {
-            Logger.activity.error("force terminate failed pid=\(pid) errno=\(errno)")
+        for member in members {
+            do {
+                try LibProc.forceKill(member)
+            } catch {
+                Logger.activity.error("force terminate failed pid=\(member.pid): \(error, privacy: .public)")
+            }
         }
     }
 
@@ -92,7 +97,7 @@ struct AppProcessGroup: Identifiable, Sendable {
                     id: group.id,
                     name: identity.name,
                     iconPath: identity.iconPath,
-                    members: group.members.map(\.pid),
+                    members: group.members.map(\.identity),
                     footprint: group.footprint,
                     cpu: group.members.reduce(0) { $0 + load($1, \.cpuTime) },
                     gpu: group.members.reduce(0) { $0 + load($1, \.gpuTime) }
@@ -127,7 +132,7 @@ extension ProcessScan {
         }
         let responsible = responsiblePID?(pid) ?? pid
         return ProcessRecord(
-            pid: pid,
+            identity: ProcessIdentity(pid: pid, startTicks: usage.ri_proc_start_abstime),
             responsiblePID: responsible > 0 ? responsible : pid,
             executablePath: executablePath,
             launched: absoluteTimeZero + duration(ofTicks: usage.ri_proc_start_abstime),

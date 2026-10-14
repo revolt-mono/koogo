@@ -76,6 +76,13 @@ struct StrippedNotch {
     let notch: CGEvent
     let optionRestored: CGEvent
 
+    /// Borrows the strip's reusable events, so a notch is valid only until the next rewrite.
+    fileprivate init(optionReleased: CGEvent, notch: CGEvent, optionRestored: CGEvent) {
+        self.optionReleased = optionReleased
+        self.notch = notch
+        self.optionRestored = optionRestored
+    }
+
     func post(via proxy: CGEventTapProxy) {
         optionReleased.tapPostEvent(proxy)
         notch.tapPostEvent(proxy)

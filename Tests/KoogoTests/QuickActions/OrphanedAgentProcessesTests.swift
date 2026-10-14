@@ -4,23 +4,25 @@ import XCTest
 @testable import Koogo
 
 final class OrphanedAgentProcessesTests: XCTestCase {
+    private let identity = ProcessIdentity(pid: 42, startTicks: 0)
+
     func testOrphanedAgentProcessRecognizesAgentExecutablesReparentedToLaunchd() {
         let orphans = [
             "/Users/me/.local/share/claude/versions/2.1.284",
             "/Users/me/.codex/packages/standalone/releases/0.158.0-aarch64-apple-darwin/bin/codex",
             "/Users/me/.grok/downloads/grok-1.0.45-macos-aarch64",
-        ].map { OrphanedAgentProcess(pid: 42, parentPID: 1, executablePath: $0)?.provider }
+        ].map { OrphanedAgentProcess(identity, parentPID: 1, executablePath: $0)?.provider }
 
         XCTAssertEqual(orphans, [.claude, .codex, .grok])
         XCTAssertNil(
             OrphanedAgentProcess(
-                pid: 42,
+                identity,
                 parentPID: 900,
                 executablePath: "/Users/me/.local/share/claude/versions/2.1.284"
             )
         )
-        XCTAssertNil(OrphanedAgentProcess(pid: 42, parentPID: 1, executablePath: "/opt/tool/versions/2.1.284"))
-        XCTAssertNil(OrphanedAgentProcess(pid: 42, parentPID: 1, executablePath: "/Users/me/.local/share/claude/node"))
+        XCTAssertNil(OrphanedAgentProcess(identity, parentPID: 1, executablePath: "/opt/tool/versions/2.1.284"))
+        XCTAssertNil(OrphanedAgentProcess(identity, parentPID: 1, executablePath: "/Users/me/.local/share/claude/node"))
     }
 
     func testOrphanedAgentProcessesIsNilWhenEmpty() {
@@ -38,6 +40,8 @@ final class OrphanedAgentProcessesTests: XCTestCase {
     }
 
     private func orphan(pid: pid_t, executablePath: String) throws -> OrphanedAgentProcess {
-        try XCTUnwrap(OrphanedAgentProcess(pid: pid, parentPID: 1, executablePath: executablePath))
+        try XCTUnwrap(
+            OrphanedAgentProcess(ProcessIdentity(pid: pid, startTicks: 0), parentPID: 1, executablePath: executablePath)
+        )
     }
 }

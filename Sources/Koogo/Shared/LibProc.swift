@@ -1,9 +1,22 @@
 import Darwin
+import System
+
+/// A process pinned to its launch, so a pid scanned earlier can't name a process launched since.
+struct ProcessIdentity: Hashable, Sendable {
+    let pid: pid_t
+    /// `ri_proc_start_abstime`, in mach absolute time ticks.
+    let startTicks: UInt64
+}
 
 enum LibProc {
-    /// Returns false only when the process may still be running; one already gone counts as killed.
-    static func forceKill(_ pid: pid_t) -> Bool {
-        Darwin.kill(pid, SIGKILL) == 0 || errno == ESRCH
+    /// Signals only while the pid still belongs to the identified process; one already gone counts as killed.
+    static func forceKill(_ process: ProcessIdentity) throws(Errno) {
+        guard identity(of: process.pid) == process else { return }
+        guard Darwin.kill(process.pid, SIGKILL) == 0 || errno == ESRCH else { throw Errno(rawValue: errno) }
+    }
+
+    static func identity(of pid: pid_t) -> ProcessIdentity? {
+        resourceUsage(of: pid).map { ProcessIdentity(pid: pid, startTicks: $0.ri_proc_start_abstime) }
     }
 
     /// Every process of the current user.

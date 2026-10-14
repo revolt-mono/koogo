@@ -15,6 +15,7 @@ final class MouseModel {
     private let tap = EventTap()
     private(set) var isTrusted = false
     @ObservationIgnored private var frontmostApp: String?
+    @ObservationIgnored private var observers: [Task<Void, Never>] = []
 
     var settings: MouseSettings {
         didSet {
@@ -48,25 +49,30 @@ final class MouseModel {
             storage.load() ?? MouseSettings(lineByLineApps: MouseSettings.terminalApps.filter(isInstalled))
     }
 
-    /// Reads Accessibility trust and the frontmost app, then follows each for the rest of the process. Call once, at launch.
+    /// Reads Accessibility trust and the frontmost app, then follows each for the rest of the process.
     func start() {
-        Task {
-            for await _ in AccessibilityPermission.changes {
-                // The notification arrives before AXIsProcessTrusted reflects the change.
-                try? await Task.sleep(for: .milliseconds(250))
-                isTrusted = AccessibilityPermission.isTrusted
-                applyRules()
-            }
+        guard observers.isEmpty else {
+            return
         }
-        Task {
-            let activations = NSWorkspace.shared.notificationCenter.notifications(
-                named: NSWorkspace.didActivateApplicationNotification
-            )
-            for await _ in activations {
-                frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                applyRules()
-            }
-        }
+        observers = [
+            Task {
+                for await _ in AccessibilityPermission.changes {
+                    // The notification arrives before AXIsProcessTrusted reflects the change.
+                    try? await Task.sleep(for: .milliseconds(250))
+                    isTrusted = AccessibilityPermission.isTrusted
+                    applyRules()
+                }
+            },
+            Task {
+                let activations = NSWorkspace.shared.notificationCenter.notifications(
+                    named: NSWorkspace.didActivateApplicationNotification
+                )
+                for await _ in activations {
+                    frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                    applyRules()
+                }
+            },
+        ]
         isTrusted = AccessibilityPermission.isTrusted
         frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         applyRules()
