@@ -41,8 +41,9 @@
 ├── Sources/Koogo          menu bar app, one folder per feature slice
 │   ├── App                entry point, shared models, headless report
 │   ├── Shared             leaf primitives used across slices
+│   │   └── PanelUI        panel chrome, scroll, popover, and page placeholders
 │   ├── Providers          provider identity, order, and toggles
-│   ├── Panel              menu bar panel shell and pages
+│   ├── Panel              menu bar panel shell, paging, and the pages that compose several slices
 │   ├── Settings           settings window
 │   ├── Usage              token usage from local logs
 │   │   ├── Events         event identity and dedup
@@ -65,6 +66,14 @@
 ├── Tests/KoogoTests       mirrors the source tree; Support holds slice-free helpers
 └── script                 signing, bundling, launch, verification
 ```
+
+## slices and owners
+
+- `Shared` names no slice; a slice may use `Shared` and nothing from another slice except its models through the environment. a page that shows one slice lives in that slice; a page that composes several lives in `Panel`.
+- `AppModels` builds every model from one set of outside dependencies; `KoogoApp` performs the launch effects. each model's doc comment states its lifetime and who starts or refreshes it.
+- an outcome the user must still see after the view that started it is gone is model state (`QuotaModel.statuses`, `MouseModel.status`, `BreakReminderModel.issue`); an immediate admission result may be returned.
+- user-visible numbers and dates use `Locale.display`: the scene root sets the swiftui locale for `Text(_:format:)`, and a style that renders to a `String` carries the locale itself, built on `Shared/DisplayLocale.swift` or declared in its slice; lint rejects the default-locale entry points.
+- adding a provider: add the `Provider` case and follow the compiler through every `switch`, plus a `Usage/Providers` adapter. quota support additionally needs a `QuotaProvider` case, a `QuotaSources` field, and a `Quota/Providers` adapter.
 
 ## components and ui
 

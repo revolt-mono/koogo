@@ -8,6 +8,7 @@ enum MouseStatus {
     case stopped
 }
 
+/// Lives for the app. `KoogoApp` calls `start()` once at launch; the observers and the tap run until the process ends.
 @MainActor
 @Observable
 final class MouseModel {

@@ -1,5 +1,6 @@
 import Observation
 
+/// Owned by the row that shows it: appearing starts a scan, disappearing cancels the scan, and a started action runs to its end and rescans even after the popover closes.
 @MainActor
 @Observable
 final class QuickActionModel<Targets: Sendable> {

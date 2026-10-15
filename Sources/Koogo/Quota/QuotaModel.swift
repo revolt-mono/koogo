@@ -89,7 +89,7 @@ final class QuotaModel {
                 case .unavailable(let reason): "unavailable reason=\(reason.rawValue)"
                 }
             Logger.quota.info("\(provider.rawValue, privacy: .public) fetch \(outcome, privacy: .public)")
-            statuses[provider] = .read(reading, since: .now)
+            statuses[provider] = .read(reading, since: now())
         }
         return true
     }

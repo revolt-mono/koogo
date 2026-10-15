@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+/// Lives for the app. `KoogoApp` refreshes once at launch so the first opening finds a snapshot; `PanelView` refreshes when the panel opens and when the shown providers change.
 @MainActor
 @Observable
 final class UsageModel {

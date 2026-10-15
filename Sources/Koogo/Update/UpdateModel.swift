@@ -1,6 +1,7 @@
 import Observation
 import Sparkle
 
+/// Lives for the app; `KoogoApp` starts the updater once at launch.
 @MainActor
 @Observable
 final class UpdateModel: NSObject {
