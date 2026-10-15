@@ -58,6 +58,7 @@
 │   ├── Activity           cpu, memory, gpu, and process load
 │   ├── Mouse              wheel step and button remapping through an event tap
 │   ├── BreakReminder      break countdown and notifications
+│   ├── KeepAwake          power assertion that keeps the mac awake
 │   ├── Inbox              todos
 │   ├── Update             sparkle updates
 │   └── Resources          image assets

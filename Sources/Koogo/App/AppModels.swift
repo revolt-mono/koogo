@@ -10,6 +10,7 @@ struct AppModels {
     let inbox: InboxModel
     let activity: ActivityModel
     let mouse: MouseModel
+    let keepAwake: KeepAwakeModel
 }
 
 extension View {
@@ -23,5 +24,6 @@ extension View {
             .environment(models.inbox)
             .environment(models.activity)
             .environment(models.mouse)
+            .environment(models.keepAwake)
     }
 }

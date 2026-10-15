@@ -11,6 +11,7 @@ private enum SettingsTab: String {
 struct SettingsView: View {
     @Environment(UpdateModel.self) private var updateModel
     @Environment(MouseModel.self) private var mouse
+    @Environment(KeepAwakeModel.self) private var keepAwake
     @AppStorage("settings-tab") private var tab = SettingsTab.general
 
     var body: some View {
@@ -22,6 +23,9 @@ struct SettingsView: View {
                     }
 
                     Section("System") {
+                        @Bindable var keepAwake = keepAwake
+                        Toggle("Keep Awake", isOn: $keepAwake.isEnabled)
+
                         LaunchAtLoginToggle()
 
                         LabeledContent("Check for Updates") {

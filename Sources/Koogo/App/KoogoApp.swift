@@ -28,7 +28,8 @@ struct KoogoApp: App {
                 breakReminder: breakReminder,
                 inbox: InboxModel(),
                 activity: ActivityModel { try await sampler.sample() },
-                mouse: mouse
+                mouse: mouse,
+                keepAwake: KeepAwakeModel()
             )
         )
     }

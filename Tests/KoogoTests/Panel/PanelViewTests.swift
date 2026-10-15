@@ -36,7 +36,8 @@ final class PanelViewTests: XCTestCase {
             breakReminder: BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults),
             inbox: InboxModel(defaults: defaults),
             activity: activity,
-            mouse: MouseModel(defaults: defaults, isInstalled: { _ in false })
+            mouse: MouseModel(defaults: defaults, isInstalled: { _ in false }),
+            keepAwake: KeepAwakeModel(defaults: defaults)
         )
         let host = NSHostingView(rootView: PanelView().environment(models))
         host.layoutSubtreeIfNeeded()
