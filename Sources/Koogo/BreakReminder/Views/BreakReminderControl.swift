@@ -1,9 +1,13 @@
 import SwiftUI
 
 struct BreakReminderControl: View {
+    private static let notificationsPane = URL(
+        string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+    )!
+
     @Environment(BreakReminderModel.self) private var reminderModel
+    @Environment(\.openURL) private var openURL
     @State private var isOnScreen = false
-    @State private var issue: BreakReminderIssue?
 
     var body: some View {
         ZStack {
@@ -23,15 +27,19 @@ struct BreakReminderControl: View {
             isOnScreen = false
         }
         .task {
-            issue = await reminderModel.reconcile()
+            await reminderModel.reconcile()
         }
-        .breakReminderIssueAlert($issue)
     }
 
     private func button(status: BreakReminderStatus) -> some View {
-        BreakReminderButton(status: status, isBusy: reminderModel.isBusy) { action in
+        BreakReminderButton(status: status, issue: reminderModel.issue, isBusy: reminderModel.isBusy) { action in
+            // The first refusal comes through the system prompt; only a click on an already orange timer leads to System Settings.
+            let wasRefused = reminderModel.issue == .notificationsDisabled
             Task {
-                issue = await reminderModel.perform(action)
+                await reminderModel.perform(action)
+                if wasRefused, reminderModel.issue == .notificationsDisabled {
+                    openURL(Self.notificationsPane)
+                }
             }
         }
     }
@@ -39,6 +47,7 @@ struct BreakReminderControl: View {
 
 private struct BreakReminderButton: View {
     let status: BreakReminderStatus
+    let issue: BreakReminderIssue?
     let isBusy: Bool
     let perform: (BreakReminderCountdown.Action) -> Void
 
@@ -61,9 +70,9 @@ private struct BreakReminderButton: View {
         case .paused:
             Appearance(
                 systemImage: "play.fill",
-                color: .secondary,
+                color: issue == nil ? .secondary : .orange,
                 label: "Break reminder paused",
-                help: "Click to resume. Right-click to restart."
+                help: issue?.explanation ?? "Click to resume. Right-click to restart."
             )
         case .expired:
             Appearance(
@@ -100,6 +109,7 @@ private struct BreakReminderButton: View {
         .tooltip(appearance.help)
         .accessibilityLabel(appearance.label)
         .accessibilityValue(status.timeText)
+        .accessibilityHint(appearance.help)
         .accessibilityAction(named: "Restart Timer") {
             perform(.restart)
         }

@@ -8,6 +8,7 @@ protocol BreakReminderNotifications {
     func cancel()
 }
 
+/// Lives for the app. `KoogoApp` reconciles once at launch and the panel control again each time the panel opens.
 @MainActor
 @Observable
 final class BreakReminderModel {
@@ -21,6 +22,9 @@ final class BreakReminderModel {
 
     private(set) var isBusy = false
 
+    /// Why the last schedule failed. Stays until a schedule succeeds, so a failure at launch is still shown when the panel opens.
+    private(set) var issue: BreakReminderIssue?
+
     init(
         notifications: any BreakReminderNotifications,
         defaults: UserDefaults = .standard,
@@ -33,39 +37,40 @@ final class BreakReminderModel {
         countdown = if let stored, stored.isValid(at: now()) { stored } else { .initial }
     }
 
-    func perform(_ action: BreakReminderCountdown.Action) async -> BreakReminderIssue? {
+    /// Dropped while another change is in flight.
+    func perform(_ action: BreakReminderCountdown.Action) async {
         await whileBusy {
-            guard let change = countdown.change(for: action, at: now()) else {
-                return nil
+            if let change = countdown.change(for: action, at: now()) {
+                await apply(change)
             }
-            return await apply(change)
         }
     }
 
-    func reconcile() async -> BreakReminderIssue? {
+    /// Reschedules the system notification a running countdown has lost, such as after a relaunch.
+    func reconcile() async {
         await whileBusy {
             guard case .running = countdown.status(at: now()),
                 !(await notifications.hasPendingReminder()),
                 case .running(let remaining) = countdown.status(at: now())
             else {
-                return nil
+                return
             }
-            return await apply(.run(countdown.interval, for: remaining))
+            await apply(.run(countdown.interval, for: remaining))
         }
     }
 
-    private func whileBusy(_ work: () async -> BreakReminderIssue?) async -> BreakReminderIssue? {
+    private func whileBusy(_ work: () async -> Void) async {
         guard !isBusy else {
-            return nil
+            return
         }
         isBusy = true
         defer {
             isBusy = false
         }
-        return await work()
+        await work()
     }
 
-    private func apply(_ change: BreakReminderCountdown.Change) async -> BreakReminderIssue? {
+    private func apply(_ change: BreakReminderCountdown.Change) async {
         switch change {
         case .run(let interval, let duration):
             do {
@@ -73,14 +78,15 @@ final class BreakReminderModel {
             } catch {
                 notifications.cancel()
                 countdown = .paused(interval: interval, remaining: duration)
-                return error
+                issue = error
+                return
             }
             // Measured once scheduling returns, so an authorization prompt doesn't shorten the countdown.
             countdown = .scheduled(interval: interval, deadline: now().addingTimeInterval(duration))
+            issue = nil
         case .pause(let interval, let remaining):
             notifications.cancel()
             countdown = .paused(interval: interval, remaining: remaining)
         }
-        return nil
     }
 }

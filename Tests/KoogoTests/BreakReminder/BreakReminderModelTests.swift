@@ -31,21 +31,21 @@ final class BreakReminderModelTests: XCTestCase {
         let notifications = BreakReminderTestNotifications()
         let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
 
-        _ = await model.perform(.toggle)
+        await model.perform(.toggle)
         XCTAssertEqual(notifications.scheduledDurations, [3_600])
         XCTAssertEqual(model.countdown.status(at: clock.now), .running(remaining: 3_600))
 
         clock.now.addTimeInterval(900)
-        _ = await model.perform(.toggle)
+        await model.perform(.toggle)
         XCTAssertEqual(notifications.cancellationCount, 1)
         XCTAssertFalse(notifications.isReminderPending)
         XCTAssertEqual(model.countdown, .paused(interval: .oneHour, remaining: 2_700))
 
-        _ = await model.perform(.setInterval(.oneHour))
+        await model.perform(.setInterval(.oneHour))
         XCTAssertEqual(notifications.cancellationCount, 1)
 
-        _ = await model.perform(.setInterval(.twoHours))
-        _ = await model.perform(.toggle)
+        await model.perform(.setInterval(.twoHours))
+        await model.perform(.toggle)
         XCTAssertEqual(notifications.scheduledDurations, [3_600, 7_200])
         XCTAssertEqual(notifications.cancellationCount, 2)
     }
@@ -56,34 +56,41 @@ final class BreakReminderModelTests: XCTestCase {
         notifications.beforeOperation = { clock.now.addTimeInterval(30) }
         let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
 
-        _ = await model.perform(.toggle)
+        await model.perform(.toggle)
 
         XCTAssertEqual(model.countdown.status(at: clock.now), .running(remaining: 3_600))
     }
 
-    func testSchedulingIssuesKeepReminderPausedAndReachTheCaller() async throws {
+    func testSchedulingIssuesKeepReminderPausedAndShowUntilAScheduleSucceeds() async throws {
         let notifications = BreakReminderTestNotifications()
         let model = makeModel(defaults: try makeIsolatedDefaults(), notifications: notifications)
 
         for issue in [BreakReminderIssue.notificationsDisabled, .schedulingFailed] {
             notifications.schedulingIssue = issue
 
-            let reported = await model.perform(.toggle)
+            await model.perform(.toggle)
 
-            XCTAssertEqual(reported, issue)
+            XCTAssertEqual(model.issue, issue)
             XCTAssertEqual(model.countdown, .paused(interval: .oneHour, remaining: 3_600))
         }
-
         XCTAssertTrue(notifications.scheduledDurations.isEmpty)
         XCTAssertEqual(notifications.cancellationCount, 2)
+
+        await model.perform(.setInterval(.twoHours))
+        XCTAssertEqual(model.issue, .schedulingFailed)
+
+        notifications.schedulingIssue = nil
+        await model.perform(.toggle)
+        XCTAssertNil(model.issue)
+        XCTAssertEqual(notifications.scheduledDurations, [7_200])
     }
 
     func testStatePersistsAcrossModelInstances() async throws {
         let defaults = try makeIsolatedDefaults()
         let clock = TestClock()
         let model = makeModel(defaults: defaults, clock: clock)
-        _ = await model.perform(.setInterval(.twoHours))
-        _ = await model.perform(.toggle)
+        await model.perform(.setInterval(.twoHours))
+        await model.perform(.toggle)
         clock.now.addTimeInterval(900)
 
         let restoredModel = makeModel(defaults: defaults, clock: clock)
@@ -91,7 +98,7 @@ final class BreakReminderModelTests: XCTestCase {
         XCTAssertEqual(restoredModel.countdown, model.countdown)
         XCTAssertEqual(restoredModel.countdown.status(at: clock.now), .running(remaining: 6_300))
 
-        _ = await restoredModel.perform(.toggle)
+        await restoredModel.perform(.toggle)
 
         XCTAssertEqual(
             makeModel(defaults: defaults, clock: clock).countdown,
@@ -103,15 +110,15 @@ final class BreakReminderModelTests: XCTestCase {
         let defaults = try makeIsolatedDefaults()
         let clock = TestClock()
         let notifications = BreakReminderTestNotifications()
-        _ = await makeModel(defaults: defaults, clock: clock, notifications: notifications).perform(.toggle)
+        await makeModel(defaults: defaults, clock: clock, notifications: notifications).perform(.toggle)
 
         let restoredModel = makeModel(defaults: defaults, clock: clock, notifications: notifications)
-        _ = await restoredModel.reconcile()
+        await restoredModel.reconcile()
         XCTAssertEqual(notifications.scheduledDurations, [3_600])
 
         clock.now.addTimeInterval(900)
         notifications.isReminderPending = false
-        _ = await restoredModel.reconcile()
+        await restoredModel.reconcile()
 
         XCTAssertTrue(notifications.isReminderPending)
         XCTAssertEqual(notifications.scheduledDurations, [3_600, 2_700])
@@ -123,12 +130,12 @@ final class BreakReminderModelTests: XCTestCase {
         let notifications = BreakReminderTestNotifications()
         let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
 
-        _ = await model.reconcile()
+        await model.reconcile()
 
-        _ = await model.perform(.toggle)
+        await model.perform(.toggle)
         clock.now.addTimeInterval(3_600)
         notifications.isReminderPending = false
-        _ = await model.reconcile()
+        await model.reconcile()
 
         XCTAssertEqual(notifications.scheduledDurations, [3_600])
         XCTAssertEqual(model.countdown.status(at: clock.now), .expired)
@@ -138,25 +145,31 @@ final class BreakReminderModelTests: XCTestCase {
         let defaults = try makeIsolatedDefaults()
         let clock = TestClock()
         let notifications = BreakReminderTestNotifications()
-        _ = await makeModel(defaults: defaults, clock: clock, notifications: notifications).perform(.toggle)
+        await makeModel(defaults: defaults, clock: clock, notifications: notifications).perform(.toggle)
 
         clock.now.addTimeInterval(900)
         notifications.isReminderPending = false
         notifications.schedulingIssue = .notificationsDisabled
         let restoredModel = makeModel(defaults: defaults, clock: clock, notifications: notifications)
 
-        let issue = await restoredModel.reconcile()
+        await restoredModel.reconcile()
 
-        XCTAssertEqual(issue, .notificationsDisabled)
+        XCTAssertEqual(restoredModel.issue, .notificationsDisabled)
         XCTAssertEqual(restoredModel.countdown, .paused(interval: .oneHour, remaining: 2_700))
         XCTAssertFalse(notifications.isReminderPending)
+
+        // A later reconciliation, such as the panel opening, has nothing to schedule and keeps the issue in view.
+        notifications.schedulingIssue = nil
+        await restoredModel.reconcile()
+        XCTAssertEqual(restoredModel.issue, .notificationsDisabled)
+        XCTAssertEqual(restoredModel.countdown, .paused(interval: .oneHour, remaining: 2_700))
     }
 
     func testIntentsAreDroppedWhileANotificationChangeIsInFlight() async throws {
         let clock = TestClock()
         let notifications = BreakReminderTestNotifications()
         let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
-        _ = await model.perform(.toggle)
+        await model.perform(.toggle)
         notifications.isReminderPending = false
 
         let entered = AsyncStream.makeStream(of: Void.self)
@@ -176,19 +189,17 @@ final class BreakReminderModelTests: XCTestCase {
         XCTAssertTrue(model.isBusy)
 
         for action: BreakReminderCountdown.Action in [.toggle, .restart, .setInterval(.twoHours)] {
-            let dropped = await model.perform(action)
-            XCTAssertNil(dropped)
+            await model.perform(action)
         }
-        let droppedReconcile = await model.reconcile()
-        XCTAssertNil(droppedReconcile)
+        await model.reconcile()
         XCTAssertTrue(model.isBusy)
         XCTAssertEqual(model.countdown.interval, .oneHour)
         XCTAssertEqual(notifications.scheduledDurations, [3_600])
         XCTAssertEqual(notifications.cancellationCount, 0)
 
         resume.resume()
-        let reconciled = await reconciliation.value
-        XCTAssertNil(reconciled)
+        await reconciliation.value
+        XCTAssertNil(model.issue)
         XCTAssertFalse(model.isBusy)
         XCTAssertEqual(model.countdown.status(at: clock.now), .running(remaining: 3_600))
         XCTAssertEqual(notifications.scheduledDurations, [3_600, 3_600])

@@ -32,6 +32,15 @@ enum BreakReminderStatus: Equatable {
 enum BreakReminderIssue: Error {
     case notificationsDisabled
     case schedulingFailed
+
+    var explanation: String {
+        switch self {
+        case .notificationsDisabled:
+            "Notifications are off. Allow them in System Settings, then resume the reminder."
+        case .schedulingFailed:
+            "Koogo couldn't schedule the notification. Resume the reminder to try again."
+        }
+    }
 }
 
 enum BreakReminderCountdown: Codable, Equatable {
