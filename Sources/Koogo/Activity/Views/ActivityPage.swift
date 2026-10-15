@@ -107,7 +107,7 @@ private struct BatterySection: View {
     var body: some View {
         PanelSection("Battery", subtitle: supply) {
             VStack(spacing: 12) {
-                HStack(alignment: .center, spacing: 12) {
+                HStack(spacing: 12) {
                     ActivityHeadline(measure: Measure(fraction: state.charge))
 
                     ActivityDetails(details: [

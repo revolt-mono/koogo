@@ -64,7 +64,7 @@ private struct TodoRow: View {
             if isEditing {
                 TodoInlineEditor(text: todo.text, onFinish: finishEditing)
             } else {
-                HStack(alignment: .center, spacing: 8) {
+                HStack(spacing: 8) {
                     Button {
                         inboxModel.toggleCompleted(todo.id)
                     } label: {
