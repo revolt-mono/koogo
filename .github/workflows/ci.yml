@@ -33,7 +33,14 @@ jobs:
           done
           echo "xcode 27 is not installed" >&2
           exit 1
-      - run: swiftlint lint --strict Package.swift Sources Tests
+      - name: lint
+        env:
+          SWIFTLINT_VERSION: 0.65.1
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/swiftlint.zip" \
+            "https://github.com/realm/SwiftLint/releases/download/$SWIFTLINT_VERSION/portable_swiftlint.zip"
+          unzip -q "$RUNNER_TEMP/swiftlint.zip" -d "$RUNNER_TEMP/swiftlint"
+          "$RUNNER_TEMP/swiftlint/swiftlint" lint --strict Package.swift Sources Tests
       - run: swift test
       - name: import signing identity
         env:
