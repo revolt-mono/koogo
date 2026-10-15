@@ -23,7 +23,7 @@ struct ProviderUsageToggles: View {
                     )
                 )
             }
-            .contentShape(Rectangle())
+            .contentShape(.rect)
             .onDrag {
                 dragged = provider
                 let item = NSItemProvider()

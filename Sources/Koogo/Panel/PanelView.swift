@@ -63,7 +63,7 @@ private struct PanelToolbar: View {
                 Image(systemName: "gearshape")
                     .font(.system(size: 11, weight: .medium))
                     .frame(width: 16, height: 16)
-                    .contentShape(Rectangle())
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
