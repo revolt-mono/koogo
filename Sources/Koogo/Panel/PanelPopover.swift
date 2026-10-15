@@ -44,7 +44,7 @@ struct PanelDisclosure<Label: View, Content: View>: View {
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
             content()
                 .font(.system(size: 11, weight: .medium))
-                .frame(width: 264)
+                .frame(width: 264, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(16)
         }
