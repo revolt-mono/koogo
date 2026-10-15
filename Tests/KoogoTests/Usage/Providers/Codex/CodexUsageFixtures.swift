@@ -3,7 +3,7 @@ func codexLog(
     output: Int,
     thread: String = "thread",
     model: String = "gpt-5.6-sol",
-    usageTimestamp: String = "2026-08-25T12:00:00.000Z"
+    usageTimestamp: String = usageTestTimestampText
 ) -> String {
     let usage = codexUsage(input: input, output: output)
     return [
@@ -39,7 +39,7 @@ func codexUsage(
         """
 }
 
-func codexTokenCount(last: String, total: String, at timestamp: String = "2026-08-25T12:00:00.000Z") -> String {
+func codexTokenCount(last: String, total: String, at timestamp: String = usageTestTimestampText) -> String {
     """
     {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":\(last),"total_token_usage":\(total),"model_context_window":1000}}}
     """

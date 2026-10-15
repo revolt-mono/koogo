@@ -4,6 +4,7 @@ import XCTest
 @testable import Koogo
 
 let usageTestTimestamp = Date(timeIntervalSince1970: 1_787_680_800)
+let usageTestTimestampText = usageTestTimestamp.formatted(.iso8601)
 
 let usageTestCalendar: Calendar = {
     guard let utc = TimeZone(secondsFromGMT: 0) else {

@@ -1,7 +1,7 @@
 func piAssistant(id: String, parentID: String?, model: String, usage: String) -> String {
     let parent = parentID.map { "\"\($0)\"" } ?? "null"
     return """
-        {"type":"message","id":"\(id)","parentId":\(parent),"timestamp":"2026-08-25T12:00:00.000Z","message":{"role":"assistant","provider":"provider","model":"\(model)","timestamp":1787680800000,"usage":\(usage)}}
+        {"type":"message","id":"\(id)","parentId":\(parent),"timestamp":"\(usageTestTimestampText)","message":{"role":"assistant","provider":"provider","model":"\(model)","timestamp":\(Int(usageTestTimestamp.timeIntervalSince1970 * 1_000)),"usage":\(usage)}}
         """
 }
 

@@ -1,6 +1,6 @@
 func claudeAssistant(model: String, usage: String) -> String {
     """
-    {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","requestId":"request","message":{"id":"message","model":"\(model)","usage":{\(usage)}}}
+    {"type":"assistant","timestamp":"\(usageTestTimestampText)","requestId":"request","message":{"id":"message","model":"\(model)","usage":{\(usage)}}}
     """
 }
 
