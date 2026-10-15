@@ -51,6 +51,41 @@ final class QuotaModelTests: XCTestCase {
     }
 
     @MainActor
+    func testCooldownEndsAMinuteAfterAReadingAndADayAfterARefusal() async throws {
+        let source = ScriptedQuotaSource([
+            .available(.stub(1)), .available(.stub(2)), .unavailable(.noPlan), .available(.stub(3)),
+        ])
+        var now = ContinuousClock.now
+        let model = makeQuotaModel(grok: source, now: { now })
+
+        model.refresh([.grok])
+        try await waitUntil { !model.statuses[.grok].isBusy }
+        now += .seconds(60) - .milliseconds(1)
+        model.refresh([.grok])
+        XCTAssertFalse(model.statuses[.grok].isBusy)
+
+        now += .milliseconds(1)
+        model.refresh([.grok])
+        XCTAssertTrue(model.statuses[.grok].isBusy)
+        try await waitUntil { !model.statuses[.grok].isBusy }
+        XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(2)))
+
+        now += .seconds(60)
+        model.refresh([.grok])
+        try await waitUntil { !model.statuses[.grok].isBusy }
+        XCTAssertEqual(model.statuses[.grok].latest, .unavailable(.noPlan))
+        now += .seconds(24 * 60 * 60) - .milliseconds(1)
+        model.refresh([.grok])
+        XCTAssertFalse(model.statuses[.grok].isBusy)
+
+        now += .milliseconds(1)
+        model.refresh([.grok])
+        try await waitUntil { !model.statuses[.grok].isBusy }
+        XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(3)))
+        XCTAssertEqual(source.loads.withLock { $0 }, 4)
+    }
+
+    @MainActor
     func testARefusedReadIsNotRetriedOnRefreshButIsOnReload() async throws {
         let source = ScriptedQuotaSource([.unavailable(.noPlan), .unavailable(.emptyLimits), .available(.stub())])
         let model = makeQuotaModel(claude: source)

@@ -20,20 +20,23 @@ enum QuotaStatus: Equatable, Sendable {
     }
 }
 
-/// The latest reading of every quota provider. One read per provider runs at a time; `read` is the only way in and out of the busy state.
+/// The latest reading of every quota provider. One read per provider runs at a time; `read` is the only way in and out of the busy state. Lives for the app and is refreshed at launch and whenever the panel opens, like `UsageModel`.
 @MainActor
 @Observable
 final class QuotaModel {
     private let sources: QuotaSources
+    /// Elapsed time for the cooldown, so a clock change never shortens or extends a reading's life.
+    private let now: @MainActor () -> ContinuousClock.Instant
 
     private(set) var statuses = EnumMap<QuotaProvider, QuotaStatus> { _ in .unread }
 
-    init(sources: QuotaSources = .production) {
+    init(sources: QuotaSources = .production, now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }) {
         self.sources = sources
+        self.now = now
     }
 
     func refresh(_ providers: some Sequence<QuotaProvider>) {
-        let now = ContinuousClock.now
+        let now = now()
         reload(
             providers.filter { provider in
                 guard case .read(let reading, let readAt) = statuses[provider] else { return true }
