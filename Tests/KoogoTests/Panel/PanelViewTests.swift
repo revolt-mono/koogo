@@ -11,35 +11,23 @@ final class PanelViewTests: XCTestCase {
         try workspace.write(codexLog(input: 700, output: 300), to: workspace.codexSessions.appending(path: "log.jsonl"))
         let defaults = try makeIsolatedDefaults()
         let activitySamples = Counter()
-        let activity = ActivityModel {
-            activitySamples.increment()
-            return activitySample()
-        }
 
-        let preferences = ProviderPreferences(defaults: defaults)
-        preferences[usage: .codex] = false
-        let pipeline = UsagePipeline(home: workspace.root, calendar: usageTestCalendar)
-        let usage = UsageModel(pipeline: pipeline, now: { usageTestTimestamp })
-        let quota = QuotaModel(
-            sources: QuotaSources(
-                codex: CodexQuotaSource(executableCandidates: []),
-                claude: ClaudeQuotaSource(executableCandidates: []),
-                grok: GrokQuotaSource(executableCandidates: [])
-            )
-        )
         let models = AppModels(
-            preferences: preferences,
-            usage: usage,
-            quota: quota,
-            codexReset: CodexQuotaResetModel(quota: quota),
-            update: UpdateModel(),
-            breakReminder: BreakReminderModel(notifications: BreakReminderTestNotifications(), defaults: defaults),
-            inbox: InboxModel(defaults: defaults),
-            activity: activity,
-            mouse: MouseModel(defaults: defaults, isInstalled: { _ in false }),
-            keepAwake: KeepAwakeModel(defaults: defaults)
+            defaults: defaults,
+            pipeline: UsagePipeline(home: workspace.root, calendar: usageTestCalendar),
+            quotaSources: .unreachable,
+            breakNotifications: BreakReminderTestNotifications(),
+            activitySample: {
+                activitySamples.increment()
+                return activitySample()
+            },
+            isInstalled: { _ in false },
+            now: { usageTestTimestamp }
         )
-        let host = NSHostingView(rootView: PanelView().environment(models))
+        models.preferences[usage: .codex] = false
+        let usage = models.usage
+        let quota = models.quota
+        let host = NSHostingView(rootView: PanelView().sceneRoot(models))
         host.layoutSubtreeIfNeeded()
         try await waitUntil { usage.snapshot != nil }
         XCTAssertNil(usage.snapshot?.providers[.codex])

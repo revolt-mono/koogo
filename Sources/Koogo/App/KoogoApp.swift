@@ -6,39 +6,19 @@ struct KoogoApp: App {
 
     init() {
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
-        let preferences = ProviderPreferences()
-        let usageModel = UsageModel(pipeline: UsagePipeline())
-        usageModel.refresh(providers: preferences.usageProviders)
-        let quotaModel = QuotaModel()
-        quotaModel.refresh(preferences.quotaProviders)
-        let updateModel = UpdateModel()
-        updateModel.start()
-        let sampler = ActivitySampler()
-        let mouse = MouseModel()
-        mouse.start()
-        let breakReminder = BreakReminderModel(notifications: BreakReminderNotificationCenter())
-        Task { await breakReminder.reconcile() }
-        _models = State(
-            initialValue: AppModels(
-                preferences: preferences,
-                usage: usageModel,
-                quota: quotaModel,
-                codexReset: CodexQuotaResetModel(quota: quotaModel),
-                update: updateModel,
-                breakReminder: breakReminder,
-                inbox: InboxModel(),
-                activity: ActivityModel { try await sampler.sample() },
-                mouse: mouse,
-                keepAwake: KeepAwakeModel()
-            )
-        )
+        let models = AppModels()
+        models.usage.refresh(providers: models.preferences.usageProviders)
+        models.quota.refresh(models.preferences.quotaProviders)
+        models.update.start()
+        models.mouse.start()
+        Task { await models.breakReminder.reconcile() }
+        _models = State(initialValue: models)
     }
 
     var body: some Scene {
         MenuBarExtra {
             PanelView()
-                .fontDesign(.rounded)
-                .environment(models)
+                .sceneRoot(models)
         } label: {
             Image(systemName: "chart.bar.xaxis")
         }
@@ -46,8 +26,7 @@ struct KoogoApp: App {
 
         Settings {
             SettingsView()
-                .fontDesign(.rounded)
-                .environment(models)
+                .sceneRoot(models)
         }
         .windowResizability(.contentSize)
     }

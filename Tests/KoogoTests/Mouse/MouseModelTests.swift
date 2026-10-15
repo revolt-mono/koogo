@@ -43,7 +43,7 @@ final class MouseModelTests: XCTestCase {
         settings.isEnabled = true
         PersistedValue<MouseSettings>(key: "mouse-settings", defaults: defaults).save(settings)
 
-        XCTAssertEqual(MouseModel(defaults: defaults).status, .needsAccessibility)
+        XCTAssertEqual(MouseModel(defaults: defaults, isInstalled: { _ in false }).status, .needsAccessibility)
     }
 
     func testUndecodableSettingsFallBackToDefaults() throws {

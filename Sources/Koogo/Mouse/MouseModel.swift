@@ -40,10 +40,7 @@ final class MouseModel {
     }
 
     /// Touches neither Accessibility nor the tap until `start()`. Until the user saves settings, the installed terminals stand in as line-by-line apps.
-    init(
-        defaults: UserDefaults = .standard,
-        isInstalled: (String) -> Bool = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil }
-    ) {
+    init(defaults: UserDefaults, isInstalled: (String) -> Bool) {
         storage = PersistedValue(key: "mouse-settings", defaults: defaults)
         settings =
             storage.load() ?? MouseSettings(lineByLineApps: MouseSettings.terminalApps.filter(isInstalled))
