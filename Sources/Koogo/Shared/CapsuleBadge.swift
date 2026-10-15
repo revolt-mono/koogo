@@ -9,7 +9,3 @@ extension View {
             .background(fill, in: Capsule())
     }
 }
-
-extension Color {
-    static let fallFill = Color(red: 182 / 255, green: 68 / 255, blue: 0).opacity(0.6)
-}

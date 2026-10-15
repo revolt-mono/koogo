@@ -10,7 +10,6 @@ private enum SettingsTab: String {
 
 struct SettingsView: View {
     @Environment(UpdateModel.self) private var updateModel
-    @Environment(MouseModel.self) private var mouse
     @Environment(KeepAwakeModel.self) private var keepAwake
     @AppStorage("settings-tab") private var tab = SettingsTab.general
 
@@ -32,13 +31,7 @@ struct SettingsView: View {
                             Button("Check Now", action: updateModel.checkForUpdates)
                         }
 
-                        LabeledContent("Accessibility") {
-                            if mouse.isTrusted {
-                                Text("Granted")
-                            } else {
-                                Button("Grant", action: AccessibilityPermission.request)
-                            }
-                        }
+                        AccessibilityPermissionRow()
                     }
                 }
             }

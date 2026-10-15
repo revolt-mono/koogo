@@ -128,5 +128,6 @@ private struct AnimatedNumericText: View {
 
 private extension Color {
     static let riseFill = Color(red: 0, green: 128 / 255, blue: 9 / 255).opacity(0.6)
+    static let fallFill = Color(red: 182 / 255, green: 68 / 255, blue: 0).opacity(0.6)
     static let flatFill = Color.secondary.opacity(0.6)
 }
