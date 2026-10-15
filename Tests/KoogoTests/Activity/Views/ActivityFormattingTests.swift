@@ -20,9 +20,4 @@ final class ActivityFormattingTests: XCTestCase {
         XCTAssertEqual(Measure(watts: 14.26).text, "14.3 W")
         XCTAssertEqual(Measure(watts: 0).value, "0.0")
     }
-
-    func testDurationsShowHoursAndWholeMinutes() {
-        XCTAssertEqual(Duration.seconds(80 * 60).formatted(.hoursMinutes), "1h 20m")
-        XCTAssertEqual(Duration.seconds(45 * 60 + 30).formatted(.hoursMinutes), "45m")
-    }
 }

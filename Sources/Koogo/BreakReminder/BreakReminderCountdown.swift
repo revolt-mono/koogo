@@ -24,8 +24,7 @@ enum BreakReminderStatus: Equatable {
 
         let whole = Duration.seconds(ceil(remaining))
         return whole.formatted(
-            .time(pattern: whole >= .seconds(3_600) ? .hourMinuteSecond : .minuteSecond(padMinuteToLength: 2))
-                .locale(.display)
+            .displayTime(pattern: whole >= .seconds(3_600) ? .hourMinuteSecond : .minuteSecond(padMinuteToLength: 2))
         )
     }
 }

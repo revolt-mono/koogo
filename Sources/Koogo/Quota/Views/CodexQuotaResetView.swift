@@ -83,7 +83,7 @@ private struct CodexQuotaResetStatus: View {
                 Text("Use \"\(attempt.credit.title)\"?")
                     .fontWeight(.semibold)
                 if let expiration = attempt.credit.expiresAt {
-                    Text("Expires \(expiration.formatted(date: .abbreviated, time: .shortened))")
+                    Text("Expires \(expiration.formatted(.display(date: .abbreviated, time: .shortened)))")
                 } else {
                     Text("Does not expire")
                 }
@@ -159,7 +159,7 @@ private struct CodexQuotaResetCreditRow: View {
                         .fontWeight(.semibold)
                     if let expiration = credit.expiresAt {
                         let now = model.now
-                        let date = expiration.formatted(date: .abbreviated, time: .shortened)
+                        let date = expiration.formatted(.display(date: .abbreviated, time: .shortened))
                         Text(credit.canUse(at: now) ? "Expires \(date)" : "Expired \(date)")
                             .foregroundStyle(
                                 expiration.timeIntervalSince(now) <= Self.expiryWarning

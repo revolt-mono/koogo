@@ -117,7 +117,7 @@ private struct QuotaDeadlineLabel: View {
             Text("resets \(quotaTimeRemainingText(until: deadline, now: timeline.date))")
         }
         .foregroundStyle(.secondary)
-        .tooltip(deadline.formatted(date: .complete, time: .shortened))
+        .tooltip(deadline.formatted(.display(date: .complete, time: .shortened)))
     }
 }
 
@@ -126,11 +126,5 @@ func quotaTimeRemainingText(until date: Date, now: Date) -> String {
     guard remaining >= .seconds(60) else {
         return "soon"
     }
-    let style = Duration.UnitsFormatStyle(
-        allowedUnits: [.days, .hours, .minutes],
-        width: .narrow,
-        maximumUnitCount: 2,
-        fractionalPart: .hide(rounded: .towardZero)
-    )
-    return "in \(remaining.formatted(style.locale(.display)))"
+    return "in \(remaining.formatted(.displayUnits(allowed: [.days, .hours, .minutes])))"
 }

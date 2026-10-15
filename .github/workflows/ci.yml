@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
       - name: select xcode 27
         run: |
-          for app in /Applications/Xcode*.app; do
+          for app in /Applications/Xcode-beta.app /Applications/Xcode*.app; do
             version="$(plutil -extract CFBundleShortVersionString raw "$app/Contents/version.plist" 2>/dev/null)" || continue
             if [[ "$version" == 27.* ]]; then
               echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
@@ -33,6 +33,7 @@ jobs:
           done
           echo "xcode 27 is not installed" >&2
           exit 1
+      - run: swiftlint lint --strict Package.swift Sources Tests
       - run: swift test
       - name: import signing identity
         env:

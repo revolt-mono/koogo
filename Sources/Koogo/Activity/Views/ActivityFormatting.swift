@@ -37,15 +37,3 @@ extension FormatStyle where Self == FloatingPointFormatStyle<Double> {
             .rounded(rule: .toNearestOrAwayFromZero)
     }
 }
-
-extension FormatStyle where Self == Duration.UnitsFormatStyle {
-    static var hoursMinutes: Self {
-        .units(
-            allowed: [.hours, .minutes],
-            width: .narrow,
-            maximumUnitCount: 2,
-            fractionalPart: .hide(rounded: .towardZero)
-        )
-        .locale(.display)
-    }
-}
