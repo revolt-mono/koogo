@@ -1,15 +1,15 @@
 import Darwin
 import System
 
-/// A process pinned to its launch, so a pid scanned earlier can't name a process launched since.
+/// pairs a pid with launch time to distinguish reused process ids.
 struct ProcessIdentity: Hashable, Sendable {
     let pid: pid_t
-    /// `ri_proc_start_abstime`, in mach absolute time ticks.
+    /// process start time in mach absolute ticks.
     let startTicks: UInt64
 }
 
 enum LibProc {
-    /// Signals only while the pid still belongs to the identified process; one already gone counts as killed.
+    /// signals only the identified process; a missing or reused pid counts as already gone.
     static func forceKill(_ process: ProcessIdentity) throws(Errno) {
         guard identity(of: process.pid) == process else { return }
         guard Darwin.kill(process.pid, SIGKILL) == 0 || errno == ESRCH else { throw Errno(rawValue: errno) }
@@ -19,14 +19,13 @@ enum LibProc {
         resourceUsage(of: pid).map { ProcessIdentity(pid: pid, startTicks: $0.ri_proc_start_abstime) }
     }
 
-    /// Every process of the current user.
-    static func pids() -> [pid_t]? {
+    static func currentUserPIDs() -> [pid_t]? {
         let type = UInt32(PROC_UID_ONLY)
         let uid = getuid()
         let pidStride = Int32(MemoryLayout<pid_t>.stride)
         let listedBytes = proc_listpids(type, uid, nil, 0)
         guard listedBytes > 0 else { return nil }
-        // Leave room for processes launched between the two calls.
+        // allow for processes launched between sizing and filling the pid buffer.
         var pids = [pid_t](repeating: 0, count: Int(listedBytes / pidStride) + 256)
         let filledBytes = proc_listpids(type, uid, &pids, Int32(pids.count) * pidStride)
         guard filledBytes > 0 else { return nil }

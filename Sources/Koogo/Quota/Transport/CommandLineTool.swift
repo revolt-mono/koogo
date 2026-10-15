@@ -9,17 +9,17 @@ struct CommandLineTool: Sendable {
         URL(filePath: "/opt/homebrew/bin"),
         URL(filePath: "/usr/local/bin"),
     ]
-    /// A write to a tool that closed its input must fail the session instead of ending the app.
+    /// ignore broken pipes so a closed tool input fails the session rather than terminating the app.
     private static let brokenPipesIgnored: Void = { signal(SIGPIPE, SIG_IGN) }()
     private static let platformOptions: PlatformOptions = {
         var options = PlatformOptions()
-        // The tool leads its own session so the teardown reaches every descendant and nothing else.
+        // a separate session lets teardown reach every descendant without signaling unrelated processes.
         options.createSession = true
         options.teardownSequence = [.gracefulShutDown(toProcessGroup: true, allowedDurationToNextStep: .seconds(1))]
         return options
     }()
 
-    /// Holds no project settings, so a tool run here reads only its user-level configuration.
+    /// a project-free working directory limits the tool to user-level configuration.
     private static let workingDirectory = FilePath("/tmp")
 
     private let candidates: [URL]
@@ -37,7 +37,7 @@ struct CommandLineTool: Sendable {
         return (preferred + installDirectories + path).map { $0.appending(path: name) }
     }
 
-    /// Runs one conversation over the tool's standard streams. A decoding error or oversized output inside the session is an invalid message; any other error means the tool closed the conversation.
+    /// decoding errors and oversized output become invalid messages; other session errors mean the tool closed.
     func session<Value: Sendable>(
         _ arguments: [String],
         _ session: @escaping @Sendable (consuming ToolStreams) async throws -> Value
@@ -66,7 +66,7 @@ struct CommandLineTool: Sendable {
         _ arguments: [String],
         _ session: @escaping @Sendable (consuming ToolStreams) async throws -> Value
     ) async throws -> Value {
-        // A fixed environment keeps the launching shell's switches, such as a Claude Code session's CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, out of the tool. HOME and USER locate its credentials.
+        // isolate the tool from launching-shell switches while preserving credential locations.
         let searchPath = ([executable.deletingLastPathComponent()] + Self.installDirectories).map(\.path)
         return try await run(
             .path(FilePath(executable.path)),
@@ -93,7 +93,7 @@ struct CommandLineTool: Sendable {
                     throw ToolFailure.timedOut
                 }
                 let outcome = await Result { try await group.next()! }
-                // The timeout covers the conversation, not the exit: the tool may outlive its answer, run returns only once the tool exits, and a read blocked on the tool ends only when the tool does.
+                // subprocess waits for tool exit; teardown also releases reads blocked beyond the conversation timeout.
                 group.cancelAll()
                 await execution.teardown(using: Self.platformOptions.teardownSequence)
                 try? execution.send(signal: .kill, toProcessGroup: true)

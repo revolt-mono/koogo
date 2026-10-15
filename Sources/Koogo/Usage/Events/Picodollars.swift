@@ -1,6 +1,6 @@
 import Foundation
 
-/// A cost in whole picodollars. Every priced rate, down to a tenth of a nanodollar per token, is a whole number of them, so sums stay exact integers. Arithmetic saturates instead of trapping, as token totals do. Encodes as US dollars.
+/// whole picodollars with saturating arithmetic; encoding produces us dollars.
 struct Picodollars: Comparable, Sendable, Encodable {
     static let zero = Self(0)
 
@@ -40,7 +40,7 @@ struct Picodollars: Comparable, Sendable, Encodable {
         return Self(overflow ? .max : product)
     }
 
-    /// Scales by a ratio such as 5/4, rounding down.
+    /// scales by a ratio, rounding down.
     func scaled(by numerator: UInt64, over denominator: UInt64) -> Self {
         let product = rawValue.multipliedFullWidth(by: numerator)
         guard product.high < denominator else {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// One user-confirmed reset. A retry reuses the same credit and key so the server can dedupe it.
+/// retries reuse the confirmed credit and idempotency key so the server can deduplicate the reset.
 struct CodexQuotaResetAttempt: Equatable, Sendable {
     let credit: QuotaSnapshot.ResetCredit
     let idempotencyKey = UUID()
@@ -35,7 +35,7 @@ enum CodexQuotaResetFlow: Equatable {
     case confirming(CodexQuotaResetAttempt, rejection: ToolFailure? = nil)
     case submitting(CodexQuotaResetSubmission)
     case completed(CodexQuotaResetOutcome)
-    /// The server may have received the request, so only the same attempt may be sent again.
+    /// the server may have received the request; retries must reuse the same attempt.
     case unconfirmed(CodexQuotaResetAttempt, ToolFailure)
 
     var acceptsChoice: Bool {
@@ -53,7 +53,6 @@ enum CodexQuotaResetFlow: Equatable {
         }
     }
 
-    /// Where a submission lands. A rejected retry stays unconfirmed, since the first send may still have landed.
     static func settled(_ submission: CodexQuotaResetSubmission, _ result: CodexQuotaResetResult) -> Self {
         switch (result, submission) {
         case (.success(let outcome), _): .completed(outcome)

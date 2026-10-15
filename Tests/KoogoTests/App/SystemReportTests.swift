@@ -12,13 +12,13 @@ final class SystemReportTests: UsageWorkspaceTestCase {
             to: workspace.codexSessions.appending(path: "session.jsonl")
         )
 
-        let unreachable = QuotaSources.unreachable
+        let missingExecutables = QuotaSources.missingExecutables
         let data = try await SystemReport.generate(
             pipeline: makePipeline(),
             quotaSources: QuotaSources(
                 codex: CodexQuotaSource(executableCandidates: [try quotaWorkspace.makeAppServer()]),
-                claude: unreachable.claude,
-                grok: unreachable.grok
+                claude: missingExecutables.claude,
+                grok: missingExecutables.grok
             ),
             at: usageTestTimestamp
         )

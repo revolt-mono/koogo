@@ -4,7 +4,7 @@ import Observation
 import Synchronization
 import os
 
-/// Owns the session event tap. The main actor publishes rules as one atomic word, which the callback on the tap's thread reads without locks, lookups, or allocation.
+/// the main actor publishes atomic rules; the tap thread reads without locks, lookups, or allocation.
 @MainActor
 @Observable
 final class EventTap {
@@ -24,7 +24,7 @@ final class EventTap {
     private nonisolated(unsafe) let rewriter = ScrollRewriter()
     private let lookUp = LookUpShortcut()
 
-    /// Installs on the first run and again after the tap stops; installing needs Accessibility trust.
+    /// installs initially and after a stopped tap; accessibility trust is required.
     func run(_ rules: InputRules) {
         self.rules.store(rules, ordering: .relaxed)
         let port: CFMachPort? =
@@ -47,7 +47,6 @@ final class EventTap {
         state = .paused(port)
     }
 
-    /// Declared outside any main actor method, whose isolation a closure would inherit and then trap on the tap's thread.
     nonisolated static let callback: CGEventTapCallBack = { proxy, type, event, userInfo in
         guard let userInfo else {
             return Unmanaged.passUnretained(event)
@@ -126,7 +125,6 @@ final class EventTap {
             }
             return nil
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            // The one allocation on this path: the tap is already off, and the main actor stays the only writer of the state, so a pause can't race the re-enable.
             Task { @MainActor in
                 resume()
             }
@@ -137,7 +135,7 @@ final class EventTap {
     }
 }
 
-/// Mouse button 4 becomes Control-Command-D, the system Look Up shortcut.
+/// system look up uses control-command-d; core graphics numbers mouse button 4 as 3.
 private struct LookUpShortcut {
     static let buttonNumber: Int64 = 3
     private static let keyCode = CGKeyCode(0x02)
@@ -167,7 +165,6 @@ private struct LookUpShortcut {
     }
 }
 
-/// Packs the rules into one word so the tap thread loads a coherent snapshot.
 extension InputRules: AtomicRepresentable {
     typealias AtomicRepresentation = UInt32.AtomicRepresentation
 

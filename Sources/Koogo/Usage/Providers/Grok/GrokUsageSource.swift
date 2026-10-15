@@ -2,7 +2,7 @@ import Foundation
 
 struct GrokUsageSource: UsageSource {
     let logDirectories = ["sessions"]
-    /// Admits a session's `updates.jsonl` once its summary is readable. A subagent session is skipped, since the parent turn that spawned it already includes its usage.
+    /// grok parent usage includes subagents; admit readable session summaries and skip subagent logs to avoid double counting.
     let logFormat = UsageLogFormat(match: .fileName("updates.jsonl")) { path, metadata, windowStart in
         let summaryURL = URL(filePath: path).deletingLastPathComponent().appending(path: "summary.json")
         guard let data = try? Data(contentsOf: summaryURL),
@@ -13,7 +13,7 @@ struct GrokUsageSource: UsageSource {
         }
         return ParsedLog<GrokUsageLogParser>(path, observed: metadata, since: windowStart)
     }
-    /// Grok bills every model a prompt used under its primary model.
+    /// grok bills every model used in a prompt under the primary model.
     let splitsUsageByModel = false
 
     func modelName(_ model: ModelID) -> String? {

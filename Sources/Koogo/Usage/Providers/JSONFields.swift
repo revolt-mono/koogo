@@ -2,16 +2,19 @@ import Foundation
 
 struct JSONFieldKey {
     let name: StaticString
-    /// A record whose member fails this test is of another kind, so the walk stops and every field reads as nil.
-    let accepts: ((JSONValue) -> Bool)?
+    let acceptsRecordKind: ((JSONValue) -> Bool)?
 }
 
 struct JSONField<Value> {
     let key: JSONFieldKey
     let decode: (JSONValue) throws -> Value?
 
-    init(_ key: StaticString, accepts: ((JSONValue) -> Bool)? = nil, _ decode: @escaping (JSONValue) throws -> Value?) {
-        self.key = JSONFieldKey(name: key, accepts: accepts)
+    init(
+        _ key: StaticString,
+        acceptsRecordKind: ((JSONValue) -> Bool)? = nil,
+        _ decode: @escaping (JSONValue) throws -> Value?
+    ) {
+        self.key = JSONFieldKey(name: key, acceptsRecordKind: acceptsRecordKind)
         self.decode = decode
     }
 }
@@ -21,8 +24,8 @@ extension JSONField where Value == JSONValue {
         Self(key) { $0 }
     }
 
-    static func kind(_ key: StaticString, _ accepts: @escaping (JSONValue) -> Bool) -> Self {
-        Self(key, accepts: accepts) { $0 }
+    static func kind(_ key: StaticString, _ acceptsRecordKind: @escaping (JSONValue) -> Bool) -> Self {
+        Self(key, acceptsRecordKind: acceptsRecordKind) { $0 }
     }
 }
 
@@ -46,7 +49,7 @@ extension JSONField where Value == Picodollars {
 
 // swiftlint:disable function_parameter_count large_tuple
 extension JSONValue {
-    /// Reads every field in one walk, the last occurrence of a key winning. Fixed arities stand in for a parameter pack because `.uint64("key")` does not infer against a pack element.
+    /// reads fields in one scan; the last duplicate key wins. fixed arities avoid parameter-pack inference limits.
     func fields<A>(_ first: JSONField<A>) throws -> A? {
         let slots = try slots(for: [first.key])
         return try slots[0].flatMap(first.decode)
@@ -118,7 +121,7 @@ extension JSONValue {
         var slots = InlineArray<count, Self?>(repeating: nil)
         while let member = try object.next() {
             for index in keys.indices where member.key.isString(keys[index].name) {
-                if keys[index].accepts?(member.value) == false {
+                if keys[index].acceptsRecordKind?(member.value) == false {
                     return InlineArray(repeating: nil)
                 }
                 slots[index] = member.value

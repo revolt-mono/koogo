@@ -14,7 +14,7 @@ struct TodoPrioritySelector: View {
                     selection = priority
                 } label: {
                     TodoPriorityOption(priority: priority, isSelected: isSelected)
-                        // Inside the label so the morph animates even when the pressed button re-renders in its gesture's transaction.
+                        // the label transaction preserves morph animation when the pressed button rerenders.
                         .motionAnimation(.spring(response: 0.42, dampingFraction: 0.86), value: isSelected)
                 }
                 .buttonStyle(TodoPriorityButtonStyle())

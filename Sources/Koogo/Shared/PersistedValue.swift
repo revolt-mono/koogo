@@ -9,8 +9,7 @@ struct PersistedValue<Value: Codable> {
         decode(Value.self)
     }
 
-    /// Keeps every element that still decodes, so one bad element can't erase the rest.
-    func loadEach<Element: Codable>() -> [Element]? where Value == [Element] {
+    func loadDecodableElements<Element: Codable>() -> [Element]? where Value == [Element] {
         guard let elements = decode([Lossy<Element>].self) else {
             return nil
         }

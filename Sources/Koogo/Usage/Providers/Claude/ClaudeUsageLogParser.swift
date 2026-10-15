@@ -6,7 +6,7 @@ struct ClaudeUsageLogParser: UsageLogParser {
             return nil
         }
         let usage = reply.usage
-        // Claude Code logs its own synthetic replies, such as API errors, with zero usage and often no request id.
+        // claude logs synthetic replies such as api errors with zero usage and often no request id.
         guard usage.tokens.processed > 0 || usage.webSearchRequests > 0 else {
             return nil
         }
@@ -98,7 +98,7 @@ struct ClaudeTokenUsage: Sendable {
 }
 
 struct ClaudeBillableUsage: Sendable {
-    /// Surcharged extras a reply opted into. Only models that offer them can price the reply.
+    /// surcharged reply options require support from the priced model.
     enum Option: Sendable {
         case fastMode
         case usInference

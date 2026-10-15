@@ -20,23 +20,22 @@ enum QuotaStatus: Equatable, Sendable {
     }
 }
 
-/// The latest reading of every quota provider. One read per provider runs at a time; `read` is the only way in and out of the busy state. Lives for the app and is refreshed at launch and whenever the panel opens, like `UsageModel`.
+/// app-scoped; refreshed by the app at launch and by the panel on open. reads are serialized per provider.
 @MainActor
 @Observable
 final class QuotaModel {
     private let sources: QuotaSources
-    /// Elapsed time for the cooldown, so a clock change never shortens or extends a reading's life.
-    private let now: @MainActor () -> ContinuousClock.Instant
+    private let monotonicNow: @MainActor () -> ContinuousClock.Instant
 
     private(set) var statuses = EnumMap<QuotaProvider, QuotaStatus> { _ in .unread }
 
     init(sources: QuotaSources = .production, now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }) {
         self.sources = sources
-        self.now = now
+        self.monotonicNow = now
     }
 
     func refresh(_ providers: some Sequence<QuotaProvider>) {
-        let now = now()
+        let now = monotonicNow()
         reload(
             providers.filter { provider in
                 guard case .read(let reading, let readAt) = statuses[provider] else { return true }
@@ -45,7 +44,6 @@ final class QuotaModel {
         )
     }
 
-    /// Limits go stale after a minute. A login without a plan holds for a day, since only the user changes it. Failures are retried on the next refresh.
     private static func cooldown(after reading: QuotaReading) -> Duration {
         switch reading {
         case .available: .seconds(60)
@@ -61,7 +59,7 @@ final class QuotaModel {
         }
     }
 
-    /// Spends a Codex reset and rereads the limits in one busy span, so the settled result lands together with the reading. Returns false, doing nothing, while Codex is busy.
+    /// returns false while codex is busy; settles the reset result and refreshed limits in one busy span.
     func resetCodex(
         _ attempt: CodexQuotaResetAttempt,
         settle: @escaping @MainActor (CodexQuotaResetResult) -> Void
@@ -75,7 +73,6 @@ final class QuotaModel {
         }
     }
 
-    /// Holds the provider busy while the work runs, then records its reading. Returns false, doing nothing, while a read is in flight. The work runs on the main actor, so state it settles lands together with the reading.
     private func read(_ provider: QuotaProvider, _ work: @escaping @MainActor () async -> QuotaReading) -> Bool {
         guard !statuses[provider].isBusy else {
             return false
@@ -89,7 +86,7 @@ final class QuotaModel {
                 case .unavailable(let reason): "unavailable reason=\(reason.rawValue)"
                 }
             Logger.quota.info("\(provider.rawValue, privacy: .public) fetch \(outcome, privacy: .public)")
-            statuses[provider] = .read(reading, since: now())
+            statuses[provider] = .read(reading, since: monotonicNow())
         }
         return true
     }

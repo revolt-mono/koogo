@@ -2,7 +2,7 @@ import Foundation
 
 struct GrokQuotaResponse: Decodable {
     struct Config: Decodable {
-        /// Proto3 omits zero-valued scalars, so an untouched allowance has no percentage field.
+        /// proto3 omits zero-valued scalars, so an unused allowance has no percentage field.
         let creditUsagePercent: Double?
         let currentPeriod: Period?
     }
@@ -13,7 +13,7 @@ struct GrokQuotaResponse: Decodable {
     }
 
     let config: Config?
-    /// Already a display name, such as "SuperGrok Heavy" or "Free".
+    /// the server supplies a display-ready subscription name.
     let subscriptionTier: String?
 
     var snapshot: QuotaSnapshot? {

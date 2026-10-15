@@ -10,7 +10,7 @@ extension View {
         modifier(LoadingShimmer())
     }
 
-    /// Rolls changed digits in place. The transition is rasterized so each animation scale does not enter the system font cache.
+    /// rasterizing numeric transitions keeps animation scales out of the system font cache.
     func numericTextTransition() -> some View {
         contentTransition(.numericText())
             .environment(\.contentTransitionAddsDrawingGroup, true)
@@ -28,7 +28,6 @@ private struct MotionAnimation<Value: Equatable>: ViewModifier {
     }
 }
 
-/// Rests while scrolled off screen, so a page waiting out of view costs no frames.
 private struct LoadingShimmer: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isOnScreen = true

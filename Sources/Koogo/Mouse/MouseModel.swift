@@ -8,7 +8,7 @@ enum MouseStatus {
     case stopped
 }
 
-/// Lives for the app. `KoogoApp` calls `start()` once at launch; the observers and the tap run until the process ends.
+/// app-scoped; started once by the app at launch, with observers and tap lasting until process exit.
 @MainActor
 @Observable
 final class MouseModel {
@@ -40,14 +40,13 @@ final class MouseModel {
         }
     }
 
-    /// Touches neither Accessibility nor the tap until `start()`. Until the user saves settings, the installed terminals stand in as line-by-line apps.
+    /// defers accessibility and tap access until start; unsaved settings use installed terminals as line-by-line apps.
     init(defaults: UserDefaults, isInstalled: (String) -> Bool) {
         storage = PersistedValue(key: "mouse-settings", defaults: defaults)
         settings =
             storage.load() ?? MouseSettings(lineByLineApps: MouseSettings.terminalApps.filter(isInstalled))
     }
 
-    /// Reads Accessibility trust and the frontmost app, then follows each for the rest of the process.
     func start() {
         guard observers.isEmpty else {
             return
@@ -55,7 +54,7 @@ final class MouseModel {
         observers = [
             Task {
                 for await _ in AccessibilityPermission.changes {
-                    // The notification arrives before AXIsProcessTrusted reflects the change.
+                    // accessibility notifications arrive before the trust query reflects the change.
                     try? await Task.sleep(for: .milliseconds(250))
                     isTrusted = AccessibilityPermission.isTrusted
                     applyRules()

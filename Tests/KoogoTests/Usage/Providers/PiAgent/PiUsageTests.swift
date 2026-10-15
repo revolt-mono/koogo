@@ -225,7 +225,7 @@ private let piModelStore = """
 
 private let piCustomModels = """
     \u{FEFF}{
-      // Pi accepts comments and trailing commas in models.json.
+      // pi accepts comments and trailing commas in models.json.
       "providers": {
         "provider": {
           "apiKey": "ignored",

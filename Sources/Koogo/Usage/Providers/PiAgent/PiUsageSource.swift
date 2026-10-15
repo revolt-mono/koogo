@@ -1,6 +1,6 @@
 import Foundation
 
-/// Pi logs its own prices, so the source only names models from the catalog under its home.
+/// pi logs prices directly; the source supplies catalog model names.
 struct PiUsageSource: UsageSource {
     let logDirectories = ["sessions"]
     let logFormat = UsageLogFormat.jsonLines(PiUsageLogParser.self)

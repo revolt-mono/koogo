@@ -3,7 +3,7 @@ import IOKit.pwr_mgt
 import Observation
 import os
 
-/// A display sleep assertion also blocks idle system sleep, so one assertion covers both.
+/// app-scoped; construction restores the assertion and setting changes update the assertion. blocking idle display sleep also blocks idle system sleep.
 @MainActor
 @Observable
 final class KeepAwakeModel {

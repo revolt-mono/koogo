@@ -15,7 +15,7 @@ final class PanelViewTests: XCTestCase {
         let models = AppModels(
             defaults: defaults,
             pipeline: UsagePipeline(home: workspace.root, calendar: usageTestCalendar),
-            quotaSources: .unreachable,
+            quotaSources: .missingExecutables,
             breakNotifications: BreakReminderTestNotifications(),
             activitySample: {
                 activitySamples.increment()

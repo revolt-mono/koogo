@@ -16,7 +16,6 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             at: "2026-08-25T13:00:00.000Z"
         )
         try workspace.append(appended, to: log)
-        // A session written after the partial line shows that the walk has passed over it.
         try workspace.write(
             codexLog(input: 1, output: 0, thread: "witness"),
             to: workspace.codexSessions.appending(path: "witness.jsonl")

@@ -1,9 +1,9 @@
 import Foundation
 import Synchronization
 
-/// One request to `codex app-server` per call, with the handshake the server requires first.
+/// each call starts one app-server request after the required codex handshake.
 struct CodexAppServer: Sendable {
-    /// A failed call, split by whether the server may already have received the request. Only an unconfirmed write is safe to retry with the same idempotency key.
+    /// unconfirmed requests may have reached the server; retry those writes with the same idempotency key.
     enum CallError: Error, Equatable {
         case rejected(ToolFailure)
         case unconfirmed(ToolFailure)

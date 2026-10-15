@@ -67,7 +67,6 @@ enum BreakReminderCountdown: Codable, Equatable {
         }
     }
 
-    /// A stored countdown is usable when its remaining time fits in its interval.
     func isValid(at date: Date) -> Bool {
         switch self {
         case .scheduled(let interval, let deadline):

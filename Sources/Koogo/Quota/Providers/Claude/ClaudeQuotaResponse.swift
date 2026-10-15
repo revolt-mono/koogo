@@ -1,10 +1,10 @@
 import Foundation
 
-/// The `get_usage` control reply of the Claude CLI's stream-json protocol. The plan windows are the fields the CLI keeps even when it answers from its own cached snapshot; the raw server rows are dropped then.
+/// claude's cached usage replies retain plan windows but omit raw server rows.
 struct ClaudeQuotaResponse: Decodable {
     struct Window: Decodable {
         let displayName: String?
-        /// Null while the window has not started.
+        /// null before the window starts.
         let utilization: Double?
         let resetsAt: Date?
 
@@ -19,11 +19,10 @@ struct ClaudeQuotaResponse: Decodable {
         let modelScoped: [Window]?
     }
 
-    /// False when plan limits do not apply to the login, such as an API key, Bedrock, or Vertex. The CLI decides this locally, so it holds offline.
+    /// false for logins outside plan limits; claude determines eligibility locally, including offline.
     let rateLimitsAvailable: Bool
-    /// Null while the usage endpoint cannot be reached.
+    /// null while the usage endpoint is unreachable.
     let rateLimits: RateLimits?
-    /// The claude.ai plan in lowercase, such as `pro`, `max`, `team`, or `enterprise`.
     let subscriptionType: String?
 
     var reading: QuotaReading {

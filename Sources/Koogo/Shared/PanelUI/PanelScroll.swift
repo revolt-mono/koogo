@@ -4,11 +4,11 @@ extension View {
     func panelPageScroll() -> some View {
         contentMargins(.top, PanelLayout.gap, for: .scrollContent)
             .contentMargins(.leading, PanelLayout.inset, for: .scrollContent)
-            .contentMargins(.bottom, PanelLayout.bottomInset, for: .scrollContent)
+            .contentMargins(.bottom, PanelLayout.pageIndicatorInset, for: .scrollContent)
             .panelScroll(scrollerInset: PanelLayout.inset)
     }
 
-    /// Fades content where it scrolls past an edge, deepening with the distance scrolled, so content at rest stays crisp. The trailing `scrollerInset` holds the scroller and stays unfaded.
+    /// fades scrolled edges while leaving the trailing scroller inset unfaded.
     func panelScroll(scrollerInset: CGFloat) -> some View {
         contentMargins(.trailing, scrollerInset, for: .scrollContent)
             .modifier(ScrollEdgeFade(scrollerInset: scrollerInset))

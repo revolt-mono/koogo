@@ -1,6 +1,6 @@
 import Foundation
 
-/// User-visible numbers and dates render in one locale. A scene root sets this as the SwiftUI locale, which `Text(_:format:)` reads over a style's own; a style that renders to a `String` carries it itself.
+/// scene locale controls swiftui number and date text; styles producing strings must carry the display locale themselves.
 extension Locale {
     static let display = Locale(identifier: "en_US")
 }

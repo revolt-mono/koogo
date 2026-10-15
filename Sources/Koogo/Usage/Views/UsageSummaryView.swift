@@ -117,7 +117,7 @@ private struct AnimatedNumericText: View {
     let text: String
 
     var body: some View {
-        // ViewThatFits keeps updating unselected candidates, and an animation started there never settles.
+        // swiftui keeps updating unselected fit candidates, preventing their animations from settling.
         Text(text)
             .numericTextTransition()
             .motionAnimation(isOnScreen ? .smooth(duration: 0.35) : nil, value: text)

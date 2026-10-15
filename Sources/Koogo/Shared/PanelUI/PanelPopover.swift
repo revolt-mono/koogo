@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 extension NSEvent {
-    /// A multi-click on the view counts as a fresh single click, so each press toggles its popover.
+    /// each press toggles the popover, including presses within a native multi-click.
     @MainActor
     func independentClick(in view: NSView) -> NSEvent {
         guard clickCount > 1, isInside(view) else { return self }

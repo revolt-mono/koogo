@@ -61,7 +61,6 @@ struct SettingsView: View {
     }
 }
 
-/// Every tab shares one size so switching tabs never resizes the window; longer tabs scroll.
 private struct SettingsForm<Content: View>: View {
     @ViewBuilder let content: Content
 
@@ -75,7 +74,7 @@ private struct SettingsForm<Content: View>: View {
     }
 }
 
-/// Drops the full-size content view style from the hosting window. With that style, a switch's glass press interaction on macOS 26 leaves the title bar unable to start a window drag.
+/// on macos 26, full-size content styling leaves title-bar dragging broken after a glass switch press.
 private struct SettingsWindowStyle: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowStyleView {
         WindowStyleView()

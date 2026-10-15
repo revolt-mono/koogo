@@ -4,13 +4,13 @@ import System
 
 enum FileRead {
     case nothingNew
-    /// Lines reached the consumer or it restarted, whether or not the read then finished.
+    /// the consumer received lines or a restart, even when the read later failed.
     case readLines
-    /// Nothing reached the consumer; the next sync retries.
+    /// the consumer received nothing; the next sync retries.
     case unreadable
 }
 
-/// Incremental reader of a newline-delimited file. Complete lines are handed out once; a partial trailing line waits for its newline. A replaced or truncated file restarts from its first byte.
+/// delivers complete lines once, retaining a partial tail until newline; replacement or truncation restarts from byte zero.
 struct AppendOnlyFile: Sendable {
     private static var parsedTailSize: Int { 64 }
     private static var readSize: Int { 1 << 18 }
@@ -20,16 +20,14 @@ struct AppendOnlyFile: Sendable {
     private var parsedOffset: UInt64 = 0
     private var parsedTail = Data()
     private var needsRestart = false
-    /// The last read ended short of the file's size, so the next observation resumes it even when the file looks unchanged.
-    private var stoppedEarly = false
+    private var needsReadRetry = false
 
-    /// Starts from a directory walk's view of the file; the first read checks that view against the file itself.
     init(_ path: String, observed metadata: UsageFileMetadata) {
         self.path = path
         self.metadata = metadata
     }
 
-    /// Records a directory walk's view of the file and reports whether a read is due.
+    /// returns whether a read is due, including retrying an incomplete read.
     mutating func observe(_ observed: UsageFileMetadata) -> Bool {
         let wasReplaced =
             metadata.identity != observed.identity
@@ -39,10 +37,10 @@ struct AppendOnlyFile: Sendable {
             needsRestart = true
             return true
         }
-        return stoppedEarly || observed.size > metadata.size
+        return needsReadRetry || observed.size > metadata.size
     }
 
-    /// `restart` runs when the file no longer continues the bytes consumed so far; drop everything derived from them.
+    /// restart invalidates all state derived from previously consumed bytes.
     mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> FileRead {
         guard let file = try? FileDescriptor.open(FilePath(path), .readOnly) else {
             return .unreadable
@@ -65,7 +63,7 @@ struct AppendOnlyFile: Sendable {
         let finished =
             parsedOffset >= current.size || readLines(file, in: parsedOffset..<current.size, consume: consume)
         metadata = current
-        stoppedEarly = !finished
+        needsReadRetry = !finished
         if restarted || parsedOffset > startOffset {
             return .readLines
         }
@@ -110,7 +108,7 @@ struct AppendOnlyFile: Sendable {
         return true
     }
 
-    /// Line buffers come straight from the VM system, which takes the pages back on release. Malloc would keep a freed buffer, which grows to fit the longest line, dirty for the life of the process.
+    /// unmapped pages return to the system; malloc can retain dirty buffers sized for the longest line.
     private static func mapPages(byteCount: Int) -> UnsafeMutableRawBufferPointer {
         guard let pages = mmap(nil, byteCount, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0),
             pages != MAP_FAILED

@@ -6,12 +6,12 @@ enum AccessibilityPermission {
         AXIsProcessTrusted()
     }
 
-    /// Posted whenever any app's Accessibility trust changes.
+    /// posted whenever any app's accessibility trust changes.
     static var changes: NotificationCenter.Notifications {
         DistributedNotificationCenter.default().notifications(named: Notification.Name("com.apple.accessibility.api"))
     }
 
-    /// Prompts the user when trust is missing; a grant arrives through `changes`.
+    /// prompts for missing trust; grants arrive through the change notification.
     static func request() {
         let prompt = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([prompt: true] as CFDictionary)

@@ -25,7 +25,7 @@ final class InboxModel {
 
     init(defaults: UserDefaults = .standard) {
         storage = PersistedValue(key: "inbox-todo-items", defaults: defaults)
-        todos = storage.loadEach() ?? []
+        todos = storage.loadDecodableElements() ?? []
     }
 
     func add(_ text: TodoText, priority: TodoPriority) {

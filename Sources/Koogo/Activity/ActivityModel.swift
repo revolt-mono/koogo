@@ -1,7 +1,7 @@
 import Observation
 import os
 
-/// As many samples as the widest chart shows. `monitor` is the only producer and runs exactly as long as the task the shown page holds.
+/// app-scoped history; the visible page's task starts monitoring and owns the sampling lifetime.
 @MainActor
 @Observable
 final class ActivityModel {

@@ -2,7 +2,6 @@ import Darwin
 import Foundation
 import Synchronization
 
-/// Owns one FSEvents inbox, so copies would split the reported changes between them.
 struct LogStore: ~Copyable {
     private struct Entry: Sendable {
         let provider: Provider
@@ -14,7 +13,7 @@ struct LogStore: ~Copyable {
     private var windowStart = Date.distantPast
     private var watcher: LogDirectoryWatcher?
 
-    /// Brings the store in line with the files under the roots, walking only the directories FSEvents reported unless the roots or the window changed. Returns true when events may have changed.
+    /// syncs changed files under the roots; returns true when events or ingestion totals may have changed.
     mutating func sync(roots: [UsageLogRoot], since windowStart: Date) -> Bool {
         let windowMoved = moveWindow(to: windowStart)
         let rootsChanged = updateRoots(roots)
@@ -59,7 +58,7 @@ struct LogStore: ~Copyable {
         return changed
     }
 
-    /// Visits each request once and reports what every tracked log contributed. A request id logged in several files keeps its most complete copy.
+    /// visits each request once, retaining the most complete copy across logs, and returns ingestion totals.
     func collect(_ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
         var trackedFiles = EnumMap<Provider, Int> { _ in 0 }
         var malformedLines = EnumMap<Provider, Int> { _ in 0 }
@@ -135,7 +134,6 @@ struct LogStore: ~Copyable {
         return logRoots != self.logRoots
     }
 
-    /// What FSEvents reported since the last sync, or everything when no watcher covered that span on these roots. A replacement watcher starts before the walk, so a write during the walk reaches the next sync.
     private mutating func takeReportedChanges(for roots: [UsageLogRoot]) -> LogDirectoryWatcher.Changes {
         let paths = roots.map(\.path)
         guard let watcher, watcher.watches(paths) else {
@@ -145,7 +143,6 @@ struct LogStore: ~Copyable {
         return watcher.takeChanges()
     }
 
-    /// Pairs each directory to walk with the root it lies under, skipping any directory inside another.
     private static func walks(
         of roots: [UsageLogRoot],
         for changes: LogDirectoryWatcher.Changes
@@ -163,11 +160,10 @@ struct LogStore: ~Copyable {
         return walks
     }
 
-    /// Visits the regular files under `directory`, which lies inside `root`, skipping hidden entries as a walk from the root would.
     private static func walk(_ root: UsageLogRoot, from directory: String, _ body: (String, UsageFileMetadata) -> Void)
     {
         let isRoot = directory == root.path
-        guard isRoot || !isHidden(directory, under: root.path) else {
+        guard isRoot || !isHiddenOrMissing(directory, under: root.path) else {
             return
         }
         var paths: [UnsafeMutablePointer<CChar>?] = [strdup(directory), nil]
@@ -197,8 +193,7 @@ struct LogStore: ~Copyable {
         }
     }
 
-    /// Whether a directory below the root, or any directory between them, is hidden. A missing directory counts as hidden, since it holds nothing to walk.
-    private static func isHidden(_ directory: String, under root: String) -> Bool {
+    private static func isHiddenOrMissing(_ directory: String, under root: String) -> Bool {
         var path = root
         for component in directory.dropFirst(root.count + 1).split(separator: "/") {
             path += "/" + component

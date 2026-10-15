@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A tap that stays down while trust reads as granted usually means a stale grant, which only System Settings can renew.
+/// a stopped tap with granted trust usually needs the stale grant renewed in system settings.
 struct AccessibilityPermissionRow: View {
     private static let accessibilityPane = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"

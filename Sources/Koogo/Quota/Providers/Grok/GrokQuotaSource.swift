@@ -1,6 +1,6 @@
 import Foundation
 
-/// Delegates credentials and billing to Grok's ACP server. Initialization performs the CLI's unattended authentication refresh; billing needs neither a session nor a model prompt.
+/// grok initialization refreshes credentials unattended; billing needs no session or model prompt.
 struct GrokQuotaSource: QuotaSource {
     private let tool: CommandLineTool
 
@@ -31,7 +31,7 @@ struct GrokQuotaSource: QuotaSource {
                     )
                     return QuotaReading(response.snapshot)
                 } catch ToolFailure.rpc(code: -32000) {
-                    // The billing gate refuses the request before any network call unless the login is an xAI account.
+                    // grok rejects billing requests locally unless signed in with an xai account.
                     return .unavailable(.noPlan)
                 }
             }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ActivityTrendChart: View {
-    /// Recent samples, oldest first, as fractions of the chart's height.
+    /// samples run oldest first, as fractions of chart height.
     let trend: [Double]
 
     @Environment(\.displayScale) private var displayScale

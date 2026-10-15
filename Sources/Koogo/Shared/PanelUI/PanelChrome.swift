@@ -3,8 +3,7 @@ import SwiftUI
 enum PanelLayout {
     static let inset: CGFloat = 20
     static let gap: CGFloat = 12
-    /// Room for the page indicator.
-    static let bottomInset: CGFloat = 32
+    static let pageIndicatorInset: CGFloat = 32
 }
 
 struct PanelSection<Header: View, Content: View>: View {
@@ -70,7 +69,7 @@ extension ProgressViewStyle where Self == PanelProgressViewStyle {
 extension ShapeStyle where Self == Color {
     static var panelRaised: Color { .white.opacity(0.06) }
 
-    /// `Color.primary` turns gray under the panel's glass vibrancy.
+    /// the primary swiftui color turns gray under glass vibrancy.
     static var panelLabel: Color { Color(nsColor: .labelColor) }
 }
 

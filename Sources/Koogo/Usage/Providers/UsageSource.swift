@@ -1,11 +1,11 @@
 import Foundation
 
 protocol UsageSource: Sendable {
-    /// Directories under the tool's home that hold logs.
+    /// log directories relative to the tool's home.
     var logDirectories: [String] { get }
     var logFormat: UsageLogFormat { get }
     var splitsUsageByModel: Bool { get }
-    /// Rereads any model catalog under the tool's home. Returns true when a name may have changed.
+    /// rereads the home's model catalog; returns true when names may have changed.
     mutating func refresh(home: URL) -> Bool
     func modelName(_ model: ModelID) -> String?
 }

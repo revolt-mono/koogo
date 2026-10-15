@@ -94,7 +94,7 @@ final class ScrollRewriterTests: XCTestCase {
         XCTAssertEqual(posted.last?.flags, [.maskAlternate])
     }
 
-    /// The tap callback runs inside every scroll on the system; macOS disables a tap that answers late.
+    /// macos disables event taps that respond late to system-wide scrolling.
     func testRewritingNeverAllocates() throws {
         let notch = try scrollEvent(verticalDelta: 1)
         let optionNotch = try scrollEvent(verticalDelta: 1)
@@ -107,7 +107,7 @@ final class ScrollRewriterTests: XCTestCase {
 
         var remaining = 1_000
         var posted = 0
-        // A `for in` over a range allocates per step in unoptimized builds.
+        // range-based for loops allocate per step in unoptimized builds.
         let count = allocations {
             while remaining > 0 {
                 remaining -= 1
@@ -178,7 +178,7 @@ private let mallocLogTypeAllocate: UInt32 = 2
 private nonisolated(unsafe) var countedThread: pthread_t?
 private let allocationCount = Atomic(0)
 
-/// Counts heap allocations on the calling thread through `malloc_logger`, the hook malloc stack logging uses. See https://github.com/apple-oss-distributions/libmalloc.
+/// counts allocations on the calling thread through malloc's logging hook: https://github.com/apple-oss-distributions/libmalloc.
 private func allocations(_ body: () -> Void) -> Int {
     guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "malloc_logger") else {
         preconditionFailure("libmalloc exports malloc_logger")

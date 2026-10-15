@@ -27,7 +27,7 @@ struct ClaudeQuotaSource: QuotaSource {
         do throws(ToolFailure) {
             return try await tool.session(Self.arguments) { streams in
                 var streams = streams
-                // The CLI shuts down and skips network reads once its input closes, so the request must stay open until the reply arrives.
+                // claude skips network reads after input closes; keep input open until the reply arrives.
                 try await streams.write(Self.request)
                 let reply = try await streams.first {
                     try Self.decoder.decode(ClaudeControlResponse.self, from: $0).reply

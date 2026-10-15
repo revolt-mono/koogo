@@ -24,7 +24,6 @@ struct CodexQuotaResponse: Decodable, Sendable {
         )
     }
 
-    /// The labels the Codex TUI shows for its plan codes; a code outside this table shows capitalized.
     private static func planName(_ planType: String) -> String {
         switch planType {
         case "free": "Free"

@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class EventTapTests: XCTestCase {
-    /// macOS calls back on the tap's own thread, never the main actor.
+    /// macos calls back on the tap's thread, outside the main actor.
     func testCallbackRewritesNotchesOffTheMainActor() async throws {
         let tap = EventTap()
         nonisolated(unsafe) let userInfo = Unmanaged.passUnretained(tap).toOpaque()

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Turns one log line into at most one outcome. Returning nil skips the line; throwing counts it as malformed.
+/// nil skips a log line; throwing counts the line as malformed; each line produces at most one outcome.
 protocol UsageLogParser: Sendable {
     init()
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome?

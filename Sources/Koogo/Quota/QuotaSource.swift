@@ -14,7 +14,6 @@ extension QuotaUnavailability {
     }
 }
 
-/// One tool per quota provider. Codex is typed for the banked reset only it supports, so the reset and the regular read share one tool.
 struct QuotaSources: Sendable {
     let codex: any CodexQuotaResetSource
     let claude: any QuotaSource

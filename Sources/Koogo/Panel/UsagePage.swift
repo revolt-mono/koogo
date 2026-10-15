@@ -2,8 +2,7 @@ import SwiftUI
 
 struct UsagePage: View {
     private static let headerGap: CGFloat = 20
-    /// The cards scroll's top margin carries part of the gap above it.
-    private static let cardsGap = headerGap - PanelLayout.gap
+    private static let cardsGapExcludingScrollMargin = headerGap - PanelLayout.gap
 
     @Environment(ProviderPreferences.self) private var preferences
     @Environment(UsageModel.self) private var usageModel
@@ -13,7 +12,7 @@ struct UsagePage: View {
 
     var body: some View {
         PanelPageContent(usageModel.snapshot, loading: "Parsing logs…") { snapshot in
-            VStack(spacing: Self.cardsGap) {
+            VStack(spacing: Self.cardsGapExcludingScrollMargin) {
                 VStack(spacing: Self.headerGap) {
                     UsageSummaryView(summary: snapshot.summary)
 
@@ -30,7 +29,7 @@ struct UsagePage: View {
                     cards: preferences.order.compactMap { provider in
                         snapshot.providers[provider].map { (provider: provider, usage: $0) }
                     },
-                    heightLimit: max(maxHeight - headerHeight - Self.cardsGap, 0)
+                    heightLimit: max(maxHeight - headerHeight - Self.cardsGapExcludingScrollMargin, 0)
                 )
             }
         }
@@ -50,7 +49,7 @@ private struct ProviderCards: View {
         let leading = cards.prefix(Self.visibleCards)
         let visibleHeight =
             leading.compactMap { cardHeights[$0.provider] }.reduce(0, +)
-            + PanelLayout.gap * CGFloat(max(leading.count, 1)) + PanelLayout.bottomInset
+            + PanelLayout.gap * CGFloat(max(leading.count, 1)) + PanelLayout.pageIndicatorInset
 
         ScrollView {
             VStack(spacing: PanelLayout.gap) {

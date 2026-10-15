@@ -1,22 +1,21 @@
 import Foundation
 import Observation
 
-/// Spends a banked reset on the user's confirmation. It reads Codex's limits from the quota model, writes through the same Codex tool, and holds Codex busy there through the write and the reread that makes the shown limits authoritative.
+/// app-scoped; user confirmation starts a reset through the quota model, which stays busy through submission and reread.
 @MainActor
 @Observable
 final class CodexQuotaResetModel {
     private let quota: QuotaModel
-    private let clock: @MainActor () -> Date
+    private let wallClockNow: @MainActor () -> Date
     private var pending = CodexQuotaResetFlow.idle
 
-    /// Credit expiry is judged on wall-clock time.
     init(quota: QuotaModel, now: @escaping @MainActor () -> Date = { .now }) {
         self.quota = quota
-        clock = now
+        wallClockNow = now
     }
 
     var now: Date {
-        clock()
+        wallClockNow()
     }
 
     var credits: QuotaSnapshot.ResetCredits? {

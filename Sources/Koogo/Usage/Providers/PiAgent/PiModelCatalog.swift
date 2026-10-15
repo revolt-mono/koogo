@@ -30,7 +30,7 @@ struct PiModelCatalog: Sendable {
         let providers: [String: CustomProvider]
     }
 
-    /// A file's inode and change time. The change time moves on every write, rename, or attribute change and cannot be set back.
+    /// file change time advances on writes, renames, and attribute changes, and cannot be set back.
     private struct SourceVersion: Equatable {
         let identity: UsageFileMetadata.Identity
         let changeSeconds: Int
@@ -54,7 +54,7 @@ struct PiModelCatalog: Sendable {
         ModelID("\(provider)/\(model)")
     }
 
-    /// Rereads both files when either one changed on disk. Returns true when any name changed.
+    /// rereads both files when either changes; returns true when model names change.
     mutating func refresh(home: URL) -> Bool {
         let storeURL = home.appending(path: "models-store.json", directoryHint: .notDirectory)
         let customURL = home.appending(path: "models.json", directoryHint: .notDirectory)

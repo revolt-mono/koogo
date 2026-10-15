@@ -1,5 +1,4 @@
 struct MouseSettings: Codable, Equatable {
-    /// Bundle identifiers of terminals, whose scrollback reads best a line at a time. Those installed seed the line-by-line apps.
     static let terminalApps = [
         "com.apple.Terminal",
         "com.mitchellh.ghostty",
@@ -50,6 +49,6 @@ enum WheelStep: UInt32, Codable, CaseIterable {
 
 enum ScrollDirection: UInt32, Codable, CaseIterable {
     case standard
-    /// Content follows the fingers, as on a trackpad.
+    /// content follows the fingers, as on a trackpad.
     case natural
 }

@@ -24,7 +24,6 @@ struct ActivitySample: Sendable {
 }
 
 actor ActivitySampler {
-    /// Counters older than this span a gap between two openings of the panel, not a moment of load.
     private static let countersExpireAfter: Duration = .seconds(10)
 
     private var counters: ActivityCounters?

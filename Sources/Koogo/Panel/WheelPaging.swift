@@ -1,6 +1,6 @@
 import AppKit
 
-/// What the pager does with a scroll event. A trackpad scroll carries phases and pages by itself. A wheel click lands between pages unless the pager steps it: a sideways click steps, a vertical one goes to the page, and a tilted one is dropped. The system turns shift plus a vertical click sideways before it arrives.
+/// macos converts shift plus a vertical wheel notch into a horizontal notch before dispatch.
 enum WheelPaging: Equatable {
     case step(Int)
     case pass

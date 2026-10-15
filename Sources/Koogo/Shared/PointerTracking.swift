@@ -2,12 +2,12 @@ import AppKit
 import SwiftUI
 
 extension View {
-    /// Like `onHover`, through an AppKit tracking area bounded by the view. Once any view in a window uses SwiftUI's hover modifiers, SwiftUI hit-tests the whole window on every mouse move, even after that view leaves.
+    /// bounded appkit tracking avoids swiftui hover hit-testing the whole window on every mouse move, even after removal.
     func onPointerHover(perform action: @escaping (Bool) -> Void) -> some View {
         background(PointerTracker(options: []) { action($0 != .ended) }.allowsHitTesting(false))
     }
 
-    /// Like `onContinuousHover`, with points in the view's local space.
+    /// reports hover points in the view's local coordinates.
     func onContinuousPointerHover(perform action: @escaping (HoverPhase) -> Void) -> some View {
         background(PointerTracker(options: .mouseMoved, action: action).allowsHitTesting(false))
     }
@@ -85,7 +85,7 @@ private struct PointerTracker: NSViewRepresentable {
 }
 
 extension View {
-    /// Like `help`, through an AppKit tooltip rect. SwiftUI's `help` resolves its tooltip by hit-testing the whole window on every mouse move; a tooltip rect only tracks entry and exit.
+    /// appkit tooltip rectangles track entry and exit; swiftui help hit-tests the whole window on every mouse move.
     func tooltip(_ text: String) -> some View {
         background(ToolTipRect(text: text).allowsHitTesting(false))
             .accessibilityHint(text)

@@ -2,7 +2,7 @@ import AppKit
 import Darwin
 import os
 
-/// One running process of the current user and the process macOS holds responsible for it. Cpu and gpu time accumulate since launch, so only their differences between two scans are loads.
+/// cpu and gpu times accumulate since launch; scan differences yield load for each user process.
 struct ProcessRecord: Sendable {
     let identity: ProcessIdentity
     let responsiblePID: pid_t
@@ -15,7 +15,7 @@ struct ProcessRecord: Sendable {
     var pid: pid_t { identity.pid }
 }
 
-/// Timed on the suspending clock, which pauses in sleep like the mach absolute time rusage stamps launches with.
+/// the suspending clock pauses during sleep, matching mach absolute launch timestamps.
 struct ProcessScan: Sendable {
     let records: [ProcessRecord]
     let taken: SuspendingClock.Instant
@@ -38,7 +38,7 @@ struct AppIdentity: Sendable {
         self.iconPath = iconPath
     }
 
-    /// Launch services knows an app by its registered bundle even when it runs from a code-sign clone elsewhere.
+    /// launch services resolves registered bundles even when executables run from code-sign clones.
     static func running(_ pid: pid_t) -> AppIdentity? {
         guard let app = NSRunningApplication(processIdentifier: pid), let name = app.localizedName,
             let bundlePath = app.bundleURL?.path
@@ -47,18 +47,15 @@ struct AppIdentity: Sendable {
     }
 }
 
-/// The processes one app is responsible for, summed the way activity monitor groups them.
 struct AppProcessGroup: Identifiable, Sendable {
-    /// The responsible process, which stays put while helpers come and go.
     let id: pid_t
     let name: String
     let iconPath: String
-    /// Every process in the group, since the responsible one may be out of reach.
     let members: [ProcessIdentity]
     let footprint: UInt64
-    /// Cores' worth of cpu time between the two scans; one busy core reads as 1.
+    /// cpu cores used between scans; one busy core reads as 1.
     let cpu: Double
-    /// Share of the span the gpu spent on the group's work.
+    /// fraction of the sample span spent on the group's gpu work.
     let gpu: Double
 
     func forceTerminate() {
@@ -71,7 +68,6 @@ struct AppProcessGroup: Identifiable, Sendable {
         }
     }
 
-    /// A group whose responsible process is out of sight takes its identity from its lowest pid; a process launched since the earlier scan counts all its time, and one otherwise absent from it has no load yet.
     static func heaviest(
         in scan: ProcessScan,
         since previous: ProcessScan,
@@ -108,10 +104,10 @@ struct AppProcessGroup: Identifiable, Sendable {
 
 extension ProcessScan {
     private typealias ResponsiblePID = @convention(c) (pid_t) -> pid_t
-    /// Private in libquarantine; activity monitor uses the same relation.
+    /// private libquarantine relation also used by activity monitor.
     private static let responsiblePID = dlsym(dlopen(nil, RTLD_NOW), "responsibility_get_pid_responsible_for_pid")
         .map { unsafeBitCast($0, to: ResponsiblePID.self) }
-    /// Rusage reports cpu and launch times in mach absolute time units.
+    /// resource usage reports cpu and launch times in mach absolute units.
     private static let timebase: mach_timebase_info_data_t = {
         var info = mach_timebase_info_data_t()
         mach_timebase_info(&info)
@@ -120,7 +116,7 @@ extension ProcessScan {
     private static let absoluteTimeZero = SuspendingClock.now - duration(ofTicks: mach_absolute_time())
 
     static func read() throws -> ProcessScan {
-        guard let pids = LibProc.pids() else { throw ActivityReadFailure.processes }
+        guard let pids = LibProc.currentUserPIDs() else { throw ActivityReadFailure.processes }
         let taken = SuspendingClock.now
         let gpuTimes = GPULoad.timePerProcess()
         return ProcessScan(records: pids.compactMap { record($0, gpuTime: gpuTimes[$0] ?? .zero) }, taken: taken)

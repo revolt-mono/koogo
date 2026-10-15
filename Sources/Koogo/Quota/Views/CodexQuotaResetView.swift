@@ -151,7 +151,6 @@ private struct CodexQuotaResetCreditRow: View {
     let credit: QuotaSnapshot.ResetCredit
 
     var body: some View {
-        // The timeline only re-evaluates the row; the model's clock decides expiry.
         TimelineView(.periodic(from: .now, by: 60)) { _ in
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {

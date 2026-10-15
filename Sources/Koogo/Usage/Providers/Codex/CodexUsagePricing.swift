@@ -9,7 +9,7 @@ enum CodexUsagePricing {
         private(set) var output: Picodollars
         let supportsCacheWrite: Bool
 
-        /// Takes rates in nanodollars per token.
+        /// rates are nanodollars per token.
         init(input: UInt64, cachedInput: UInt64, output: UInt64, supportsCacheWrite: Bool) {
             self.input = Picodollars(nanodollars: input)
             self.cachedInput = Picodollars(nanodollars: cachedInput)
@@ -17,7 +17,7 @@ enum CodexUsagePricing {
             self.supportsCacheWrite = supportsCacheWrite
         }
 
-        /// Nil for models that cannot write cache, so a request that wrote cache stays unpriced.
+        /// models without cache-write support leave cache-writing requests unpriced.
         var cacheWrite: Picodollars? {
             supportsCacheWrite ? input.scaled(by: 5, over: 4) : nil
         }
@@ -58,9 +58,7 @@ enum CodexUsagePricing {
         let rates: ContextRates
     }
 
-    // Sources, checked 2026-08-26:
-    // https://developers.openai.com/api/docs/pricing
-    // https://openai.com/index/gpt-5-6
+    // pricing checked 2026-08-26: https://developers.openai.com/api/docs/pricing and https://openai.com/index/gpt-5-6
     private static let prices: [ModelID: ModelPrice] = [
         "gpt-6.1-sol": ModelPrice(
             displayName: "GPT 6.1 Sol",
@@ -115,7 +113,6 @@ enum CodexUsagePricing {
     ]
 
     static func quote(model: ModelID, tokens: CodexTokenUsage) -> UsageQuote? {
-        // Quoting the table's own key lets every log share one copy of the model name.
         guard let index = prices.index(forKey: model == "gpt-5.6" ? "gpt-5.6-sol" : model) else {
             return nil
         }
@@ -124,7 +121,7 @@ enum CodexUsagePricing {
             return nil
         }
 
-        // Codex rollout logs do not reliably record service tiers, so usage uses standard rates.
+        // codex rollout logs lack reliable service tiers; estimates use standard rates.
         return UsageQuote(model: model, cost: cost)
     }
 

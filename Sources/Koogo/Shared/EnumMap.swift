@@ -1,4 +1,4 @@
-/// A map with a value for every case of its key, so lookups never return an optional.
+/// contains a value for every key case; lookups are never optional.
 struct EnumMap<Key: CaseIterable & Hashable, Value> {
     private let keys: [Key]
     private var values: [Value]

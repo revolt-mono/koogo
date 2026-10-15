@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Animates the panel's hand-drawn chart paths. Swift Charts and drawing groups both re-render offscreen at about 100 MB of graphics memory per change inside the panel's glass window.
+/// swift charts and drawing groups incur large offscreen graphics allocations inside the glass panel.
 struct AnimatableValues: VectorArithmetic {
     private(set) var values: [Double]
 

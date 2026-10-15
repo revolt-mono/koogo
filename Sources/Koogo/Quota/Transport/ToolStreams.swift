@@ -1,7 +1,6 @@
 import Foundation
 import Subprocess
 
-/// Owns the line iterator and its buffer, so a copy would read the same stream twice.
 struct ToolStreams: ~Copyable {
     private static let lineLimit = 4 * 1_024 * 1_024
 

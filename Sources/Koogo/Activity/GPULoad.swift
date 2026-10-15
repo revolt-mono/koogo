@@ -2,14 +2,13 @@ import Darwin
 import IOKit
 import Metal
 
-/// Rendering and tiling are the two stages apple gpus report separately.
+/// apple gpus report rendering and tiling as separate stages.
 struct GPULoad: Sendable {
     let name: String
     let utilization: Double
     let renderer: Double
     let tiler: Double
 
-    /// The default device's registry id names its IOAccelerator entry, so a second gpu's statistics never wear its name.
     private static let device = MTLCreateSystemDefaultDevice().map { (name: $0.name, registryID: $0.registryID) }
 
     static func read() -> GPULoad? {
@@ -36,7 +35,7 @@ struct GPULoad: Sendable {
         return load
     }
 
-    /// Gpu time each process has accumulated across its accelerator clients, in the nanoseconds the driver reports.
+    /// accumulated per-process gpu time across accelerator clients, in driver-reported nanoseconds.
     static func timePerProcess() -> [pid_t: Duration] {
         var times: [pid_t: Duration] = [:]
         forEachAccelerator { accelerator in

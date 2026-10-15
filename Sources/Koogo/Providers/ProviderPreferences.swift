@@ -6,7 +6,6 @@ import Observation
 final class ProviderPreferences {
     private struct Stored: Codable {
         var order: [Provider]
-        /// Stored as the disabled set so a provider added later starts on.
         var usageDisabled: Set<Provider>
     }
 
@@ -21,7 +20,6 @@ final class ProviderPreferences {
         order.filter { self[usage: $0] }
     }
 
-    /// Quota renders inside the usage card, so a provider hidden from usage fetches none.
     var quotaProviders: [QuotaProvider] {
         usageProviders.compactMap(\.quota)
     }

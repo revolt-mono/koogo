@@ -75,8 +75,7 @@ final class ScriptedCodexResetSource: CodexQuotaResetSource {
 }
 
 extension QuotaSources {
-    /// Every tool missing, so each read ends in `.binaryNotFound`.
-    static var unreachable: Self {
+    static var missingExecutables: Self {
         QuotaSources(
             codex: CodexQuotaSource(executableCandidates: []),
             claude: ClaudeQuotaSource(executableCandidates: []),
@@ -85,7 +84,6 @@ extension QuotaSources {
     }
 }
 
-/// A quota model whose unscripted providers trap when loaded.
 @MainActor
 func makeQuotaModel(
     codex: any CodexQuotaResetSource = ScriptedCodexResetSource(),

@@ -13,7 +13,7 @@ struct UsageEventIndex: Sendable {
         }
     }
 
-    /// Fields run from widest to narrowest, with the revision split, so the narrow ones share the identity's padding: 56 bytes a stride instead of 72.
+    /// field order reuses identity padding, keeping each entry at a 56-byte stride.
     private struct Entry: Sendable {
         let secondsSinceReferenceDate: TimeInterval
         let processedTokens: UInt64
@@ -38,13 +38,12 @@ struct UsageEventIndex: Sendable {
         }
     }
 
-    /// One survivor per id, ordered by id and sized exactly, so a log that stops growing holds no hash table.
-    private var sealed: [Entry] = []
+    private var deduplicatedEntries: [Entry] = []
     private var pending: [Entry] = []
     private var models: [ModelID?] = [nil]
 
     var values: some Collection<UsageEvent> {
-        sealed.lazy.map { [models] entry in
+        deduplicatedEntries.lazy.map { [models] entry in
             UsageEvent(
                 id: entry.id,
                 record: UsageRecord(
@@ -59,46 +58,46 @@ struct UsageEventIndex: Sendable {
     }
 
     var keys: some Collection<UsageEventID> {
-        sealed.lazy.map(\.id)
+        deduplicatedEntries.lazy.map(\.id)
     }
 
     var count: Int {
-        sealed.count
+        deduplicatedEntries.count
     }
 
-    /// Publishes a deduplicated batch on return or throw. The batch cannot be copied or read while being built.
+    /// publishes a deduplicated batch on return or throw; the batch cannot be copied or read during construction.
     mutating func update<Result>(_ body: (inout Batch) throws -> Result) rethrows -> Result {
         var batch = Batch(index: consume self)
         defer {
-            batch.index.seal()
+            batch.index.deduplicate()
             self = batch.index
         }
         return try body(&batch)
     }
 
-    private mutating func seal() {
+    private mutating func deduplicate() {
         guard !pending.isEmpty else {
             return
         }
-        sealed += pending
+        deduplicatedEntries += pending
         pending = []
-        sealed.sort { $0.id < $1.id }
+        deduplicatedEntries.sort { $0.id < $1.id }
         var survivorCount = 0
-        for position in sealed.indices {
-            if survivorCount > 0, sealed[survivorCount - 1].id == sealed[position].id {
-                if sealed[survivorCount - 1].isSuperseded(by: sealed[position]) {
-                    sealed[survivorCount - 1] = sealed[position]
+        for position in deduplicatedEntries.indices {
+            if survivorCount > 0, deduplicatedEntries[survivorCount - 1].id == deduplicatedEntries[position].id {
+                if deduplicatedEntries[survivorCount - 1].isSuperseded(by: deduplicatedEntries[position]) {
+                    deduplicatedEntries[survivorCount - 1] = deduplicatedEntries[position]
                 }
             } else {
-                sealed[survivorCount] = sealed[position]
+                deduplicatedEntries[survivorCount] = deduplicatedEntries[position]
                 survivorCount += 1
             }
         }
-        sealed = sealed.withUnsafeBufferPointer { Array($0.prefix(survivorCount)) }
+        deduplicatedEntries = deduplicatedEntries.withUnsafeBufferPointer { Array($0.prefix(survivorCount)) }
     }
 
     mutating func discard(before windowStart: Date) {
-        sealed.removeAll { $0.timestamp < windowStart }
+        deduplicatedEntries.removeAll { $0.timestamp < windowStart }
     }
 
     private mutating func entry(_ event: UsageEvent) -> Entry {

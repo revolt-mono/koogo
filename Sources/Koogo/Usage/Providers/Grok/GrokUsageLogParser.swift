@@ -1,6 +1,6 @@
 import Foundation
 
-/// Reads the `turn_completed` updates that Grok appends to each session's `updates.jsonl`. Each one sums a whole prompt per model, subagents included.
+/// each completed grok turn sums the whole prompt per model, including subagents.
 struct GrokUsageLogParser: UsageLogParser {
     func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         guard let record = JSONValue(object: line), let params = try record.fields(.value("params")) else {
@@ -24,7 +24,7 @@ struct GrokUsageLogParser: UsageLogParser {
         let timestamp = Date(unixMilliseconds: milliseconds)
         let prompt = try GrokPromptUsage(usage)
         guard let primaryModel = prompt.primaryModel else {
-            // A cancelled prompt completes with no model rows and nothing billed.
+            // cancelled grok prompts can complete with no model rows and zero billable tokens.
             guard prompt.totalTokens == 0 else { throw MalformedUsageRecord() }
             return nil
         }
@@ -51,7 +51,7 @@ struct GrokUsageLogParser: UsageLogParser {
 }
 
 private struct GrokPromptUsage {
-    /// Full prompt input, cache reads included, plus output.
+    /// prompt input including cache reads, plus output.
     let totalTokens: UInt64
     let modelUsage: [ModelID: GrokTokenUsage]
 
@@ -79,7 +79,7 @@ private struct GrokPromptUsage {
 }
 
 struct GrokTokenUsage: Sendable {
-    /// Full prompt input, cache reads included.
+    /// prompt input including cache reads.
     let input: UInt64
     let cachedInput: UInt64
     let output: UInt64

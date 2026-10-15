@@ -2,7 +2,6 @@ struct InputRules: Equatable {
     enum NotchMode: UInt32, CaseIterable {
         case standard
         case optionPrecision
-        /// One line; Option raises it to the wheel step and is hidden, so terminals don't read alt-scroll.
         case lineByLine
     }
 
@@ -29,7 +28,7 @@ struct InputRules: Equatable {
 }
 
 extension InputRules {
-    /// The frontmost app approximates the scroll target: scrolls reach the window under the pointer, but resolving that would add a lookup to every notch.
+    /// macos targets the window under the pointer; using the frontmost app avoids a lookup on every notch.
     init(_ settings: MouseSettings, frontmostApp: String?) {
         let notchMode: NotchMode =
             if let frontmostApp, settings.lineByLineApps.contains(frontmostApp) {

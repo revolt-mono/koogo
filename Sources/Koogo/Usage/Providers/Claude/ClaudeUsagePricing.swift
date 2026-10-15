@@ -10,7 +10,7 @@ enum ClaudeUsagePricing {
         let cacheWriteFiveMinute: Picodollars
         let cacheWriteOneHour: Picodollars
 
-        /// Takes rates in nanodollars per token.
+        /// rates are nanodollars per token.
         init(input: UInt64, cacheRead: UInt64, output: UInt64) {
             self.input = Picodollars(nanodollars: input)
             self.cacheRead = Picodollars(nanodollars: cacheRead)
@@ -38,9 +38,7 @@ enum ClaudeUsagePricing {
         let options: Set<ClaudeBillableUsage.Option>
     }
 
-    // Sources, checked 2026-10-08:
-    // https://platform.claude.com/docs/en/about-claude/pricing
-    // https://platform.claude.com/docs/en/models/overview
+    // pricing checked 2026-10-08: https://platform.claude.com/docs/en/about-claude/pricing and https://platform.claude.com/docs/en/models/overview
     private static let prices: [ModelID: ModelPrice] = [
         "claude-fable-5-1": ModelPrice(
             displayName: "Fable 5.1",
@@ -127,7 +125,6 @@ enum ClaudeUsagePricing {
             case "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
             default: logged
             }
-        // Quoting the table's own key lets every log share one copy of the model name.
         guard let index = prices.index(forKey: canonical) else {
             return nil
         }

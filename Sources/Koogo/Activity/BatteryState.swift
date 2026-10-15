@@ -1,22 +1,22 @@
 import IOKit
 
 struct BatteryState: Sendable {
-    /// Estimates are absent until the charger or load settles.
+    /// estimates remain absent until the charger or load settles.
     enum Supply: Equatable, Sendable {
         case charging(timeToFull: Duration?)
-        /// External power with the battery held: full, or parked by the charge limit.
+        /// external power with a full battery or a battery held at the charge limit.
         case external
         case discharging(timeToEmpty: Duration?)
     }
 
     let charge: Double
     let supply: Supply
-    /// Watts the system draws. Absent without power telemetry on external power, where the battery's own current says nothing about the system.
+    /// system watts; external power requires system telemetry because battery current excludes other system draw.
     let draw: Double?
     let health: Double
     let cycles: Int
 
-    /// The driver marks an unknown estimate with all ones.
+    /// the driver encodes unknown minutes as all ones.
     private static let unknownMinutes = 65535
 
     static func read() -> BatteryState? {
@@ -30,7 +30,7 @@ struct BatteryState: Sendable {
         return BatteryState(properties: properties)
     }
 
-    /// Nil when the registry entry lacks the battery figures, as a battery-less machine's placeholder entry does. Capacities sit under `BatteryData` on Apple silicon and at the top level on Intel.
+    /// capacity fields are nested on apple silicon and top-level on intel; battery-less placeholder entries lack required figures.
     init?(properties: [String: Any]) {
         let batteryData = properties["BatteryData"] as? [String: Any] ?? [:]
         guard

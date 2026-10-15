@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Lives for the app. `KoogoApp` refreshes once at launch so the first opening finds a snapshot; `PanelView` refreshes when the panel opens and when the shown providers change.
+/// app-scoped; refreshed by the app at launch and by the panel on open or provider changes.
 @MainActor
 @Observable
 final class UsageModel {
@@ -21,7 +21,7 @@ final class UsageModel {
         self.now = now
     }
 
-    /// Rebuilds the snapshot for the given providers. A call during a refresh runs once that refresh ends.
+    /// refreshes the requested providers; calls during a refresh queue another pass.
     func refresh(providers: [Provider]) {
         guard case .idle = state else {
             state = .running(queued: providers)

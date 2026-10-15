@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Every model the app runs, built from one set of outside dependencies so no model can pair with another's. Construction has no launch effects; `KoogoApp` starts what needs starting.
+/// builds app-scoped models from shared dependencies; construction has no launch effects and the app starts each model.
 @MainActor
 struct AppModels {
     let preferences: ProviderPreferences
@@ -38,7 +38,6 @@ struct AppModels {
 }
 
 extension View {
-    /// What every scene root gets: the models, the rounded face, and the display locale that `Text(_:format:)` reads.
     func sceneRoot(_ models: AppModels) -> some View {
         environment(models.preferences)
             .environment(models.usage)

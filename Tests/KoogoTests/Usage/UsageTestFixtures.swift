@@ -81,7 +81,7 @@ class UsageWorkspaceTestCase: XCTestCase {
         UsagePipeline(home: workspace.root, calendar: usageTestCalendar)
     }
 
-    /// Refreshes until the report shows a change. FSEvents tells the pipeline about a write some milliseconds after it lands.
+    /// polls until the report matches because filesystem events arrive after the write.
     func refresh(
         _ pipeline: UsagePipeline,
         until isCurrent: (UsageReport) -> Bool,

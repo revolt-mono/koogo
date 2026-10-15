@@ -7,7 +7,6 @@ struct Measure {
 }
 
 extension Measure {
-    /// Binary units labelled the way activity monitor labels them: two decimals from a gigabyte up, whole megabytes below.
     init(bytes: UInt64) {
         let gigabyte = Double(1 << 30)
         let megabyte = Double(1 << 20)

@@ -1,6 +1,6 @@
 import Darwin
 
-/// Scheduler ticks accumulated since boot. Two readings a moment apart give the load over that moment.
+/// scheduler ticks since boot; differences between readings yield load.
 struct CPUTicks: Sendable {
     let user: UInt32
     let system: UInt32
@@ -20,7 +20,6 @@ struct CPUTicks: Sendable {
     }
 }
 
-/// Physical cores per performance level. A machine without levels counts every core as performance.
 struct CPUCores: Sendable {
     let performance: Int
     let efficiency: Int
@@ -39,7 +38,7 @@ struct CPULoad: Sendable {
 
     var total: Double { user + system }
 
-    /// Counters wrap, so each delta is taken modulo the counter width. No elapsed ticks read as an idle cpu.
+    /// tick counters wrap; zero elapsed ticks read as idle.
     init(from previous: CPUTicks, to next: CPUTicks) {
         let user = Double(next.user &- previous.user)
         let system = Double(next.system &- previous.system)

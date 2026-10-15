@@ -8,7 +8,7 @@ protocol BreakReminderNotifications {
     func cancel()
 }
 
-/// Lives for the app. `KoogoApp` reconciles once at launch and the panel control again each time the panel opens.
+/// app-scoped; reconciled by the app at launch and by the panel control on each opening.
 @MainActor
 @Observable
 final class BreakReminderModel {
@@ -22,7 +22,7 @@ final class BreakReminderModel {
 
     private(set) var isBusy = false
 
-    /// Why the last schedule failed. Stays until a schedule succeeds, so a failure at launch is still shown when the panel opens.
+    /// retains the last scheduling failure until scheduling succeeds, including across panel openings.
     private(set) var issue: BreakReminderIssue?
 
     init(
@@ -37,7 +37,7 @@ final class BreakReminderModel {
         countdown = if let stored, stored.isValid(at: now()) { stored } else { .initial }
     }
 
-    /// Dropped while another change is in flight.
+    /// drops actions while another change is in flight.
     func perform(_ action: BreakReminderCountdown.Action) async {
         await whileBusy {
             if let change = countdown.change(for: action, at: now()) {
@@ -46,7 +46,7 @@ final class BreakReminderModel {
         }
     }
 
-    /// Reschedules the system notification a running countdown has lost, such as after a relaunch.
+    /// reschedules a missing system notification for a running countdown, including after relaunch.
     func reconcile() async {
         await whileBusy {
             guard case .running = countdown.status(at: now()),
@@ -81,7 +81,7 @@ final class BreakReminderModel {
                 issue = error
                 return
             }
-            // Measured once scheduling returns, so an authorization prompt doesn't shorten the countdown.
+            // start counting after scheduling returns so an authorization prompt cannot shorten the countdown.
             countdown = .scheduled(interval: interval, deadline: now().addingTimeInterval(duration))
             issue = nil
         case .pause(let interval, let remaining):

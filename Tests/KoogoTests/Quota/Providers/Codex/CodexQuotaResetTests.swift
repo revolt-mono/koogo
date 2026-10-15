@@ -110,7 +110,7 @@ final class CodexQuotaResetTests: XCTestCase {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let initializing = try workspace.makeAppServer(onStart: "while :; do :; done")
         let consuming = try workspace.makeAppServer(onConsume: "while :; do :; done")
-        // macOS vets a new executable on its first launch, which can outlast the timeout below.
+        // macos vets new executables on first launch, which can exceed the timeout below.
         _ = await CodexQuotaSource(executableCandidates: [consuming]).load()
 
         let rejected = await CodexQuotaSource(executableCandidates: [initializing], timeout: .milliseconds(500))

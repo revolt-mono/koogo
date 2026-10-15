@@ -1,15 +1,14 @@
 import Darwin
 import Foundation
 
-/// An agent process no terminal session is driving: daemons, pty hosts, spares, and leftovers from closed terminals.
+/// agent processes without a driving terminal session: daemons, pty hosts, spares, and closed-terminal leftovers.
 struct OrphanedAgentProcess: Sendable {
-    /// `e_tdev` of a process without a controlling terminal.
+    /// the terminal device value for a process without a controlling terminal.
     static let noTerminal = UInt32.max
 
     fileprivate let identity: ProcessIdentity
     let provider: Provider
 
-    /// Skips processes attached to a terminal and the agent clis this app runs for quota reads.
     init?(_ identity: ProcessIdentity, parentPID: pid_t, terminalDevice: UInt32, executablePath: String) {
         guard
             terminalDevice == Self.noTerminal,
@@ -68,7 +67,7 @@ struct OrphanedAgentProcesses: Sendable {
 
     @concurrent
     static func running() async throws -> OrphanedAgentProcesses? {
-        guard let pids = LibProc.pids() else { throw Failure.scan }
+        guard let pids = LibProc.currentUserPIDs() else { throw Failure.scan }
         return OrphanedAgentProcesses(pids.compactMap(orphanedAgentProcess))
     }
 

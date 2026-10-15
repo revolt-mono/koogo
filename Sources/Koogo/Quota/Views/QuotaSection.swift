@@ -8,7 +8,6 @@ struct QuotaSection: View {
     var body: some View {
         switch quotaModel.statuses[provider].latest {
         case .unavailable:
-            // A reset whose reread failed still needs its retry prompt.
             if provider == .codex, resetModel.hasResetActivity {
                 VStack(spacing: 16) {
                     CodexQuotaResetView()

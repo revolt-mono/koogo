@@ -5,25 +5,24 @@ struct AppProcessList: View {
     let groups: [AppProcessGroup]
     let sampledAt: SuspendingClock.Instant
 
-    /// The order the pointer found the list in holds while the pointer stays, so no row moves out from under a click; groups arriving meanwhile queue at the end.
-    @State private var pinnedOrder: [pid_t]?
+    @State private var hoverPinnedOrder: [pid_t]?
 
     var body: some View {
         PanelSection("Processes") {
             VStack(spacing: 8) {
-                ForEach(pinned) { group in
+                ForEach(hoverOrderedGroups) { group in
                     AppProcessRow(group: group, sampledAt: sampledAt)
                 }
             }
             .onPointerHover { isInside in
-                pinnedOrder = isInside ? groups.map(\.id) : nil
+                hoverPinnedOrder = isInside ? groups.map(\.id) : nil
             }
         }
     }
 
-    private var pinned: [AppProcessGroup] {
-        guard let pinnedOrder else { return groups }
-        let rank = Dictionary(uniqueKeysWithValues: zip(pinnedOrder, 0...))
+    private var hoverOrderedGroups: [AppProcessGroup] {
+        guard let hoverPinnedOrder else { return groups }
+        let rank = Dictionary(uniqueKeysWithValues: zip(hoverPinnedOrder, 0...))
         return groups.sorted { (rank[$0.id] ?? .max) < (rank[$1.id] ?? .max) }
     }
 }
@@ -32,8 +31,7 @@ private struct AppProcessRow: View {
     let group: AppProcessGroup
     let sampledAt: SuspendingClock.Instant
 
-    /// The process count when the quit was asked and at each sample since that showed fewer; a sample showing no fewer means the quit stalled, and the row thaws.
-    @State private var quittingFrom: Int?
+    @State private var quittingProcessCount: Int?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -77,20 +75,20 @@ private struct AppProcessRow: View {
         .opacity(isQuitting ? 0.4 : 1)
         .motionAnimation(.easeOut(duration: 0.2), value: isQuitting)
         .onChange(of: sampledAt) {
-            guard let quittingFrom else { return }
-            self.quittingFrom = group.members.count < quittingFrom ? group.members.count : nil
+            guard let quittingProcessCount else { return }
+            self.quittingProcessCount = group.members.count < quittingProcessCount ? group.members.count : nil
         }
     }
 
-    private var isQuitting: Bool { quittingFrom != nil }
+    private var isQuitting: Bool { quittingProcessCount != nil }
 
     private func quit() {
-        quittingFrom = group.members.count
+        quittingProcessCount = group.members.count
         group.forceTerminate()
     }
 }
 
-/// Keyed on the path alone; a fresh `NSImage` per row body would redraw and animate the icon on every sample.
+/// a path-only view boundary avoids recreating and animating app icons on every sample.
 private struct AppIcon: View {
     let path: String
 

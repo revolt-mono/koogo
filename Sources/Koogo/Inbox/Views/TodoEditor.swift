@@ -81,7 +81,6 @@ struct TodoInlineEditor: View {
         }
         .padding(8)
         .background(.panelRaised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        // Deciding on mouse down keeps a click on the save button from racing the discard.
         .onMouseDownOutside { _ in onFinish(.discarded) }
     }
 

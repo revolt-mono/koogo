@@ -6,7 +6,7 @@ enum SystemAppearance {
         let errorDescription: String?
     }
 
-    // NSAppleScript is main-thread-only; osascript keeps the blocking Apple event off the main actor.
+    // osascript keeps blocking apple events off the main actor; in-process apple scripts require the main thread.
     static func toggle() async throws {
         let result = try await run(
             .path("/usr/bin/osascript"),

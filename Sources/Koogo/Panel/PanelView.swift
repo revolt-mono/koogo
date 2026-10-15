@@ -24,7 +24,6 @@ struct PanelView: View {
         }
         .frame(width: 320)
         .background {
-            // Dark enough for the headline to read against the desktop, light enough that a card still shows through.
             LinearGradient(
                 stops: [
                     .init(color: .black.opacity(0.72), location: 0),

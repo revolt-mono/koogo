@@ -7,7 +7,7 @@ enum GrokUsagePricing {
         private(set) var cachedInput: Picodollars
         private(set) var output: Picodollars
 
-        /// Takes rates in nanodollars per token.
+        /// rates are nanodollars per token.
         init(displayName: String, input: UInt64, cachedInput: UInt64, output: UInt64) {
             self.displayName = displayName
             self.input = Picodollars(nanodollars: input)
@@ -25,9 +25,8 @@ enum GrokUsagePricing {
         }
     }
 
-    // Grok subscriptions bill one flat rate, so the standard API rates apply at any context length.
-    // Sources, checked 2026-09-26:
-    // https://docs.x.ai/developers/pricing
+    // grok subscriptions use standard api rates at every context length.
+    // pricing checked 2026-09-26: https://docs.x.ai/developers/pricing
     private static let prices: [ModelID: ModelPrice] = [
         "grok-4.7": ModelPrice(displayName: "Grok 4.7", input: 2_000, cachedInput: 500, output: 6_000),
         "grok-4.6": ModelPrice(displayName: "Grok 4.6", input: 2_000, cachedInput: 500, output: 6_000),
@@ -46,7 +45,7 @@ enum GrokUsagePricing {
         price(of: model)?.displayName
     }
 
-    /// Grok Build logs `<model>-build` at the rates of `<model>`, and `<model>-build-fast` at twice them.
+    /// grok logs build-suffixed model names; the fast suffix doubles the base rate.
     private static func price(of model: ModelID) -> ModelPrice? {
         let name = model.rawValue
         guard let price = prices[ModelID(name.replacing(/-build(-fast)?$/, with: ""))] else {

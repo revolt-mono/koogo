@@ -2,12 +2,11 @@
 import os
 
 enum ScrollRewrite: Equatable {
-    /// Deliver the event, rewritten in place when it was a notch.
     case deliver
     case drop
 }
 
-/// A posting adapter borrows this view only for its synchronous call; the reusable event stays private.
+/// posting adapters borrow the reusable event only for the synchronous call.
 struct PostedScrollEvent: ~Copyable {
     private let event: CGEvent
 
@@ -29,7 +28,7 @@ struct PostedScrollEvent: ~Copyable {
     }
 }
 
-/// Rewrites one wheel notch per call on the tap thread. Reuses the events it posts, so it never allocates and must stay on one thread.
+/// single-threaded wheel-notch rewriting with reusable posted events and no per-call allocation.
 final class ScrollRewriter {
     private static let pixelsPerLine: Int64 = 16
 
@@ -41,7 +40,7 @@ final class ScrollRewriter {
         optionStrip = OptionStrip(source: source)
     }
 
-    /// Posts replacements synchronously before returning `.drop`.
+    /// posts replacements synchronously before returning drop.
     func rewrite(_ event: CGEvent, rules: InputRules, post: (borrowing PostedScrollEvent) -> Void) -> ScrollRewrite {
         guard Self.isWheelNotchEvent(event) else {
             return .deliver
@@ -67,7 +66,7 @@ final class ScrollRewriter {
         return .drop
     }
 
-    /// Trackpad and Magic Mouse scrolling is continuous or phased; wheel notches are neither.
+    /// trackpads and magic mouse scrolling carry continuous or phased events; wheel notches carry neither.
     private static func isWheelNotchEvent(_ event: CGEvent) -> Bool {
         event.getIntegerValueField(.scrollWheelEventIsContinuous) == 0
             && event.getIntegerValueField(.scrollWheelEventScrollPhase) == 0
@@ -136,7 +135,7 @@ private struct OptionStrip {
         self.optionRestored = optionRestored
     }
 
-    /// A notch returned from the tap would arrive after both posted Option changes.
+    /// returning the notch from the tap would deliver the notch after both posted option changes.
     func post(_ step: ScrollStep, from event: CGEvent, using post: (borrowing PostedScrollEvent) -> Void) {
         let originalFlags = event.flags
         let strippedFlags = originalFlags.subtracting(Self.allOptionFlags)

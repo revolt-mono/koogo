@@ -158,7 +158,6 @@ final class BreakReminderModelTests: XCTestCase {
         XCTAssertEqual(restoredModel.countdown, .paused(interval: .oneHour, remaining: 2_700))
         XCTAssertFalse(notifications.isReminderPending)
 
-        // A later reconciliation, such as the panel opening, has nothing to schedule and keeps the issue in view.
         notifications.schedulingIssue = nil
         await restoredModel.reconcile()
         XCTAssertEqual(restoredModel.issue, .notificationsDisabled)

@@ -58,7 +58,7 @@ struct TodoTextInput: NSViewRepresentable {
         }
         if case .editing = mode, !context.coordinator.didRequestFocus {
             context.coordinator.didRequestFocus = true
-            // Wait for the context menu to close before taking focus.
+            // take focus after the native context menu closes.
             Task {
                 try? await Task.sleep(for: .milliseconds(50))
                 scrollView.window?.makeFirstResponder(textView)
@@ -107,7 +107,7 @@ private final class TodoTextView: NSTextView {
             return
         }
 
-        // TextKit finishes dispatching a key event after keyDown returns, so callbacks wait a turn.
+        // textkit finishes key dispatch after the key handler returns; defer callbacks one run-loop turn.
         let modifiers = event.modifierFlags.intersection([.shift, .control, .option, .command])
         switch (event.keyCode, modifiers) {
         case (UInt16(kVK_Return), .shift), (UInt16(kVK_ANSI_KeypadEnter), .shift):

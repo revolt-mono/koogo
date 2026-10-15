@@ -58,7 +58,7 @@ for name in triggers {
     else { fail("Open the menu panel and wait for \(name)") }
     var origin = CGPoint.zero
     var dimensions = CGSize.zero
-    // The CF type IDs were checked above; Swift cannot express that refinement.
+    // core foundation type ids are checked above; swift cannot express that refinement.
     // swiftlint:disable force_cast
     guard AXValueGetValue(position as! AXValue, .cgPoint, &origin),
         AXValueGetValue(size as! AXValue, .cgSize, &dimensions)
@@ -110,7 +110,7 @@ for name in triggers {
     if isPresented() { click(count: 1) }
     assertPresentation(false)
     var expected = false
-    // Verify native multi-clicks without pointer movement; AXPress and clickCount=1 miss this regression.
+    // native multi-clicks exercise a regression that accessibility presses and single clicks miss.
     for count in 1...6 {
         click(count: count)
         expected.toggle()

@@ -33,7 +33,6 @@ struct BreakReminderControl: View {
 
     private func button(status: BreakReminderStatus) -> some View {
         BreakReminderButton(status: status, issue: reminderModel.issue, isBusy: reminderModel.isBusy) { action in
-            // The first refusal comes through the system prompt; only a click on an already orange timer leads to System Settings.
             let wasRefused = reminderModel.issue == .notificationsDisabled
             Task {
                 await reminderModel.perform(action)

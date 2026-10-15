@@ -15,7 +15,6 @@ enum PanelPage: Int, CaseIterable {
     }
 }
 
-/// A paging scroll across the pages, so a swipe moves the pages with the fingers and the system snaps them; a wheel click or a dot steps a whole page. The pages are built once up front and stay, so a swipe never builds or lays out a page. The usage page sets the height and the others fill it, so a switch never resizes the window.
 struct PanelPager: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -76,7 +75,7 @@ struct PanelPager: View {
         }
     }
 
-    /// The model jumps with animations off, or SwiftUI scrolls there on its own alongside the slide and costs twice the frames.
+    /// disable swiftui scrolling animation while the render-server slide runs to avoid duplicate frame work.
     private func show(_ page: PanelPage) {
         var jump = Transaction()
         jump.disablesAnimations = true
@@ -89,7 +88,7 @@ struct PanelPager: View {
     }
 }
 
-/// Slides the clip view on the render server while the model jumps to the target page. A SwiftUI animation re-lays out every page on each frame it moves; this costs the main thread one update.
+/// render-server translation avoids swiftui laying out every page on each animation frame.
 @MainActor
 private final class PageSlide {
     weak var anchor: NSView?

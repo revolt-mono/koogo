@@ -184,7 +184,7 @@ struct JSONValue {
         return value
     }
 
-    /// Reads a non-negative number of US dollars, rounded half up to whole picodollars.
+    /// reads nonnegative us dollars, rounded half up to whole picodollars.
     func usd() throws -> Picodollars? {
         guard !isNull else {
             return nil

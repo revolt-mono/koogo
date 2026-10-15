@@ -1,9 +1,9 @@
 enum ToolFailure: Error, Equatable {
     case notFound
     case timedOut
-    /// The tool exited, never ran, or closed its output before replying.
+    /// the tool exited, never ran, or closed output before replying.
     case closed
-    /// A reply was unreadable, oversized, or not the message the protocol expects.
+    /// a reply was unreadable, oversized, or outside the expected protocol.
     case invalidMessage
     case rpc(code: Int)
 }

@@ -22,7 +22,7 @@ struct UsageDaySnapshot: Equatable, Sendable, Encodable {
     let usage: UsagePeriodSnapshot
 }
 
-/// Every day of the range oldest first, with zero usage for days without events.
+/// days run oldest first, including zero-usage days without events.
 struct UsageDailySnapshot: Equatable, Sendable, Encodable {
     let range: Range<Date>
     let days: [UsageDaySnapshot]

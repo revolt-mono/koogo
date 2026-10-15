@@ -29,7 +29,7 @@ let package = Package(
         .testTarget(
             name: "KoogoTests",
             dependencies: ["Koogo"],
-            // SwiftPM leaves binary frameworks beside the test bundle instead of embedding them.
+            // swiftpm places binary frameworks beside the test bundle rather than embedding them.
             linkerSettings: [
                 .unsafeFlags([
                     "-Xlinker", "-rpath",

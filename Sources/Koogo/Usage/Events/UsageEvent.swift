@@ -1,6 +1,6 @@
 import Foundation
 
-/// A provider's model identifier as logged, or for Pi `provider/model`.
+/// the logged model identifier, prefixed with `provider/model` for pi.
 struct ModelID: Hashable, Comparable, Sendable, Encodable, ExpressibleByStringLiteral {
     let rawValue: String
 
@@ -18,11 +18,11 @@ struct ModelID: Hashable, Comparable, Sendable, Encodable, ExpressibleByStringLi
 }
 
 struct UsageRecord: Sendable {
-    /// Held as seconds because `Date` has a resilient layout, which routes every copy of a record through runtime value witnesses.
+    /// storing seconds avoids resilient date-layout value witnesses on every record copy.
     private let secondsSinceReferenceDate: TimeInterval
     let processedTokens: UInt64
     let cost: Picodollars
-    /// None for usage a log bills without naming a model, such as tool results or compaction.
+    /// absent when the log bills usage without a model, such as tool results or compaction.
     let model: ModelID?
 
     var timestamp: Date {
@@ -37,7 +37,6 @@ struct UsageRecord: Sendable {
     }
 }
 
-/// A request's identity, held as a 128-bit digest of its logged fields so that tracking it stores no strings. Two requests sharing a digest is as unlikely as a random 128-bit collision.
 struct UsageEventID: Hashable, Comparable, Sendable {
     private let high: UInt64
     private let low: UInt64
@@ -59,7 +58,7 @@ struct UsageEventID: Hashable, Comparable, Sendable {
         (lhs.high, lhs.low, lhs.provider.rawValue) < (rhs.high, rhs.low, rhs.provider.rawValue)
     }
 
-    /// A forked thread replays its parent's records under new thread ids, ordinals, and timestamps, so only the turn and its running total identify a request.
+    /// codex forks change thread ids, ordinals, and timestamps; turn id and cumulative total remain stable.
     static func codex(turnID: String, cumulativeTotal: UInt64) -> Self {
         Self(.codex) {
             $0.combine(turnID)
@@ -78,7 +77,7 @@ struct UsageEventID: Hashable, Comparable, Sendable {
         Self(.piAgent) { $0.combine(entryID) }
     }
 
-    /// Fork copies keep both fields, while a resumed Grok session can reuse an event id at a new time.
+    /// grok forks preserve both fields; resumed sessions can reuse an event id at a later time.
     static func grok(eventID: String, timestampMilliseconds: UInt64) -> Self {
         Self(.grok) {
             $0.combine(eventID)
@@ -88,7 +87,7 @@ struct UsageEventID: Hashable, Comparable, Sendable {
 }
 
 struct UsageEvent: Sendable {
-    /// Streamed replies grow their output, and rewritten lines can add speed or the cache split.
+    /// streamed output grows, while rewritten lines can add speed or cache metadata.
     struct Revision: Comparable, Sendable {
         let outputTokens: UInt64
         let metadataCompleteness: UInt8
