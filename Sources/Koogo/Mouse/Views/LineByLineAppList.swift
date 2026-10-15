@@ -23,15 +23,23 @@ struct LineByLineAppList: View {
         .onDeleteCommand(perform: removeSelection)
 
         HStack(spacing: 4) {
-            Button("Add App", systemImage: "plus") {
+            Button {
                 isChoosingApps = true
+            } label: {
+                Label("Add App", systemImage: "plus")
+                    .frame(width: 20, height: 20)
+                    .contentShape(.rect)
             }
 
             Divider()
                 .frame(height: 12)
 
-            Button("Remove App", systemImage: "minus", action: removeSelection)
-                .disabled(selection == nil)
+            Button(action: removeSelection) {
+                Label("Remove App", systemImage: "minus")
+                    .frame(width: 20, height: 20)
+                    .contentShape(.rect)
+            }
+            .disabled(selection == nil)
 
             Spacer()
         }
