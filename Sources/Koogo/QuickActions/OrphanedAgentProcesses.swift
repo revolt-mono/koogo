@@ -21,6 +21,19 @@ struct OrphanedAgentProcess: Sendable {
     }
 }
 
+private extension Provider {
+    func ownsProcess(at executablePath: String) -> Bool {
+        let executable = URL(filePath: executablePath)
+        let name = executable.lastPathComponent
+        return switch self {
+        case .codex: name == "codex"
+        case .claude: name.wholeMatch(of: /\d+\.\d+\.\d+/) != nil && executable.pathComponents.contains("claude")
+        case .piAgent: false
+        case .grok: name.hasPrefix("grok")
+        }
+    }
+}
+
 struct OrphanedAgentProcesses: Sendable {
     enum Failure: LocalizedError {
         case scan
