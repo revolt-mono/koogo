@@ -78,6 +78,7 @@ private struct SettingsForm<Content: View>: View {
         }
         .formStyle(.grouped)
         .frame(width: 440, height: 500)
+        .navigationTitle("Settings")
     }
 }
 
