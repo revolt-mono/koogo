@@ -35,18 +35,16 @@ struct PanelSectionTitle: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
 
             if let subtitle {
                 Spacer(minLength: 0)
 
                 Text(subtitle)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.secondary)
     }
 }
 
