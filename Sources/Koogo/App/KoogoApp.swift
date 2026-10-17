@@ -11,6 +11,7 @@ struct KoogoApp: App {
         models.quota.refresh(models.preferences.quotaProviders)
         models.update.start()
         models.mouse.start()
+        models.keepAwake.start()
         Task { await models.breakReminder.reconcile() }
         _models = State(initialValue: models)
     }

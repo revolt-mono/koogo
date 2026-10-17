@@ -26,6 +26,8 @@ final class KeepAwakeModelTests: XCTestCase {
         KeepAwakeModel(defaults: defaults).isEnabled = true
 
         let relaunched = KeepAwakeModel(defaults: defaults)
+        XCTAssertEqual(try ownedAssertionCount(), 0, "construction has no launch effects")
+        relaunched.start()
         XCTAssertTrue(relaunched.isEnabled)
         XCTAssertEqual(try ownedAssertionCount(), 1)
     }

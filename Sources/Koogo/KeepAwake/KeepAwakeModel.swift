@@ -3,36 +3,40 @@ import IOKit.pwr_mgt
 import Observation
 import os
 
-/// app-scoped; construction restores the assertion and setting changes update the assertion. blocking idle display sleep also blocks idle system sleep.
+/// app-scoped; started by the app at launch to restore the saved choice. blocking idle display sleep also blocks idle system sleep.
 @MainActor
 @Observable
 final class KeepAwakeModel {
     private static let key = "keep-awake"
 
     private let defaults: UserDefaults
-    @ObservationIgnored private var assertion: IOPMAssertionID?
+    private var assertion: IOPMAssertionID?
 
+    /// reads whether the assertion is held; writes save the choice even when macos refuses the assertion.
     var isEnabled: Bool {
-        didSet {
-            defaults.set(isEnabled, forKey: Self.key)
-            applyAssertion()
+        get { assertion != nil }
+        set {
+            defaults.set(newValue, forKey: Self.key)
+            hold(newValue)
         }
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults) {
         self.defaults = defaults
-        isEnabled = defaults.bool(forKey: Self.key)
-        applyAssertion()
     }
 
-    deinit {
+    func start() {
+        hold(defaults.bool(forKey: Self.key))
+    }
+
+    isolated deinit {
         if let assertion {
             IOPMAssertionRelease(assertion)
         }
     }
 
-    private func applyAssertion() {
-        switch (isEnabled, assertion) {
+    private func hold(_ isHeld: Bool) {
+        switch (isHeld, assertion) {
         case (true, nil):
             var id = IOPMAssertionID(0)
             let status = IOPMAssertionCreateWithName(
@@ -43,7 +47,8 @@ final class KeepAwakeModel {
             )
             guard status == kIOReturnSuccess else {
                 Logger.app.warning("could not create keep awake assertion: \(status, privacy: .public)")
-                isEnabled = false
+                // the unchanged nil assertion notifies no one, so the toggle would keep showing the refused state.
+                withMutation(keyPath: \.assertion) {}
                 return
             }
             assertion = id
