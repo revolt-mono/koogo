@@ -87,12 +87,16 @@ struct OrphanedAgentProcesses: Sendable {
     }
 
     func forceTerminate() throws {
+        var survivor: OrphanedAgentProcess?
         for process in values {
             do {
                 try LibProc.forceKill(process.identity)
             } catch {
-                throw Failure.termination(process)
+                survivor = survivor ?? process
             }
+        }
+        if let survivor {
+            throw Failure.termination(survivor)
         }
     }
 }
