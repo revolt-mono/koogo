@@ -71,17 +71,19 @@ final class CodexQuotaResetTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.readRequestsFile.path))
     }
 
-    func testRPCErrorsMapToTypedFailuresAndUnknownOutcomesAreNotSuccess() async throws {
+    func testRefusedRequestsAreRejectedWhileFailedOrUnknownOutcomesStayUnconfirmed() async throws {
         let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let attempt = resetAttempt()
-        let cases: [(String, ToolFailure)] = [
-            ("{\"id\":2,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}", .rpc(code: -32601)),
-            ("{\"id\":2,\"result\":{\"outcome\":\"future-outcome\"}}", .invalidMessage),
+        let cases: [(String, CodexAppServer.CallError)] = [
+            (#"{"id":2,"error":{"code":-32601,"message":"Method not found"}}"#, .rejected(.rpc(code: -32601))),
+            (#"{"id":2,"error":{"code":-32600,"message":"auth required"}}"#, .rejected(.rpc(code: -32600))),
+            (#"{"id":2,"error":{"code":-32603,"message":"consume timed out"}}"#, .unconfirmed(.rpc(code: -32603))),
+            (#"{"id":2,"result":{"outcome":"future-outcome"}}"#, .unconfirmed(.invalidMessage)),
         ]
         for (response, expected) in cases {
             let executable = try workspace.makeAppServer(consumeResponse: response)
             let result = await CodexQuotaSource(executableCandidates: [executable]).consume(attempt)
-            XCTAssertEqual(result, .failure(.unconfirmed(expected)))
+            XCTAssertEqual(result, .failure(expected), response)
         }
     }
 

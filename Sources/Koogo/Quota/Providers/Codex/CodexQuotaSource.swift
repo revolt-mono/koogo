@@ -37,6 +37,10 @@ struct CodexQuotaSource: CodexQuotaResetSource {
             )
             Logger.quota.info("codex reset outcome=\(response.outcome.rawValue, privacy: .public)")
             return .success(response.outcome)
+        } catch .unconfirmed(.rpc(code: let code)) where [-32700, -32600, -32601, -32602].contains(code) {
+            // json-rpc reserves these codes for requests refused before running, so no reset was spent.
+            Logger.quota.error("codex reset refused code=\(code, privacy: .public)")
+            return .failure(.rejected(.rpc(code: code)))
         } catch {
             Logger.quota.error("codex reset failed \(String(describing: error), privacy: .public)")
             return .failure(error)
