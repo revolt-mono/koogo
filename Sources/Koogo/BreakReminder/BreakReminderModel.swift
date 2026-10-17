@@ -27,8 +27,8 @@ final class BreakReminderModel {
 
     init(
         notifications: any BreakReminderNotifications,
-        defaults: UserDefaults = .standard,
-        now: @escaping @MainActor () -> Date = { .now }
+        defaults: UserDefaults,
+        now: @escaping @MainActor () -> Date
     ) {
         self.notifications = notifications
         storage = PersistedValue(key: "break-reminder-state", defaults: defaults)

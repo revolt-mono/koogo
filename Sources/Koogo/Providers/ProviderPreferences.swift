@@ -35,7 +35,7 @@ final class ProviderPreferences {
         }
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults) {
         storage = PersistedValue(key: "provider-preferences", defaults: defaults)
         let loaded = storage.load()
         var seen = Set<Provider>()

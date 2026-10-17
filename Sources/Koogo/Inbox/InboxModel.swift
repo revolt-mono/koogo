@@ -23,7 +23,7 @@ final class InboxModel {
         return counts.isEmpty ? "no open todos" : counts.joined(separator: ", ")
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults) {
         storage = PersistedValue(key: "inbox-todo-items", defaults: defaults)
         todos = storage.loadDecodableElements() ?? []
     }

@@ -29,7 +29,7 @@ final class QuotaModel {
 
     private(set) var statuses = EnumMap<QuotaProvider, QuotaStatus> { _ in .unread }
 
-    init(sources: QuotaSources = .production, now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }) {
+    init(sources: QuotaSources, now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }) {
         self.sources = sources
         self.monotonicNow = now
     }

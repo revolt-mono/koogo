@@ -44,7 +44,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         model.submit()
         model.begin(creditID: "credit-a")
         quota.reload([.codex])
-        guard case .submitting = model.flow else { return XCTFail("expected submitting") }
+        XCTAssertEqual(model.flow, .submitting)
         try await waitUntil { !model.isBusy }
 
         XCTAssertEqual(model.flow, .completed(.reset))

@@ -19,10 +19,6 @@ nesting:
   type_level:
     warning: 3
 
-type_name:
-  excluded:
-    - ID
-
 custom_rules:
   display_locale:
     name: Display Locale

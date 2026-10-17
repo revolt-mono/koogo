@@ -9,7 +9,7 @@ final class CodexQuotaResetModel {
     private let wallClockNow: @MainActor () -> Date
     private var pending = CodexQuotaResetFlow.idle
 
-    init(quota: QuotaModel, now: @escaping @MainActor () -> Date = { .now }) {
+    init(quota: QuotaModel, now: @escaping @MainActor () -> Date) {
         self.quota = quota
         wallClockNow = now
     }
@@ -65,7 +65,7 @@ final class CodexQuotaResetModel {
             self.pending = .settled(submission, result)
         }
         if started {
-            pending = .submitting(submission)
+            pending = .submitting
         }
     }
 

@@ -76,7 +76,7 @@ final class LogDirectoryWatcher {
                 inbox.record(paths[index], flags: flags[index])
             }
         }
-        // zero latency avoids delayed delivery after a synchronous filesystem-event flush returns.
+        // zero latency hands each change to the next sync without a coalescing delay.
         guard
             let stream = FSEventStreamCreate(
                 nil,

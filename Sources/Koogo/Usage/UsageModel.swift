@@ -16,7 +16,7 @@ final class UsageModel {
 
     private(set) var snapshot: UsageSnapshot?
 
-    init(pipeline: UsagePipeline, now: @escaping @MainActor () -> Date = { .now }) {
+    init(pipeline: UsagePipeline, now: @escaping @MainActor () -> Date) {
         self.pipeline = pipeline
         self.now = now
     }

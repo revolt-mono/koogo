@@ -65,14 +65,13 @@ struct UsageEventIndex: Sendable {
         deduplicatedEntries.count
     }
 
-    /// publishes a deduplicated batch on return or throw; the batch cannot be copied or read during construction.
-    mutating func update<Result>(_ body: (inout Batch) throws -> Result) rethrows -> Result {
+    /// publishes a deduplicated batch on return; the batch cannot be copied or read during construction.
+    mutating func update<Result>(_ body: (inout Batch) -> Result) -> Result {
         var batch = Batch(index: consume self)
-        defer {
-            batch.index.deduplicate()
-            self = batch.index
-        }
-        return try body(&batch)
+        let result = body(&batch)
+        batch.index.deduplicate()
+        self = batch.index
+        return result
     }
 
     private mutating func deduplicate() {

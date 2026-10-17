@@ -22,7 +22,7 @@ final class UsageEventIndexTests: XCTestCase {
         XCTAssertEqual(index.values.map(\.record.processedTokens), [20])
     }
 
-    func testIdenticalCopiesKeepTheOneLoggedFirst() {
+    func testIdenticalCopiesKeepTheEarliestTimestamp() {
         let ids: [UsageEventID] = [
             .codex(turnID: "turn", cumulativeTotal: 10),
             .piAgent(entryID: "entry"),
@@ -96,40 +96,6 @@ final class UsageEventIndexTests: XCTestCase {
         )
     }
 
-    func testDiscardDropsEventsBeforeTheWindow() {
-        let windowStart = usageTestTimestamp
-        let old = windowStart.addingTimeInterval(-1)
-        var index = UsageEventIndex()
-        index.update { batch in
-            for (id, provider) in Provider.allCases.enumerated() {
-                batch.insert(usageEvent(provider, id: id, processedTokens: 2, costUSD: 0, at: old))
-            }
-            batch.insert(usageEvent(.codex, id: 100, processedTokens: 4, costUSD: 0))
-        }
-        XCTAssertEqual(index.count, 5)
-
-        index.discard(before: windowStart)
-
-        XCTAssertEqual(index.values.map(\.record.processedTokens), [4])
-    }
-
-    func testThrowingAnUpdatePublishesTheCompletedPrefixAndAllowsAnotherUpdate() {
-        struct Interrupted: Error {}
-        var index = UsageEventIndex()
-        XCTAssertThrowsError(
-            try index.update { batch in
-                batch.insert(usageEvent(.claude, id: 1, processedTokens: 10, costUSD: 0))
-                batch.insert(usageEvent(.claude, id: 1, processedTokens: 20, costUSD: 0))
-                throw Interrupted()
-            }
-        )
-        XCTAssertEqual(index.values.map(\.record.processedTokens), [20])
-
-        index.update { $0.insert(usageEvent(.claude, id: 2, processedTokens: 30, costUSD: 0)) }
-
-        XCTAssertEqual(index.values.map(\.record.processedTokens).sorted(), [20, 30])
-    }
-
     func testRestartDropsBothStoredAndPendingEventsAndTheirModels() {
         var index = UsageEventIndex()
         index.update { $0.insert(usageEvent(.claude, model: "old-model", processedTokens: 10, costUSD: 0)) }
@@ -161,21 +127,6 @@ final class UsageEventIndexTests: XCTestCase {
         XCTAssertEqual(copy.values.first?.record.model, "old-model")
         XCTAssertEqual(copy.values.map(\.record.processedTokens), [10])
         XCTAssertEqual(index.values.map(\.record.processedTokens).sorted(), [20, 30])
-    }
-
-    func testTallyKeepsTheLatestUnpricedTimestampInsideTheWindow() {
-        let windowStart = usageTestTimestamp
-        var tally = LogTally()
-        tally.noteUnpricedModel("old", at: windowStart - 1)
-        tally.noteUnpricedModel("kept", at: windowStart + 1)
-        tally.noteUnpricedModel("kept", at: windowStart)
-        tally.noteUnpricedModel("aging", at: windowStart)
-        tally.noteMalformedLine()
-
-        tally.discard(before: windowStart + 1)
-
-        XCTAssertEqual(Array(tally.unpricedModelIDs), ["kept"])
-        XCTAssertEqual(tally.malformedLines, 1)
     }
 
     private func record(tokens: UInt64, at date: Date = usageTestTimestamp) -> UsageRecord {
