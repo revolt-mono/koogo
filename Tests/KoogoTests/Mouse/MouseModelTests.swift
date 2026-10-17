@@ -46,10 +46,13 @@ final class MouseModelTests: XCTestCase {
         XCTAssertEqual(MouseModel(defaults: defaults, isInstalled: { _ in false }).status, .needsAccessibility)
     }
 
-    func testUndecodableSettingsFallBackToDefaults() throws {
+    func testUndecodableSettingsFallBackToDefaultsWithInstalledTerminals() throws {
         let defaults = try makeIsolatedDefaults()
         defaults.set(Data("junk".utf8), forKey: "mouse-settings")
 
-        XCTAssertEqual(MouseModel(defaults: defaults, isInstalled: { _ in false }).settings, MouseSettings())
+        XCTAssertEqual(
+            MouseModel(defaults: defaults, isInstalled: { _ in true }).settings,
+            MouseSettings(lineByLineApps: MouseSettings.terminalApps)
+        )
     }
 }

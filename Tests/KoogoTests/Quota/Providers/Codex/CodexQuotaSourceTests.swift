@@ -31,6 +31,19 @@ final class CodexQuotaSourceTests: XCTestCase {
         XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Session"]?.usedPercent, 10)
         XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Weekly"]?.usedPercent, 20)
         XCTAssertNil(snapshot.plan)
+        let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(arguments, ["app-server", "--stdio"])
+        let requests = try jsonObjects(in: workspace.requestsFile)
+        XCTAssertEqual(
+            requests.map { $0["method"] as? String },
+            ["initialize", "initialized", "account/rateLimits/read"]
+        )
+        XCTAssertEqual(requests.map { $0["id"] as? Int }, [1, nil, 2])
+        let initialize = try XCTUnwrap(requests.first?["params"] as? [String: Any])
+        XCTAssertEqual(
+            initialize["clientInfo"] as? [String: String],
+            ["name": "koogo", "title": "Koogo", "version": "1.0"]
+        )
     }
 
     func testPlanNamesFollowTheCodexTUIAndOtherCodesShowCapitalized() throws {

@@ -1,14 +1,14 @@
 func codexLog(
     input: Int,
     output: Int,
-    thread: String = "thread",
+    turn: String = "turn",
     model: String = "gpt-5.6-sol",
     usageTimestamp: String = usageTestTimestampText
 ) -> String {
     let usage = codexUsage(input: input, output: output)
     return [
-        codexMeta(thread: thread),
-        codexTurn(model: model),
+        codexMeta(),
+        codexTurn(id: turn, model: model),
         codexTokenCount(last: usage, total: usage, at: usageTimestamp),
         "",
     ].joined(separator: "\n")

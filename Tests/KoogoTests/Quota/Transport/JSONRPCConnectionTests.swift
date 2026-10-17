@@ -57,10 +57,9 @@ final class JSONRPCConnectionTests: XCTestCase {
             do {
                 try await request(reply: reply)
                 XCTFail("invalid message accepted: \(reply)")
+            } catch ToolFailure.invalidMessage {
             } catch {
-                if case ToolFailure.timedOut = error {
-                    XCTFail("invalid message should fail immediately")
-                }
+                XCTFail("\(reply) failed with \(error) instead of an invalid message")
             }
         }
     }

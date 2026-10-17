@@ -37,12 +37,12 @@ struct CodexQuotaTestWorkspace: ScriptedToolWorkspace {
                 \(prologue)
                 \(onStart)
                 while IFS= read -r request; do
+                  printf '%s\\n' "$request" >> '\(requestsFile.path)'
                   case "$request" in
                     *'"initialize"'*)
                       printf '%s\\n' '{"id":1,"result":{}}' ;;
                     *rateLimits*read*)
                       printf '%s\\n' "$request" >> '\(readRequestsFile.path)'
-                      if [ ! -f '\(quotaResponseFile.path)' ]; then exit 0; fi
                       printf '%s\\n' '{"method":"unrelated/notification","params":{}}'
                       printf '%s\\n' "$(/bin/cat '\(quotaResponseFile.path)')" ;;
                     *ResetCredit*consume*)

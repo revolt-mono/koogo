@@ -17,7 +17,8 @@ final class UsageEventIndexMemoryTests: XCTestCase {
             }
         }
 
-        XCTAssertLessThan(allocatedHeapBytes() - before, 24 * 1_024 * 1_024)
+        // one 56-byte entry per event retains about 4 MiB; a second copy of each identity exceeds the bound.
+        XCTAssertLessThan(allocatedHeapBytes() - before, 6 * 1_024 * 1_024)
         XCTAssertEqual(index.count, 50_000)
         XCTAssertEqual(index.values.reduce(0) { $0 + $1.record.processedTokens }, 50_000)
     }

@@ -38,12 +38,13 @@ final class PointerTrackingTests: XCTestCase {
         let window = hostingWindow(Color.clear.frame(width: 20, height: 10).onPointerHover { _ in })
         let tracker = try XCTUnwrap(window.contentView.map(innermostView))
 
-        XCTAssertEqual(tracker.visibleRect, tracker.bounds)
+        XCTAssertEqual(tracker.visibleRect.size, CGSize(width: 20, height: 10))
     }
 
+    /// the window sits off every screen so the real cursor cannot enter the tracker during layout.
     private func hostingWindow(_ root: some View) -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 100, height: 50),
+            contentRect: NSRect(x: -100_000, y: -100_000, width: 100, height: 50),
             styleMask: .borderless,
             backing: .buffered,
             defer: false

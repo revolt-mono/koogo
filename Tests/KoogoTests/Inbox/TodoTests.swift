@@ -22,20 +22,6 @@ final class TodoTests: XCTestCase {
         XCTAssertEqual(propertyList[0]["priority"] as? String, "urgent")
         XCTAssertEqual(try PropertyListDecoder().decode([Todo].self, from: data), [todo])
     }
-
-    func testTodoDecodingRejectsBlankText() throws {
-        let text = try XCTUnwrap(TodoText("valid"))
-        let data = try PropertyListEncoder().encode([Todo(text: text, priority: .normal)])
-        var propertyList = try propertyList(of: data)
-        propertyList[0]["text"] = " \n "
-        let invalidData = try PropertyListSerialization.data(
-            fromPropertyList: propertyList,
-            format: .binary,
-            options: 0
-        )
-
-        XCTAssertThrowsError(try PropertyListDecoder().decode([Todo].self, from: invalidData))
-    }
 }
 
 private func propertyList(of data: Data) throws -> [[String: Any]] {

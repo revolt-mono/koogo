@@ -4,7 +4,7 @@ import XCTest
 @testable import Koogo
 
 final class UsagePipelineTests: UsageWorkspaceTestCase {
-    func testColdScanLoadsEveryFileAcrossReaderBatches() async throws {
+    func testColdScanLoadsEveryFileAcrossParallelReaders() async throws {
         let usage = codexUsage(input: 100, output: 20)
         for index in 0..<19 {
             try workspace.write(
@@ -113,7 +113,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             codexLog(
                 input: 100,
                 output: 20,
-                thread: "previous-day",
+                turn: "previous-day",
                 usageTimestamp: "2026-08-24T17:00:00.000Z"
             ),
             to: workspace.codexSessions.appending(path: "previous-day.jsonl")
@@ -122,7 +122,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             codexLog(
                 input: 200,
                 output: 40,
-                thread: "previous-7-days",
+                turn: "previous-7-days",
                 usageTimestamp: "2026-08-18T17:00:00.000Z"
             ),
             to: workspace.codexSessions.appending(path: "previous-7-days.jsonl")
@@ -132,7 +132,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
                 codexLog(
                     input: 1,
                     output: 0,
-                    thread: "older-\(index)",
+                    turn: "older-\(index)",
                     model: "gpt-5.6-luna",
                     usageTimestamp: "2026-07-26T23:59:59.999Z"
                 ),

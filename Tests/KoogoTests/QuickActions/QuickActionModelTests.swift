@@ -24,7 +24,7 @@ final class QuickActionModelTests: XCTestCase {
         )
 
         model.refresh()
-        try await waitUntil { model.phase == .scanFailed("scan broke") }
+        try await waitUntil { model.phase == .scanFailed("test failure") }
         model.activate?()
         try await waitUntil { model.phase == .ready(3) }
     }
@@ -54,7 +54,7 @@ final class QuickActionModelTests: XCTestCase {
         try await waitUntil { model.phase == .ready(1) }
 
         model.perform()
-        try await waitUntil { model.phase == .performFailed("scan broke") }
+        try await waitUntil { model.phase == .performFailed("test failure") }
 
         model.refresh()
         try await waitUntil { model.phase == .ready(1) }
@@ -151,7 +151,7 @@ final class QuickActionModelTests: XCTestCase {
 }
 
 private struct TestFailure: LocalizedError {
-    var errorDescription: String? { "scan broke" }
+    var errorDescription: String? { "test failure" }
 }
 
 private func isReady(_ phase: QuickActionModel<Void>.Phase) -> Bool {

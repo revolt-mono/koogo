@@ -92,9 +92,9 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         let service = makePipeline()
         _ = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
-        try workspace.write(codexLog(input: 100, output: 20, thread: "cached"), to: hidden.appending(path: "a.jsonl"))
+        try workspace.write(codexLog(input: 100, output: 20, turn: "cached"), to: hidden.appending(path: "a.jsonl"))
         try workspace.write(
-            codexLog(input: 1, output: 0, thread: "witness"),
+            codexLog(input: 1, output: 0, turn: "witness"),
             to: workspace.codexArchivedSessions.appending(path: "witness.jsonl")
         )
         let report = try await refresh(service) { $0.ingestion.trackedFiles[.codex] != 0 }
@@ -118,13 +118,16 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
 
     func testHiddenFilesAndDirectoriesAreNotScanned() async throws {
         try workspace.write(
-            codexLog(input: 100, output: 20, thread: "cached"),
+            codexLog(input: 100, output: 20, turn: "cached"),
             to: workspace.codexSessions.appending(path: ".cache/a.jsonl")
         )
         try workspace.write(
-            codexLog(input: 100, output: 20, thread: "hidden"),
+            codexLog(input: 100, output: 20, turn: "hidden"),
             to: workspace.codexSessions.appending(path: ".b.jsonl")
         )
+        let flagged = workspace.codexSessions.appending(path: "flagged.jsonl")
+        try workspace.write(codexLog(input: 100, output: 20, turn: "flagged"), to: flagged)
+        XCTAssertEqual(chflags(flagged.path, UInt32(UF_HIDDEN)), 0)
         let service = makePipeline()
 
         let report = await service.run(at: usageTestTimestamp, providers: Provider.allCases)

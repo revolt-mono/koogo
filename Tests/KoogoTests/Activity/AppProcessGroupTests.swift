@@ -133,7 +133,7 @@ final class AppProcessGroupTests: XCTestCase {
         XCTAssertFalse(groups.isEmpty)
         XCTAssertLessThanOrEqual(groups.count, 20)
         XCTAssertEqual(groups.map(\.footprint), groups.map(\.footprint).sorted(by: >))
-        XCTAssertTrue(groups.allSatisfy { (0...1).contains($0.gpu) }, "\(groups.map(\.gpu))")
+        XCTAssertTrue(groups.allSatisfy { $0.cpu >= 0 && $0.gpu >= 0 }, "\(groups.map { ($0.cpu, $0.gpu) })")
         XCTAssertTrue(after.records.contains { $0.gpuTime > .zero })
     }
 

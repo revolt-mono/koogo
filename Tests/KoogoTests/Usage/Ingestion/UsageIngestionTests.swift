@@ -17,7 +17,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         )
         try workspace.append(appended, to: log)
         try workspace.write(
-            codexLog(input: 1, output: 0, thread: "witness"),
+            codexLog(input: 1, output: 0, turn: "witness"),
             to: workspace.codexSessions.appending(path: "witness.jsonl")
         )
         let beforeNewline = try await refresh(service) { $0.ingestion.trackedFiles[.codex] == 2 }
@@ -40,7 +40,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let copied = try await refresh(service) { $0.ingestion.trackedFiles[.codex] == 2 }
         XCTAssertEqual(copied.snapshot.todayTokens(.codex), 120)
 
-        try workspace.write(codexLog(input: 40, output: 10, thread: "replacement"), to: active)
+        try workspace.write(codexLog(input: 40, output: 10, turn: "replacement"), to: active)
         try FileManager.default.removeItem(at: archived)
         let replaced = try await refresh(service) {
             $0.ingestion.trackedFiles[.codex] == 1 && $0.snapshot.todayTokens(.codex) != 120
@@ -147,7 +147,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         _ = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         let handle = try FileHandle(forUpdating: log)
-        try handle.write(contentsOf: Data(codexLog(input: 300, output: 40, thread: "rewritten").utf8))
+        try handle.write(contentsOf: Data(codexLog(input: 300, output: 40, turn: "rewritten").utf8))
         try handle.close()
         let rewritten = try await refresh(service) { $0.snapshot.todayTokens(.codex) != 120 }
 
@@ -226,11 +226,11 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
     func testHistoryWindowMovingBackwardRescansOlderEvents() async throws {
         try workspace.write(
-            codexLog(input: 100, output: 20, thread: "august"),
+            codexLog(input: 100, output: 20, turn: "august"),
             to: workspace.codexSessions.appending(path: "august.jsonl")
         )
         try workspace.write(
-            codexLog(input: 200, output: 40, thread: "older", usageTimestamp: "2026-07-26T23:59:59.999Z"),
+            codexLog(input: 200, output: 40, turn: "older", usageTimestamp: "2026-07-26T23:59:59.999Z"),
             to: workspace.codexSessions.appending(path: "older.jsonl")
         )
         let service = makePipeline()
