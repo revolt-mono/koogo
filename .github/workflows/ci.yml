@@ -5,9 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# queued rather than cancelled, since a cancel between deleting and recreating the latest release leaves no update feed.
 concurrency:
   group: ci-latest
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
