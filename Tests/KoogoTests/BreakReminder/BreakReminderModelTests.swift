@@ -141,6 +141,33 @@ final class BreakReminderModelTests: XCTestCase {
         XCTAssertEqual(model.countdown.status(at: clock.now), .expired)
     }
 
+    func testReconciliationKeepsTheReminderOfAnExpiredCountdown() async throws {
+        let clock = TestClock()
+        let notifications = BreakReminderTestNotifications()
+        let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
+        await model.perform(.toggle)
+
+        clock.now.addTimeInterval(3_601)
+        await model.reconcile()
+
+        XCTAssertTrue(notifications.isReminderPending)
+    }
+
+    func testReconciliationCancelsTheReminderOfADiscardedCountdown() async throws {
+        let defaults = try makeIsolatedDefaults()
+        let clock = TestClock()
+        let notifications = BreakReminderTestNotifications()
+        await makeModel(defaults: defaults, clock: clock, notifications: notifications).perform(.toggle)
+
+        clock.now.addTimeInterval(-3_600)
+        let restoredModel = makeModel(defaults: defaults, clock: clock, notifications: notifications)
+        XCTAssertEqual(restoredModel.countdown, .initial)
+        await restoredModel.reconcile()
+
+        XCTAssertFalse(notifications.isReminderPending)
+        XCTAssertEqual(notifications.scheduledDurations, [3_600])
+    }
+
     func testReconciliationPausesWhenNotificationsAreDisabled() async throws {
         let defaults = try makeIsolatedDefaults()
         let clock = TestClock()

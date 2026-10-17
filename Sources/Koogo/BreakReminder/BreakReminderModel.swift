@@ -46,16 +46,22 @@ final class BreakReminderModel {
         }
     }
 
-    /// reschedules a missing system notification for a running countdown, including after relaunch.
+    /// reschedules a missing system notification for a running countdown, including after relaunch, and cancels one a paused countdown left behind; an expired countdown keeps its reminder, whose trigger can lag the deadline after sleep or a clock change.
     func reconcile() async {
         await whileBusy {
-            guard case .running = countdown.status(at: now()),
-                !(await notifications.hasPendingReminder()),
-                case .running(let remaining) = countdown.status(at: now())
-            else {
-                return
+            switch countdown.status(at: now()) {
+            case .paused:
+                notifications.cancel()
+            case .expired:
+                break
+            case .running:
+                guard !(await notifications.hasPendingReminder()),
+                    case .running(let remaining) = countdown.status(at: now())
+                else {
+                    return
+                }
+                await apply(.run(countdown.interval, for: remaining))
             }
-            await apply(.run(countdown.interval, for: remaining))
         }
     }
 
