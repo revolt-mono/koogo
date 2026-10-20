@@ -28,6 +28,50 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         XCTAssertEqual(afterNewline.snapshot.todayTokens(.codex), 181)
     }
 
+    func testRefreshCountsLinesAppendedThroughAnOpenHandle() async throws {
+        let log = workspace.codexSessions.appending(path: "session.jsonl")
+        try workspace.write(codexLog(input: 100, output: 20), to: log)
+        let service = makePipeline()
+        _ = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+
+        let writer = try workspace.openWriter(to: log)
+        defer { try? writer.close() }
+        let second = codexTokenCount(last: codexUsage(input: 50, output: 10), total: codexUsage(input: 150, output: 30))
+        try writer.write(contentsOf: Data((second + "\n").utf8))
+        let appended = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        XCTAssertEqual(appended.snapshot.todayTokens(.codex), 180)
+
+        let third = codexTokenCount(last: codexUsage(input: 20, output: 5), total: codexUsage(input: 170, output: 35))
+        try writer.write(contentsOf: Data(third.prefix(third.count / 2).utf8))
+        let partial = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        XCTAssertEqual(partial.snapshot.todayTokens(.codex), 180)
+
+        try writer.write(contentsOf: Data((third.dropFirst(third.count / 2) + "\n").utf8))
+        let completed = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        XCTAssertEqual(completed.snapshot.todayTokens(.codex), 205)
+    }
+
+    func testRefreshFollowsLogsResumedThroughAnOpenHandleAfterLeavingTheWindow() async throws {
+        let log = workspace.codexSessions.appending(path: "session.jsonl")
+        try workspace.write(
+            codexLog(input: 100, output: 20),
+            to: log,
+            modificationDate: usageTestTimestamp.addingTimeInterval(-40 * 86_400)
+        )
+        let service = makePipeline()
+        let dormant = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        XCTAssertEqual(dormant.ingestion.trackedFiles[.codex], 0)
+
+        let writer = try workspace.openWriter(to: log)
+        defer { try? writer.close() }
+        let second = codexTokenCount(last: codexUsage(input: 50, output: 10), total: codexUsage(input: 150, output: 30))
+        try writer.write(contentsOf: Data((second + "\n").utf8))
+        let resumed = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+
+        XCTAssertEqual(resumed.ingestion.trackedFiles[.codex], 1)
+        XCTAssertEqual(resumed.snapshot.todayTokens(.codex), 180)
+    }
+
     func testArchiveCopyDoesNotDoubleCountAndReplacementDropsRemovedEvents() async throws {
         let active = workspace.codexSessions.appending(path: "session.jsonl")
         let contents = codexLog(input: 100, output: 20)

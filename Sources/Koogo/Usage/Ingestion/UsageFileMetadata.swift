@@ -24,6 +24,15 @@ struct UsageFileMetadata: Sendable {
         self.init(status: status)
     }
 
+    /// symlinks stay unresolved, as in directory walks.
+    init?(path: String) {
+        var status = Darwin.stat()
+        guard lstat(path, &status) == 0 else {
+            return nil
+        }
+        self.init(status: status)
+    }
+
     init?(status: Darwin.stat) {
         guard status.st_size >= 0, status.st_mode & S_IFMT == S_IFREG else {
             return nil

@@ -61,6 +61,13 @@ struct UsageTestWorkspace {
         )
     }
 
+    /// an open writer appends without directory events, as a running agent does until it closes the log.
+    func openWriter(to url: URL) throws -> FileHandle {
+        let writer = try FileHandle(forWritingTo: url)
+        try writer.seekToEnd()
+        return writer
+    }
+
     func append(_ text: String, to url: URL) throws {
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }

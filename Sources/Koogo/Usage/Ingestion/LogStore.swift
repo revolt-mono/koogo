@@ -4,8 +4,9 @@ import Synchronization
 
 struct LogStore: ~Copyable {
     private struct Entry: Sendable {
-        let provider: Provider
-        var log: any TrackedLog
+        let root: UsageLogRoot
+        /// nil while the file was last written before the window; a resumed writer updates the modification time without a directory event.
+        var log: (any TrackedLog)?
     }
 
     private var entries: [String: Entry] = [:]
@@ -22,37 +23,38 @@ struct LogStore: ~Copyable {
         let walks = Self.walks(of: roots, for: changes)
 
         var changed = windowMoved || rootsChanged
-        var seenPaths = Set<String>()
         var newFiles: [(path: String, metadata: UsageFileMetadata, root: UsageLogRoot)] = []
-        for (root, directory) in walks {
-            Self.walk(root, from: directory) { path, metadata in
-                guard metadata.modificationDate >= windowStart else {
-                    return
-                }
-                seenPaths.insert(path)
-                if let fileChanged = entries[path]?.log.sync(observed: metadata) {
-                    changed = fileChanged || changed
-                } else {
-                    newFiles.append((path, metadata, root))
-                }
+        func observe(_ path: String, _ metadata: UsageFileMetadata, under root: UsageLogRoot) {
+            guard metadata.modificationDate >= windowStart else {
+                changed = entries.updateValue(Entry(root: root, log: nil), forKey: path)?.log != nil || changed
+                return
+            }
+            if let fileChanged = entries[path]?.log?.sync(observed: metadata) {
+                changed = fileChanged || changed
+            } else {
+                newFiles.append((path, metadata, root))
             }
         }
 
+        var seenPaths = Set<String>()
+        for (root, directory) in walks {
+            Self.walk(root, from: directory) { path, metadata in
+                seenPaths.insert(path)
+                observe(path, metadata, under: root)
+            }
+        }
+        // fsevents reports an appended log only once its writer closes it, so files outside the walks are checked directly.
+        for path in entries.keys.filter({ !seenPaths.contains($0) }) {
+            if case .directories = changes, !walks.contains(where: { path.hasPrefix($0.directory + "/") }),
+                let entry = entries[path], let metadata = UsageFileMetadata(path: path)
+            {
+                observe(path, metadata, under: entry.root)
+            } else {
+                changed = entries.removeValue(forKey: path)?.log != nil || changed
+            }
+        }
         for (path, entry) in Self.open(newFiles, since: windowStart) {
             entries[path] = entry
-            changed = true
-        }
-        let gone = entries.keys.filter { path in
-            guard !seenPaths.contains(path) else {
-                return false
-            }
-            guard case .directories = changes else {
-                return true
-            }
-            return walks.contains { path.hasPrefix($0.directory + "/") }
-        }
-        for path in gone {
-            entries[path] = nil
             changed = true
         }
         return changed
@@ -64,12 +66,15 @@ struct LogStore: ~Copyable {
         var malformedLines = EnumMap<Provider, Int> { _ in 0 }
         var unpricedModels = Set<ModelID>()
         for entry in entries.values {
-            trackedFiles[entry.provider] += 1
-            malformedLines[entry.provider] += entry.log.tally.malformedLines
-            unpricedModels.formUnion(entry.log.tally.unpricedModelIDs)
+            guard let log = entry.log else {
+                continue
+            }
+            trackedFiles[entry.root.provider] += 1
+            malformedLines[entry.root.provider] += log.tally.malformedLines
+            unpricedModels.formUnion(log.tally.unpricedModelIDs)
         }
 
-        let logs = entries.sorted { $0.key < $1.key }.map(\.value.log)
+        let logs = entries.sorted { $0.key < $1.key }.compactMap(\.value.log)
         var seenHashes = Set<Int>(minimumCapacity: logs.reduce(0) { $0 + $1.events.count })
         var sharedHashes = Set<Int>()
         for log in logs {
@@ -114,7 +119,7 @@ struct LogStore: ~Copyable {
         } else {
             var index = entries.startIndex
             while index != entries.endIndex {
-                entries.values[index].log.discard(before: windowStart)
+                entries.values[index].log?.discard(before: windowStart)
                 entries.formIndex(after: &index)
             }
         }
@@ -221,7 +226,7 @@ struct LogStore: ~Copyable {
                 guard let log = root.format.open(path, metadata, windowStart) else {
                     continue
                 }
-                opened.withLock { $0[path] = Entry(provider: root.provider, log: log) }
+                opened.withLock { $0[path] = Entry(root: root, log: log) }
             }
         }
         return opened.withLock { $0 }
