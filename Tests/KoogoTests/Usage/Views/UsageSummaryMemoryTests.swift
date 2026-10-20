@@ -6,7 +6,7 @@ import XCTest
 
 final class UsageSummaryMemoryTests: XCTestCase {
     @MainActor
-    func testNumericTransitionsKeepRetainedHeapBounded() async throws {
+    func testTextTransitionsKeepFootprintAndRetainedHeapBounded() async throws {
         guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
             throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to profile rendered transitions.")
         }
@@ -28,14 +28,27 @@ final class UsageSummaryMemoryTests: XCTestCase {
         defer { window.close() }
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .seconds(1))
-        let before = allocatedHeapBytes()
+        let heapBefore = allocatedHeapBytes()
+        let footprintBefore = physicalFootprint()
 
+        var footprintDuringTransitions: UInt64 = 0
         for step in 1...32 {
             host.rootView = summaryView(step: step)
-            try await Task.sleep(for: .milliseconds(400))
+            try await Task.sleep(for: .milliseconds(100))
+            footprintDuringTransitions = max(footprintDuringTransitions, physicalFootprint())
+            try await Task.sleep(for: .milliseconds(300))
         }
-        // reachable font-cache entries evade leak scans; live heap excludes gpu scratch buffers reclaimed after idle.
-        XCTAssertLessThan(allocatedHeapBytes(), before + 16 * 1_024 * 1_024)
+        // gpu scratch buffers for rasterized transitions count toward the footprint but not the live heap.
+        XCTAssertLessThan(footprintDuringTransitions, footprintBefore + 32 * 1_024 * 1_024)
+        // reachable font-cache entries evade leak scans.
+        XCTAssertLessThan(allocatedHeapBytes(), heapBefore + 16 * 1_024 * 1_024)
+    }
+
+    private func physicalFootprint() -> UInt64 {
+        guard let usage = LibProc.resourceUsage(of: getpid()) else {
+            preconditionFailure("a process can always read its own resource usage")
+        }
+        return usage.ri_phys_footprint
     }
 
     private func summaryView(step: Int) -> some View {

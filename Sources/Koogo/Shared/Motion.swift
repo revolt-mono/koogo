@@ -9,12 +9,6 @@ extension View {
     func loadingShimmer() -> some View {
         modifier(LoadingShimmer())
     }
-
-    /// rasterizing numeric transitions keeps animation scales out of the system font cache.
-    func numericTextTransition() -> some View {
-        contentTransition(.numericText())
-            .environment(\.contentTransitionAddsDrawingGroup, true)
-    }
 }
 
 private struct MotionAnimation<Value: Equatable>: ViewModifier {

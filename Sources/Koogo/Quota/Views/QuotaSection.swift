@@ -72,10 +72,9 @@ private struct QuotaWindowRow: View {
 
                 Spacer(minLength: 12)
 
-                Text("\(window.usedPercent)% used")
+                RollingText(text: "\(window.usedPercent)% used")
                     .foregroundStyle(.primary)
                     .monospacedDigit()
-                    .numericTextTransition()
 
                 if let resetsAt = window.resetsAt {
                     QuotaDeadlineLabel(deadline: resetsAt)

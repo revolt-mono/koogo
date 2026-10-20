@@ -118,8 +118,7 @@ private struct AnimatedNumericText: View {
 
     var body: some View {
         // swiftui keeps updating unselected fit candidates, preventing their animations from settling.
-        Text(text)
-            .numericTextTransition()
+        RollingText(text: text)
             .motionAnimation(isOnScreen ? .smooth(duration: 0.35) : nil, value: text)
             .onAppear { isOnScreen = true }
             .onDisappear { isOnScreen = false }
