@@ -36,6 +36,13 @@ final class AppProcessGroupTests: XCTestCase {
         XCTAssertEqual(groups.map(\.id), [200, 100, 300])
         XCTAssertEqual(groups.map(\.name), ["Slack", "Chromium", "zsh"])
         XCTAssertEqual(groups.map { $0.members.map(\.pid) }, [[200], [100, 101, 102], [300]])
+        XCTAssertEqual(
+            groups.map { $0.members.map(\.name) },
+            [["Slack"], ["Google Chrome", "Helper", "Helper"], ["zsh"]]
+        )
+        XCTAssertEqual(groups.map { $0.members.map(\.depth) }, [[0], [0, 1, 1], [0]])
+        XCTAssertEqual(groups.map { $0.members.map(\.cpu) }, [[0], [0.2, 0.3, 0], [0]])
+        XCTAssertEqual(groups.map { $0.members.map(\.gpu) }, [[0.2], [0, 0, 0], [0]])
         XCTAssertEqual(groups.map(\.footprint), [100, 90, 5])
         XCTAssertEqual(groups.map(\.cpu), [0, 0.5, 0])
         XCTAssertEqual(groups.map(\.gpu), [0.2, 0, 0])
@@ -43,6 +50,31 @@ final class AppProcessGroupTests: XCTestCase {
             groups.map(\.iconPath),
             ["/Applications/Slack.app", "/Applications/Chromium.app", "/bin/zsh"]
         )
+    }
+
+    func testMembersNestUnderTheirParentsHeaviestFirstAtEveryLevel() throws {
+        let scan = ProcessScan(
+            records: [
+                record(pid: 104, parentPID: 7, responsiblePID: 100, path: "/usr/bin/git", footprint: 1),
+                record(pid: 103, parentPID: 102, responsiblePID: 100, path: "/usr/bin/ssh", footprint: 5),
+                record(pid: 101, parentPID: 100, responsiblePID: 100, path: "/bin/zsh", footprint: 30),
+                record(pid: 102, parentPID: 100, responsiblePID: 100, path: "/bin/bash", footprint: 50),
+                record(
+                    pid: 100,
+                    parentPID: 1,
+                    responsiblePID: 100,
+                    path: "/Applications/Ghostty.app/Contents/MacOS/ghostty",
+                    footprint: 10
+                ),
+            ],
+            taken: start
+        )
+
+        let members = try XCTUnwrap(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first).members
+
+        XCTAssertEqual(members.map(\.pid), [100, 102, 103, 101, 104])
+        XCTAssertEqual(members.map(\.depth), [0, 1, 2, 1, 0])
+        XCTAssertEqual(members.map(\.name), ["ghostty", "bash", "ssh", "zsh", "git"])
     }
 
     func testOldestMemberNamesAGroupWhoseResponsibleProcessIsUnseen() {
@@ -123,6 +155,7 @@ final class AppProcessGroupTests: XCTestCase {
         let later = try XCTUnwrap(after.records.first { $0.pid == getpid() })
         XCTAssertGreaterThan(later.footprint, 0)
         XCTAssertGreaterThan(later.responsiblePID, 0)
+        XCTAssertEqual(later.parentPID, getppid())
         XCTAssertTrue(later.executablePath.hasPrefix("/"), later.executablePath)
         let busy = later.cpuTime - earlier.cpuTime
         XCTAssertGreaterThanOrEqual(busy, .milliseconds(250), "\(busy)")
@@ -199,8 +232,10 @@ final class AppProcessGroupTests: XCTestCase {
         XCTAssertTrue(child.isRunning)
     }
 
+    /// a group leader descends from launchd; other members default to children of their responsible process.
     private func record(
         pid: pid_t,
+        parentPID: pid_t? = nil,
         responsiblePID: pid_t,
         path: String,
         footprint: UInt64,
@@ -210,6 +245,7 @@ final class AppProcessGroupTests: XCTestCase {
     ) -> ProcessRecord {
         record(
             identity: ProcessIdentity(pid: pid, startTicks: 0),
+            parentPID: parentPID ?? (responsiblePID == pid ? 1 : responsiblePID),
             responsiblePID: responsiblePID,
             path: path,
             footprint: footprint,
@@ -221,6 +257,7 @@ final class AppProcessGroupTests: XCTestCase {
 
     private func record(
         identity: ProcessIdentity,
+        parentPID: pid_t = 1,
         responsiblePID: pid_t,
         path: String,
         footprint: UInt64,
@@ -230,6 +267,7 @@ final class AppProcessGroupTests: XCTestCase {
     ) -> ProcessRecord {
         ProcessRecord(
             identity: identity,
+            parentPID: parentPID,
             responsiblePID: responsiblePID,
             executablePath: path,
             launched: launched ?? start - .seconds(60),

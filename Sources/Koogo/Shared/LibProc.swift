@@ -40,6 +40,12 @@ enum LibProc {
         }
     }
 
+    static func bsdInfo(of pid: pid_t) -> proc_bsdinfo? {
+        var info = proc_bsdinfo()
+        let read = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size))
+        return read > 0 ? info : nil
+    }
+
     static func resourceUsage(of pid: pid_t) -> rusage_info_v4? {
         var usage = rusage_info_v4()
         let status = withUnsafeMutablePointer(to: &usage) { pointer in

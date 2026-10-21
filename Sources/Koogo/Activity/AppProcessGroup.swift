@@ -5,6 +5,7 @@ import os
 /// cpu and gpu times accumulate since launch; scan differences yield load for each user process.
 struct ProcessRecord: Sendable {
     let identity: ProcessIdentity
+    let parentPID: pid_t
     let responsiblePID: pid_t
     let executablePath: String
     let launched: SuspendingClock.Instant
@@ -47,11 +48,24 @@ struct AppIdentity: Sendable {
     }
 }
 
+struct AppProcessMember: Sendable {
+    let identity: ProcessIdentity
+    let name: String
+    /// nesting below the group's top level; a member whose parent runs outside the group sits at 0.
+    let depth: Int
+    let footprint: UInt64
+    let cpu: Double
+    let gpu: Double
+
+    var pid: pid_t { identity.pid }
+}
+
 struct AppProcessGroup: Identifiable, Sendable {
     let id: pid_t
     let name: String
     let iconPath: String
-    let members: [ProcessIdentity]
+    /// preorder under each parent, heaviest siblings first.
+    let members: [AppProcessMember]
     let footprint: UInt64
     /// cpu cores used between scans; one busy core reads as 1.
     let cpu: Double
@@ -61,7 +75,7 @@ struct AppProcessGroup: Identifiable, Sendable {
     func forceTerminate() {
         for member in members {
             do {
-                try LibProc.forceKill(member)
+                try LibProc.forceKill(member.identity)
             } catch {
                 Logger.activity.error("force terminate failed pid=\(member.pid): \(error, privacy: .public)")
             }
@@ -89,16 +103,40 @@ struct AppProcessGroup: Identifiable, Sendable {
             .map { group in
                 let leader = group.members.first { $0.pid == group.id } ?? group.members.min { $0.pid < $1.pid }!
                 let identity = identity(leader.pid) ?? AppIdentity(executablePath: leader.executablePath)
+                let members = nested(group.members, load: load)
                 return AppProcessGroup(
                     id: group.id,
                     name: identity.name,
                     iconPath: identity.iconPath,
-                    members: group.members.map(\.identity),
+                    members: members,
                     footprint: group.footprint,
-                    cpu: group.members.reduce(0) { $0 + load($1, \.cpuTime) },
-                    gpu: group.members.reduce(0) { $0 + load($1, \.gpuTime) }
+                    cpu: members.reduce(0) { $0 + $1.cpu },
+                    gpu: members.reduce(0) { $0 + $1.gpu }
                 )
             }
+    }
+
+    private static func nested(
+        _ records: [ProcessRecord],
+        load: (ProcessRecord, KeyPath<ProcessRecord, Duration>) -> Double
+    ) -> [AppProcessMember] {
+        let children = Dictionary(grouping: records, by: \.parentPID)
+        let pids = Set(records.map(\.pid))
+        func nest(_ siblings: [ProcessRecord], depth: Int) -> [AppProcessMember] {
+            siblings.sorted { ($1.footprint, $0.pid) < ($0.footprint, $1.pid) }
+                .flatMap { record in
+                    let member = AppProcessMember(
+                        identity: record.identity,
+                        name: URL(filePath: record.executablePath).lastPathComponent,
+                        depth: depth,
+                        footprint: record.footprint,
+                        cpu: load(record, \.cpuTime),
+                        gpu: load(record, \.gpuTime)
+                    )
+                    return [member] + nest(children[record.pid] ?? [], depth: depth + 1)
+                }
+        }
+        return nest(records.filter { !pids.contains($0.parentPID) }, depth: 0)
     }
 }
 
@@ -123,12 +161,15 @@ extension ProcessScan {
     }
 
     private static func record(_ pid: pid_t, gpuTime: Duration) -> ProcessRecord? {
-        guard let usage = LibProc.resourceUsage(of: pid), let executablePath = LibProc.executablePath(of: pid) else {
-            return nil
-        }
+        guard
+            let usage = LibProc.resourceUsage(of: pid),
+            let info = LibProc.bsdInfo(of: pid),
+            let executablePath = LibProc.executablePath(of: pid)
+        else { return nil }
         let responsible = responsiblePID?(pid) ?? pid
         return ProcessRecord(
             identity: ProcessIdentity(pid: pid, startTicks: usage.ri_proc_start_abstime),
+            parentPID: pid_t(info.pbi_ppid),
             responsiblePID: responsible > 0 ? responsible : pid,
             executablePath: executablePath,
             launched: absoluteTimeZero + duration(ofTicks: usage.ri_proc_start_abstime),
