@@ -16,11 +16,15 @@ extension View {
 }
 
 private struct ScrollEdgeFade: ViewModifier {
-    private static let fadeDepth: CGFloat = 64
-    private static let smoothstepRamp = Gradient(
-        stops: stride(from: 0.0, through: 1, by: 0.125).map { location in
-            .init(color: .black.opacity(location * location * (3 - 2 * location)), location: location)
-        }
+    private static let fadeDepth: CGFloat = 80
+    /// the edge-fade ramp from blog.x.com, eased at both ends so the boundary stays unnoticed.
+    private static let ramp = Gradient(
+        stops: [
+            (0, 0), (0.15, 0.05), (0.3, 0.18),
+            (0.45, 0.38), (0.6, 0.62), (0.75, 0.83),
+            (0.87, 0.95), (0.95, 0.99), (1, 1),
+        ]
+        .map { location, opacity in .init(color: .black.opacity(opacity), location: location) }
     )
 
     let scrollerInset: CGFloat
@@ -40,10 +44,10 @@ private struct ScrollEdgeFade: ViewModifier {
             .mask {
                 HStack(spacing: 0) {
                     VStack(spacing: 0) {
-                        LinearGradient(gradient: Self.smoothstepRamp, startPoint: .top, endPoint: .bottom)
+                        LinearGradient(gradient: Self.ramp, startPoint: .top, endPoint: .bottom)
                             .frame(height: depths.top)
                         Rectangle()
-                        LinearGradient(gradient: Self.smoothstepRamp, startPoint: .bottom, endPoint: .top)
+                        LinearGradient(gradient: Self.ramp, startPoint: .bottom, endPoint: .top)
                             .frame(height: depths.bottom)
                     }
                     Rectangle()
