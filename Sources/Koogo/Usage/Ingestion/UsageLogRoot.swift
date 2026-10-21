@@ -2,12 +2,13 @@ import Foundation
 
 struct UsageLogFormat: Sendable {
     enum Match: Sendable {
-        case fileExtension(String)
+        /// plain or zstd-compressed; codex compresses rollouts a week after their last write.
+        case jsonLines
         case fileName(String)
 
         func matches(path: String) -> Bool {
             switch self {
-            case .fileExtension(let suffix): path.hasSuffix(suffix)
+            case .jsonLines: path.hasSuffix(".jsonl") || path.hasSuffix(".jsonl.zst")
             case .fileName(let name): path.hasSuffix("/" + name)
             }
         }
@@ -17,7 +18,13 @@ struct UsageLogFormat: Sendable {
     let open: @Sendable (_ path: String, _ observed: UsageFileMetadata, _ windowStart: Date) -> (any TrackedLog)?
 
     static func jsonLines<Parser: UsageLogParser>(_: Parser.Type) -> Self {
-        Self(match: .fileExtension(".jsonl")) { ParsedLog<Parser>($0, observed: $1, since: $2) }
+        Self(match: .jsonLines) { path, metadata, windowStart in
+            ParsedLog<Parser>(
+                path.hasSuffix(".zst")
+                    ? CompressedFile(path, observed: metadata) : AppendOnlyFile(path, observed: metadata),
+                since: windowStart
+            )
+        }
     }
 }
 

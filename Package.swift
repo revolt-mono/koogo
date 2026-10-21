@@ -16,9 +16,12 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "1.0.1"),
     ],
     targets: [
+        // zstd's single-file decoder reads compressed codex rollouts; macos ships no zstd library.
+        .target(name: "CZstd", exclude: ["LICENSE"]),
         .executableTarget(
             name: "Koogo",
             dependencies: [
+                "CZstd",
                 .product(name: "Shimmer", package: "SwiftUI-Shimmer"),
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "Subprocess", package: "swift-subprocess"),

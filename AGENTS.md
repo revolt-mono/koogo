@@ -39,6 +39,7 @@
 ## repo structure
 
 ```
+├── Sources/CZstd          vendored zstd single-file decoder for compressed codex rollouts
 ├── Sources/Koogo          menu bar app, one folder per feature slice
 │   ├── App                entry point, shared models, headless report
 │   ├── Shared             leaf primitives used across slices

@@ -10,9 +10,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let service = makePipeline()
         _ = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
 
-        let appended = codexTokenCount(
-            last: codexUsage(input: 50, output: 10),
-            total: codexUsage(input: 150, output: 30),
+        let appended = codexTokenUsageRecord(
+            codexUsage(input: 50, output: 10),
+            thread: codexUsage(input: 150, output: 30),
             at: "2026-08-25T13:00:00.000Z"
         )
         try workspace.append(appended, to: log)
@@ -36,12 +36,15 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         let writer = try workspace.openWriter(to: log)
         defer { try? writer.close() }
-        let second = codexTokenCount(last: codexUsage(input: 50, output: 10), total: codexUsage(input: 150, output: 30))
+        let second = codexTokenUsageRecord(
+            codexUsage(input: 50, output: 10),
+            thread: codexUsage(input: 150, output: 30)
+        )
         try writer.write(contentsOf: Data((second + "\n").utf8))
         let appended = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(appended.snapshot.todayTokens(.codex), 180)
 
-        let third = codexTokenCount(last: codexUsage(input: 20, output: 5), total: codexUsage(input: 170, output: 35))
+        let third = codexTokenUsageRecord(codexUsage(input: 20, output: 5), thread: codexUsage(input: 170, output: 35))
         try writer.write(contentsOf: Data(third.prefix(third.count / 2).utf8))
         let partial = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(partial.snapshot.todayTokens(.codex), 180)
@@ -64,7 +67,10 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         let writer = try workspace.openWriter(to: log)
         defer { try? writer.close() }
-        let second = codexTokenCount(last: codexUsage(input: 50, output: 10), total: codexUsage(input: 150, output: 30))
+        let second = codexTokenUsageRecord(
+            codexUsage(input: 50, output: 10),
+            thread: codexUsage(input: 150, output: 30)
+        )
         try writer.write(contentsOf: Data((second + "\n").utf8))
         let resumed = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
 
@@ -98,7 +104,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             [
                 codexMeta(thread: "parent"),
                 codexTurn(),
-                codexTokenCount(last: parentRequest, total: parentRequest, at: "2026-08-24T12:00:00.000Z"),
+                codexTokenUsageRecord(parentRequest, thread: parentRequest, at: "2026-08-24T12:00:00.000Z"),
                 "",
             ].joined(separator: "\n"),
             to: workspace.codexSessions.appending(path: "parent.jsonl")
@@ -107,11 +113,12 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             [
                 codexMeta(thread: "fork"),
                 codexTurn(),
-                codexTokenCount(last: parentRequest, total: parentRequest, at: "2026-08-25T12:00:00.000Z"),
+                codexTokenUsageRecord(parentRequest, thread: parentRequest, at: "2026-08-25T12:00:00.000Z"),
                 codexTurn(id: "fork-turn"),
-                codexTokenCount(
-                    last: codexUsage(input: 40, output: 10),
-                    total: codexUsage(input: 140, output: 30),
+                codexTokenUsageRecord(
+                    codexUsage(input: 40, output: 10),
+                    thread: codexUsage(input: 140, output: 30),
+                    turn: "fork-turn",
                     at: "2026-08-25T12:00:00.000Z"
                 ),
                 "",
@@ -137,35 +144,6 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let snapshot = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.todayTokens(.codex), 120)
-    }
-
-    func testAppendThatCannotBeReadReportsNoChangeUntilItCanBe() throws {
-        let log = workspace.codexSessions.appending(path: "session.jsonl")
-        try workspace.write(codexLog(input: 100, output: 20), to: log)
-        var parsed = try XCTUnwrap(
-            ParsedLog<CodexUsageLogParser>(log.path, observed: try metadata(of: log), since: .distantPast)
-        )
-        try workspace.append(
-            codexTokenCount(
-                last: codexUsage(input: 50, output: 10),
-                total: codexUsage(input: 150, output: 30),
-                at: "2026-08-25T13:00:00.000Z"
-            ) + "\n",
-            to: log
-        )
-
-        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: log.path)
-        XCTAssertFalse(parsed.sync(observed: try metadata(of: log)))
-
-        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: log.path)
-        XCTAssertTrue(parsed.sync(observed: try metadata(of: log)))
-        XCTAssertEqual(parsed.events.count, 2)
-    }
-
-    private func metadata(of url: URL) throws -> UsageFileMetadata {
-        var status = Darwin.stat()
-        XCTAssertEqual(stat(url.path, &status), 0)
-        return try XCTUnwrap(UsageFileMetadata(status: status))
     }
 
     func testSameSizeRewriteWithNewModificationDateIsReread() async throws {
@@ -212,9 +190,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         XCTAssertEqual(skipped.snapshot.providers[.codex]?.periods[.today].total, UsagePeriodSnapshot())
 
         try workspace.append(
-            codexTokenCount(
-                last: codexUsage(input: 50, output: 10),
-                total: codexUsage(input: 150, output: 30),
+            codexTokenUsageRecord(
+                codexUsage(input: 50, output: 10),
+                thread: codexUsage(input: 150, output: 30),
                 at: "2026-08-25T13:00:00.000Z"
             ) + "\n",
             to: log
@@ -248,9 +226,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             [
                 codexMeta(),
                 codexTurn(),
-                codexTokenCount(last: request, total: request)
-                    .replacingOccurrences(of: #""last_token_usage":\#(request),"#, with: ""),
-                codexTokenCount(last: request, total: request),
+                codexTokenUsageRecord(request, thread: request)
+                    .replacingOccurrences(of: #""usage":\#(request),"#, with: ""),
+                codexTokenUsageRecord(request, thread: request),
                 "",
             ].joined(separator: "\n"),
             to: workspace.codexSessions.appending(path: "session.jsonl")

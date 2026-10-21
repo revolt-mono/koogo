@@ -1,3 +1,15 @@
+import Foundation
+
+/// `zstd -3` of `codexLog(input: 100, output: 20)`, as codex stores rollouts a week after their last write.
+let codexCompressedLog = Data(
+    base64Encoded: """
+        KLUv/WQRAhUIAJIOKx9gZ9sGA5pfNpPQU22z2N8nhEHwCBb2NNEQjSLIMYABg6Zp8iiqt4+ZkMbastJ3zNPMHjMtTQ51HDMNdE7NuHa8clvH+lLvPlxvD31J\
+        EcVMajqwfUgQlhy93yIQeryyXBgIhaIdcnRF1y7Ht8c0gXbbI7XHNMCgab6UvqSPvtgL0JdaJaHc8ap1SW0Zs/LR1SX6eIHMJGSiTGQYAYVTHLIwnDxH\
+        d4tq1oX1CwIfAPlgCbhWAFiwBAsbQdTc6ALMAdWpmlzRI6vn5av2bMK0OUogZgBQDfypWZXKANkXOObvbCMSlmFrAwA2GVqL5jWMpWBCw4Dbs7VATkgu\
+        45hwBlKDfXI=
+        """
+)!
+
 func codexLog(
     input: Int,
     output: Int,
@@ -9,7 +21,7 @@ func codexLog(
     return [
         codexMeta(),
         codexTurn(id: turn, model: model),
-        codexTokenCount(last: usage, total: usage, at: usageTimestamp),
+        codexTokenUsageRecord(usage, thread: usage, turn: turn, at: usageTimestamp),
         "",
     ].joined(separator: "\n")
 }
@@ -39,8 +51,13 @@ func codexUsage(
         """
 }
 
-func codexTokenCount(last: String, total: String, at timestamp: String = usageTestTimestampText) -> String {
+func codexTokenUsageRecord(
+    _ usage: String,
+    thread: String,
+    turn: String = "turn",
+    at timestamp: String = usageTestTimestampText
+) -> String {
     """
-    {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":\(last),"total_token_usage":\(total),"model_context_window":1000}}}
+    {"timestamp":"\(timestamp)","type":"token_usage_record","payload":{"thread_id":"thread","turn_id":"\(turn)","session_id":"thread","root_turn_id":"\(turn)","response_id":"resp_\(turn)","usage":\(usage),"turn_token_usage":\(usage),"thread_token_usage":\(thread)}}
     """
 }

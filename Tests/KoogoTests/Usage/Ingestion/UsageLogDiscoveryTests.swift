@@ -33,9 +33,9 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         XCTAssertEqual(root?.exists, true)
 
         try workspace.append(
-            codexTokenCount(
-                last: codexUsage(input: 50, output: 10),
-                total: codexUsage(input: 150, output: 30)
+            codexTokenUsageRecord(
+                codexUsage(input: 50, output: 10),
+                thread: codexUsage(input: 150, output: 30)
             ) + "\n",
             to: target.appending(path: "session.jsonl")
         )

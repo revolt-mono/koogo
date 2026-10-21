@@ -50,11 +50,19 @@ struct UsageTestWorkspace {
         to url: URL,
         modificationDate: Date = usageTestTimestamp
     ) throws {
+        try write(Data(text.utf8), to: url, modificationDate: modificationDate)
+    }
+
+    func write(
+        _ data: Data,
+        to url: URL,
+        modificationDate: Date = usageTestTimestamp
+    ) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try Data(text.utf8).write(to: url)
+        try data.write(to: url)
         try FileManager.default.setAttributes(
             [.modificationDate: modificationDate],
             ofItemAtPath: url.path

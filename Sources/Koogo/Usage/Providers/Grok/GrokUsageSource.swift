@@ -11,7 +11,7 @@ struct GrokUsageSource: UsageSource {
         else {
             return nil
         }
-        return ParsedLog<GrokUsageLogParser>(path, observed: metadata, since: windowStart)
+        return ParsedLog<GrokUsageLogParser>(AppendOnlyFile(path, observed: metadata), since: windowStart)
     }
     /// grok bills every model used in a prompt under the primary model.
     let splitsUsageByModel = false

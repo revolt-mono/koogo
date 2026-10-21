@@ -10,7 +10,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             try workspace.write(
                 [
                     codexTurn(id: "turn-\(index)"),
-                    codexTokenCount(last: usage, total: usage),
+                    codexTokenUsageRecord(usage, thread: usage, turn: "turn-\(index)"),
                     "",
                 ].joined(separator: "\n"),
                 to: workspace.codexSessions.appending(path: "session-\(index).jsonl")
@@ -34,9 +34,9 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         XCTAssertEqual(initial.snapshot.todayTokens(.codex), 120)
 
         try workspace.append(
-            codexTokenCount(
-                last: codexUsage(input: 50, output: 10),
-                total: codexUsage(input: 150, output: 30)
+            codexTokenUsageRecord(
+                codexUsage(input: 50, output: 10),
+                thread: codexUsage(input: 150, output: 30)
             ) + "\n",
             to: log
         )
@@ -160,7 +160,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
                 {"timestamp":"2026-08-25T11:32:00.000Z","ordinal":3,"type":"event_msg","payload":{"type":"item_completed","item":{}}}
                 """,
                 codexTurn(),
-                codexTokenCount(last: request, total: request),
+                codexTokenUsageRecord(request, thread: request),
                 "",
             ].joined(separator: "\n"),
             to: workspace.codexSessions.appending(path: "session.jsonl")

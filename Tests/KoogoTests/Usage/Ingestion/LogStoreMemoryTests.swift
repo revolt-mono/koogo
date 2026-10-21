@@ -10,7 +10,9 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
         let last = codexUsage(input: 100, output: 20)
         let turns = (1...20_000).map { turn in
             let total = codexUsage(input: 100 * turn, output: 20 * turn)
-            return codexTurn(id: "turn-\(turn)") + "\n" + codexTokenCount(last: last, total: total) + "\n"
+            return codexTurn(id: "turn-\(turn)") + "\n"
+                + codexTokenUsageRecord(last, thread: total, turn: "turn-\(turn)")
+                + "\n"
         }
         try workspace.write(turns.joined(), to: workspace.codexSessions.appending(path: "session.jsonl"))
         var store = LogStore()

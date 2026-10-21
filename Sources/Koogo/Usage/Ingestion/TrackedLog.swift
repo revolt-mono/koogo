@@ -9,14 +9,14 @@ protocol TrackedLog: Sendable {
 }
 
 struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
-    private var file: AppendOnlyFile
+    private var file: any LogFile
     private var parser = Parser()
     private var windowStart: Date
     private(set) var events = UsageEventIndex()
     private(set) var tally = LogTally()
 
-    init?(_ path: String, observed metadata: UsageFileMetadata, since windowStart: Date) {
-        file = AppendOnlyFile(path, observed: metadata)
+    init?(_ file: any LogFile, since windowStart: Date) {
+        self.file = file
         self.windowStart = windowStart
         guard read() != .unreadable else {
             return nil

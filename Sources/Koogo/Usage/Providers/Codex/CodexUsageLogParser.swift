@@ -1,66 +1,55 @@
 import Foundation
 
+/// codex writes one `token_usage_record` per completed response; the preceding `turn_context` names the model.
 struct CodexUsageLogParser: UsageLogParser {
-    private var turn: CodexTurn?
-    private var previousTotalUsage: CodexTokenUsage?
+    private var model: ModelID?
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         switch try CodexRecord(line) {
         case .turnContext(let payload):
-            turn = try CodexTurn(payload)
-            return nil
-        case .eventMessage(let payload, let timestamp):
-            guard let tokenCount = try CodexTokenCount(payload) else {
-                return nil
-            }
-            guard let timestamp = try timestamp?.string() else {
+            guard let name = try payload.fields(.string("model")) else {
                 throw MalformedUsageRecord()
             }
-            return try bill(tokenCount, at: timestamp)
+            model = ModelID(name)
+            return nil
+        case .tokenUsageRecord(let payload, let timestamp):
+            let record = try CodexTokenUsageRecord(payload)
+            guard let model else {
+                return nil
+            }
+            guard let logged = try timestamp?.string(), let timestamp = Date(iso8601: logged) else {
+                throw MalformedUsageRecord()
+            }
+            guard let quote = CodexUsagePricing.quote(model: model, tokens: record.usage) else {
+                return .unpricedModel(model, timestamp: timestamp)
+            }
+            return .event(
+                UsageEvent(
+                    id: .codex(turnID: record.turnID, cumulativeTotal: record.threadTotal),
+                    record: UsageRecord(
+                        timestamp: timestamp,
+                        processedTokens: record.usage.processed,
+                        cost: quote.cost,
+                        model: quote.model
+                    )
+                )
+            )
         case nil:
             return nil
         }
-    }
-
-    private mutating func bill(_ tokenCount: CodexTokenCount, at loggedTimestamp: String) throws -> UsageLineOutcome? {
-        defer { previousTotalUsage = tokenCount.total }
-
-        guard tokenCount.last.input > 0 || tokenCount.last.output > 0, previousTotalUsage != tokenCount.total,
-            let turn
-        else {
-            return nil
-        }
-        guard let timestamp = Date(iso8601: loggedTimestamp) else {
-            throw MalformedUsageRecord()
-        }
-        guard let quote = CodexUsagePricing.quote(model: turn.model, tokens: tokenCount.last) else {
-            return .unpricedModel(turn.model, timestamp: timestamp)
-        }
-
-        return .event(
-            UsageEvent(
-                id: .codex(turnID: turn.id, cumulativeTotal: tokenCount.total.processed),
-                record: UsageRecord(
-                    timestamp: timestamp,
-                    processedTokens: tokenCount.last.processed,
-                    cost: quote.cost,
-                    model: quote.model
-                )
-            )
-        )
     }
 }
 
 private enum CodexRecord {
     case turnContext(payload: JSONValue)
-    case eventMessage(payload: JSONValue, timestamp: JSONValue?)
+    case tokenUsageRecord(payload: JSONValue, timestamp: JSONValue?)
 
     init?(_ line: UnsafeRawBufferPointer) throws {
         guard let record = JSONValue(object: line) else {
             return nil
         }
         let (kind, timestamp, payload) = try record.fields(
-            .kind("type") { $0.isString("turn_context") || $0.isString("event_msg") },
+            .kind("type") { $0.isString("turn_context") || $0.isString("token_usage_record") },
             .value("timestamp"),
             .value("payload")
         )
@@ -72,43 +61,28 @@ private enum CodexRecord {
         }
         switch kind {
         case "turn_context": self = .turnContext(payload: payload)
-        default: self = .eventMessage(payload: payload, timestamp: timestamp)
+        default: self = .tokenUsageRecord(payload: payload, timestamp: timestamp)
         }
     }
 }
 
-private struct CodexTurn {
-    let id: String
-    let model: ModelID
+private struct CodexTokenUsageRecord {
+    let turnID: String
+    let usage: CodexTokenUsage
+    let threadTotal: UInt64
 
     init(_ payload: JSONValue) throws {
-        let (id, model) = try payload.fields(.string("turn_id"), .string("model"))
-        guard let id, let model else {
-            throw MalformedUsageRecord()
-        }
-        self.id = id
-        self.model = ModelID(model)
-    }
-}
-
-private struct CodexTokenCount {
-    let last: CodexTokenUsage
-    let total: CodexTokenUsage
-
-    init?(_ payload: JSONValue) throws {
-        let (kind, info) = try payload.fields(.kind("type") { $0.isString("token_count") }, .value("info"))
-        guard kind != nil, let info = info?.nonNull else {
-            return nil
-        }
-        let (last, total) = try info.fields(
-            JSONField("last_token_usage", CodexTokenUsage.init(_:)),
-            JSONField("total_token_usage", CodexTokenUsage.init(_:))
+        let (turnID, usage, threadTotal) = try payload.fields(
+            .string("turn_id"),
+            JSONField("usage", CodexTokenUsage.init(_:)),
+            JSONField("thread_token_usage") { try $0.fields(.uint64("total_tokens")) }
         )
-        guard let last, let total else {
+        guard let turnID, let usage, let threadTotal else {
             throw MalformedUsageRecord()
         }
-        self.last = last
-        self.total = total
+        self.turnID = turnID
+        self.usage = usage
+        self.threadTotal = threadTotal
     }
 }
 
