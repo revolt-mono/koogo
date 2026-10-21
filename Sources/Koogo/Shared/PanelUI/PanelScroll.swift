@@ -16,7 +16,7 @@ extension View {
 }
 
 private struct ScrollEdgeFade: ViewModifier {
-    private static let fadeDepth: CGFloat = 80
+    private static let fadeDepth: CGFloat = 64
     /// the edge-fade ramp from blog.x.com, eased at both ends so the boundary stays unnoticed.
     private static let ramp = Gradient(
         stops: [
@@ -31,13 +31,18 @@ private struct ScrollEdgeFade: ViewModifier {
 
     @State private var depths = EdgeDepths()
 
+    /// grows the fade faster than the hidden distance so a row cut by the edge never gets a compressed, hard ramp.
+    private static func depth(hiding distance: CGFloat) -> CGFloat {
+        min((max(distance, 0) * fadeDepth).squareRoot(), fadeDepth)
+    }
+
     func body(content: Content) -> some View {
         content
             .scrollBounceBehavior(.basedOnSize)
             .onScrollGeometryChange(for: EdgeDepths.self) { geometry in
                 let above = geometry.contentInsets.top + geometry.visibleRect.minY
                 let below = geometry.contentSize.height + geometry.contentInsets.bottom - geometry.visibleRect.maxY
-                return EdgeDepths(top: min(max(above, 0), Self.fadeDepth), bottom: min(max(below, 0), Self.fadeDepth))
+                return EdgeDepths(top: Self.depth(hiding: above), bottom: Self.depth(hiding: below))
             } action: { _, newDepths in
                 depths = newDepths
             }
