@@ -30,7 +30,7 @@ private struct UsageSummaryPeriod: View {
                 }
                 .font(.system(size: 15, weight: .bold))
             }
-            .foregroundStyle(.panelHeadline)
+            .foregroundStyle(.panelLabel)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .monospacedDigit()

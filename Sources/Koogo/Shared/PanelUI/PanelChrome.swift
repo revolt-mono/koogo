@@ -67,16 +67,6 @@ extension ProgressViewStyle where Self == PanelProgressViewStyle {
 extension ShapeStyle where Self == Color {
     static var panelRaised: Color { .white.opacity(0.06) }
 
-    /// the primary swiftui color turns gray under glass vibrancy.
+    /// the primary swiftui color turns gray under glass vibrancy; a gradient text style masks every glyph run, and window server redraws those masks each frame a page slides in, dropping the slide to 60 hz.
     static var panelLabel: Color { Color(nsColor: .labelColor) }
-}
-
-extension ShapeStyle where Self == LinearGradient {
-    static var panelHeadline: LinearGradient {
-        LinearGradient(
-            colors: [Color.primary.opacity(0.98), Color.primary.opacity(0.72)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
 }
