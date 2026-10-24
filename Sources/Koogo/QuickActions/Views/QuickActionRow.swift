@@ -51,7 +51,7 @@ struct QuickActionRow<Targets: Sendable>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
             .background(
-                isHovered && isEnabled ? Color.white.opacity(0.1) : .panelRaised,
+                isHovered && isEnabled ? Color.white.opacity(0.1) : .panelCard,
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
         }

@@ -9,7 +9,7 @@ struct CodexQuotaResetView: View {
                 HStack(spacing: 4) {
                     if let credits = model.credits {
                         let noun = credits.availableCount == 1 ? "banked reset" : "banked resets"
-                        Text("\(Text("\(credits.availableCount)").foregroundStyle(.white)) \(noun) available")
+                        Text("\(Text("\(credits.availableCount)").foregroundStyle(.panelLabel)) \(noun) available")
                             .monospacedDigit()
                     } else {
                         Text("Banked resets")

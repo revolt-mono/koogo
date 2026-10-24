@@ -32,7 +32,7 @@ struct TodoEditor: View {
             }
         }
         .padding(12)
-        .background(.panelRaised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onMouseDownOutside { $0.window?.makeFirstResponder(nil) }
     }
 
@@ -80,7 +80,7 @@ struct TodoInlineEditor: View {
                 .accessibilityLabel("Save todo")
         }
         .padding(8)
-        .background(.panelRaised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onMouseDownOutside { _ in onFinish(.discarded) }
     }
 

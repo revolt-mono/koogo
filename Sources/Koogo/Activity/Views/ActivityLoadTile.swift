@@ -32,7 +32,6 @@ struct ActivityHeadline: View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(measure.value)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(.panelLabel)
 
             Text(measure.unit)
                 .font(.system(size: 10, weight: .medium))

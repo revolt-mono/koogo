@@ -17,7 +17,7 @@ struct PanelSection<Header: View, Content: View>: View {
 
             content()
                 .padding(12)
-                .background(Color.black.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 }
@@ -66,7 +66,8 @@ extension ProgressViewStyle where Self == PanelProgressViewStyle {
 
 extension ShapeStyle where Self == Color {
     static var panelRaised: Color { .white.opacity(0.06) }
+    static var panelCard: Color { .white.opacity(0.024) }
 
-    /// the primary swiftui color turns gray under glass vibrancy; a gradient text style masks every glyph run, and window server redraws those masks each frame a page slides in, dropping the slide to 60 hz.
-    static var panelLabel: Color { Color(nsColor: .labelColor) }
+    /// the primary swiftui color turns gray under glass vibrancy; a gradient text style would mask every glyph run, and window server redraws those masks each frame a page slides in, dropping the slide to 60 hz.
+    static var panelLabel: Color { Color(white: 0xFC / 255) }
 }

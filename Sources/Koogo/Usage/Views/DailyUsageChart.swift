@@ -117,7 +117,6 @@ private struct UsageChartAnnotation: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(day.date, format: .dateTime.month(.abbreviated).day())
                 .fontWeight(.semibold)
-                .foregroundStyle(.panelLabel)
 
             Text(
                 "\(day.usage.cost.usd.formatted(.usd)) · "
