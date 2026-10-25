@@ -9,7 +9,7 @@ struct CommandLineTool: Sendable {
         URL(filePath: "/opt/homebrew/bin"),
         URL(filePath: "/usr/local/bin"),
     ]
-    /// ignore broken pipes so a closed tool input fails the session rather than terminating the app.
+    /// makes writes to a closed tool input fail the session instead of terminating the app.
     private static let brokenPipesIgnored: Void = { signal(SIGPIPE, SIG_IGN) }()
     private static let platformOptions: PlatformOptions = {
         var options = PlatformOptions()
@@ -37,7 +37,6 @@ struct CommandLineTool: Sendable {
         return (preferred + installDirectories + path).map { $0.appending(path: name) }
     }
 
-    /// decoding errors and oversized output become invalid messages; other session errors mean the tool closed.
     func session<Value: Sendable>(
         _ arguments: [String],
         _ session: @escaping @Sendable (consuming ToolStreams) async throws -> Value

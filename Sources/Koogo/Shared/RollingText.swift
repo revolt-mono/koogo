@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// text whose digits roll into place when the value changes; the system numeric transition rasterizes each digit into gpu scratch buffers, which adds over 100 MB to the footprint.
+/// replaces the system numeric transition, which rasterizes each digit into gpu scratch buffers and adds over 100 MB to the footprint.
 struct RollingText: View {
     private static let roll: AnyTransition = .asymmetric(
         insertion: .move(edge: .bottom).combined(with: .opacity),

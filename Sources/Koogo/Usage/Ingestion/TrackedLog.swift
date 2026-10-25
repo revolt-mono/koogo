@@ -3,7 +3,7 @@ import Foundation
 protocol TrackedLog: Sendable {
     var events: UsageEventIndex { get }
     var tally: LogTally { get }
-    /// returns true when syncing may change events or the tally.
+    /// returns true when events or the tally may have changed.
     mutating func sync(observed metadata: UsageFileMetadata) -> Bool
     mutating func discard(before windowStart: Date)
 }

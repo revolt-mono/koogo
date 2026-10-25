@@ -21,7 +21,7 @@ final class UsageModel {
         self.now = now
     }
 
-    /// refreshes the requested providers; calls during a refresh queue another pass.
+    /// calls during a refresh queue another pass.
     func refresh(providers: [Provider]) {
         guard case .idle = state else {
             state = .running(queued: providers)

@@ -38,7 +38,7 @@ struct CPULoad: Sendable {
 
     var total: Double { user + system }
 
-    /// tick counters wrap; zero elapsed ticks read as idle.
+    /// tick counters wrap.
     init(from previous: CPUTicks, to next: CPUTicks) {
         let user = Double(next.user &- previous.user)
         let system = Double(next.system &- previous.system)

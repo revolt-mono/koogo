@@ -1,4 +1,5 @@
 @preconcurrency import ApplicationServices
+import Carbon.HIToolbox
 import Foundation
 import Observation
 import Synchronization
@@ -135,10 +136,10 @@ final class EventTap {
     }
 }
 
-/// system look up uses control-command-d; core graphics numbers mouse button 4 as 3.
+/// core graphics numbers mouse button 4 as 3.
 private struct LookUpShortcut {
     static let buttonNumber: Int64 = 3
-    private static let keyCode = CGKeyCode(0x02)
+    private static let keyCode = CGKeyCode(kVK_ANSI_D)
 
     private let keyDown: CGEvent
     private let keyUp: CGEvent

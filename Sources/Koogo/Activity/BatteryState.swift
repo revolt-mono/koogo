@@ -16,8 +16,7 @@ struct BatteryState: Sendable {
     let health: Double
     let cycles: Int
 
-    /// the driver encodes unknown minutes as all ones.
-    private static let unknownMinutes = 65535
+    private static let unknownMinutes = Int(UInt16.max)
 
     static func read() -> BatteryState? {
         let entry = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))

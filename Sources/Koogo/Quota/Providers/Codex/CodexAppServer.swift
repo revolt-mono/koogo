@@ -1,7 +1,6 @@
 import Foundation
 import Synchronization
 
-/// each call starts one app-server request after the required codex handshake.
 struct CodexAppServer: Sendable {
     /// unconfirmed requests may have reached the server; retry those writes with the same idempotency key.
     enum CallError: Error, Equatable {

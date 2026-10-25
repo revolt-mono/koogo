@@ -11,6 +11,7 @@ enum FileRead {
 
 /// delivers complete lines once; a restart invalidates all state derived from previously consumed bytes.
 protocol LogFile: Sendable {
+    /// returns whether a read is due.
     mutating func observe(_ observed: UsageFileMetadata) -> Bool
     mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> FileRead
 }

@@ -162,7 +162,6 @@ private struct AppProcessTree: View {
         .monospacedDigit()
     }
 
-    /// a level keeps its line while a later sibling is still to come.
     private func guide(at index: Int) -> String {
         let depth = members[index].depth
         guard depth > 0 else { return "" }

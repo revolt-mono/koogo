@@ -1,6 +1,6 @@
 import Foundation
 
-/// whole picodollars with saturating arithmetic; encoding produces us dollars.
+/// saturating arithmetic; encodes as us dollars.
 struct Picodollars: Comparable, Sendable, Encodable {
     static let zero = Self(0)
 
@@ -40,7 +40,7 @@ struct Picodollars: Comparable, Sendable, Encodable {
         return Self(overflow ? .max : product)
     }
 
-    /// scales by a ratio, rounding down.
+    /// rounds down.
     func scaled(by numerator: UInt64, over denominator: UInt64) -> Self {
         let product = rawValue.multipliedFullWidth(by: numerator)
         guard product.high < denominator else {

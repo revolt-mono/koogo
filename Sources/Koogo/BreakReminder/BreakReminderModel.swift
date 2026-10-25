@@ -37,18 +37,17 @@ final class BreakReminderModel {
         countdown = if let stored, stored.isValid(at: now()) { stored } else { .initial }
     }
 
-    /// drops actions while another change is in flight.
     func perform(_ action: BreakReminderCountdown.Action) async {
-        await whileBusy {
+        await unlessBusy {
             if let change = countdown.change(for: action, at: now()) {
                 await apply(change)
             }
         }
     }
 
-    /// reschedules a missing system notification for a running countdown, including after relaunch, and cancels one a paused countdown left behind; an expired countdown keeps its reminder, whose trigger can lag the deadline after sleep or a clock change.
+    /// syncs the system notification with the countdown; an expired countdown keeps its reminder, whose trigger can lag the deadline after sleep or a clock change.
     func reconcile() async {
-        await whileBusy {
+        await unlessBusy {
             switch countdown.status(at: now()) {
             case .paused:
                 notifications.cancel()
@@ -65,7 +64,7 @@ final class BreakReminderModel {
         }
     }
 
-    private func whileBusy(_ work: () async -> Void) async {
+    private func unlessBusy(_ work: () async -> Void) async {
         guard !isBusy else {
             return
         }

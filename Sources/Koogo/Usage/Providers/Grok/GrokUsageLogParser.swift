@@ -79,7 +79,6 @@ private struct GrokPromptUsage {
 }
 
 struct GrokTokenUsage: Sendable {
-    /// prompt input including cache reads.
     let input: UInt64
     let cachedInput: UInt64
     let output: UInt64

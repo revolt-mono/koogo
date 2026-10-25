@@ -45,7 +45,7 @@ enum GrokUsagePricing {
         price(of: model)?.displayName
     }
 
-    /// grok logs build-suffixed model names; the fast suffix doubles the base rate.
+    /// grok logs build-suffixed model names.
     private static func price(of model: ModelID) -> ModelPrice? {
         let name = model.rawValue
         guard let price = prices[ModelID(name.replacing(/-build(-fast)?$/, with: ""))] else {

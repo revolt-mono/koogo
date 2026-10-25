@@ -14,7 +14,7 @@ struct LogStore: ~Copyable {
     private var windowStart = Date.distantPast
     private var watcher: LogDirectoryWatcher?
 
-    /// syncs changed files under the roots; returns true when events or ingestion totals may have changed.
+    /// returns true when events or ingestion totals may have changed.
     mutating func sync(roots: [UsageLogRoot], since windowStart: Date) -> Bool {
         let windowMoved = moveWindow(to: windowStart)
         let rootsChanged = updateRoots(roots)
@@ -60,7 +60,7 @@ struct LogStore: ~Copyable {
         return changed
     }
 
-    /// visits each request once, retaining the most complete copy across logs, and returns ingestion totals.
+    /// visits each request once, keeping the most complete copy across logs.
     func collect(_ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
         var trackedFiles = EnumMap<Provider, Int> { _ in 0 }
         var malformedLines = EnumMap<Provider, Int> { _ in 0 }

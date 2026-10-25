@@ -19,7 +19,6 @@ struct AppendOnlyFile: LogFile {
         self.metadata = metadata
     }
 
-    /// returns whether a read is due, including retrying an incomplete read.
     mutating func observe(_ observed: UsageFileMetadata) -> Bool {
         let wasReplaced =
             metadata.identity != observed.identity

@@ -2,7 +2,7 @@ import Foundation
 
 struct GrokUsageSource: UsageSource {
     let logDirectories = ["sessions"]
-    /// grok parent usage includes subagents; admit readable session summaries and skip subagent logs to avoid double counting.
+    /// grok parent usage includes subagents; skipping subagent logs avoids double counting.
     let logFormat = UsageLogFormat(match: .fileName("updates.jsonl")) { path, metadata, windowStart in
         let summaryURL = URL(filePath: path).deletingLastPathComponent().appending(path: "summary.json")
         guard let data = try? Data(contentsOf: summaryURL),

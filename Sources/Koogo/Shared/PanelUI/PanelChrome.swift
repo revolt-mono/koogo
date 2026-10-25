@@ -68,6 +68,6 @@ extension ShapeStyle where Self == Color {
     static var panelRaised: Color { .white.opacity(0.06) }
     static var panelCard: Color { .white.opacity(0.024) }
 
-    /// the primary swiftui color turns gray under glass vibrancy; a gradient text style would mask every glyph run, and window server redraws those masks each frame a page slides in, dropping the slide to 60 hz.
+    /// the primary swiftui color turns gray under glass vibrancy; a gradient text style drops page slides to 60 hz because the window server redraws every glyph mask each frame.
     static var panelLabel: Color { Color(white: 0xFC / 255) }
 }

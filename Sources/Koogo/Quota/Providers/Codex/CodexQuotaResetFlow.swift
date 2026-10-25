@@ -35,7 +35,6 @@ enum CodexQuotaResetFlow: Equatable {
     case confirming(CodexQuotaResetAttempt, rejection: ToolFailure? = nil)
     case submitting
     case completed(CodexQuotaResetOutcome)
-    /// the server may have received the request; retries must reuse the same attempt.
     case unconfirmed(CodexQuotaResetAttempt, ToolFailure)
 
     var acceptsChoice: Bool {

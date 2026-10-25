@@ -74,7 +74,7 @@ private struct SettingsForm<Content: View>: View {
     }
 }
 
-/// on macos 26, full-size content styling leaves title-bar dragging broken after a glass switch press.
+/// macos 26 breaks title-bar dragging in full-size content windows after a glass switch press.
 private struct SettingsWindowStyle: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowStyleView {
         WindowStyleView()

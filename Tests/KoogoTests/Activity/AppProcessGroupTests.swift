@@ -232,7 +232,6 @@ final class AppProcessGroupTests: XCTestCase {
         XCTAssertTrue(child.isRunning)
     }
 
-    /// a group leader descends from launchd; other members default to children of their responsible process.
     private func record(
         pid: pid_t,
         parentPID: pid_t? = nil,
@@ -245,7 +244,7 @@ final class AppProcessGroupTests: XCTestCase {
     ) -> ProcessRecord {
         record(
             identity: ProcessIdentity(pid: pid, startTicks: 0),
-            parentPID: parentPID ?? (responsiblePID == pid ? 1 : responsiblePID),
+            parentPID: parentPID ?? (responsiblePID == pid ? launchdPID : responsiblePID),
             responsiblePID: responsiblePID,
             path: path,
             footprint: footprint,
@@ -257,7 +256,7 @@ final class AppProcessGroupTests: XCTestCase {
 
     private func record(
         identity: ProcessIdentity,
-        parentPID: pid_t = 1,
+        parentPID: pid_t = launchdPID,
         responsiblePID: pid_t,
         path: String,
         footprint: UInt64,
@@ -277,3 +276,5 @@ final class AppProcessGroupTests: XCTestCase {
         )
     }
 }
+
+private let launchdPID: pid_t = 1

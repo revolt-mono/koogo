@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// builds app-scoped models from shared dependencies; construction has no launch effects and the app starts each model.
+/// construction has no launch effects; the app starts each model.
 @MainActor
 struct AppModels {
     let preferences: ProviderPreferences

@@ -12,7 +12,7 @@ final class KeepAwakeModel {
     private let defaults: UserDefaults
     @ObservationIgnored private var assertion: IOPMAssertionID?
 
-    /// reads whether the assertion is held; writes save the choice even when macos refuses the assertion.
+    /// writes save the choice even when macos refuses the assertion.
     var isEnabled: Bool {
         get {
             access(keyPath: \.isEnabled)

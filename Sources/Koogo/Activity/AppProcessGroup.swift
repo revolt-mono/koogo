@@ -51,7 +51,7 @@ struct AppIdentity: Sendable {
 struct AppProcessMember: Sendable {
     let identity: ProcessIdentity
     let name: String
-    /// nesting below the group's top level; a member whose parent runs outside the group sits at 0.
+    /// a member whose parent runs outside the group sits at 0.
     let depth: Int
     let footprint: UInt64
     let cpu: Double

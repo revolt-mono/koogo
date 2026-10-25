@@ -54,7 +54,7 @@ struct PiModelCatalog: Sendable {
         ModelID("\(provider)/\(model)")
     }
 
-    /// rereads both files when either changes; returns true when model names change.
+    /// returns true when model names change.
     mutating func refresh(home: URL) -> Bool {
         let storeURL = home.appending(path: "models-store.json", directoryHint: .notDirectory)
         let customURL = home.appending(path: "models.json", directoryHint: .notDirectory)

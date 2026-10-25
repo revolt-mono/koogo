@@ -4,12 +4,11 @@ import System
 /// pairs a pid with launch time to distinguish reused process ids.
 struct ProcessIdentity: Hashable, Sendable {
     let pid: pid_t
-    /// process start time in mach absolute ticks.
     let startTicks: UInt64
 }
 
 enum LibProc {
-    /// signals only the identified process; a missing or reused pid counts as already gone.
+    /// a missing or reused pid counts as already gone.
     static func forceKill(_ process: ProcessIdentity) throws(Errno) {
         guard identity(of: process.pid) == process else { return }
         guard Darwin.kill(process.pid, SIGKILL) == 0 || errno == ESRCH else { throw Errno(rawValue: errno) }

@@ -3,7 +3,6 @@ import Foundation
 
 /// agent processes without a driving terminal session: daemons, pty hosts, spares, and closed-terminal leftovers.
 struct OrphanedAgentProcess: Sendable {
-    /// the terminal device value for a process without a controlling terminal.
     static let noTerminal = UInt32.max
 
     fileprivate let identity: ProcessIdentity

@@ -40,7 +40,6 @@ final class MouseModel {
         }
     }
 
-    /// defers accessibility and tap access until start; unsaved settings use installed terminals as line-by-line apps.
     init(defaults: UserDefaults, isInstalled: (String) -> Bool) {
         storage = PersistedValue(key: "mouse-settings", defaults: defaults)
         settings =

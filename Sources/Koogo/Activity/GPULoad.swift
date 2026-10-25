@@ -35,7 +35,6 @@ struct GPULoad: Sendable {
         return load
     }
 
-    /// accumulated per-process gpu time across accelerator clients, in driver-reported nanoseconds.
     static func timePerProcess() -> [pid_t: Duration] {
         var times: [pid_t: Duration] = [:]
         forEachAccelerator { accelerator in
