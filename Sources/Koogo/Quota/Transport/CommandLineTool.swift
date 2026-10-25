@@ -22,10 +22,13 @@ struct CommandLineTool: Sendable {
     /// a project-free working directory limits the tool to user-level configuration.
     private static let workingDirectory = FilePath("/tmp")
 
+    /// the usage page waits for every quota read, so this also bounds a cold start.
+    static let defaultTimeout: Duration = .seconds(10)
+
     private let candidates: [URL]
     private let timeout: Duration
 
-    init(candidates: [URL], timeout: Duration) {
+    init(candidates: [URL], timeout: Duration = defaultTimeout) {
         self.candidates = candidates
         self.timeout = timeout
     }

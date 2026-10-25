@@ -12,7 +12,7 @@ struct CodexQuotaSource: CodexQuotaResetSource {
                     .appending(path: "packages/standalone/current/bin")
             ]
         ),
-        timeout: Duration = .seconds(15)
+        timeout: Duration = CommandLineTool.defaultTimeout
     ) {
         appServer = CodexAppServer(tool: CommandLineTool(candidates: executableCandidates, timeout: timeout))
     }

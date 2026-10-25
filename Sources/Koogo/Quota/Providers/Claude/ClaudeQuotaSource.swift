@@ -18,7 +18,7 @@ struct ClaudeQuotaSource: QuotaSource {
 
     init(
         executableCandidates: [URL] = CommandLineTool.candidates(named: "claude"),
-        timeout: Duration = .seconds(15)
+        timeout: Duration = CommandLineTool.defaultTimeout
     ) {
         tool = CommandLineTool(candidates: executableCandidates, timeout: timeout)
     }

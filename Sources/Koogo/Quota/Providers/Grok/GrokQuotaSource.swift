@@ -12,7 +12,7 @@ struct GrokQuotaSource: QuotaSource {
             ]
         )
     ) {
-        tool = CommandLineTool(candidates: executableCandidates, timeout: .seconds(30))
+        tool = CommandLineTool(candidates: executableCandidates)
     }
 
     func load() async -> QuotaReading {
