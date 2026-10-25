@@ -6,27 +6,7 @@ struct QuotaSection: View {
     let provider: QuotaProvider
 
     var body: some View {
-        switch quotaModel.statuses[provider].latest {
-        case .unavailable:
-            if provider == .codex, resetModel.hasResetActivity {
-                VStack(spacing: 16) {
-                    CodexQuotaResetView()
-                    Divider()
-                }
-            }
-        case nil:
-            VStack(spacing: 16) {
-                VStack(spacing: 8) {
-                    ForEach(0..<2, id: \.self) { _ in
-                        QuotaWindowPlaceholder()
-                    }
-                }
-                .foregroundStyle(.secondary.opacity(0.24))
-                .loadingShimmer()
-                .accessibilityLabel("Loading \(provider.provider.title) limits")
-                Divider()
-            }
-        case .available(let snapshot):
+        if let snapshot = quotaModel.statuses[provider].latest?.snapshot {
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
                     ForEach(Array(snapshot.windows.enumerated()), id: \.offset) { _, window in
@@ -54,6 +34,11 @@ struct QuotaSection: View {
                         CodexQuotaResetView()
                     }
                 }
+                Divider()
+            }
+        } else if provider == .codex, resetModel.hasResetActivity {
+            VStack(spacing: 16) {
+                CodexQuotaResetView()
                 Divider()
             }
         }
@@ -87,22 +72,6 @@ private struct QuotaWindowRow: View {
                 .progressViewStyle(.panel)
                 .accessibilityLabel("\(provider.title) \(window.title)")
                 .accessibilityValue("\(window.usedPercent) percent used")
-        }
-    }
-}
-
-private struct QuotaWindowPlaceholder: View {
-    var body: some View {
-        VStack(spacing: 4) {
-            HStack {
-                RoundedRectangle(cornerRadius: 2)
-                    .frame(width: 44, height: 8)
-                Spacer()
-                RoundedRectangle(cornerRadius: 2)
-                    .frame(width: 104, height: 8)
-            }
-            RoundedRectangle(cornerRadius: 2)
-                .frame(height: PanelProgressViewStyle.height)
         }
     }
 }

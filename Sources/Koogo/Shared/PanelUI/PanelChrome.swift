@@ -49,12 +49,10 @@ struct PanelSectionTitle: View {
 }
 
 struct PanelProgressViewStyle: ProgressViewStyle {
-    static let height: CGFloat = 5
-
     func makeBody(configuration: Configuration) -> some View {
         Color.panelLabel
             .scaleEffect(x: configuration.fractionCompleted ?? 0, anchor: .leading)
-            .frame(height: Self.height)
+            .frame(height: 5)
             .background(Color.panelLabel.opacity(0.10))
             .clipShape(Capsule())
     }

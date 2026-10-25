@@ -6,12 +6,14 @@ struct UsagePage: View {
 
     @Environment(ProviderPreferences.self) private var preferences
     @Environment(UsageModel.self) private var usageModel
+    @Environment(QuotaModel.self) private var quotaModel
     @State private var headerHeight: CGFloat = 0
 
     let maxHeight: CGFloat
 
     var body: some View {
-        PanelPageContent(usageModel.snapshot, loading: "Parsing logs…") { snapshot in
+        let quotaLoaded = preferences.quotaProviders.allSatisfy { quotaModel.statuses[$0].latest != nil }
+        PanelPageContent(quotaLoaded ? usageModel.snapshot : nil, loading: "Loading…") { snapshot in
             VStack(spacing: Self.cardsGapExcludingScrollMargin) {
                 VStack(spacing: Self.headerGap) {
                     UsageSummaryView(summary: snapshot.summary)
