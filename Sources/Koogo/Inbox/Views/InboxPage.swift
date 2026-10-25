@@ -60,43 +60,48 @@ private struct TodoRow: View {
     @State private var isEditing = false
 
     var body: some View {
-        Group {
+        HStack(spacing: 8) {
+            Button {
+                inboxModel.toggleCompleted(todo.id)
+            } label: {
+                Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 18, height: 18)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(todo.isCompleted ? Color.accentColor : Color.secondary)
+            .accessibilityLabel(todo.isCompleted ? "Mark incomplete" : "Mark complete")
+
+            Image(systemName: todo.priority.symbolName)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(todo.priority.color)
+                .frame(width: 14, height: 18)
+                .accessibilityLabel("\(todo.priority.title) priority")
+
             if isEditing {
                 TodoInlineEditor(text: todo.text, onFinish: finishEditing)
             } else {
-                HStack(spacing: 8) {
-                    Button {
-                        inboxModel.toggleCompleted(todo.id)
-                    } label: {
-                        Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 12, weight: .medium))
-                            .frame(width: 18, height: 18)
-                            .contentShape(.rect)
+                Text(todo.text.value)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(todo.isCompleted ? .secondary : .primary)
+                    .strikethrough(todo.isCompleted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+                    .onTapGesture(count: 2) {
+                        isEditing = true
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(todo.isCompleted ? Color.accentColor : Color.secondary)
-                    .accessibilityLabel(todo.isCompleted ? "Mark incomplete" : "Mark complete")
-
-                    Image(systemName: todo.priority.symbolName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(todo.priority.color)
-                        .frame(width: 14, height: 18)
-                        .accessibilityLabel("\(todo.priority.title) priority")
-
-                    Text(todo.text.value)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(todo.isCompleted ? .secondary : .primary)
-                        .strikethrough(todo.isCompleted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(.rect)
-                        .onTapGesture(count: 2) {
-                            isEditing = true
-                        }
-                }
             }
         }
-        .padding(.vertical, isEditing ? 4 : 10)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .background(
+            Color.accentColor.opacity(isEditing ? 0.16 : 0),
+            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+        )
+        .padding(.vertical, 2)
+        .padding(.horizontal, -8)
         .contextMenu {
             Button("Edit") {
                 isEditing = true

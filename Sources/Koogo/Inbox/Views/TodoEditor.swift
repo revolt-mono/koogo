@@ -13,10 +13,10 @@ struct TodoEditor: View {
                 .frame(height: TodoTextInput.maxHeight)
                 .overlay(alignment: .topLeading) {
                     Text("Add a todo…")
-                        .font(Font(TodoTextInput.font))
+                        .font(Font(TodoTextInput.Mode.composing.font))
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, TodoTextInput.textInset.width)
-                        .padding(.vertical, TodoTextInput.textInset.height)
+                        .padding(.horizontal, TodoTextInput.Mode.composing.textInset.width)
+                        .padding(.vertical, TodoTextInput.Mode.composing.textInset.height)
                         .opacity(text.isEmpty ? 1 : 0)
                         .allowsHitTesting(false)
                 }
@@ -26,9 +26,15 @@ struct TodoEditor: View {
 
                 Spacer(minLength: 8)
 
-                TodoSubmitButton(systemImage: "arrow.up", action: submit)
-                    .disabled(todoText == nil)
-                    .accessibilityLabel("Add todo")
+                Button(action: submit) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 8, weight: .bold))
+                        .frame(width: 12, height: 16)
+                }
+                .buttonStyle(.glassProminent)
+                .buttonBorderShape(.capsule)
+                .disabled(todoText == nil)
+                .accessibilityLabel("Add todo")
             }
         }
         .padding(12)
@@ -66,48 +72,24 @@ struct TodoInlineEditor: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            TodoTextInput(
-                text: $draft,
-                mode: .editing,
-                onSubmit: submit,
-                onCancel: { onFinish(.discarded) }
-            )
-            .frame(maxWidth: .infinity)
-
-            TodoSubmitButton(systemImage: "checkmark", action: submit)
-                .disabled(todoText == nil)
-                .accessibilityLabel("Save todo")
-        }
-        .padding(8)
-        .background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        TodoTextInput(
+            text: $draft,
+            mode: .editing,
+            onSubmit: submit,
+            onCancel: { onFinish(.discarded) }
+        )
+        .frame(maxWidth: .infinity)
+        // the field grows into the icon gap so the text itself stays where the label was.
+        .padding(.horizontal, -TodoTextInput.Mode.editing.textInset.width)
+        // textkit places the baseline half a point below where swiftui draws the same label.
+        .offset(y: -0.5)
         .onMouseDownOutside { _ in onFinish(.discarded) }
     }
 
-    private var todoText: TodoText? {
-        TodoText(draft)
-    }
-
     private func submit() {
-        guard let todoText else {
-            return
+        if let text = TodoText(draft) {
+            onFinish(.saved(text))
         }
-        onFinish(.saved(todoText))
-    }
-}
-
-private struct TodoSubmitButton: View {
-    let systemImage: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 8, weight: .bold))
-                .frame(width: 12, height: 16)
-        }
-        .buttonStyle(.glassProminent)
-        .buttonBorderShape(.capsule)
     }
 }
 

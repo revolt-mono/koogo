@@ -3,16 +3,30 @@ import Carbon.HIToolbox
 import SwiftUI
 
 struct TodoTextInput: NSViewRepresentable {
-    static let font: NSFont = {
-        let base = NSFont.systemFont(ofSize: 11, weight: .medium)
-        return base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: base.pointSize) } ?? base
-    }()
-    static let textInset = NSSize(width: 5, height: 6)
     static let maxHeight: CGFloat = 56
 
     enum Mode {
         case composing
         case editing
+
+        var font: NSFont {
+            switch self {
+            case .composing:
+                let base = NSFont.systemFont(ofSize: 11, weight: .medium)
+                return base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: base.pointSize) }
+                    ?? base
+            case .editing:
+                return NSFont.systemFont(ofSize: 10, weight: .medium)
+            }
+        }
+
+        /// editing insets keep a single line at the 18pt row icon height so the row does not move.
+        var textInset: NSSize {
+            switch self {
+            case .composing: NSSize(width: 5, height: 6)
+            case .editing: NSSize(width: 5, height: 3)
+            }
+        }
     }
 
     @Binding var text: String
@@ -26,7 +40,7 @@ struct TodoTextInput: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let textView = context.coordinator.textView
-        textView.font = Self.font
+        textView.font = mode.font
         textView.delegate = context.coordinator
         textView.drawsBackground = false
         textView.isRichText = false
@@ -36,7 +50,7 @@ struct TodoTextInput: NSViewRepresentable {
             width: CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
         )
-        textView.textContainerInset = Self.textInset
+        textView.textContainerInset = mode.textInset
         textView.textContainer?.lineFragmentPadding = 0
 
         let scrollView = NSScrollView()
@@ -74,11 +88,11 @@ struct TodoTextInput: NSViewRepresentable {
         else {
             return nil
         }
-        container.size.width = width - Self.textInset.width * 2
+        container.size.width = width - mode.textInset.width * 2
         layoutManager.ensureLayout(for: container)
-        let lineHeight = layoutManager.defaultLineHeight(for: Self.font)
+        let lineHeight = layoutManager.defaultLineHeight(for: mode.font)
         let textHeight = max(layoutManager.usedRect(for: container).height, lineHeight)
-        return CGSize(width: width, height: min(textHeight + Self.textInset.height * 2, Self.maxHeight))
+        return CGSize(width: width, height: min(textHeight + mode.textInset.height * 2, Self.maxHeight))
     }
 
     @MainActor
