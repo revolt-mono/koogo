@@ -25,14 +25,14 @@ struct PanelView: View {
         .frame(width: 320)
         .foregroundStyle(.panelLabel)
         .background {
-            let backdrop = Color(red: 0x13 / 255, green: 0x12 / 255, blue: 0x11 / 255)
             LinearGradient(
                 stops: [
-                    .init(color: backdrop.opacity(0.72), location: 0),
-                    .init(color: backdrop.opacity(0.6), location: 0.21),
-                    .init(color: backdrop.opacity(0.38), location: 0.42),
-                    .init(color: backdrop.opacity(0.14), location: 0.59),
-                    .init(color: backdrop.opacity(0), location: 0.7),
+                    .init(color: Color.black.opacity(0.85), location: 0),
+                    .init(color: Color.black.opacity(0.8), location: 0.3),
+                    .init(color: Color.black.opacity(0.68), location: 0.5),
+                    .init(color: Color.black.opacity(0.5), location: 0.6),
+                    .init(color: Color.black.opacity(0.22), location: 0.66),
+                    .init(color: Color.black.opacity(0), location: 0.7),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
