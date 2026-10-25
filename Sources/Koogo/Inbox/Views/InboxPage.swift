@@ -18,7 +18,7 @@ struct InboxPage: View {
                     }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
-                    .tint(.red)
+                    .foregroundStyle(inboxModel.hasCompleted ? Color.red : Color.secondary)
                     .disabled(!inboxModel.hasCompleted)
                 }
                 .font(.system(size: 10, weight: .medium))
