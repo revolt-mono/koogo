@@ -31,14 +31,7 @@ let package = Package(
         ),
         .testTarget(
             name: "KoogoTests",
-            dependencies: ["Koogo"],
-            // swiftpm places binary frameworks beside the test bundle rather than embedding them.
-            linkerSettings: [
-                .unsafeFlags([
-                    "-Xlinker", "-rpath",
-                    "-Xlinker", "@loader_path/../../..",
-                ])
-            ]
+            dependencies: ["Koogo"]
         ),
     ]
 )
