@@ -104,16 +104,14 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         var parser = try codexParserInTurn()
         let request = codexUsage(input: 100, output: 20)
         let record = codexTokenUsageRecord(request, thread: request)
+        let undated = record.replacingOccurrences(of: #""timestamp":"\#(usageTestTimestampText)","#, with: "")
+        var outsideTurn = CodexUsageLogParser()
 
         XCTAssertThrowsError(
             try parse(record.replacingOccurrences(of: #""usage":\#(request),"#, with: ""), with: &parser)
         )
-        XCTAssertThrowsError(
-            try parse(
-                record.replacingOccurrences(of: #""timestamp":"\#(usageTestTimestampText)","#, with: ""),
-                with: &parser
-            )
-        )
+        XCTAssertThrowsError(try parse(undated, with: &parser))
+        XCTAssertThrowsError(try parse(undated, with: &outsideTurn))
         XCTAssertEqual(try parse(record, with: &parser)?.event?.record.processedTokens, 120)
     }
 

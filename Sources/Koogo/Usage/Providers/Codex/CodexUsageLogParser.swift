@@ -18,31 +18,24 @@ struct CodexUsageLogParser: UsageLogParser {
         }
         switch kind {
         case "turn_context":
-            model = nil
-            guard let name = try payload?.fields(.string("model"))?.nonEmpty else {
+            model = try? payload?.fields(.string("model"))?.nonEmpty.map(ModelID.init(_:))
+            guard model != nil else {
                 throw MalformedUsageRecord()
             }
-            model = ModelID(name)
             return nil
         default:
-            guard let payload else {
-                throw MalformedUsageRecord()
-            }
-            let record = try CodexTokenUsageRecord(payload)
+            let record = try CodexTokenUsageRecord(payload: payload, timestamp: timestamp)
             guard let model else {
                 return nil
             }
-            guard let logged = try timestamp?.string(), let timestamp = Date(iso8601: logged) else {
-                throw MalformedUsageRecord()
-            }
             guard let quote = CodexUsagePricing.quote(model: model, tokens: record.usage) else {
-                return .unpricedModel(model, timestamp: timestamp)
+                return .unpricedModel(model, timestamp: record.timestamp)
             }
             return .event(
                 UsageEvent(
                     id: .codex(turnID: record.turnID, cumulativeTotal: record.threadTotal),
                     record: UsageRecord(
-                        timestamp: timestamp,
+                        timestamp: record.timestamp,
                         processedTokens: record.usage.processed,
                         cost: quote.cost,
                         model: quote.model
@@ -57,8 +50,12 @@ private struct CodexTokenUsageRecord {
     let turnID: String
     let usage: CodexTokenUsage
     let threadTotal: UInt64
+    let timestamp: Date
 
-    init(_ payload: JSONValue) throws {
+    init(payload: JSONValue?, timestamp: JSONValue?) throws {
+        guard let payload, let logged = try timestamp?.string(), let timestamp = Date(iso8601: logged) else {
+            throw MalformedUsageRecord()
+        }
         let (turnID, usage, threadTotal) = try payload.fields(
             .string("turn_id"),
             JSONField("usage", CodexTokenUsage.init(_:)),
@@ -70,6 +67,7 @@ private struct CodexTokenUsageRecord {
         self.turnID = turnID
         self.usage = usage
         self.threadTotal = threadTotal
+        self.timestamp = timestamp
     }
 }
 
