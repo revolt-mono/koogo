@@ -17,11 +17,6 @@ enum CodexUsagePricing {
             self.supportsCacheWrite = supportsCacheWrite
         }
 
-        /// models without cache-write support leave cache-writing requests unpriced.
-        var cacheWrite: Picodollars? {
-            supportsCacheWrite ? input.scaled(by: 5, over: 4) : nil
-        }
-
         var longContext: Rates {
             var rates = self
             rates.input = input * 2
@@ -31,9 +26,10 @@ enum CodexUsagePricing {
         }
 
         func cost(of tokens: CodexTokenUsage) -> Picodollars? {
-            guard let cacheWrite = tokens.cacheWrite == 0 ? .zero : cacheWrite else {
+            guard tokens.cacheWrite == 0 || supportsCacheWrite else {
                 return nil
             }
+            let cacheWrite = input.scaled(by: 5, over: 4)
             return input * tokens.uncachedInput + cachedInput * tokens.cachedInput + cacheWrite * tokens.cacheWrite
                 + output * tokens.output
         }

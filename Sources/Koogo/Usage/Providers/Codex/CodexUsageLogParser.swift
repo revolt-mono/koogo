@@ -5,14 +5,29 @@ struct CodexUsageLogParser: UsageLogParser {
     private var model: ModelID?
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
-        switch try CodexRecord(line) {
-        case .turnContext(let payload):
-            guard let name = try payload.fields(.string("model")) else {
+        guard let object = JSONValue(object: line) else {
+            return nil
+        }
+        let (kind, timestamp, payload) = try object.fields(
+            .kind("type") { $0.isString("turn_context") || $0.isString("token_usage_record") },
+            .value("timestamp"),
+            .value("payload")
+        )
+        guard let kind else {
+            return nil
+        }
+        switch kind {
+        case "turn_context":
+            model = nil
+            guard let name = try payload?.fields(.string("model"))?.nonEmpty else {
                 throw MalformedUsageRecord()
             }
             model = ModelID(name)
             return nil
-        case .tokenUsageRecord(let payload, let timestamp):
+        default:
+            guard let payload else {
+                throw MalformedUsageRecord()
+            }
             let record = try CodexTokenUsageRecord(payload)
             guard let model else {
                 return nil
@@ -34,34 +49,6 @@ struct CodexUsageLogParser: UsageLogParser {
                     )
                 )
             )
-        case nil:
-            return nil
-        }
-    }
-}
-
-private enum CodexRecord {
-    case turnContext(payload: JSONValue)
-    case tokenUsageRecord(payload: JSONValue, timestamp: JSONValue?)
-
-    init?(_ line: UnsafeRawBufferPointer) throws {
-        guard let record = JSONValue(object: line) else {
-            return nil
-        }
-        let (kind, timestamp, payload) = try record.fields(
-            .kind("type") { $0.isString("turn_context") || $0.isString("token_usage_record") },
-            .value("timestamp"),
-            .value("payload")
-        )
-        guard let kind else {
-            return nil
-        }
-        guard let payload else {
-            throw MalformedUsageRecord()
-        }
-        switch kind {
-        case "turn_context": self = .turnContext(payload: payload)
-        default: self = .tokenUsageRecord(payload: payload, timestamp: timestamp)
         }
     }
 }
@@ -86,7 +73,7 @@ private struct CodexTokenUsageRecord {
     }
 }
 
-struct CodexTokenUsage: Equatable, Sendable {
+struct CodexTokenUsage: Sendable {
     let input: UInt64
     let cachedInput: UInt64
     let cacheWrite: UInt64

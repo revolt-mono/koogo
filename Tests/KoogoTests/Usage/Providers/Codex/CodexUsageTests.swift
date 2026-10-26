@@ -41,6 +41,39 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(event.record.processedTokens, 60)
     }
 
+    func testMalformedTurnContextsDoNotReuseThePreviousModel() async throws {
+        for context in [
+            #"{"type":"turn_context"}"#,
+            #"{"type":"turn_context","payload":null}"#,
+            #"{"type":"turn_context","payload":{}}"#,
+            #"{"type":"turn_context","payload":{"model":12}}"#,
+            #"{"type":"turn_context","payload":{"model":""}}"#,
+        ] {
+            let request = codexUsage(input: 100, output: 20)
+            try workspace.write(
+                [
+                    codexLog(input: 100, output: 20, turn: "before"),
+                    context,
+                    codexTokenUsageRecord(request, thread: request, turn: "invalid"),
+                    codexLog(input: 50, output: 10, turn: "after", model: "gpt-6-luna"),
+                ].joined(separator: "\n"),
+                to: workspace.codexSessions.appending(path: "session.jsonl")
+            )
+
+            let report = await makePipeline().run(at: usageTestTimestamp, providers: [.codex])
+
+            XCTAssertEqual(report.ingestion.malformedLines[.codex], 1, context)
+            XCTAssertTrue(report.ingestion.unpricedModels.isEmpty, context)
+            XCTAssertEqual(report.ingestion.events[.codex], 2, context)
+            XCTAssertEqual(report.snapshot.todayTokens(.codex), 180, context)
+            XCTAssertEqual(
+                report.snapshot.providers[.codex]?.periods[.today].total.cost.usd,
+                Decimal(string: "0.00111"),
+                context
+            )
+        }
+    }
+
     func testCodexUsesTheResponseUsageWhenTheThreadTotalIsInherited() throws {
         var parser = try codexParserInTurn()
 
