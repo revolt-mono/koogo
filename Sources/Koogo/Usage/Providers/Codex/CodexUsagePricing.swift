@@ -60,6 +60,11 @@ enum CodexUsagePricing {
             displayName: "GPT 6.1 Sol",
             rates: .tiered(Rates(input: 2_000, cachedInput: 100, output: 10_000, supportsCacheWrite: true))
         ),
+        // https://developers.openai.com/api/docs/models/gpt-6.1-terra
+        "gpt-6.1-terra": ModelPrice(
+            displayName: "GPT 6.1 Terra",
+            rates: .tiered(Rates(input: 1_000, cachedInput: 50, output: 5_000, supportsCacheWrite: true))
+        ),
         "gpt-6-astra": ModelPrice(
             displayName: "GPT 6 Astra",
             rates: .tiered(Rates(input: 10_000, cachedInput: 1_000, output: 50_000, supportsCacheWrite: true))

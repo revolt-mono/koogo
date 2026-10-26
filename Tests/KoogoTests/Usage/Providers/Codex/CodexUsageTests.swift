@@ -211,6 +211,8 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         for (model, name, tokens, expectedUSD) in [
             ("gpt-6.1-sol", "GPT 6.1 Sol", short, "0.435"),
             ("gpt-6.1-sol", "GPT 6.1 Sol", long, "0.908004"),
+            ("gpt-6.1-terra", "GPT 6.1 Terra", short, "0.2175"),
+            ("gpt-6.1-terra", "GPT 6.1 Terra", long, "0.454002"),
             ("gpt-6-astra", "GPT 6 Astra", short, "2.225"),
             ("gpt-6-astra", "GPT 6 Astra", long, "4.64002"),
             ("gpt-6-sol", "GPT 6 Sol", short, "0.445"),
