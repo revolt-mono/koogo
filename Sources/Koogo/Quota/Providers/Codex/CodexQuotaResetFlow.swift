@@ -19,7 +19,7 @@ protocol CodexQuotaResetSource: QuotaSource {
     func consume(_ attempt: CodexQuotaResetAttempt) async -> CodexQuotaResetResult
 }
 
-enum CodexQuotaResetSubmission: Equatable {
+enum CodexQuotaResetSubmission {
     case first(CodexQuotaResetAttempt)
     case retry(CodexQuotaResetAttempt)
 
