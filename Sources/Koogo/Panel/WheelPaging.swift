@@ -7,17 +7,13 @@ enum WheelPaging: Equatable {
     case drop
 
     init(_ event: NSEvent) {
-        guard event.phase.isEmpty, event.momentumPhase.isEmpty else {
+        guard !event.hasPreciseScrollingDeltas, event.phase.isEmpty, event.momentumPhase.isEmpty else {
             self = .pass
             return
         }
-        self.init(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY)
-    }
-
-    init(deltaX: CGFloat, deltaY: CGFloat) {
-        switch (deltaX, deltaY) {
+        switch (event.scrollingDeltaX, event.scrollingDeltaY) {
         case (0, _): self = .pass
-        case (_, 0): self = .step(deltaX < 0 ? 1 : -1)
+        case (let deltaX, 0): self = .step(deltaX < 0 ? 1 : -1)
         default: self = .drop
         }
     }
