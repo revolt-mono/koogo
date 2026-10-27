@@ -10,7 +10,7 @@ struct AccessibilityPermissionRow: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        LabeledContent("Accessibility") {
+        LabeledContent {
             switch (mouse.isTrusted, mouse.status) {
             case (false, _):
                 Button("Grant", action: AccessibilityPermission.request)
@@ -19,6 +19,9 @@ struct AccessibilityPermissionRow: View {
             case (true, _):
                 Text("Granted")
             }
+        } label: {
+            Text("Accessibility")
+            Text("Lets Koogo remap the mouse wheel and buttons.")
         }
     }
 }

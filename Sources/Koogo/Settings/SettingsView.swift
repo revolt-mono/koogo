@@ -21,17 +21,22 @@ struct SettingsView: View {
                         BreakReminderIntervalPicker()
                     }
 
-                    Section("System") {
+                    Section("Utility") {
                         @Bindable var keepAwake = keepAwake
-                        Toggle("Keep Awake", isOn: $keepAwake.isEnabled)
+                        Toggle(isOn: $keepAwake.isEnabled) {
+                            Text("Keep Awake")
+                            Text("Keeps the display and Mac from sleeping while idle.")
+                        }
 
+                        AccessibilityPermissionRow()
+                    }
+
+                    Section("System") {
                         LaunchAtLoginToggle()
 
                         LabeledContent("Check for Updates") {
                             Button("Check Now", action: updateModel.checkForUpdates)
                         }
-
-                        AccessibilityPermissionRow()
                     }
                 }
             }
