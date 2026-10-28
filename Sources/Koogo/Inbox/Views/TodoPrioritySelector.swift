@@ -1,34 +1,61 @@
 import SwiftUI
 
 struct TodoPrioritySelector: View {
+    nonisolated private static let row = "TodoPrioritySelector.row"
+
     @Binding var selection: TodoPriority
 
     @FocusState private var focusedPriority: TodoPriority?
+    @State private var optionFrames: [TodoPriority: CGRect] = [:]
+    @GestureState private var isScrubbing = false
 
     var body: some View {
         HStack(spacing: 8) {
             ForEach(TodoPriority.allCases, id: \.self) { priority in
                 let isSelected = selection == priority
 
-                Button {
+                Button(priority.title) {
                     selection = priority
-                } label: {
-                    TodoPriorityOption(priority: priority, isSelected: isSelected)
-                        // the label transaction preserves morph animation when the pressed button rerenders.
-                        .motionAnimation(.spring(response: 0.42, dampingFraction: 0.86), value: isSelected)
                 }
-                .buttonStyle(TodoPriorityButtonStyle())
+                .buttonStyle(
+                    TodoPriorityButtonStyle(
+                        priority: priority,
+                        isSelected: isSelected,
+                        isScrubbing: isScrubbing
+                    )
+                )
                 .focused($focusedPriority, equals: priority)
                 .accessibilityLabel(priority.title)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .named(Self.row))
+                } action: { frame in
+                    optionFrames[priority] = frame
+                }
             }
         }
+        .coordinateSpace(.named(Self.row))
+        .simultaneousGesture(scrub)
         .onKeyPress(
             keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .home, .end],
             action: handleKeyPress
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Priority")
+    }
+
+    private var scrub: some Gesture {
+        DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.row))
+            .updating($isScrubbing) { _, isScrubbing, _ in
+                isScrubbing = true
+            }
+            .onChanged { drag in
+                // the option under the pointer wins, so the pressed button firing on release agrees with the scrub.
+                let distance = { (frame: CGRect) in max(frame.minX - drag.location.x, drag.location.x - frame.maxX) }
+                if let nearest = optionFrames.min(by: { distance($0.value) < distance($1.value) }) {
+                    selection = nearest.key
+                }
+            }
     }
 
     private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
@@ -60,26 +87,36 @@ private extension TodoPriority {
 }
 
 private struct TodoPriorityButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let priority: TodoPriority
+    let isSelected: Bool
+    let isScrubbing: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.9 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+        TodoPriorityOption(
+            priority: priority,
+            configuration: configuration,
+            isSelected: isSelected,
+            isScrubbing: isScrubbing
+        )
+        .motionAnimation(.spring(response: 0.42, dampingFraction: 0.86), value: isSelected)
     }
 }
 
 private struct TodoPriorityOption: View, Animatable {
     let priority: TodoPriority
+    let configuration: ButtonStyleConfiguration
     let isSelected: Bool
+    let isScrubbing: Bool
     var progress: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
 
-    init(priority: TodoPriority, isSelected: Bool) {
+    init(priority: TodoPriority, configuration: ButtonStyleConfiguration, isSelected: Bool, isScrubbing: Bool) {
         self.priority = priority
+        self.configuration = configuration
         self.isSelected = isSelected
+        self.isScrubbing = isScrubbing
         progress = isSelected ? 1 : 0
     }
 
@@ -90,7 +127,16 @@ private struct TodoPriorityOption: View, Animatable {
 
     var body: some View {
         let iconOpacity = smoothStep((progress - 0.2) / 0.4)
-        let showsHover = isHovered && !isSelected
+        // a scrub pins hover and press to the option it started on, so feedback waits for the scrub to end.
+        let showsFeedback = !isSelected && !isScrubbing
+        let isPressed = showsFeedback && configuration.isPressed
+        let isHighlighted = showsFeedback && (isHovered || configuration.isPressed)
+        // feedback enters quickly and settles back with a slight overshoot.
+        let fade = Animation.timingCurve(0.25, 0.1, 0.25, 1, duration: isHighlighted ? 0.12 : 0.16)
+        let scale =
+            isHighlighted
+            ? Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.12)
+            : .timingCurve(0.34, 1.36, 0.64, 1, duration: 0.16)
 
         TodoPriorityMorphLayout(progress: progress) {
             Capsule()
@@ -98,7 +144,9 @@ private struct TodoPriorityOption: View, Animatable {
 
             ZStack {
                 Circle()
-                    .fill(.primary.opacity(0.28))
+                    .fill(.primary)
+                    .animation(fade) { $0.opacity(isHighlighted ? 0.36 : 0.28) }
+                    .animation(scale) { $0.scaleEffect(isPressed && !reduceMotion ? 0.85 : 1) }
                     .opacity(1 - smoothStep((progress - 0.25) / 0.3))
 
                 Image(systemName: priority.symbolName)
@@ -112,7 +160,7 @@ private struct TodoPriorityOption: View, Animatable {
                 lerp(TodoPriorityMorphLayout.dotDiameter / TodoPriorityMorphLayout.iconSize, 1, progress)
             )
 
-            Text(priority.title)
+            configuration.label
                 .font(.system(size: 10, weight: .medium))
                 .tracking(-0.1)
                 .fixedSize()
@@ -124,8 +172,9 @@ private struct TodoPriorityOption: View, Animatable {
             Circle()
                 .fill(.white.opacity(0.06))
                 .frame(width: TodoPriorityMorphLayout.hitSize, height: TodoPriorityMorphLayout.hitSize)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
-                    $0.opacity(showsHover ? 1 : 0).scaleEffect(showsHover ? 1 : 0.9)
+                .animation(fade) { $0.opacity(isHighlighted ? 1 : 0) }
+                .animation(scale) {
+                    $0.scaleEffect(reduceMotion ? 1 : isPressed ? 0.94 : isHighlighted ? 1 : 0.9)
                 }
         }
         .contentShape(.capsule)
