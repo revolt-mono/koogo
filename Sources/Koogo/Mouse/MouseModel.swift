@@ -16,7 +16,6 @@ final class MouseModel {
     private let tap = EventTap()
     private(set) var isTrusted = false
     @ObservationIgnored private var frontmostApp: String?
-    @ObservationIgnored private var observers: [Task<Void, Never>] = []
 
     var settings: MouseSettings {
         didSet {
@@ -47,28 +46,23 @@ final class MouseModel {
     }
 
     func start() {
-        guard observers.isEmpty else {
-            return
+        Task {
+            for await _ in AccessibilityPermission.changes {
+                // accessibility notifications arrive before the trust query reflects the change.
+                try? await Task.sleep(for: .milliseconds(250))
+                isTrusted = AccessibilityPermission.isTrusted
+                applyRules()
+            }
         }
-        observers = [
-            Task {
-                for await _ in AccessibilityPermission.changes {
-                    // accessibility notifications arrive before the trust query reflects the change.
-                    try? await Task.sleep(for: .milliseconds(250))
-                    isTrusted = AccessibilityPermission.isTrusted
-                    applyRules()
-                }
-            },
-            Task {
-                let activations = NSWorkspace.shared.notificationCenter.notifications(
-                    named: NSWorkspace.didActivateApplicationNotification
-                )
-                for await _ in activations {
-                    frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                    applyRules()
-                }
-            },
-        ]
+        Task {
+            let activations = NSWorkspace.shared.notificationCenter.notifications(
+                named: NSWorkspace.didActivateApplicationNotification
+            )
+            for await _ in activations {
+                frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                applyRules()
+            }
+        }
         isTrusted = AccessibilityPermission.isTrusted
         frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         applyRules()
