@@ -3,18 +3,19 @@ import Foundation
 struct UsageEventIndex: Sendable {
     struct Batch: ~Copyable {
         fileprivate var index: UsageEventIndex
+        fileprivate var pending: [Entry] = []
 
         mutating func insert(_ event: UsageEvent) {
-            index.pending.append(index.entry(event))
+            pending.append(index.entry(event))
         }
 
         mutating func removeAll() {
-            index = UsageEventIndex()
+            self = Batch(index: UsageEventIndex())
         }
     }
 
     /// field order reuses identity padding, keeping each entry at a 56-byte stride.
-    private struct Entry: Sendable {
+    fileprivate struct Entry: Sendable {
         let secondsSinceReferenceDate: TimeInterval
         let processedTokens: UInt64
         let cost: Picodollars
@@ -38,12 +39,11 @@ struct UsageEventIndex: Sendable {
         }
     }
 
-    private var deduplicatedEntries: [Entry] = []
-    private var pending: [Entry] = []
+    private var entries: [Entry] = []
     private var models: [ModelID?] = [nil]
 
     var values: some Collection<UsageEvent> {
-        deduplicatedEntries.lazy.map { [models] entry in
+        entries.lazy.map { [models] entry in
             UsageEvent(
                 id: entry.id,
                 record: UsageRecord(
@@ -58,45 +58,46 @@ struct UsageEventIndex: Sendable {
     }
 
     var keys: some Collection<UsageEventID> {
-        deduplicatedEntries.lazy.map(\.id)
+        entries.lazy.map(\.id)
     }
 
     var count: Int {
-        deduplicatedEntries.count
+        entries.count
     }
 
     /// publishes the batch, deduplicated, when the body returns.
     mutating func update<Result>(_ body: (inout Batch) -> Result) -> Result {
         var batch = Batch(index: consume self)
         let result = body(&batch)
-        batch.index.deduplicate()
+        batch.index.merge(&batch.pending)
         self = batch.index
         return result
     }
 
-    private mutating func deduplicate() {
+    /// empties `pending` before sorting so the batch is not held alongside the compacted copy.
+    private mutating func merge(_ pending: inout [Entry]) {
         guard !pending.isEmpty else {
             return
         }
-        deduplicatedEntries += pending
+        entries += pending
         pending = []
-        deduplicatedEntries.sort { $0.id < $1.id }
+        entries.sort { $0.id < $1.id }
         var survivorCount = 0
-        for position in deduplicatedEntries.indices {
-            if survivorCount > 0, deduplicatedEntries[survivorCount - 1].id == deduplicatedEntries[position].id {
-                if deduplicatedEntries[survivorCount - 1].isSuperseded(by: deduplicatedEntries[position]) {
-                    deduplicatedEntries[survivorCount - 1] = deduplicatedEntries[position]
+        for position in entries.indices {
+            if survivorCount > 0, entries[survivorCount - 1].id == entries[position].id {
+                if entries[survivorCount - 1].isSuperseded(by: entries[position]) {
+                    entries[survivorCount - 1] = entries[position]
                 }
             } else {
-                deduplicatedEntries[survivorCount] = deduplicatedEntries[position]
+                entries[survivorCount] = entries[position]
                 survivorCount += 1
             }
         }
-        deduplicatedEntries = deduplicatedEntries.withUnsafeBufferPointer { Array($0.prefix(survivorCount)) }
+        entries = entries.withUnsafeBufferPointer { Array($0.prefix(survivorCount)) }
     }
 
     mutating func discard(before windowStart: Date) {
-        deduplicatedEntries.removeAll { $0.timestamp < windowStart }
+        entries.removeAll { $0.timestamp < windowStart }
     }
 
     private mutating func entry(_ event: UsageEvent) -> Entry {
