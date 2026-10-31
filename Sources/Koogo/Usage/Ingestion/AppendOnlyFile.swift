@@ -4,6 +4,12 @@ import System
 
 /// retains a partial tail until newline; replacement or truncation restarts from byte zero.
 struct AppendOnlyFile: LogFile {
+    private enum ReadState {
+        case caughtUp
+        case unfinished
+        case replaced
+    }
+
     private static var parsedTailSize: Int { 64 }
     private static var readSize: Int { 1 << 18 }
 
@@ -11,8 +17,7 @@ struct AppendOnlyFile: LogFile {
     private var metadata: UsageFileMetadata
     private var parsedOffset: UInt64 = 0
     private var parsedTail = Data()
-    private var needsRestart = false
-    private var needsReadRetry = false
+    private var state = ReadState.caughtUp
 
     init(_ path: String, observed metadata: UsageFileMetadata) {
         self.path = path
@@ -25,10 +30,10 @@ struct AppendOnlyFile: LogFile {
             || observed.size < metadata.size
             || (observed.size == metadata.size && observed.modificationDate != metadata.modificationDate)
         if wasReplaced {
-            needsRestart = true
+            state = .replaced
             return true
         }
-        return needsReadRetry || observed.size > metadata.size
+        return state != .caughtUp || observed.size > metadata.size
     }
 
     mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> FileRead {
@@ -41,19 +46,18 @@ struct AppendOnlyFile: LogFile {
         }
 
         let restarted =
-            needsRestart || current.identity != metadata.identity || current.size < parsedOffset
+            state == .replaced || current.identity != metadata.identity || current.size < parsedOffset
             || !parsedTailMatches(file)
         if restarted {
             restart()
             parsedOffset = 0
             parsedTail = Data()
-            needsRestart = false
         }
         let startOffset = parsedOffset
         let finished =
             parsedOffset >= current.size || readLines(file, in: parsedOffset..<current.size, consume: consume)
         metadata = current
-        needsReadRetry = !finished
+        state = finished ? .caughtUp : .unfinished
         if restarted || parsedOffset > startOffset {
             return .readLines
         }
