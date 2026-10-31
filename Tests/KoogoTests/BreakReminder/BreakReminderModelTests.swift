@@ -68,8 +68,9 @@ final class BreakReminderModelTests: XCTestCase {
         for issue in [BreakReminderIssue.notificationsDisabled, .schedulingFailed] {
             notifications.schedulingIssue = issue
 
-            await model.perform(.toggle)
+            let raised = await model.perform(.toggle)
 
+            XCTAssertEqual(raised, issue)
             XCTAssertEqual(model.issue, issue)
             XCTAssertEqual(model.countdown, .paused(interval: .oneHour, remaining: 3_600))
         }
@@ -214,9 +215,12 @@ final class BreakReminderModelTests: XCTestCase {
         let resume = try XCTUnwrap(continuation)
         XCTAssertTrue(model.isBusy)
 
+        notifications.schedulingIssue = .notificationsDisabled
         for action: BreakReminderCountdown.Action in [.toggle, .restart, .setInterval(.twoHours)] {
-            await model.perform(action)
+            let raised = await model.perform(action)
+            XCTAssertNil(raised)
         }
+        notifications.schedulingIssue = nil
         await model.reconcile()
         XCTAssertTrue(model.isBusy)
         XCTAssertEqual(model.countdown.interval, .oneHour)

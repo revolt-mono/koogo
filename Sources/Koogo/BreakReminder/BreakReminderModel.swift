@@ -37,12 +37,16 @@ final class BreakReminderModel {
         countdown = if let stored, stored.isValid(at: now()) { stored } else { .initial }
     }
 
-    func perform(_ action: BreakReminderCountdown.Action) async {
+    /// returns the issue this action ran into; a dropped or unchanged action has none.
+    @discardableResult
+    func perform(_ action: BreakReminderCountdown.Action) async -> BreakReminderIssue? {
+        var raised: BreakReminderIssue?
         await unlessBusy {
             if let change = countdown.change(for: action, at: now()) {
-                await apply(change)
+                raised = await apply(change)
             }
         }
+        return raised
     }
 
     /// syncs the system notification with the countdown; an expired countdown keeps its reminder, whose trigger can lag the deadline after sleep or a clock change.
@@ -75,7 +79,8 @@ final class BreakReminderModel {
         await work()
     }
 
-    private func apply(_ change: BreakReminderCountdown.Change) async {
+    @discardableResult
+    private func apply(_ change: BreakReminderCountdown.Change) async -> BreakReminderIssue? {
         switch change {
         case .run(let interval, let duration):
             do {
@@ -84,7 +89,7 @@ final class BreakReminderModel {
                 notifications.cancel()
                 countdown = .paused(interval: interval, remaining: duration)
                 issue = error
-                return
+                return error
             }
             // start counting after scheduling returns so an authorization prompt cannot shorten the countdown.
             countdown = .scheduled(interval: interval, deadline: now().addingTimeInterval(duration))
@@ -93,5 +98,6 @@ final class BreakReminderModel {
             notifications.cancel()
             countdown = .paused(interval: interval, remaining: remaining)
         }
+        return nil
     }
 }

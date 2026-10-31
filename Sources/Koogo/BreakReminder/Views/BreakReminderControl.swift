@@ -33,10 +33,10 @@ struct BreakReminderControl: View {
 
     private func button(status: BreakReminderStatus) -> some View {
         BreakReminderButton(status: status, issue: reminderModel.issue, isBusy: reminderModel.isBusy) { action in
+            // macos asks for notification permission once, so a repeated refusal needs system settings.
             let wasRefused = reminderModel.issue == .notificationsDisabled
             Task {
-                await reminderModel.perform(action)
-                if wasRefused, reminderModel.issue == .notificationsDisabled {
+                if await reminderModel.perform(action) == .notificationsDisabled, wasRefused {
                     openURL(Self.notificationsPane)
                 }
             }
