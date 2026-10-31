@@ -58,10 +58,17 @@ struct TodoTextInput: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.documentView = textView
+        if case .editing = mode {
+            // take focus after the native context menu closes.
+            Task {
+                try? await Task.sleep(for: .milliseconds(50))
+                scrollView.window?.makeFirstResponder(textView)
+            }
+        }
         return scrollView
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+    func updateNSView(_: NSScrollView, context: Context) {
         let textView = context.coordinator.textView
         context.coordinator.text = $text
         textView.onSubmit = onSubmit
@@ -69,14 +76,6 @@ struct TodoTextInput: NSViewRepresentable {
         if textView.string != text {
             textView.string = text
             textView.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
-        }
-        if case .editing = mode, !context.coordinator.didRequestFocus {
-            context.coordinator.didRequestFocus = true
-            // take focus after the native context menu closes.
-            Task {
-                try? await Task.sleep(for: .milliseconds(50))
-                scrollView.window?.makeFirstResponder(textView)
-            }
         }
     }
 
@@ -99,7 +98,6 @@ struct TodoTextInput: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
         fileprivate let textView = TodoTextView(usingTextLayoutManager: false)
-        var didRequestFocus = false
 
         init(text: Binding<String>) {
             self.text = text
