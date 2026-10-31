@@ -59,11 +59,7 @@ struct QuickActionRow<Targets: Sendable>: View {
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.58)
         .onPointerHover { isHovered = $0 }
-        .onAppear {
-            if case .scanning = model.phase {
-                model.refresh()
-            }
-        }
+        .onAppear(perform: model.refresh)
         .onDisappear(perform: model.cancel)
     }
 }
