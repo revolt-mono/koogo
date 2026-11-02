@@ -10,7 +10,7 @@ struct AppProcessList: View {
 
     var body: some View {
         PanelSection("Processes") {
-            VStack(spacing: 8) {
+            LazyVStack(spacing: 8) {
                 ForEach(hoverOrderedGroups) { group in
                     AppProcessRow(group: group, sampledAt: sampledAt, isExpanded: expanded.contains(group.id)) {
                         expanded.formSymmetricDifference([group.id])
@@ -39,6 +39,15 @@ private struct AppProcessRow: View {
     @State private var quittingProcessCount: Int?
 
     var body: some View {
+        let summary = AppProcessSummary(
+            name: group.name,
+            iconPath: group.iconPath,
+            processCount: group.members.count,
+            footprint: Measure(bytes: group.footprint).text,
+            load: "\(Measure(fraction: group.cpu).text) CPU, \(Measure(fraction: group.gpu).text) GPU",
+            isExpanded: hasTree ? isExpanded : nil
+        )
+
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 if hasTree {
@@ -80,43 +89,6 @@ private struct AppProcessRow: View {
         }
     }
 
-    private var summary: some View {
-        HStack(spacing: 8) {
-            AppIcon(path: group.iconPath)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(group.name)
-                    .fontWeight(.semibold)
-
-                HStack(spacing: 2) {
-                    Text("^[\(group.members.count) process](inflect: true)")
-
-                    if hasTree {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 7, weight: .bold))
-                            .rotationEffect(.degrees(showsTree ? 90 : 0))
-                            .accessibilityHidden(true)
-                    }
-                }
-                .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 12)
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(Measure(bytes: group.footprint).text)
-                    .fontWeight(.semibold)
-
-                let cpu = Measure(fraction: group.cpu).text
-                let gpu = Measure(fraction: group.gpu).text
-                Text("\(cpu) CPU, \(gpu) GPU")
-                    .foregroundStyle(.secondary)
-            }
-            .monospacedDigit()
-            .layoutPriority(1)
-        }
-    }
-
     private var isQuitting: Bool { quittingProcessCount != nil }
 
     private var hasTree: Bool { group.members.count > 1 }
@@ -126,6 +98,52 @@ private struct AppProcessRow: View {
     private func quit() {
         quittingProcessCount = group.members.count
         group.forceTerminate()
+    }
+}
+
+/// displayed text only, so samples that leave a row's text unchanged skip rebuilding it.
+private struct AppProcessSummary: View, Equatable {
+    let name: String
+    let iconPath: String
+    let processCount: Int
+    let footprint: String
+    let load: String
+    /// nil when the group has no tree to expand.
+    let isExpanded: Bool?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            AppIcon(path: iconPath)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .fontWeight(.semibold)
+
+                HStack(spacing: 2) {
+                    Text("^[\(processCount) process](inflect: true)")
+
+                    if let isExpanded {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 7, weight: .bold))
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                            .accessibilityHidden(true)
+                    }
+                }
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(footprint)
+                    .fontWeight(.semibold)
+
+                Text(load)
+                    .foregroundStyle(.secondary)
+            }
+            .monospacedDigit()
+            .layoutPriority(1)
+        }
     }
 }
 
