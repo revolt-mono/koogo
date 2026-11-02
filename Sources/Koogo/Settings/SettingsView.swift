@@ -114,10 +114,13 @@ private struct LaunchAtLoginToggle: View {
         }
         .alert(
             "Couldn't Change Login Setting",
-            isPresented: $failure.isPresent,
+            isPresented: Binding {
+                failure != nil
+            } set: {
+                if !$0 { failure = nil }
+            },
             presenting: failure
         ) { _ in
-            Button("OK", role: .cancel) {}
         } message: { error in
             Text(error.localizedDescription)
         }
