@@ -6,39 +6,23 @@ struct QuotaSection: View {
     let provider: QuotaProvider
 
     var body: some View {
-        if let snapshot = quotaModel.statuses[provider].latest?.snapshot {
+        let snapshot = quotaModel.statuses[provider].latest?.snapshot
+        let showsReset = provider == .codex && resetModel.hasResetActivity
+        if snapshot != nil || showsReset {
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
-                    ForEach(Array(snapshot.windows.enumerated()), id: \.offset) { _, window in
-                        QuotaWindowRow(provider: provider.provider, window: window)
-                    }
-                    if let credits = snapshot.credits {
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text("Credits")
-                                .fontWeight(.semibold)
-                            Spacer(minLength: 12)
-                            switch credits {
-                            case .balance(let balance):
-                                Text(balance, format: .number.precision(.fractionLength(0...2)))
-                            case .available:
-                                Text("Available")
-                            case .unlimited:
-                                Text("Unlimited")
-                            }
+                    if let snapshot {
+                        ForEach(snapshot.windows.enumerated(), id: \.offset) { _, window in
+                            QuotaWindowRow(provider: provider.provider, window: window)
                         }
-                        .font(.system(size: 9, weight: .medium))
-                        .monospacedDigit()
-                        .lineLimit(1)
+                        if let credits = snapshot.credits {
+                            QuotaCreditsRow(credits: credits)
+                        }
                     }
-                    if provider == .codex {
+                    if showsReset {
                         CodexQuotaResetView()
                     }
                 }
-                Divider()
-            }
-        } else if provider == .codex, resetModel.hasResetActivity {
-            VStack(spacing: 16) {
-                CodexQuotaResetView()
                 Divider()
             }
         }
@@ -73,6 +57,29 @@ private struct QuotaWindowRow: View {
                 .accessibilityLabel("\(provider.title) \(window.title)")
                 .accessibilityValue("\(window.usedPercent) percent used")
         }
+    }
+}
+
+private struct QuotaCreditsRow: View {
+    let credits: QuotaSnapshot.Credits
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text("Credits")
+                .fontWeight(.semibold)
+            Spacer(minLength: 12)
+            switch credits {
+            case .balance(let balance):
+                Text(balance, format: .number.precision(.fractionLength(0...2)))
+            case .available:
+                Text("Available")
+            case .unlimited:
+                Text("Unlimited")
+            }
+        }
+        .font(.system(size: 9, weight: .medium))
+        .monospacedDigit()
+        .lineLimit(1)
     }
 }
 

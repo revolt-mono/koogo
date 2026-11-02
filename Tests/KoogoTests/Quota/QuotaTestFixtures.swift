@@ -1,5 +1,4 @@
 import Darwin
-import Foundation
 import Synchronization
 import XCTest
 
@@ -38,27 +37,13 @@ extension QuotaSnapshot {
     }
 }
 
-final class ScriptedQuotaSource: QuotaSource {
-    let loads = Mutex(0)
-    private let readings: Mutex<[QuotaReading]>
-
-    init(_ readings: [QuotaReading]) {
-        self.readings = Mutex(readings)
-    }
-
-    func load() async -> QuotaReading {
-        loads.withLock { $0 += 1 }
-        return readings.withLock { $0.removeFirst() }
-    }
-}
-
-final class ScriptedCodexResetSource: CodexQuotaResetSource {
+final class ScriptedQuotaSource: CodexQuotaResetSource {
     let loads = Mutex(0)
     let consumed = Mutex<[CodexQuotaResetAttempt]>([])
     private let readings: Mutex<[QuotaReading]>
     private let consumes: Mutex<[CodexQuotaResetResult]>
 
-    init(readings: [QuotaReading] = [], consumes: [CodexQuotaResetResult] = []) {
+    init(_ readings: [QuotaReading] = [], consumes: [CodexQuotaResetResult] = []) {
         self.readings = Mutex(readings)
         self.consumes = Mutex(consumes)
     }
@@ -86,7 +71,7 @@ extension QuotaSources {
 
 @MainActor
 func makeQuotaModel(
-    codex: any CodexQuotaResetSource = ScriptedCodexResetSource(),
+    codex: any CodexQuotaResetSource = ScriptedQuotaSource(),
     claude: any QuotaSource = ScriptedQuotaSource([]),
     grok: any QuotaSource = ScriptedQuotaSource([]),
     now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }

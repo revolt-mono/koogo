@@ -13,7 +13,7 @@ struct JSONRPCConnection: ~Copyable {
 
     mutating func request<Value: Decodable, Params: Encodable>(
         _ method: String,
-        params: Params? = Never?.none
+        params: Params?
     ) async throws -> Value {
         let id = nextID
         nextID += 1

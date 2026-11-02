@@ -1,4 +1,3 @@
-import Foundation
 import Observation
 import os
 
@@ -20,7 +19,8 @@ enum QuotaStatus: Equatable, Sendable {
     }
 }
 
-/// app-scoped; refreshed by the app at launch and by the panel on open. reads are serialized per provider.
+/// app-scoped; refreshed by the app at launch and by the panel on open. reads are single-flight per provider;
+/// requests made during a read are dropped.
 @MainActor
 @Observable
 final class QuotaModel {
@@ -34,7 +34,7 @@ final class QuotaModel {
         self.monotonicNow = now
     }
 
-    func refresh(_ providers: some Sequence<QuotaProvider>) {
+    func refresh(_ providers: [QuotaProvider]) {
         let now = monotonicNow()
         reload(
             providers.filter { provider in
@@ -52,7 +52,7 @@ final class QuotaModel {
         }
     }
 
-    func reload(_ providers: some Sequence<QuotaProvider>) {
+    func reload(_ providers: [QuotaProvider]) {
         for provider in providers {
             let source = sources[provider]
             _ = read(provider) { await source.load() }

@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -27,7 +26,7 @@ final class JSONRPCConnectionTests: XCTestCase {
         let tool = CommandLineTool(candidates: [executable], timeout: .seconds(3))
         let values = try await tool.session([]) { streams in
             var connection = JSONRPCConnection(streams, dateDecodingStrategy: .iso8601)
-            let first: ValueResponse = try await connection.request("first")
+            let first: ValueResponse = try await connection.request("first", params: Never?.none)
             try await connection.notify("ready")
             let second: ValueResponse = try await connection.request("second", params: [String: String]())
             return [first.value, second.value]
@@ -35,7 +34,6 @@ final class JSONRPCConnectionTests: XCTestCase {
 
         XCTAssertEqual(values, [10, 20])
         let requests = try jsonObjects(in: transcript)
-        XCTAssertEqual(requests.count, 3)
         XCTAssertEqual(requests.map { $0["method"] as? String }, ["first", "ready", "second"])
         XCTAssertEqual(requests.map { $0["id"] as? Int }, [1, nil, 2])
         XCTAssertNil(requests.first?["params"])
@@ -94,7 +92,7 @@ final class JSONRPCConnectionTests: XCTestCase {
         )
         try await CommandLineTool(candidates: [executable], timeout: .seconds(3)).session([]) { streams in
             var connection = JSONRPCConnection(streams, dateDecodingStrategy: .iso8601)
-            let _: ValueResponse = try await connection.request("read")
+            let _: ValueResponse = try await connection.request("read", params: Never?.none)
         }
     }
 }

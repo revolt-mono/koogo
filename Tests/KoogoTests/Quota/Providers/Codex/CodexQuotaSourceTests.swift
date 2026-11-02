@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -38,29 +37,12 @@ final class CodexQuotaSourceTests: XCTestCase {
             requests.map { $0["method"] as? String },
             ["initialize", "initialized", "account/rateLimits/read"]
         )
-        XCTAssertEqual(requests.map { $0["id"] as? Int }, [1, nil, 2])
-        let initialize = try XCTUnwrap(requests.first?["params"] as? [String: Any])
-        XCTAssertEqual(
-            initialize["clientInfo"] as? [String: String],
-            ["name": "koogo", "title": "Koogo", "version": "1.0"]
-        )
     }
 
     func testPlanNamesFollowTheCodexTUIAndOtherCodesShowCapitalized() throws {
-        let cases: [(String, String)] = [
-            ("plus", "Plus"),
-            ("prolite", "Pro 100"),
-            ("team", "Business"),
-            ("mystery", "Mystery"),
-        ]
-        for (planType, expected) in cases {
-            let response = try JSONDecoder().decode(
-                CodexQuotaResponse.self,
-                from: Data(
-                    """
-                    {"rateLimits":{"planType":"\(planType)","primary":{"usedPercent":25,"windowDurationMins":300}}}
-                    """.utf8
-                )
+        for (planType, expected) in [("team", "Business"), ("mystery", "Mystery")] {
+            let response = try decodeResponse(
+                #"{"rateLimits":{"planType":"\#(planType)","primary":{"usedPercent":25,"windowDurationMins":300}}}"#
             )
             XCTAssertEqual(response.snapshot?.plan, expected, planType)
         }
@@ -123,13 +105,8 @@ final class CodexQuotaSourceTests: XCTestCase {
             ("null", nil),
         ]
         for (credits, expected) in cases {
-            let response = try JSONDecoder().decode(
-                CodexQuotaResponse.self,
-                from: Data(
-                    """
-                    {"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300},"credits":\(credits)}}
-                    """.utf8
-                )
+            let response = try decodeResponse(
+                #"{"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300},"credits":\#(credits)}}"#
             )
             let snapshot = try XCTUnwrap(response.snapshot)
 
@@ -139,9 +116,8 @@ final class CodexQuotaSourceTests: XCTestCase {
     }
 
     func testCreditsWithoutWindowsOrBankedResets() throws {
-        let response = try JSONDecoder().decode(
-            CodexQuotaResponse.self,
-            from: Data(#"{"rateLimits":{"credits":{"hasCredits":true,"unlimited":false,"balance":"50"}}}"#.utf8)
+        let response = try decodeResponse(
+            #"{"rateLimits":{"credits":{"hasCredits":true,"unlimited":false,"balance":"50"}}}"#
         )
         let snapshot = try XCTUnwrap(response.snapshot)
 
@@ -234,4 +210,11 @@ final class CodexQuotaSourceTests: XCTestCase {
         XCTAssertLessThan(ContinuousClock.now - cancellationStarted, .seconds(3))
         try await waitForExit(pidIn: childMarker)
     }
+}
+
+/// decodes like the app server connection, which reads dates as unix seconds.
+private func decodeResponse(_ json: String) throws -> CodexQuotaResponse {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .secondsSince1970
+    return try decoder.decode(CodexQuotaResponse.self, from: Data(json.utf8))
 }

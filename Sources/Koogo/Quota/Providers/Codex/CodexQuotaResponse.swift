@@ -62,7 +62,12 @@ private struct CodexRateLimitSnapshot: Decodable {
             window(around: minutes).map { (period: period, window: $0) }
         }
         return found.map { period, window in
-            let title = if let name { found.count == 1 ? name : "\(name) \(period)" } else { period }
+            let title =
+                switch name {
+                case nil: period
+                case let name? where found.count == 1: name
+                case let name?: "\(name) \(period)"
+                }
             return QuotaWindow(title: title, usedPercent: Double(window.usedPercent), resetsAt: window.resetsAt)
         }
     }

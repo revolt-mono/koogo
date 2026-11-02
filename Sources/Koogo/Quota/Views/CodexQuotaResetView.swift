@@ -4,27 +4,25 @@ struct CodexQuotaResetView: View {
     @Environment(CodexQuotaResetModel.self) private var model
 
     var body: some View {
-        if model.hasResetActivity {
-            PanelDisclosure {
-                HStack(spacing: 4) {
-                    if let credits = model.credits {
-                        let noun = credits.availableCount == 1 ? "banked reset" : "banked resets"
-                        Text("\(Text("\(credits.availableCount)").foregroundStyle(.panelLabel)) \(noun) available")
-                            .monospacedDigit()
-                    } else {
-                        Text("Banked resets")
-                    }
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
+        PanelDisclosure {
+            HStack(spacing: 4) {
+                if let credits = model.resetCredits {
+                    let noun = credits.availableCount == 1 ? "banked reset" : "banked resets"
+                    Text("\(Text("\(credits.availableCount)").foregroundStyle(.panelLabel)) \(noun) available")
+                        .monospacedDigit()
+                } else {
+                    Text("Banked resets")
                 }
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            } content: {
-                CodexQuotaResetDetail()
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
             }
-            .accessibilityLabel("Banked reset details")
+            .font(.system(size: 9, weight: .medium))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        } content: {
+            CodexQuotaResetDetail()
         }
+        .accessibilityLabel("Banked reset details")
     }
 }
 
@@ -36,7 +34,7 @@ private struct CodexQuotaResetDetail: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("Banked resets")
                     .fontWeight(.semibold)
-                if let credits = model.credits {
+                if let credits = model.resetCredits {
                     Text("\(credits.availableCount) available")
                         .foregroundStyle(.secondary)
                 }
@@ -53,7 +51,7 @@ private struct CodexQuotaResetDetail: View {
                 .disabled(model.isBusy)
             }
             CodexQuotaResetStatus()
-            if let credits = model.credits?.credits, !credits.isEmpty {
+            if let credits = model.resetCredits?.credits, !credits.isEmpty {
                 VStack(spacing: 8) {
                     ForEach(credits) { credit in
                         if credit.id != credits.first?.id {
@@ -62,7 +60,7 @@ private struct CodexQuotaResetDetail: View {
                         CodexQuotaResetCreditRow(credit: credit)
                     }
                 }
-            } else if let credits = model.credits, credits.availableCount > 0 {
+            } else if let credits = model.resetCredits, credits.availableCount > 0 {
                 Text("Banked reset details are unavailable. Refresh to load them.")
                     .foregroundStyle(.secondary)
             }
@@ -157,7 +155,7 @@ private struct CodexQuotaResetCreditRow: View {
                     Text(credit.title)
                         .fontWeight(.semibold)
                     if let expiration = credit.expiresAt {
-                        let now = model.now
+                        let now = model.now()
                         let date = expiration.formatted(.display(date: .abbreviated, time: .shortened))
                         Text(credit.canUse(at: now) ? "Expires \(date)" : "Expired \(date)")
                             .foregroundStyle(

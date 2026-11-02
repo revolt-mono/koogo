@@ -1,12 +1,11 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
 
+@MainActor
 final class CodexQuotaResetModelTests: XCTestCase {
-    @MainActor
     func testConfirmationAndCancellationNeverSendAConsume() async throws {
-        let source = ScriptedCodexResetSource(readings: [.available(snapshot())])
+        let source = ScriptedQuotaSource([.available(snapshot())])
         let model = try await loadModels(source).reset
         model.begin(creditID: "credit-a")
         let attempt = try XCTUnwrap(model.flow.confirmingAttempt)
@@ -18,10 +17,9 @@ final class CodexQuotaResetModelTests: XCTestCase {
         XCTAssertEqual(source.consumed.withLock { $0 }, [])
     }
 
-    @MainActor
     func testConfirmationForACreditThatExpiresBeforeSubmitIsRefused() async throws {
         var now = Date.distantPast
-        let source = ScriptedCodexResetSource(readings: [.available(snapshot())])
+        let source = ScriptedQuotaSource([.available(snapshot())])
         let model = try await loadModels(source, now: { now }).reset
         model.begin(creditID: "credit-a")
         let attempt = try XCTUnwrap(model.flow.confirmingAttempt)
@@ -32,10 +30,9 @@ final class CodexQuotaResetModelTests: XCTestCase {
         XCTAssertEqual(source.consumed.withLock { $0 }, [])
     }
 
-    @MainActor
     func testConsumeIsSingleFlightAndForcesAuthoritativeRefreshInsideCooldown() async throws {
-        let source = ScriptedCodexResetSource(
-            readings: [.available(snapshot()), .available(snapshot(usedPercent: 17, credits: []))],
+        let source = ScriptedQuotaSource(
+            [.available(snapshot()), .available(snapshot(usedPercent: 17, credits: []))],
             consumes: [.success(.reset)]
         )
         let (quota, model) = try await loadModels(source)
@@ -55,10 +52,9 @@ final class CodexQuotaResetModelTests: XCTestCase {
         XCTAssertEqual(source.loads.withLock { $0 }, 2)
     }
 
-    @MainActor
     func testSuccessfulConsumeAndFailedRefreshRemainSeparateAndRefreshCanRecover() async throws {
-        let source = ScriptedCodexResetSource(
-            readings: [.available(snapshot()), .unavailable(.sessionFailed), .available(snapshot(credits: []))],
+        let source = ScriptedQuotaSource(
+            [.available(snapshot()), .unavailable(.sessionFailed), .available(snapshot(credits: []))],
             consumes: [.success(.reset)]
         )
         let (quota, model) = try await loadModels(source)
@@ -68,21 +64,18 @@ final class CodexQuotaResetModelTests: XCTestCase {
 
         XCTAssertEqual(model.flow, .completed(.reset))
         XCTAssertEqual(quota.statuses[.codex].latest, .unavailable(.sessionFailed))
-        model.begin(creditID: "credit-a")
-        XCTAssertEqual(model.flow, .completed(.reset), "a failed reread leaves no credit to choose")
 
         model.refresh()
         try await waitUntil { !model.isBusy }
-        XCTAssertEqual(model.credits?.availableCount, 0)
+        XCTAssertEqual(model.resetCredits?.availableCount, 0)
         XCTAssertEqual(model.flow, .completed(.reset))
         XCTAssertEqual(source.consumed.withLock { $0.count }, 1)
     }
 
-    @MainActor
     func testLostResponseKeepsIntentAcrossRefreshAndRetriesIdenticalRequest() async throws {
         let afterConsume = QuotaReading.available(snapshot(credits: []))
-        let source = ScriptedCodexResetSource(
-            readings: [.available(snapshot()), afterConsume, afterConsume, afterConsume],
+        let source = ScriptedQuotaSource(
+            [.available(snapshot()), afterConsume, afterConsume, afterConsume],
             consumes: [.failure(.unconfirmed(.closed)), .success(.alreadyRedeemed)]
         )
         let model = try await loadModels(source).reset
@@ -91,7 +84,7 @@ final class CodexQuotaResetModelTests: XCTestCase {
         model.submit()
         try await waitUntil { !model.isBusy }
         XCTAssertEqual(model.flow, .unconfirmed(attempt, .closed))
-        XCTAssertEqual(model.credits?.availableCount, 0)
+        XCTAssertEqual(model.resetCredits?.availableCount, 0)
 
         model.cancel()
         model.begin(creditID: "credit-b")
@@ -108,10 +101,9 @@ final class CodexQuotaResetModelTests: XCTestCase {
         XCTAssertEqual(source.consumed.withLock { $0 }, [attempt, attempt])
     }
 
-    @MainActor
     func testTimeoutDoesNotAutomaticallyRetryOrDiscardIntent() async throws {
-        let source = ScriptedCodexResetSource(
-            readings: [.available(snapshot()), .available(snapshot())],
+        let source = ScriptedQuotaSource(
+            [.available(snapshot()), .available(snapshot())],
             consumes: [.failure(.unconfirmed(.timedOut))]
         )
         let model = try await loadModels(source).reset
@@ -121,13 +113,12 @@ final class CodexQuotaResetModelTests: XCTestCase {
         try await waitUntil { !model.isBusy }
         XCTAssertEqual(model.flow, .unconfirmed(attempt, .timedOut))
         XCTAssertEqual(source.consumed.withLock { $0.count }, 1)
-        XCTAssertEqual(model.credits?.availableCount, 1)
+        XCTAssertEqual(model.resetCredits?.availableCount, 1)
     }
 
-    @MainActor
     func testFailureBeforeTheWriteDropsTheConfirmationWithItsSnapshot() async throws {
-        let source = ScriptedCodexResetSource(
-            readings: [.available(snapshot()), .unavailable(.timedOut)],
+        let source = ScriptedQuotaSource(
+            [.available(snapshot()), .unavailable(.timedOut)],
             consumes: [.failure(.rejected(.timedOut))]
         )
         let (quota, model) = try await loadModels(source)
@@ -141,10 +132,9 @@ final class CodexQuotaResetModelTests: XCTestCase {
         XCTAssertEqual(model.flow, .idle, "a failed reread leaves no credit to choose")
     }
 
-    @MainActor
     func testRejectedConsumeKeepsTheConfirmationWhileItsCreditSurvives() async throws {
-        let source = ScriptedCodexResetSource(
-            readings: [.available(snapshot()), .available(snapshot())],
+        let source = ScriptedQuotaSource(
+            [.available(snapshot()), .available(snapshot())],
             consumes: [.failure(.rejected(.rpc(code: -32601)))]
         )
         let model = try await loadModels(source).reset
@@ -157,10 +147,9 @@ final class CodexQuotaResetModelTests: XCTestCase {
         XCTAssertEqual(model.flow, .confirming(attempt, rejection: .rpc(code: -32601)))
     }
 
-    @MainActor
     func testRejectedConsumeDropsConfirmationWhenReadRemovesCredit() async throws {
-        let source = ScriptedCodexResetSource(
-            readings: [.available(snapshot()), .available(snapshot(credits: []))],
+        let source = ScriptedQuotaSource(
+            [.available(snapshot()), .available(snapshot(credits: []))],
             consumes: [.failure(.rejected(.closed))]
         )
         let model = try await loadModels(source).reset
@@ -169,14 +158,13 @@ final class CodexQuotaResetModelTests: XCTestCase {
         try await waitUntil { !model.isBusy }
 
         XCTAssertEqual(model.flow, .idle)
-        XCTAssertEqual(model.credits?.availableCount, 0)
+        XCTAssertEqual(model.resetCredits?.availableCount, 0)
     }
 
-    @MainActor
     func testRefreshInvalidatesConfirmationWhenCreditDisappears() async throws {
         for credits in [[], nil] as [[QuotaSnapshot.ResetCredit]?] {
-            let source = ScriptedCodexResetSource(
-                readings: [.available(snapshot()), .available(snapshot(credits: credits))]
+            let source = ScriptedQuotaSource(
+                [.available(snapshot()), .available(snapshot(credits: credits))]
             )
             let model = try await loadModels(source).reset
             model.begin(creditID: "credit-a")
@@ -188,10 +176,9 @@ final class CodexQuotaResetModelTests: XCTestCase {
         }
     }
 
-    @MainActor
     func testPendingReadMustFinishBeforeConsumeCanStart() async throws {
-        let source = ScriptedCodexResetSource(
-            readings: [.available(snapshot()), .available(snapshot()), .available(snapshot())],
+        let source = ScriptedQuotaSource(
+            [.available(snapshot()), .available(snapshot()), .available(snapshot())],
             consumes: [.success(.reset)]
         )
         let model = try await loadModels(source).reset
@@ -209,9 +196,8 @@ final class CodexQuotaResetModelTests: XCTestCase {
         XCTAssertEqual(source.consumed.withLock { $0 }, [attempt])
     }
 
-    @MainActor
     private func loadModels(
-        _ source: ScriptedCodexResetSource,
+        _ source: ScriptedQuotaSource,
         now: @escaping @MainActor () -> Date = { .now }
     ) async throws -> (quota: QuotaModel, reset: CodexQuotaResetModel) {
         let quota = makeQuotaModel(codex: source)

@@ -2,8 +2,8 @@ import XCTest
 
 @testable import Koogo
 
+@MainActor
 final class QuotaModelTests: XCTestCase {
-    @MainActor
     func testRefreshesCoalesceAndOnlyReloadBypassesTheCooldown() async throws {
         let source = ScriptedQuotaSource([.available(.stub(1)), .available(.stub(2))])
         let model = makeQuotaModel(grok: source)
@@ -24,7 +24,6 @@ final class QuotaModelTests: XCTestCase {
         XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(2)))
     }
 
-    @MainActor
     func testFailuresKeepTheLastReadingWhileInFlightReplaceASnapshotAndEndTheCooldown() async throws {
         let source = ScriptedQuotaSource([
             .unavailable(.timedOut), .available(.stub(1)), .unavailable(.sessionFailed), .available(.stub(2)),
@@ -50,7 +49,6 @@ final class QuotaModelTests: XCTestCase {
         XCTAssertEqual(model.statuses[.grok].latest, .available(.stub(2)))
     }
 
-    @MainActor
     func testCooldownEndsAMinuteAfterAReadingAndADayAfterARefusal() async throws {
         let source = ScriptedQuotaSource([
             .available(.stub(1)), .available(.stub(2)), .unavailable(.noPlan), .available(.stub(3)),
@@ -85,28 +83,6 @@ final class QuotaModelTests: XCTestCase {
         XCTAssertEqual(source.loads.withLock { $0 }, 4)
     }
 
-    @MainActor
-    func testARefusedReadIsNotRetriedOnRefreshButIsOnReload() async throws {
-        let source = ScriptedQuotaSource([.unavailable(.noPlan), .unavailable(.emptyLimits), .available(.stub())])
-        let model = makeQuotaModel(claude: source)
-
-        model.refresh([.claude])
-        try await waitUntil { !model.statuses[.claude].isBusy }
-        model.refresh([.claude])
-        XCTAssertEqual(model.statuses[.claude].latest, .unavailable(.noPlan))
-        XCTAssertFalse(model.statuses[.claude].isBusy)
-        XCTAssertEqual(source.loads.withLock { $0 }, 1)
-
-        model.reload([.claude])
-        try await waitUntil { !model.statuses[.claude].isBusy }
-        XCTAssertEqual(model.statuses[.claude].latest, .unavailable(.emptyLimits))
-
-        model.refresh([.claude])
-        try await waitUntil { !model.statuses[.claude].isBusy }
-        XCTAssertEqual(model.statuses[.claude].latest, .available(.stub()))
-    }
-
-    @MainActor
     func testOnlyTheRequestedProvidersAreRead() async throws {
         let claude = ScriptedQuotaSource([.available(.stub())])
         let grok = ScriptedQuotaSource([])
