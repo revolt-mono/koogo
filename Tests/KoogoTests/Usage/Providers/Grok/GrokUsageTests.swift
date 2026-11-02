@@ -30,6 +30,9 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
             {"timestamp":1,"method":"_x.ai/session/update","params":{"sessionId":"session","update":{"sessionUpdate":"turn_completed","prompt_id":"prompt","stop_reason":"cancelled"},"_meta":{"eventId":"session-1","agentTimestampMs":1787680800000}}}
             """,
             """
+            {"timestamp":1,"method":"_x.ai/session/update","params":{"sessionId":"session","update":{"sessionUpdate":"turn_completed","prompt_id":"prompt","stop_reason":"cancelled","usage":{"totalTokens":0,"numTurns":0}},"_meta":{"eventId":"session-1","agentTimestampMs":1787680800000}}}
+            """,
+            """
             {"timestamp":1,"method":"session/update","params":{"sessionId":"session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"turn_completed usage"}},"_meta":{"eventId":"session-2","agentTimestampMs":1787680800000}}}
             """,
         ]

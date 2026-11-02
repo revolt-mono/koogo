@@ -86,7 +86,6 @@ private struct GrokCompletedTurn {
 private struct GrokPromptUsage {
     /// prompt input including cache reads, plus output.
     let totalTokens: UInt64
-    /// sorted by model; a repeated model keeps its last row.
     let modelUsage: [(model: ModelID, tokens: GrokTokenUsage)]
 
     init(_ value: JSONValue) throws {
@@ -100,29 +99,26 @@ private struct GrokPromptUsage {
             default: break
             }
         }
-        guard let totalTokens = try totalTokens?.uint64(), var models = try modelUsage?.object() else {
+        guard let totalTokens = try totalTokens?.uint64() else {
             throw MalformedUsageRecord()
         }
+        var models = try modelUsage?.object()
         var usage: [(model: ModelID, tokens: GrokTokenUsage)] = []
-        while let row = try models.next() {
+        while let row = try models?.next() {
             guard let name = try row.key.string() else {
                 throw MalformedUsageRecord()
             }
-            let model = ModelID(name)
-            let tokens = try GrokTokenUsage(row.value)
-            if let index = usage.firstIndex(where: { $0.model == model }) {
-                usage[index].tokens = tokens
-            } else {
-                usage.append((model, tokens))
-            }
+            usage.append((ModelID(name), try GrokTokenUsage(row.value)))
         }
         self.totalTokens = totalTokens
-        self.modelUsage = usage.sorted { $0.model < $1.model }
+        self.modelUsage = usage
     }
 
+    /// grok's rule: most calls, then most tokens; remaining ties go to the first name.
     var primaryModel: ModelID? {
         modelUsage.max { lhs, rhs in
-            (lhs.tokens.modelCalls, rhs.model) < (rhs.tokens.modelCalls, lhs.model)
+            (lhs.tokens.modelCalls, lhs.tokens.totalTokens, rhs.model)
+                < (rhs.tokens.modelCalls, rhs.tokens.totalTokens, lhs.model)
         }?.model
     }
 }
@@ -145,6 +141,10 @@ struct GrokTokenUsage: Sendable {
 
     var uncachedInput: UInt64 {
         input - cachedInput
+    }
+
+    var totalTokens: UInt64 {
+        input.saturatingAdding(output)
     }
 
     fileprivate init(_ value: JSONValue) throws {
