@@ -43,7 +43,7 @@
 ├── Sources/Koogo          menu bar app, one folder per feature slice
 │   ├── App                entry point, shared models, headless report
 │   ├── Shared             leaf primitives used across slices
-│   │   └── PanelUI        panel chrome, scroll, popover, and page placeholders
+│   │   └── PanelUI        panel chrome, scroll, disclosure, and page placeholders
 │   ├── Providers          provider identity, order, and toggles
 │   ├── Panel              menu bar panel shell, paging, and the pages that compose several slices
 │   ├── Settings           settings window

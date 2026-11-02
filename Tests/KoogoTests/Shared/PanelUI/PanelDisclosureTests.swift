@@ -3,8 +3,8 @@ import XCTest
 
 @testable import Koogo
 
-final class PanelPopoverTests: XCTestCase {
-    @MainActor
+@MainActor
+final class PanelDisclosureTests: XCTestCase {
     func testEachTriggerPressIsIndependentAndPreservesEventMetadata() throws {
         let fixture = Fixture()
         defer { fixture.window.close() }
@@ -25,7 +25,6 @@ final class PanelPopoverTests: XCTestCase {
         }
     }
 
-    @MainActor
     func testSingleClicksPassThroughUnchanged() throws {
         let fixture = Fixture()
         defer { fixture.window.close() }
@@ -33,7 +32,6 @@ final class PanelPopoverTests: XCTestCase {
         XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
     }
 
-    @MainActor
     func testDoubleClicksOutsideTheTriggerAreUntouched() throws {
         let fixture = Fixture()
         defer { fixture.window.close() }
@@ -41,7 +39,6 @@ final class PanelPopoverTests: XCTestCase {
         XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
     }
 
-    @MainActor
     func testAnotherWindowsClicksAreUntouchedEvenAtTheSameCoordinates() throws {
         let fixture = Fixture()
         let other = Fixture()
@@ -53,7 +50,6 @@ final class PanelPopoverTests: XCTestCase {
         XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
     }
 
-    @MainActor
     func testHiddenAndDetachedTriggersCannotChangeEvents() throws {
         let fixture = Fixture()
         defer { fixture.window.close() }
