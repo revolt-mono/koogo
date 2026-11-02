@@ -6,7 +6,7 @@ struct TodoPrioritySelector: View {
     @Binding var selection: TodoPriority
 
     @FocusState private var focusedPriority: TodoPriority?
-    @State private var optionFrames: [TodoPriority: CGRect] = [:]
+    @State private var optionFrames = EnumMap<TodoPriority, CGRect> { _ in .zero }
     @GestureState private var isScrubbing = false
 
     var body: some View {
@@ -27,10 +27,10 @@ struct TodoPrioritySelector: View {
                 .focused($focusedPriority, equals: priority)
                 .accessibilityLabel(priority.title)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .onGeometryChange(for: CGRect.self) { proxy in
-                    proxy.frame(in: .named(Self.row))
-                } action: { frame in
-                    optionFrames[priority] = frame
+                .onGeometryChange(for: CGRect.self) {
+                    $0.frame(in: .named(Self.row))
+                } action: {
+                    optionFrames[priority] = $0
                 }
             }
         }
@@ -52,7 +52,7 @@ struct TodoPrioritySelector: View {
             .onChanged { drag in
                 // the option under the pointer wins, so the pressed button firing on release agrees with the scrub.
                 let distance = { (frame: CGRect) in max(frame.minX - drag.location.x, drag.location.x - frame.maxX) }
-                if let nearest = optionFrames.min(by: { distance($0.value) < distance($1.value) }) {
+                if let nearest = optionFrames.entries.min(by: { distance($0.value) < distance($1.value) }) {
                     selection = nearest.key
                 }
             }

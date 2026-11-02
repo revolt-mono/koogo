@@ -58,7 +58,7 @@ struct TodoTextInput: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.documentView = textView
-        if case .editing = mode {
+        if mode == .editing {
             // take focus after the native context menu closes.
             Task {
                 try? await Task.sleep(for: .milliseconds(50))
@@ -81,7 +81,7 @@ struct TodoTextInput: NSViewRepresentable {
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView _: NSScrollView, context: Context) -> CGSize? {
         let textView = context.coordinator.textView
-        guard case .editing = mode, let width = proposal.width, width > 0,
+        guard mode == .editing, let width = proposal.width, width > 0,
             let layoutManager = textView.layoutManager,
             let container = textView.textContainer
         else {

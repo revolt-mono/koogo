@@ -37,8 +37,7 @@ struct TodoEditor: View {
                 .accessibilityLabel("Add todo")
             }
         }
-        .padding(12)
-        .background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .panelCard()
         .onMouseDownOutside { $0.window?.makeFirstResponder(nil) }
     }
 
@@ -57,16 +56,12 @@ struct TodoEditor: View {
 }
 
 struct TodoInlineEditor: View {
-    enum Result {
-        case discarded
-        case saved(TodoText)
-    }
-
-    let onFinish: (Result) -> Void
+    /// receives nil when the edit is discarded.
+    let onFinish: (TodoText?) -> Void
 
     @State private var draft: String
 
-    init(text: TodoText, onFinish: @escaping (Result) -> Void) {
+    init(text: TodoText, onFinish: @escaping (TodoText?) -> Void) {
         self.onFinish = onFinish
         _draft = State(initialValue: text.value)
     }
@@ -76,19 +71,19 @@ struct TodoInlineEditor: View {
             text: $draft,
             mode: .editing,
             onSubmit: submit,
-            onCancel: { onFinish(.discarded) }
+            onCancel: { onFinish(nil) }
         )
         .frame(maxWidth: .infinity)
         // the field grows into the icon gap so the text itself stays where the label was.
         .padding(.horizontal, -TodoTextInput.Mode.editing.textInset.width)
         // textkit places the baseline half a point below where swiftui draws the same label.
         .offset(y: -0.5)
-        .onMouseDownOutside { _ in onFinish(.discarded) }
+        .onMouseDownOutside { _ in onFinish(nil) }
     }
 
     private func submit() {
         if let text = TodoText(draft) {
-            onFinish(.saved(text))
+            onFinish(text)
         }
     }
 }

@@ -45,7 +45,7 @@ struct InboxPage: View {
 }
 
 private struct DashedLine: Shape {
-    nonisolated func path(in rect: CGRect) -> Path {
+    func path(in rect: CGRect) -> Path {
         Path { path in
             path.move(to: CGPoint(x: rect.minX, y: rect.midY))
             path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
@@ -94,8 +94,7 @@ private struct TodoRow: View {
                     }
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 8)
+        .padding(8)
         .background(
             Color.accentColor.opacity(isEditing ? 0.16 : 0),
             in: RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -127,8 +126,8 @@ private struct TodoRow: View {
         }
     }
 
-    private func finishEditing(_ result: TodoInlineEditor.Result) {
-        if case .saved(let text) = result {
+    private func finishEditing(_ text: TodoText?) {
+        if let text {
             inboxModel.setText(text, of: todo.id)
         }
         isEditing = false
