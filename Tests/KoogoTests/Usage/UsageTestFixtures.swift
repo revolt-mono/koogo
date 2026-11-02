@@ -138,7 +138,7 @@ func usageEvent(
     )
     let eventID: UsageEventID =
         switch provider {
-        case .codex: .codex(turnID: "turn-\(id)".utf8, cumulativeTotal: processedTokens)
+        case .codex: .codex(responseID: "response-\(id)".utf8)
         case .claude: .claude(messageID: "message-\(id)".utf8, requestID: "request-\(id)".utf8)
         case .piAgent: .piAgent(entryID: "entry-\(id)".utf8)
         case .grok: .grok(eventID: "event-\(id)".utf8, timestampMilliseconds: grokMilliseconds(eventDate))

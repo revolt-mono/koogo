@@ -11,12 +11,12 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
         let appended = codexTokenUsageRecord(
             codexUsage(input: 50, output: 10),
-            thread: codexUsage(input: 150, output: 30),
+            response: "second",
             at: "2026-08-25T13:00:00.000Z"
         )
         try workspace.append(appended, to: log)
         try workspace.write(
-            codexLog(input: 1, output: 0, turn: "witness"),
+            codexLog(input: 1, output: 0, response: "witness"),
             to: workspace.codexSessions.appending(path: "witness.jsonl")
         )
         let beforeNewline = try await refresh(pipeline) { $0.ingestion.trackedFiles[.codex] == 2 }
@@ -37,13 +37,13 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         defer { try? writer.close() }
         let second = codexTokenUsageRecord(
             codexUsage(input: 50, output: 10),
-            thread: codexUsage(input: 150, output: 30)
+            response: "second"
         )
         try writer.write(contentsOf: Data((second + "\n").utf8))
         let appended = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(appended.snapshot.todayTokens(.codex), 180)
 
-        let third = codexTokenUsageRecord(codexUsage(input: 20, output: 5), thread: codexUsage(input: 170, output: 35))
+        let third = codexTokenUsageRecord(codexUsage(input: 20, output: 5), response: "third")
         try writer.write(contentsOf: Data(third.prefix(third.count / 2).utf8))
         let partial = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(partial.snapshot.todayTokens(.codex), 180)
@@ -68,7 +68,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         defer { try? writer.close() }
         let second = codexTokenUsageRecord(
             codexUsage(input: 50, output: 10),
-            thread: codexUsage(input: 150, output: 30)
+            response: "second"
         )
         try writer.write(contentsOf: Data((second + "\n").utf8))
         let resumed = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
@@ -89,7 +89,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let copied = try await refresh(pipeline) { $0.ingestion.trackedFiles[.codex] == 2 }
         XCTAssertEqual(copied.snapshot.todayTokens(.codex), 120)
 
-        try workspace.write(codexLog(input: 40, output: 10, turn: "replacement"), to: active)
+        try workspace.write(codexLog(input: 40, output: 10, response: "replacement"), to: active)
         try FileManager.default.removeItem(at: archived)
         let replaced = try await refresh(pipeline) {
             $0.ingestion.trackedFiles[.codex] == 1 && $0.snapshot.todayTokens(.codex) != 120
@@ -101,23 +101,21 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         let parentRequest = codexUsage(input: 100, output: 20)
         try workspace.write(
             [
-                codexMeta(thread: "parent"),
+                codexMeta(),
                 codexTurn(),
-                codexTokenUsageRecord(parentRequest, thread: parentRequest, at: "2026-08-24T12:00:00.000Z"),
+                codexTokenUsageRecord(parentRequest, at: "2026-08-24T12:00:00.000Z"),
                 "",
             ].joined(separator: "\n"),
             to: workspace.codexSessions.appending(path: "parent.jsonl")
         )
         try workspace.write(
             [
-                codexMeta(thread: "fork"),
+                codexMeta(),
                 codexTurn(),
-                codexTokenUsageRecord(parentRequest, thread: parentRequest, at: "2026-08-25T12:00:00.000Z"),
-                codexTurn(id: "fork-turn"),
+                codexTokenUsageRecord(parentRequest, at: "2026-08-25T12:00:00.000Z"),
                 codexTokenUsageRecord(
                     codexUsage(input: 40, output: 10),
-                    thread: codexUsage(input: 140, output: 30),
-                    turn: "fork-turn",
+                    response: "fork",
                     at: "2026-08-25T12:00:00.000Z"
                 ),
                 "",
@@ -168,7 +166,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         _ = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         let handle = try FileHandle(forUpdating: log)
-        try handle.write(contentsOf: Data(codexLog(input: 300, output: 40, turn: "rewritten").utf8))
+        try handle.write(contentsOf: Data(codexLog(input: 300, output: 40, response: "rewritten").utf8))
         try handle.close()
         let rewritten = try await refresh(pipeline) { $0.snapshot.todayTokens(.codex) != 120 }
 
@@ -191,7 +189,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
         try workspace.append(
             codexTokenUsageRecord(
                 codexUsage(input: 50, output: 10),
-                thread: codexUsage(input: 150, output: 30),
+                response: "second",
                 at: "2026-08-25T13:00:00.000Z"
             ) + "\n",
             to: log
@@ -225,9 +223,9 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
             [
                 codexMeta(),
                 codexTurn(),
-                codexTokenUsageRecord(request, thread: request)
+                codexTokenUsageRecord(request)
                     .replacingOccurrences(of: #""usage":\#(request),"#, with: ""),
-                codexTokenUsageRecord(request, thread: request),
+                codexTokenUsageRecord(request),
                 "",
             ].joined(separator: "\n"),
             to: workspace.codexSessions.appending(path: "session.jsonl")
@@ -247,11 +245,11 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
 
     func testHistoryWindowMovingBackwardRescansOlderEvents() async throws {
         try workspace.write(
-            codexLog(input: 100, output: 20, turn: "august"),
+            codexLog(input: 100, output: 20, response: "august"),
             to: workspace.codexSessions.appending(path: "august.jsonl")
         )
         try workspace.write(
-            codexLog(input: 200, output: 40, turn: "older", usageTimestamp: "2026-07-26T23:59:59.999Z"),
+            codexLog(input: 200, output: 40, response: "older", usageTimestamp: "2026-07-26T23:59:59.999Z"),
             to: workspace.codexSessions.appending(path: "older.jsonl")
         )
         let pipeline = makePipeline()

@@ -45,7 +45,7 @@ struct CodexUsageLogParser: UsageLogParser {
             }
             return .event(
                 UsageEvent(
-                    id: .codex(turnID: record.turnID, cumulativeTotal: record.threadTotal),
+                    id: .codex(responseID: record.responseID),
                     record: UsageRecord(
                         timestamp: timestamp,
                         processedTokens: record.usage.processed,
@@ -59,31 +59,27 @@ struct CodexUsageLogParser: UsageLogParser {
 }
 
 private struct CodexTokenUsageRecord {
-    let turnID: JSONText
+    let responseID: JSONText
     let usage: CodexTokenUsage
-    let threadTotal: UInt64
 
     init(_ payload: JSONValue) throws {
-        var turnID: JSONValue?
+        var responseID: JSONValue?
         var usage: JSONValue?
-        var threadUsage: JSONValue?
         var fields = try payload.object()
         while let member = try fields.next() {
             switch member.key {
-            case "turn_id": turnID = member.value
+            case "response_id": responseID = member.value
             case "usage": usage = member.value
-            case "thread_token_usage": threadUsage = member.value
             default: break
             }
         }
-        guard let turnID = try turnID?.text(), let usage = try usage.map(CodexTokenUsage.init),
-            let threadTotal = try threadUsage?.member("total_tokens")?.uint64()
+        guard let responseID = try responseID?.text(), !responseID.isEmpty,
+            let usage = try usage.map(CodexTokenUsage.init)
         else {
             throw MalformedUsageRecord()
         }
-        self.turnID = turnID
+        self.responseID = responseID
         self.usage = usage
-        self.threadTotal = threadTotal
     }
 }
 

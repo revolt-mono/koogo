@@ -61,12 +61,9 @@ struct UsageEventID: Hashable, Comparable, Sendable {
         (lhs.high, lhs.low) < (rhs.high, rhs.low)
     }
 
-    /// codex forks change thread ids, ordinals, and timestamps; turn id and cumulative total remain stable.
-    static func codex(turnID: some Collection<UInt8>, cumulativeTotal: UInt64) -> Self {
-        Self(.codex) {
-            $0.combine(text: turnID)
-            $0.combine(cumulativeTotal)
-        }
+    /// codex forks change thread ids, ordinals, and timestamps; each copied record keeps its response id.
+    static func codex(responseID: some Collection<UInt8>) -> Self {
+        Self(.codex) { $0.combine(text: responseID) }
     }
 
     static func claude(messageID: some Collection<UInt8>, requestID: some Collection<UInt8>) -> Self {

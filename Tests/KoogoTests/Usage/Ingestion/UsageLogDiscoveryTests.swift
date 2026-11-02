@@ -34,7 +34,7 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         try workspace.append(
             codexTokenUsageRecord(
                 codexUsage(input: 50, output: 10),
-                thread: codexUsage(input: 150, output: 30)
+                response: "second"
             ) + "\n",
             to: target.appending(path: "session.jsonl")
         )
@@ -91,9 +91,9 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         let pipeline = makePipeline()
         _ = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
 
-        try workspace.write(codexLog(input: 100, output: 20, turn: "cached"), to: hidden.appending(path: "a.jsonl"))
+        try workspace.write(codexLog(input: 100, output: 20, response: "cached"), to: hidden.appending(path: "a.jsonl"))
         try workspace.write(
-            codexLog(input: 1, output: 0, turn: "witness"),
+            codexLog(input: 1, output: 0, response: "witness"),
             to: workspace.codexArchivedSessions.appending(path: "witness.jsonl")
         )
         let report = try await refresh(pipeline) { $0.ingestion.trackedFiles[.codex] != 0 }
@@ -117,15 +117,15 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
 
     func testHiddenFilesAndDirectoriesAreNotScanned() async throws {
         try workspace.write(
-            codexLog(input: 100, output: 20, turn: "cached"),
+            codexLog(input: 100, output: 20, response: "cached"),
             to: workspace.codexSessions.appending(path: ".cache/a.jsonl")
         )
         try workspace.write(
-            codexLog(input: 100, output: 20, turn: "hidden"),
+            codexLog(input: 100, output: 20, response: "hidden"),
             to: workspace.codexSessions.appending(path: ".b.jsonl")
         )
         let flagged = workspace.codexSessions.appending(path: "flagged.jsonl")
-        try workspace.write(codexLog(input: 100, output: 20, turn: "flagged"), to: flagged)
+        try workspace.write(codexLog(input: 100, output: 20, response: "flagged"), to: flagged)
         XCTAssertEqual(chflags(flagged.path, UInt32(UF_HIDDEN)), 0)
         let pipeline = makePipeline()
 

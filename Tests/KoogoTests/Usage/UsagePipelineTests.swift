@@ -8,8 +8,8 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         for index in 0..<19 {
             try workspace.write(
                 [
-                    codexTurn(id: "turn-\(index)"),
-                    codexTokenUsageRecord(usage, thread: usage, turn: "turn-\(index)"),
+                    codexTurn(),
+                    codexTokenUsageRecord(usage, response: "response-\(index)"),
                     "",
                 ].joined(separator: "\n"),
                 to: workspace.codexSessions.appending(path: "session-\(index).jsonl")
@@ -35,7 +35,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
         try workspace.append(
             codexTokenUsageRecord(
                 codexUsage(input: 50, output: 10),
-                thread: codexUsage(input: 150, output: 30)
+                response: "second"
             ) + "\n",
             to: log
         )
@@ -71,7 +71,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             "2026-08-25T00:00:00Z",
         ].enumerated() {
             try workspace.write(
-                codexLog(input: 1 << index, output: 0, usageTimestamp: timestamp),
+                codexLog(input: 1 << index, output: 0, response: "boundary-\(index)", usageTimestamp: timestamp),
                 to: workspace.codexSessions.appending(path: "boundary-\(index).jsonl")
             )
         }
@@ -112,7 +112,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             codexLog(
                 input: 100,
                 output: 20,
-                turn: "previous-day",
+                response: "previous-day",
                 usageTimestamp: "2026-08-24T17:00:00.000Z"
             ),
             to: workspace.codexSessions.appending(path: "previous-day.jsonl")
@@ -121,7 +121,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
             codexLog(
                 input: 200,
                 output: 40,
-                turn: "previous-7-days",
+                response: "previous-7-days",
                 usageTimestamp: "2026-08-18T17:00:00.000Z"
             ),
             to: workspace.codexSessions.appending(path: "previous-7-days.jsonl")
@@ -131,7 +131,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
                 codexLog(
                     input: 1,
                     output: 0,
-                    turn: "older-\(index)",
+                    response: "older-\(index)",
                     model: "gpt-5.6-luna",
                     usageTimestamp: "2026-07-26T23:59:59.999Z"
                 ),
@@ -159,7 +159,7 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
                 {"timestamp":"2026-08-25T11:32:00.000Z","ordinal":3,"type":"event_msg","payload":{"type":"item_completed","item":{}}}
                 """,
                 codexTurn(),
-                codexTokenUsageRecord(request, thread: request),
+                codexTokenUsageRecord(request),
                 "",
             ].joined(separator: "\n"),
             to: workspace.codexSessions.appending(path: "session.jsonl")

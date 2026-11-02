@@ -7,12 +7,9 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
         guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
             throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to measure retained heap.")
         }
-        let last = codexUsage(input: 100, output: 20)
-        let turns = (1...20_000).map { turn in
-            let total = codexUsage(input: 100 * turn, output: 20 * turn)
-            return codexTurn(id: "turn-\(turn)") + "\n"
-                + codexTokenUsageRecord(last, thread: total, turn: "turn-\(turn)")
-                + "\n"
+        let usage = codexUsage(input: 100, output: 20)
+        let turns = (1...20_000).map {
+            codexTurn() + "\n" + codexTokenUsageRecord(usage, response: "response-\($0)") + "\n"
         }
         try workspace.write(turns.joined(), to: workspace.codexSessions.appending(path: "session.jsonl"))
         var store = LogStore()

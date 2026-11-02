@@ -16,7 +16,7 @@ final class JSONObjectReaderTests: XCTestCase {
         let event = try XCTUnwrap(
             try parse(
                 """
-                { "timestamp": "2026-08-25T12:00:00.000Z", "payload": {"usage":\(request),"turn_id":"turn","thread_token_usage":\(request)}, "type": "token_usage_record" }
+                { "timestamp": "2026-08-25T12:00:00.000Z", "payload": {"usage":\(request),"response_id":"response"}, "type": "token_usage_record" }
                 """,
                 with: &parser
             )?.event

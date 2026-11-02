@@ -15,7 +15,7 @@ final class LogFileTests: UsageWorkspaceTestCase {
         try workspace.append(
             codexTokenUsageRecord(
                 codexUsage(input: 50, output: 10),
-                thread: codexUsage(input: 150, output: 30),
+                response: "second",
                 at: "2026-08-25T13:00:00.000Z"
             ) + "\n",
             to: log
