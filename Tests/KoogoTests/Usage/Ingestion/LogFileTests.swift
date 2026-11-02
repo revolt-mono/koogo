@@ -82,7 +82,7 @@ final class LogFileTests: UsageWorkspaceTestCase {
 }
 
 /// a frame of stored blocks with a 1 MiB window needs no compressor; each block holds at most 128 KiB.
-private func zstdFrame(of text: String) -> Data {
+func zstdFrame(of text: String) -> Data {
     var frame = Data([0x28, 0xB5, 0x2F, 0xFD, 0x00, 0x50])
     let bytes = Array(text.utf8)
     var offset = 0

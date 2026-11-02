@@ -36,6 +36,29 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
         XCTAssertLessThan(peak - before, 2 * 1_024 * 1_024)
     }
 
+    func testDecodingACompressedLogKeepsItsWindowOutOfTheHeap() throws {
+        guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
+            throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to measure retained heap.")
+        }
+        let url = workspace.codexSessions.appending(path: "session.jsonl.zst")
+        try workspace.write(zstdFrame(of: codexLog(input: 100, output: 20)), to: url)
+        var file = CompressedFile(url.path, observed: try XCTUnwrap(UsageFileMetadata(path: url.path)))
+
+        let before = allocatedHeapBytes()
+        var peak = before
+        var lines = 0
+        _ = file.read(
+            restart: {},
+            consume: { _ in
+                lines += 1
+                peak = max(peak, allocatedHeapBytes())
+            }
+        )
+
+        XCTAssertGreaterThan(lines, 0)
+        XCTAssertLessThan(peak - before, 256 * 1_024)
+    }
+
     func testTrackedEventsRetainCompactRecords() throws {
         guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
             throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to measure retained heap.")

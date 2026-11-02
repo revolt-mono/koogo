@@ -34,7 +34,7 @@ struct CompressedFile: LogFile {
     }
 
     private static func decode(_ file: FileDescriptor, consume: (UnsafeRawBufferPointer) -> Void) {
-        guard let stream = ZSTD_createDStream() else {
+        guard let stream = ZSTD_createDStream_advanced(mappedMemory) else {
             return
         }
         defer { ZSTD_freeDStream(stream) }
@@ -67,5 +67,28 @@ struct CompressedFile: LogFile {
                 memmove(lines.bytes.baseAddress, lines.bytes.baseAddress! + parsed, pending)
             }
         }
+    }
+
+    /// the decoder's window spans megabytes, which malloc keeps dirty after free; unmapped pages return to the system.
+    /// each mapping leads with its 16-byte length, keeping the returned memory aligned like malloc's. zstd never frees
+    /// null.
+    private static var mappedMemory: ZSTD_customMem {
+        ZSTD_customMem(
+            customAlloc: { _, size in
+                let length = size + 16
+                guard let pages = mmap(nil, length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0),
+                    pages != MAP_FAILED
+                else {
+                    return nil
+                }
+                pages.storeBytes(of: length, as: Int.self)
+                return pages + 16
+            },
+            customFree: { _, memory in
+                let pages = memory! - 16
+                munmap(pages, pages.load(as: Int.self))
+            },
+            opaque: nil
+        )
     }
 }
