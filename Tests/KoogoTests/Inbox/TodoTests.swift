@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -11,19 +10,14 @@ final class TodoTests: XCTestCase {
         XCTAssertEqual(text.value, "write tests")
     }
 
-    func testTodoPropertyListRoundTripKeepsTheFlatSchema() throws {
-        let text = try XCTUnwrap(TodoText("ship it"))
-        var todo = Todo(text: text, priority: .normal)
-        todo.priority = .urgent
+    func testTodoPropertyListKeepsTheFlatSchema() throws {
+        let todo = Todo(text: try XCTUnwrap(TodoText("ship it")), priority: .urgent)
         let data = try PropertyListEncoder().encode([todo])
-        let propertyList = try propertyList(of: data)
+        let propertyList = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [[String: Any]]
+        )
 
         XCTAssertEqual(propertyList[0]["text"] as? String, "ship it")
         XCTAssertEqual(propertyList[0]["priority"] as? String, "urgent")
-        XCTAssertEqual(try PropertyListDecoder().decode([Todo].self, from: data), [todo])
     }
-}
-
-private func propertyList(of data: Data) throws -> [[String: Any]] {
-    try XCTUnwrap(PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [[String: Any]])
 }

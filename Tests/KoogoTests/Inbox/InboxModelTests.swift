@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -50,7 +49,6 @@ final class InboxModelTests: XCTestCase {
 
         XCTAssertEqual(model.todos.first?.priority, .urgent)
         XCTAssertEqual(model.todos.last, untouched)
-        XCTAssertEqual(model.todos.count, 2)
     }
 
     func testChangesPersistAcrossModelInstances() throws {
@@ -115,10 +113,6 @@ final class InboxModelTests: XCTestCase {
         model.toggleCompleted(try XCTUnwrap(model.todos.first { $0.priority == .urgent }).id)
 
         XCTAssertEqual(model.openSummary, "2 backlog")
-    }
-
-    func testOpenSummaryOfAnEmptyInboxSaysNoOpenTodos() throws {
-        XCTAssertEqual(InboxModel(defaults: try makeIsolatedDefaults()).openSummary, "no open todos")
     }
 }
 

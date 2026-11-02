@@ -1,5 +1,4 @@
 import Darwin
-import Foundation
 import Synchronization
 import XCTest
 

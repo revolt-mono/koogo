@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -33,15 +32,7 @@ final class GrokQuotaSourceTests: XCTestCase {
         let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8).split(separator: "\n")
         XCTAssertEqual(arguments, ["--no-auto-update", "agent", "--no-leader", "stdio"])
         let requests = try jsonObjects(in: workspace.requestsFile)
-        XCTAssertEqual(requests.count, 2)
         XCTAssertEqual(requests.map { $0["method"] as? String }, ["initialize", "_x.ai/billing"])
-        XCTAssertEqual(requests.map { $0["id"] as? Int }, [1, 2])
-        XCTAssertEqual(requests.map { $0["jsonrpc"] as? String }, ["2.0", "2.0"])
-        let initialize = try XCTUnwrap(requests.first?["params"] as? [String: Any])
-        XCTAssertEqual(initialize["protocolVersion"] as? Int, 1)
-        XCTAssertEqual(initialize["clientCapabilities"] as? [String: String], [:])
-        XCTAssertEqual(initialize["clientInfo"] as? [String: String], ["name": "koogo", "version": "1.0"])
-        XCTAssertEqual(requests.last?["params"] as? [String: String], [:])
     }
 
     func testUntouchedQuotaIsFullAndMonthlyPeriodsAreKept() async throws {

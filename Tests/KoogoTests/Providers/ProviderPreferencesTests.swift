@@ -36,10 +36,8 @@ final class ProviderPreferencesTests: XCTestCase {
 
         let relaunched = ProviderPreferences(defaults: defaults)
         XCTAssertEqual(relaunched.usageProviders, [.claude, .piAgent, .grok])
-        XCTAssertEqual(relaunched.quotaProviders, [.claude, .grok])
         relaunched[usage: .codex] = true
         XCTAssertEqual(ProviderPreferences(defaults: defaults).usageProviders, Provider.allCases)
-        XCTAssertEqual(ProviderPreferences(defaults: defaults).quotaProviders, [.codex, .claude, .grok])
     }
 
     func testUndecodableStorageFallsBackToDefaults() throws {

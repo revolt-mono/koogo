@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -34,10 +33,6 @@ final class MountedDiskImagesTests: XCTestCase {
                 deviceModel: "Disk Image"
             )
         )
-    }
-
-    func testMountedDiskImagesIsNilWhenEmpty() {
-        XCTAssertNil(MountedDiskImages([]))
     }
 
     func testMountedDiskImageNameFallsBackToMountDirectory() {

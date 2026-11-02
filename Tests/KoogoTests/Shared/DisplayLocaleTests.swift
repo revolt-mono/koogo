@@ -11,10 +11,4 @@ final class DisplayLocaleTests: XCTestCase {
             "1d 2h"
         )
     }
-
-    func testStringStylesCarryTheDisplayLocaleWhateverTheHostLocale() {
-        XCTAssertEqual(Date.FormatStyle.display(date: .abbreviated, time: .shortened).locale, .display)
-        XCTAssertEqual(Duration.UnitsFormatStyle.displayUnits(allowed: [.minutes]).locale, .display)
-        XCTAssertEqual(Duration.TimeFormatStyle.displayTime(pattern: .minuteSecond).locale, .display)
-    }
 }

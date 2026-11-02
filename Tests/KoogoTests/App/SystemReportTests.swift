@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -22,9 +21,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
             ),
             at: usageTestTimestamp
         )
-        let report = try XCTUnwrap(
-            try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        )
+        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
         XCTAssertEqual(report["generatedAt"] as? String, "2026-08-25T18:00:00Z")
         let usage = try XCTUnwrap(report["usage"] as? [String: Any])
@@ -42,14 +39,12 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         let quota = try XCTUnwrap(report["quota"] as? [String: Any])
         let codex = try XCTUnwrap(quota["codex"] as? [String: Any])
         XCTAssertEqual(codex["state"] as? String, "available")
-        let claude = try XCTUnwrap(quota["claude"] as? [String: Any])
-        XCTAssertEqual(claude["state"] as? String, "unavailable")
-        XCTAssertEqual(claude["reason"] as? String, "binaryNotFound")
-        XCTAssertNil(claude["snapshot"])
-        let grok = try XCTUnwrap(quota["grok"] as? [String: Any])
-        XCTAssertEqual(grok["state"] as? String, "unavailable")
-        XCTAssertEqual(grok["reason"] as? String, "binaryNotFound")
-        XCTAssertNil(grok["snapshot"])
+        for provider in ["claude", "grok"] {
+            let status = try XCTUnwrap(quota[provider] as? [String: Any], provider)
+            XCTAssertEqual(status["state"] as? String, "unavailable", provider)
+            XCTAssertEqual(status["reason"] as? String, "binaryNotFound", provider)
+            XCTAssertNil(status["snapshot"], provider)
+        }
     }
 
     func testReportKeyPathsAreStable() async throws {

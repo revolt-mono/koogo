@@ -2,8 +2,8 @@ import XCTest
 
 @testable import Koogo
 
+@MainActor
 final class UsageModelTests: UsageWorkspaceTestCase {
-    @MainActor
     func testQueuedRefreshUsesTheInjectedDate() async throws {
         try workspace.write(
             codexLog(input: 100, output: 20),
@@ -21,7 +21,6 @@ final class UsageModelTests: UsageWorkspaceTestCase {
         XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.periods[.last30Days].total.processedTokens, 120)
     }
 
-    @MainActor
     func testAQueuedRefreshUsesItsOwnProviderSet() async throws {
         try workspace.write(
             codexLog(input: 100, output: 20),
@@ -38,7 +37,6 @@ final class UsageModelTests: UsageWorkspaceTestCase {
         XCTAssertEqual(snapshot.summary.today.current.processedTokens, 0)
     }
 
-    @MainActor
     func testRefreshSkipsProvidersWithoutHomeUntilTheyAppear() async throws {
         let grokHome = workspace.home(of: .grok)
         try FileManager.default.removeItem(at: grokHome)

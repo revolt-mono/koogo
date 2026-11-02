@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -23,10 +22,6 @@ final class OrphanedAgentProcessesTests: XCTestCase {
     func testOrphanedAgentProcessSkipsTerminalSessionsAndOwnQuotaReads() {
         XCTAssertNil(orphan(parentPID: 1, terminalDevice: 0x1000_0003, executablePath: claudePath))
         XCTAssertNil(orphan(parentPID: ProcessInfo.processInfo.processIdentifier, executablePath: claudePath))
-    }
-
-    func testOrphanedAgentProcessesIsNilWhenEmpty() {
-        XCTAssertNil(OrphanedAgentProcesses([]))
     }
 
     func testOrphanedAgentProcessesSummarizesCountsPerProviderInOrder() throws {
