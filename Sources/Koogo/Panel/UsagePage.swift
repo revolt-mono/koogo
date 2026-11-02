@@ -21,11 +21,7 @@ struct UsagePage: View {
                     QuickActionsControl()
                 }
                 .padding(.horizontal, PanelLayout.inset)
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { height in
-                    headerHeight = height
-                }
+                .onGeometryChange(for: CGFloat.self, of: \.size.height) { headerHeight = $0 }
 
                 ProviderCards(
                     cards: preferences.order.compactMap { provider in
@@ -42,7 +38,7 @@ private struct ProviderCards: View {
     private static let visibleCards = 3
 
     @Environment(QuotaModel.self) private var quotaModel
-    @State private var cardHeights: [Provider: CGFloat] = [:]
+    @State private var cardHeights = EnumMap<Provider, CGFloat> { _ in 0 }
 
     let cards: [(provider: Provider, usage: ProviderUsageSnapshot)]
     let heightLimit: CGFloat
@@ -50,7 +46,7 @@ private struct ProviderCards: View {
     var body: some View {
         let leading = cards.prefix(Self.visibleCards)
         let visibleHeight =
-            leading.compactMap { cardHeights[$0.provider] }.reduce(0, +)
+            leading.reduce(0) { $0 + cardHeights[$1.provider] }
             + PanelLayout.gap * CGFloat(max(leading.count, 1)) + PanelLayout.pageIndicatorInset
 
         ScrollView {
@@ -66,11 +62,7 @@ private struct ProviderCards: View {
                             QuotaSection(provider: quota)
                         }
                     }
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.height
-                    } action: { height in
-                        cardHeights[card.provider] = height
-                    }
+                    .onGeometryChange(for: CGFloat.self, of: \.size.height) { cardHeights[card.provider] = $0 }
                 }
             }
             .motionAnimation(.smooth(duration: 0.25), value: quotaModel.statuses)

@@ -33,10 +33,10 @@ struct PanelPager: View {
                         case .usage:
                             UsagePage(maxHeight: maxHeight)
                                 .fixedSize(horizontal: false, vertical: true)
-                                .onGeometryChange(for: CGFloat.self) { proxy in
-                                    proxy.size.height.rounded()
-                                } action: { height in
-                                    usageHeight = height
+                                .onGeometryChange(for: CGFloat.self) {
+                                    $0.size.height.rounded()
+                                } action: {
+                                    usageHeight = $0
                                 }
                         case .activity:
                             ActivityPage(isShown: shown == .activity)
@@ -144,7 +144,7 @@ private struct PanelPageIndicator: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(page.accessibilityLabel)
-                .accessibilityValue(isShown ? "Current page" : "")
+                .accessibilityAddTraits(isShown ? .isSelected : [])
             }
         }
         .padding(.horizontal, 4)

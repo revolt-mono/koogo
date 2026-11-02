@@ -23,11 +23,7 @@ struct PanelView: View {
             PanelToolbar()
                 .padding(.horizontal, PanelLayout.inset)
                 .padding(.top, 16)
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { height in
-                    toolbarHeight = height
-                }
+                .onGeometryChange(for: CGFloat.self, of: \.size.height) { toolbarHeight = $0 }
 
             PanelPager(maxHeight: (NSScreen.main?.visibleFrame.height ?? .infinity) - toolbarHeight - Self.toolbarGap)
         }
