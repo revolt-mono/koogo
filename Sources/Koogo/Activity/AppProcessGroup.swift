@@ -5,6 +5,8 @@ import os
 /// cpu and gpu times accumulate since launch; scan differences yield load for each user process.
 struct ProcessRecord: Sendable {
     let identity: ProcessIdentity
+    /// exec keeps the identity but renews the version.
+    let pidVersion: Int32
     let parentPID: pid_t
     let responsiblePID: pid_t
     let executablePath: String
@@ -86,7 +88,7 @@ struct AppProcessGroup: Identifiable, Sendable {
     static func heaviest(
         in scan: ProcessScan,
         since previous: ProcessScan,
-        identity: (pid_t) -> AppIdentity?
+        identity: (ProcessRecord) -> AppIdentity?
     ) -> [AppProcessGroup] {
         let elapsed = scan.taken - previous.taken
         let earlier = Dictionary(previous.records.map { ($0.pid, $0) }) { _, last in last }
@@ -104,7 +106,7 @@ struct AppProcessGroup: Identifiable, Sendable {
             .map { group in
                 let leader =
                     group.members.first { $0.pid == group.id } ?? group.members.min { $0.launched < $1.launched }!
-                let app = identity(leader.pid) ?? AppIdentity(executablePath: leader.executablePath)
+                let app = identity(leader) ?? AppIdentity(executablePath: leader.executablePath)
                 return AppProcessGroup(
                     id: group.id,
                     name: app.name,
@@ -151,29 +153,40 @@ extension ProcessScan {
     }()
     private static let absoluteTimeZero = SuspendingClock.now - duration(ofTicks: mach_absolute_time())
 
-    static func read() throws -> ProcessScan {
+    /// a record of `earlier` holds while its pid version does, so a path stays as exec saw it, like the kernel's
+    /// process name. a kept responsibility also needs the responsible process's record to hold, since the kernel hands
+    /// a process back to itself once that one exits.
+    static func read(after earlier: ProcessScan? = nil) throws -> ProcessScan {
         guard let pids = LibProc.currentUserPIDs() else { throw ActivityReadFailure.processes }
         let taken = SuspendingClock.now
         let gpuTimes = GPULoad.timePerProcess()
-        return ProcessScan(records: pids.compactMap { record($0, gpuTime: gpuTimes[$0] ?? .zero) }, taken: taken)
-    }
-
-    private static func record(_ pid: pid_t, gpuTime: Duration) -> ProcessRecord? {
-        guard
-            let usage = LibProc.resourceUsage(of: pid),
-            let info = LibProc.bsdInfo(of: pid),
-            let executablePath = LibProc.executablePath(of: pid)
-        else { return nil }
-        let responsible = responsiblePID?(pid) ?? pid
-        return ProcessRecord(
-            identity: ProcessIdentity(pid: pid, startTicks: usage.ri_proc_start_abstime),
-            parentPID: pid_t(info.pbi_ppid),
-            responsiblePID: responsible > 0 ? responsible : pid,
-            executablePath: executablePath,
-            launched: absoluteTimeZero + duration(ofTicks: usage.ri_proc_start_abstime),
-            footprint: usage.ri_phys_footprint,
-            cpuTime: duration(ofTicks: usage.ri_user_time + usage.ri_system_time),
-            gpuTime: gpuTime
+        // zombies stay listed until reaped, but their bsd info no longer reads.
+        let running = pids.compactMap { pid in LibProc.bsdInfo(of: pid).map { (pid: pid, bsd: $0) } }
+        let versions = Dictionary(running.map { ($0.pid, $0.bsd.pidVersion) }) { _, last in last }
+        let earlier = Dictionary(earlier?.records.map { ($0.pid, $0) } ?? []) { _, last in last }
+        let unchanged = { (pid: pid_t) in earlier[pid].flatMap { $0.pidVersion == versions[pid] ? $0 : nil } }
+        return ProcessScan(
+            records: running.compactMap { pid, bsd in
+                guard let usage = LibProc.resourceUsage(of: pid) else { return nil }
+                let image = unchanged(pid)
+                guard let executablePath = image?.executablePath ?? LibProc.executablePath(of: pid) else {
+                    return nil
+                }
+                let kept = image.flatMap { unchanged($0.responsiblePID)?.pid }
+                let responsible = kept ?? responsiblePID?(pid) ?? pid
+                return ProcessRecord(
+                    identity: ProcessIdentity(pid: pid, startTicks: usage.ri_proc_start_abstime),
+                    pidVersion: bsd.pidVersion,
+                    parentPID: pid_t(bsd.info.pbi_ppid),
+                    responsiblePID: responsible > 0 ? responsible : pid,
+                    executablePath: executablePath,
+                    launched: absoluteTimeZero + duration(ofTicks: usage.ri_proc_start_abstime),
+                    footprint: usage.ri_phys_footprint,
+                    cpuTime: duration(ofTicks: usage.ri_user_time + usage.ri_system_time),
+                    gpuTime: gpuTimes[pid] ?? .zero
+                )
+            },
+            taken: taken
         )
     }
 

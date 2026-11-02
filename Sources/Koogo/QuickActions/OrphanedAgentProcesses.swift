@@ -72,7 +72,7 @@ struct OrphanedAgentProcesses: Sendable {
 
     private static func orphanedAgentProcess(_ pid: pid_t) -> OrphanedAgentProcess? {
         guard
-            let info = LibProc.bsdInfo(of: pid),
+            let info = LibProc.bsdInfo(of: pid)?.info,
             let executablePath = LibProc.executablePath(of: pid),
             let identity = LibProc.identity(of: pid)
         else { return nil }

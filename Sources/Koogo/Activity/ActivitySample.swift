@@ -8,8 +8,8 @@ struct ActivityCounters: Sendable {
     let ticks: CPUTicks
     let processes: ProcessScan
 
-    static func read() throws -> ActivityCounters {
-        ActivityCounters(ticks: try CPUTicks.read(), processes: try ProcessScan.read())
+    static func read(after earlier: ActivityCounters?) throws -> ActivityCounters {
+        ActivityCounters(ticks: try CPUTicks.read(), processes: try ProcessScan.read(after: earlier?.processes))
     }
 }
 
@@ -27,17 +27,27 @@ actor ActivitySampler {
     private static let countersExpireAfter: Duration = .seconds(10)
 
     private var counters: ActivityCounters?
+    /// launch services answers for the latest groups' leaders by pid version; a process that is not yet a registered
+    /// app is asked again.
+    private var apps: [Int32: AppIdentity] = [:]
 
     func sample() async throws -> ActivitySample {
         let previous: ActivityCounters
         if let counters, SuspendingClock.now - counters.processes.taken < Self.countersExpireAfter {
             previous = counters
         } else {
-            previous = try ActivityCounters.read()
+            previous = try ActivityCounters.read(after: counters)
             try await Task.sleep(for: .milliseconds(250))
         }
-        let current = try ActivityCounters.read()
+        let current = try ActivityCounters.read(after: previous)
         counters = current
+        var leaders: [Int32: AppIdentity] = [:]
+        let processes = AppProcessGroup.heaviest(in: current.processes, since: previous.processes) { leader in
+            let app = apps[leader.pidVersion] ?? AppIdentity.running(leader.pid)
+            leaders[leader.pidVersion] = app
+            return app
+        }
+        apps = leaders
         return ActivitySample(
             taken: current.processes.taken,
             cpu: CPULoad(from: previous.ticks, to: current.ticks),
@@ -45,11 +55,7 @@ actor ActivitySampler {
             memory: try MemoryUsage.read(),
             gpu: GPULoad.read(),
             battery: BatteryState.read(),
-            processes: AppProcessGroup.heaviest(
-                in: current.processes,
-                since: previous.processes,
-                identity: AppIdentity.running
-            )
+            processes: processes
         )
     }
 }

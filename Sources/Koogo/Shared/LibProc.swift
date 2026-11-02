@@ -39,10 +39,16 @@ enum LibProc {
         }
     }
 
-    static func bsdInfo(of pid: pid_t) -> proc_bsdinfo? {
-        var info = proc_bsdinfo()
-        let read = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size))
-        return read > 0 ? info : nil
+    /// the kernel numbers each process image from one counter, so a pid version is unique among running processes
+    /// and changes on exec, as audit tokens rely on. the public headers omit this `PROC_PIDT_BSDINFOWITHUNIQID` flavor;
+    /// it appends a 56-byte `proc_uniqidentifierinfo` whose version follows a uuid and two unique ids.
+    static func bsdInfo(of pid: pid_t) -> (info: proc_bsdinfo, pidVersion: Int32)? {
+        let infoSize = MemoryLayout<proc_bsdinfo>.size
+        let size = infoSize + 56
+        return withUnsafeTemporaryAllocation(byteCount: size, alignment: 8) { buffer in
+            guard proc_pidinfo(pid, 18, 0, buffer.baseAddress, Int32(size)) == size else { return nil }
+            return (buffer.load(as: proc_bsdinfo.self), buffer.load(fromByteOffset: infoSize + 32, as: Int32.self))
+        }
     }
 
     static func resourceUsage(of pid: pid_t) -> rusage_info_v4? {
