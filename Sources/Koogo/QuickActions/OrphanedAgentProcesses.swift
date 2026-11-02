@@ -12,7 +12,8 @@ struct OrphanedAgentProcess: Sendable {
         guard
             terminalDevice == Self.noTerminal,
             parentPID != ProcessInfo.processInfo.processIdentifier,
-            let provider = Provider.allCases.first(where: { $0.ownsProcess(at: executablePath) })
+            case let executable = URL(filePath: executablePath),
+            let provider = Provider.allCases.first(where: { $0.ownsProcess(executable) })
         else { return nil }
         self.identity = identity
         self.provider = provider
@@ -20,8 +21,7 @@ struct OrphanedAgentProcess: Sendable {
 }
 
 private extension Provider {
-    func ownsProcess(at executablePath: String) -> Bool {
-        let executable = URL(filePath: executablePath)
+    func ownsProcess(_ executable: URL) -> Bool {
         let name = executable.lastPathComponent
         return switch self {
         case .codex: name == "codex"

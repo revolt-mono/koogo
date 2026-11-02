@@ -1,8 +1,9 @@
 import AppKit
-import Combine
 import SwiftUI
 
 struct QuickActionsPopoverContent: View {
+    private static let volumes = NSWorkspace.shared.notificationCenter
+
     @State private var systemAppearance = QuickActionModel(perform: SystemAppearance.toggle)
     @State private var diskImages = QuickActionModel(scan: MountedDiskImages.mounted) { try await $0.eject() }
     @State private var agentProcesses = QuickActionModel(scan: OrphanedAgentProcesses.running) {
@@ -48,12 +49,10 @@ struct QuickActionsPopoverContent: View {
                         QuickActionCopy(title: "Eject Failed", detail: message)
                     }
                 }
-                .onReceive(
-                    Publishers.Merge(
-                        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification),
-                        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)
-                    )
-                ) { _ in
+                .onReceive(Self.volumes.publisher(for: NSWorkspace.didMountNotification)) { _ in
+                    diskImages.refresh()
+                }
+                .onReceive(Self.volumes.publisher(for: NSWorkspace.didUnmountNotification)) { _ in
                     diskImages.refresh()
                 }
 
