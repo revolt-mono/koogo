@@ -11,7 +11,7 @@ struct RollingText: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
-            ForEach(Array(Self.runs(of: text).enumerated()), id: \.offset) { _, run in
+            ForEach(Self.runs(of: text).enumerated(), id: \.offset) { _, run in
                 Text(run)
                     .id(run)
                     .transition(run.first?.isNumber == true ? Self.roll : .opacity)

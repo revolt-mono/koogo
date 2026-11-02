@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// swift charts and drawing groups incur large offscreen graphics allocations inside the glass panel.
+/// interpolates a series whose length can change; values one side lacks animate from zero.
+/// the charts draw shapes over this because swift charts and drawing groups incur large offscreen graphics
+/// allocations inside the glass panel.
 struct AnimatableValues: VectorArithmetic {
     private(set) var values: [Double]
 
@@ -15,7 +17,9 @@ struct AnimatableValues: VectorArithmetic {
     }
 
     mutating func scale(by factor: Double) {
-        values = values.map { $0 * factor }
+        for index in values.indices {
+            values[index] *= factor
+        }
     }
 
     static func + (lhs: Self, rhs: Self) -> Self {

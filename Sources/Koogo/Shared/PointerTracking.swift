@@ -96,9 +96,7 @@ private struct ToolTipRect: NSViewRepresentable {
     let text: String
 
     func makeNSView(context _: Context) -> NSView {
-        let view = NSView()
-        view.toolTip = text
-        return view
+        NSView()
     }
 
     func updateNSView(_ view: NSView, context _: Context) {
