@@ -40,10 +40,9 @@ extension UpdateModel: @MainActor SPUStandardUserDriverDelegate {
         forUpdate _: SUAppcastItem,
         state _: SPUUserUpdateState
     ) {
-        guard !handleShowingUpdate else {
-            return
+        if !handleShowingUpdate {
+            isUpdateAvailable = true
         }
-        isUpdateAvailable = true
     }
 
     func standardUserDriverDidReceiveUserAttention(forUpdate _: SUAppcastItem) {
