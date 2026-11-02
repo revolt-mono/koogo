@@ -1,7 +1,15 @@
-func piAssistant(id: String, parentID: String?, model: String, usage: String) -> String {
+import Foundation
+
+func piAssistant(
+    id: String,
+    parentID: String?,
+    model: String,
+    usage: String,
+    requestedAt date: Date = usageTestTimestamp
+) -> String {
     let parent = parentID.map { "\"\($0)\"" } ?? "null"
     return """
-        {"type":"message","id":"\(id)","parentId":\(parent),"timestamp":"\(usageTestTimestampText)","message":{"role":"assistant","provider":"provider","model":"\(model)","timestamp":\(Int(usageTestTimestamp.timeIntervalSince1970 * 1_000)),"usage":\(usage)}}
+        {"type":"message","id":"\(id)","parentId":\(parent),"timestamp":"\(usageTestTimestampText)","message":{"role":"assistant","provider":"provider","model":"\(model)","timestamp":\(Int(date.timeIntervalSince1970 * 1_000)),"usage":\(usage)}}
         """
 }
 

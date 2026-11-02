@@ -9,7 +9,7 @@ struct PiUsageLogParser: UsageLogParser {
         }
         return .event(
             UsageEvent(
-                id: .piAgent(entryID: entry.id),
+                id: .piAgent(entryID: entry.id, timestamp: billed.timestamp),
                 record: UsageRecord(
                     timestamp: billed.timestamp,
                     processedTokens: billed.processedTokens,
@@ -33,6 +33,8 @@ private struct PiEntry {
         var id: JSONValue?
         var timestamp: JSONValue?
         var message: JSONValue?
+        var provider: JSONValue?
+        var model: JSONValue?
         var usage: JSONValue?
         while let member = try record.next() {
             switch member.key {
@@ -40,6 +42,8 @@ private struct PiEntry {
             case "id": id = member.value
             case "timestamp": timestamp = member.value
             case "message": message = member.value
+            case "provider": provider = member.value
+            case "model": model = member.value
             case "usage": usage = member.value
             default: break
             }
@@ -59,6 +63,16 @@ private struct PiEntry {
             billed = try usage?.nonNull.map {
                 try PiBilledEntry(usage: $0, model: nil, timestamp: timestampText.flatMap(Date.init(iso8601:)))
             }
+        // usage entries bill model calls outside the conversation, such as cache warming.
+        case "usage":
+            guard let usage, let providerName = try provider?.string(), let modelName = try model?.string() else {
+                throw MalformedUsageRecord()
+            }
+            billed = try PiBilledEntry(
+                usage: usage,
+                model: PiModelCatalog.modelID(provider: providerName, model: modelName),
+                timestamp: timestampText.flatMap(Date.init(iso8601:))
+            )
         default:
             billed = nil
         }

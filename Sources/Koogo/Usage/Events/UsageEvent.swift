@@ -73,8 +73,12 @@ struct UsageEventID: Hashable, Comparable, Sendable {
         }
     }
 
-    static func piAgent(entryID: some Collection<UInt8>) -> Self {
-        Self(.piAgent) { $0.combine(text: entryID) }
+    /// pi entry ids are eight hex digits unique only within a session; forks copy entries with their timestamps.
+    static func piAgent(entryID: some Collection<UInt8>, timestamp: Date) -> Self {
+        Self(.piAgent) {
+            $0.combine(text: entryID)
+            $0.combine(timestamp)
+        }
     }
 
     /// grok forks preserve both fields; resumed sessions can reuse an event id at a later time.

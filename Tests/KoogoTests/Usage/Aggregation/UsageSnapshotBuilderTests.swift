@@ -25,7 +25,9 @@ final class UsageSnapshotBuilderTests: XCTestCase {
             model: nil
         )
         let snapshot = usageSnapshot(
-            events: ["1", "2"].map { UsageEvent(id: .piAgent(entryID: $0.utf8), record: record) }
+            events: ["1", "2"].map {
+                UsageEvent(id: .piAgent(entryID: $0.utf8, timestamp: record.timestamp), record: record)
+            }
         )
         XCTAssertEqual(snapshot.summary.last7Days.current.processedTokens, .max)
         XCTAssertEqual(snapshot.summary.last7Days.current.cost, Picodollars(.max))

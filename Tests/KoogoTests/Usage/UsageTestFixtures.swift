@@ -140,7 +140,7 @@ func usageEvent(
         switch provider {
         case .codex: .codex(responseID: "response-\(id)".utf8)
         case .claude: .claude(messageID: "message-\(id)".utf8, requestID: "request-\(id)".utf8)
-        case .piAgent: .piAgent(entryID: "entry-\(id)".utf8)
+        case .piAgent: .piAgent(entryID: "entry-\(id)".utf8, timestamp: eventDate)
         case .grok: .grok(eventID: "event-\(id)".utf8, timestampMilliseconds: grokMilliseconds(eventDate))
         }
     return UsageEvent(id: eventID, record: record)

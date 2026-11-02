@@ -53,6 +53,18 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(events.map(\.record.cost.usd).reduce(0, +), Decimal(string: "0.06"))
     }
 
+    func testParserBillsUsageEntriesUnderTheirModel() throws {
+        var parser = PiUsageLogParser()
+        let warm = """
+            {"type":"usage","id":"warm","parentId":"first","timestamp":"2026-08-25T12:00:00.000Z","kind":"cache_warm","provider":"provider","model":"model-b","usage":\(piUsage(input: 1, cacheRead: 90, cost: "0.009"))}
+            """
+        let event = try XCTUnwrap(parse(warm, with: &parser)?.event)
+
+        XCTAssertEqual(event.record.processedTokens, 91)
+        XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.009"))
+        XCTAssertEqual(event.record.model, ModelID("provider/model-b"))
+    }
+
     func testParserUsesProviderTotalTokens() throws {
         var parser = PiUsageLogParser()
         let log = """
@@ -171,6 +183,28 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             XCTAssertEqual(snapshot.todayTokens(.piAgent), 280)
             XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd, Decimal(string: "0.28"))
         }
+    }
+
+    func testPipelineKeepsUnrelatedSessionsThatReuseAnEntryID() async throws {
+        let usage = piUsage(input: 10, cost: "0.01")
+        try workspace.write(
+            piAssistant(id: "shared", parentID: nil, model: "model-a", usage: usage) + "\n",
+            to: workspace.piSessions.appending(path: "first.jsonl")
+        )
+        try workspace.write(
+            piAssistant(
+                id: "shared",
+                parentID: nil,
+                model: "model-a",
+                usage: usage,
+                requestedAt: usageTestTimestamp.addingTimeInterval(-60)
+            ) + "\n",
+            to: workspace.piSessions.appending(path: "second.jsonl")
+        )
+
+        let snapshot = await makePipeline().run(at: usageTestTimestamp, providers: [.piAgent]).snapshot
+
+        XCTAssertEqual(snapshot.todayTokens(.piAgent), 20)
     }
 
     private func writeModelCatalog() throws {

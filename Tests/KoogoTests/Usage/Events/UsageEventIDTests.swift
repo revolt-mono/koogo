@@ -9,7 +9,8 @@ final class UsageEventIDTests: XCTestCase {
             .claude(messageID: "a".utf8, requestID: "bc".utf8),
             .claude(messageID: "c".utf8, requestID: "ab".utf8),
             .codex(responseID: "ab".utf8),
-            .piAgent(entryID: "ab".utf8),
+            .piAgent(entryID: "ab".utf8, timestamp: usageTestTimestamp),
+            .piAgent(entryID: "ab".utf8, timestamp: usageTestTimestamp + 1),
             .grok(eventID: "ab".utf8, timestampMilliseconds: 1),
         ]
 

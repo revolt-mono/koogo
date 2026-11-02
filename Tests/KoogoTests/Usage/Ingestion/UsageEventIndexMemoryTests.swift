@@ -13,7 +13,9 @@ final class UsageEventIndexMemoryTests: XCTestCase {
 
         index.update { batch in
             for number in 0..<50_000 {
-                batch.insert(UsageEvent(id: .piAgent(entryID: String(number).utf8), record: usage))
+                batch.insert(
+                    UsageEvent(id: .piAgent(entryID: String(number).utf8, timestamp: usage.timestamp), record: usage)
+                )
             }
         }
 

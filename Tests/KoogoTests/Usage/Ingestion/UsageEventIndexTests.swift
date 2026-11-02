@@ -22,7 +22,7 @@ final class UsageEventIndexTests: XCTestCase {
     func testIdenticalCopiesKeepTheEarliestTimestamp() {
         let ids: [UsageEventID] = [
             .codex(responseID: "response".utf8),
-            .piAgent(entryID: "entry".utf8),
+            .piAgent(entryID: "entry".utf8, timestamp: usageTestTimestamp),
             .grok(eventID: "event".utf8, timestampMilliseconds: grokMilliseconds(usageTestTimestamp)),
         ]
 
