@@ -1,7 +1,8 @@
 @preconcurrency import ApplicationServices
+import Carbon.HIToolbox
 import os
 
-enum ScrollRewrite: Equatable {
+enum ScrollRewrite {
     case deliver
     case drop
 }
@@ -59,10 +60,7 @@ final class ScrollRewriter {
             Self.write(step, to: event)
             return .deliver
         }
-        guard let optionStrip else {
-            return .drop
-        }
-        optionStrip.post(step, from: event, using: post)
+        optionStrip?.post(step, from: event, using: post)
         return .drop
     }
 
@@ -92,11 +90,11 @@ final class ScrollRewriter {
 }
 
 private struct OptionStrip {
-    private static let leftOptionFlag = CGEventFlags(rawValue: 0x20)
-    private static let rightOptionFlag = CGEventFlags(rawValue: 0x40)
+    private static let leftOptionFlag = CGEventFlags(rawValue: UInt64(NX_DEVICELALTKEYMASK))
+    private static let rightOptionFlag = CGEventFlags(rawValue: UInt64(NX_DEVICERALTKEYMASK))
     private static let allOptionFlags: CGEventFlags = [.maskAlternate, leftOptionFlag, rightOptionFlag]
-    private static let leftOptionKey = CGKeyCode(0x3A)
-    private static let rightOptionKey = CGKeyCode(0x3D)
+    private static let leftOptionKey = CGKeyCode(kVK_Option)
+    private static let rightOptionKey = CGKeyCode(kVK_RightOption)
 
     private let vertical: CGEvent
     private let horizontal: CGEvent

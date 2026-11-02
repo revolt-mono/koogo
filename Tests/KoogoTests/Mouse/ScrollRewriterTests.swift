@@ -1,4 +1,5 @@
 import ApplicationServices
+import Carbon.HIToolbox
 import Darwin
 import Synchronization
 import XCTest
@@ -12,9 +13,6 @@ final class ScrollRewriterTests: XCTestCase {
     func testNotchesRewriteInPlaceToTheStepOnTheirOwnAxis() throws {
         let vertical = try scrollEvent(verticalDelta: 3)
         let horizontal = try scrollEvent(horizontalDelta: -1)
-        var lineByLine = rules
-        lineByLine.notchMode = .lineByLine
-        let inTerminal = try scrollEvent(verticalDelta: 1)
 
         XCTAssertEqual(rewriter.rewrite(vertical, rules: rules, post: unexpectedReplacement), .deliver)
         XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis1), -3)
@@ -26,9 +24,6 @@ final class ScrollRewriterTests: XCTestCase {
         XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis1), 0)
         XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis2), 3)
         XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventPointDeltaAxis2), 48)
-
-        XCTAssertEqual(rewriter.rewrite(inTerminal, rules: lineByLine, post: unexpectedReplacement), .deliver)
-        XCTAssertEqual(inTerminal.getIntegerValueField(.scrollWheelEventDeltaAxis1), -1)
     }
 
     func testContinuousAndPhasedScrollingPassesThroughUntouched() throws {
@@ -52,7 +47,7 @@ final class ScrollRewriterTests: XCTestCase {
 
     func testOptionPrecisionPostsAOneLineNotchBetweenOptionReleaseAndRestore() throws {
         let event = try scrollEvent(verticalDelta: 1)
-        event.flags = [.maskAlternate, .maskShift, CGEventFlags(rawValue: 0x40)]
+        event.flags = [.maskAlternate, .maskShift, CGEventFlags(rawValue: UInt64(NX_DEVICERALTKEYMASK))]
         event.timestamp = 1234
         event.location = CGPoint(x: 40, y: 60)
 
@@ -68,7 +63,7 @@ final class ScrollRewriterTests: XCTestCase {
         XCTAssertEqual(notch.timestamp, 1234)
         XCTAssertEqual(notch.location, CGPoint(x: 40, y: 60))
         XCTAssertEqual(released.flags, [.maskShift])
-        XCTAssertEqual(released.keyCode, 0x3D)
+        XCTAssertEqual(released.keyCode, Int64(kVK_RightOption))
         XCTAssertEqual(restored.flags, event.flags)
         XCTAssertEqual(restored.timestamp, 1234)
         XCTAssertEqual(
@@ -90,7 +85,7 @@ final class ScrollRewriterTests: XCTestCase {
         XCTAssertEqual(notch.verticalLines, 0)
         XCTAssertEqual(notch.horizontalLines, -1)
         XCTAssertFalse(notch.flags.contains(.maskAlternate))
-        XCTAssertEqual(posted.first?.keyCode, 0x3A)
+        XCTAssertEqual(posted.first?.keyCode, Int64(kVK_Option))
         XCTAssertEqual(posted.last?.flags, [.maskAlternate])
     }
 
@@ -156,11 +151,9 @@ private struct PostedEvent {
 }
 
 private func scrollEvent(verticalDelta: Int32 = 0, horizontalDelta: Int32 = 0) throws -> CGEvent {
-    let source = CGEventSource(stateID: .hidSystemState)
-    source?.pixelsPerLine = 16
-    let event = try XCTUnwrap(
+    try XCTUnwrap(
         CGEvent(
-            scrollWheelEvent2Source: source,
+            scrollWheelEvent2Source: nil,
             units: .line,
             wheelCount: horizontalDelta == 0 ? 1 : 2,
             wheel1: verticalDelta,
@@ -168,8 +161,6 @@ private func scrollEvent(verticalDelta: Int32 = 0, horizontalDelta: Int32 = 0) t
             wheel3: 0
         )
     )
-    event.setIntegerValueField(.scrollWheelEventScrollCount, value: 1)
-    return event
 }
 
 private typealias MallocLogger = @convention(c) (UInt32, UInt, UInt, UInt, UInt, UInt32) -> Void

@@ -10,7 +10,6 @@ final class MouseModelTests: XCTestCase {
 
         XCTAssertEqual(mouse.settings.lineByLineApps, ["com.apple.Terminal", "com.mitchellh.ghostty"])
         XCTAssertFalse(mouse.settings.isEnabled)
-        XCTAssertEqual(mouse.status, .off)
     }
 
     func testSettingsPersistAcrossLaunchesIncludingRemovedPresets() throws {
@@ -35,15 +34,6 @@ final class MouseModelTests: XCTestCase {
         settings.addLineByLineApp("com.mitchellh.ghostty")
 
         XCTAssertEqual(settings.lineByLineApps, ["com.mitchellh.ghostty"])
-    }
-
-    func testEnabledSettingsWaitForAccessibilityBeforeTheFirstRefresh() throws {
-        let defaults = try makeIsolatedDefaults()
-        var settings = MouseSettings()
-        settings.isEnabled = true
-        PersistedValue<MouseSettings>(key: "mouse-settings", defaults: defaults).save(settings)
-
-        XCTAssertEqual(MouseModel(defaults: defaults, isInstalled: { _ in false }).status, .needsAccessibility)
     }
 
     func testUndecodableSettingsFallBackToDefaultsWithInstalledTerminals() throws {

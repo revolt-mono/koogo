@@ -5,7 +5,8 @@ import Observation
 import Synchronization
 import os
 
-/// the main actor publishes atomic rules; the tap thread reads without locks, lookups, or allocation.
+/// the main actor publishes atomic rules; the tap thread handles events without locks, lookups, or allocation,
+/// and only a tap that macOS disabled hops back to the main actor.
 @MainActor
 @Observable
 final class EventTap {
@@ -79,18 +80,14 @@ final class EventTap {
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
             CFRunLoopRun()
             Task { @MainActor in
-                stopped()
+                Logger.mouse.warning("event tap stopped")
+                state = .notInstalled
             }
         }
         thread.name = "Koogo Event Tap"
         thread.qualityOfService = .userInteractive
         thread.start()
         return port
-    }
-
-    private func stopped() {
-        Logger.mouse.warning("event tap stopped")
-        state = .notInstalled
     }
 
     private func resume() {
@@ -136,8 +133,8 @@ final class EventTap {
     }
 }
 
-/// core graphics numbers mouse button 4 as 3.
 private struct LookUpShortcut {
+    /// core graphics numbers mouse button 4 as 3.
     static let buttonNumber: Int64 = 3
     private static let keyCode = CGKeyCode(kVK_ANSI_D)
 

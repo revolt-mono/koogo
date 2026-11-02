@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// a stopped tap with granted trust usually needs the stale grant renewed in system settings.
 struct AccessibilityPermissionRow: View {
     private static let accessibilityPane = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
@@ -11,12 +10,11 @@ struct AccessibilityPermissionRow: View {
 
     var body: some View {
         LabeledContent {
-            switch (mouse.isTrusted, mouse.status) {
-            case (false, _):
+            if !mouse.isTrusted {
                 Button("Grant", action: AccessibilityPermission.request)
-            case (true, .stopped):
+            } else if mouse.isTapStopped {
                 Button("Re-grant") { openURL(Self.accessibilityPane) }
-            case (true, _):
+            } else {
                 Text("Granted")
             }
         } label: {

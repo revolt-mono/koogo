@@ -1,13 +1,6 @@
 import AppKit
 import Observation
 
-enum MouseStatus {
-    case off
-    case needsAccessibility
-    case active
-    case stopped
-}
-
 /// app-scoped; started once by the app at launch, with observers and tap lasting until process exit.
 @MainActor
 @Observable
@@ -15,7 +8,6 @@ final class MouseModel {
     private let storage: PersistedValue<MouseSettings>
     private let tap = EventTap()
     private(set) var isTrusted = false
-    @ObservationIgnored private var frontmostApp: String?
 
     var settings: MouseSettings {
         didSet {
@@ -30,13 +22,9 @@ final class MouseModel {
         }
     }
 
-    var status: MouseStatus {
-        switch (settings.isEnabled, isTrusted, tap.isRunning) {
-        case (false, _, _): .off
-        case (true, false, _): .needsAccessibility
-        case (true, true, true): .active
-        case (true, true, false): .stopped
-        }
+    /// an enabled, trusted tap that is not running usually needs its stale grant renewed.
+    var isTapStopped: Bool {
+        settings.isEnabled && isTrusted && !tap.isRunning
     }
 
     init(defaults: UserDefaults, isInstalled: (String) -> Bool) {
@@ -59,18 +47,16 @@ final class MouseModel {
                 named: NSWorkspace.didActivateApplicationNotification
             )
             for await _ in activations {
-                frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
                 applyRules()
             }
         }
         isTrusted = AccessibilityPermission.isTrusted
-        frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         applyRules()
     }
 
     private func applyRules() {
         if settings.isEnabled, isTrusted {
-            tap.run(InputRules(settings, frontmostApp: frontmostApp))
+            tap.run(InputRules(settings, frontmostApp: NSWorkspace.shared.frontmostApplication?.bundleIdentifier))
         } else {
             tap.pause()
         }

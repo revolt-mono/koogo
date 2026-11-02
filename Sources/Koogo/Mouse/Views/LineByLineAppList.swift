@@ -53,9 +53,11 @@ struct LineByLineAppList: View {
             guard case .success(let apps) = $0 else {
                 return
             }
+            var settings = mouse.settings
             for bundleID in apps.compactMap({ Bundle(url: $0)?.bundleIdentifier }) {
-                mouse.settings.addLineByLineApp(bundleID)
+                settings.addLineByLineApp(bundleID)
             }
+            mouse.settings = settings
         }
         .fileDialogDefaultDirectory(URL(filePath: "/Applications", directoryHint: .isDirectory))
     }
