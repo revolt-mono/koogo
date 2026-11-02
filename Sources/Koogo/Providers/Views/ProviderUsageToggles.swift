@@ -8,6 +8,7 @@ struct ProviderUsageToggles: View {
     @State private var dragged: Provider?
 
     var body: some View {
+        @Bindable var preferences = preferences
         ForEach(preferences.order, id: \.self) { provider in
             HStack(spacing: 10) {
                 Image(systemName: "square.grid.4x3.fill")
@@ -15,13 +16,7 @@ struct ProviderUsageToggles: View {
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
 
-                Toggle(
-                    provider.title,
-                    isOn: Binding(
-                        get: { preferences[usage: provider] },
-                        set: { preferences[usage: provider] = $0 }
-                    )
-                )
+                Toggle(provider.title, isOn: $preferences[usage: provider])
             }
             .contentShape(.rect)
             .onDrag {
