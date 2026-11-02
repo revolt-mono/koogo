@@ -125,12 +125,12 @@ private struct BatterySection: View {
     }
 
     private var supply: String {
-        switch state.supply {
-        case .charging(let timeToFull?):
-            "charging · \(timeToFull.formatted(.displayUnits(allowed: [.hours, .minutes]))) to full"
+        let estimate = { (time: Duration) in time.formatted(.displayUnits(allowed: [.hours, .minutes])) }
+        return switch state.supply {
+        case .charging(let timeToFull?): "charging · \(estimate(timeToFull)) to full"
         case .charging(nil): "charging"
         case .external: "on power"
-        case .discharging(let timeToEmpty?): "\(timeToEmpty.formatted(.displayUnits(allowed: [.hours, .minutes]))) left"
+        case .discharging(let timeToEmpty?): "\(estimate(timeToEmpty)) left"
         case .discharging(nil): "on battery"
         }
     }

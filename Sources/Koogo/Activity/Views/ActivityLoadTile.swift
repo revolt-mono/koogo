@@ -47,7 +47,7 @@ struct ActivityDetails: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ForEach(Array(details), id: \.key) { detail in
+            ForEach(details, id: \.key) { detail in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(detail.key)
                         .foregroundStyle(.secondary)

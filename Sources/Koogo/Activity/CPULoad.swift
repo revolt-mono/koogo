@@ -43,8 +43,8 @@ struct CPULoad: Sendable {
         let user = Double(next.user &- previous.user)
         let system = Double(next.system &- previous.system)
         let idle = Double(next.idle &- previous.idle)
-        let elapsed = user + system + idle
-        self.user = elapsed > 0 ? user / elapsed : 0
-        self.system = elapsed > 0 ? system / elapsed : 0
+        let elapsed = max(user + system + idle, 1)
+        self.user = user / elapsed
+        self.system = system / elapsed
     }
 }

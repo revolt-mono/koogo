@@ -80,8 +80,14 @@ final class AppProcessGroupTests: XCTestCase {
     func testOldestMemberNamesAGroupWhoseResponsibleProcessIsUnseen() {
         let scan = ProcessScan(
             records: [
-                record(pid: 52, responsiblePID: 9, path: "/usr/bin/python3", footprint: 1),
-                record(pid: 51, responsiblePID: 9, path: "/usr/local/bin/node", footprint: 1),
+                record(pid: 51, responsiblePID: 9, path: "/usr/bin/python3", footprint: 1),
+                record(
+                    pid: 52,
+                    responsiblePID: 9,
+                    path: "/usr/local/bin/node",
+                    footprint: 1,
+                    launched: start - .seconds(90)
+                ),
             ],
             taken: start
         )
@@ -144,11 +150,7 @@ final class AppProcessGroupTests: XCTestCase {
     func testTheRunningMachineMeasuresThisProcessAndRanksTheHeaviestGroups() throws {
         let before = try ProcessScan.read()
         let spinUntil = ContinuousClock.now + .milliseconds(300)
-        var spins = 0
-        while ContinuousClock.now < spinUntil {
-            spins += 1
-        }
-        XCTAssertGreaterThan(spins, 0)
+        while ContinuousClock.now < spinUntil {}
         let after = try ProcessScan.read()
 
         let earlier = try XCTUnwrap(before.records.first { $0.pid == getpid() })

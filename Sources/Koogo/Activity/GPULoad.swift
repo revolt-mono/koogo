@@ -13,34 +13,37 @@ struct GPULoad: Sendable {
 
     static func read() -> GPULoad? {
         guard let (name, registryID) = device else { return nil }
-        var load: GPULoad?
-        forEachAccelerator { accelerator in
-            var entryID: UInt64 = 0
-            guard
-                IORegistryEntryGetRegistryEntryID(accelerator, &entryID) == KERN_SUCCESS,
-                entryID == registryID,
-                let statistics = property(accelerator, "PerformanceStatistics") as? [String: Any],
-                let utilization = statistics["Device Utilization %"] as? Double,
-                let renderer = statistics["Renderer Utilization %"] as? Double,
-                let tiler = statistics["Tiler Utilization %"] as? Double
-            else { return }
-            let fraction = { (percent: Double) in min(max(percent / 100, 0), 1) }
-            load = GPULoad(
-                name: name,
-                utilization: fraction(utilization),
-                renderer: fraction(renderer),
-                tiler: fraction(tiler)
-            )
-        }
-        return load
+        let accelerator = IOServiceGetMatchingService(kIOMainPortDefault, IORegistryEntryIDMatching(registryID))
+        guard accelerator != 0 else { return nil }
+        defer { IOObjectRelease(accelerator) }
+        guard
+            let statistics = property(accelerator, "PerformanceStatistics") as? [String: Any],
+            let utilization = statistics["Device Utilization %"] as? Double,
+            let renderer = statistics["Renderer Utilization %"] as? Double,
+            let tiler = statistics["Tiler Utilization %"] as? Double
+        else { return nil }
+        let fraction = { (percent: Double) in min(max(percent / 100, 0), 1) }
+        return GPULoad(
+            name: name,
+            utilization: fraction(utilization),
+            renderer: fraction(renderer),
+            tiler: fraction(tiler)
+        )
     }
 
     static func timePerProcess() -> [pid_t: Duration] {
+        var accelerators: io_iterator_t = 0
+        guard
+            IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOAccelerator"), &accelerators)
+                == KERN_SUCCESS
+        else { return [:] }
+        defer { IOObjectRelease(accelerators) }
         var times: [pid_t: Duration] = [:]
-        forEachAccelerator { accelerator in
+        while case let accelerator = IOIteratorNext(accelerators), accelerator != 0 {
+            defer { IOObjectRelease(accelerator) }
             var clients: io_iterator_t = 0
             guard IORegistryEntryGetChildIterator(accelerator, kIOServicePlane, &clients) == KERN_SUCCESS else {
-                return
+                continue
             }
             defer { IOObjectRelease(clients) }
             while case let client = IOIteratorNext(clients), client != 0 {
@@ -56,19 +59,6 @@ struct GPULoad: Sendable {
             }
         }
         return times
-    }
-
-    private static func forEachAccelerator(_ body: (io_registry_entry_t) -> Void) {
-        var iterator: io_iterator_t = 0
-        guard
-            IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOAccelerator"), &iterator)
-                == KERN_SUCCESS
-        else { return }
-        defer { IOObjectRelease(iterator) }
-        while case let accelerator = IOIteratorNext(iterator), accelerator != 0 {
-            body(accelerator)
-            IOObjectRelease(accelerator)
-        }
     }
 
     private static func property(_ entry: io_registry_entry_t, _ key: String) -> Any? {

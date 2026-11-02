@@ -15,7 +15,7 @@ final class ActivityPageTests: XCTestCase {
         let host = NSHostingView(rootView: ActivityPage(isShown: true).environment(model))
         host.layoutSubtreeIfNeeded()
 
-        try await waitUntil { model.samples.count >= 3 }
+        try await waitUntil { model.cpuTrend.count >= 3 }
 
         host.rootView = ActivityPage(isShown: false).environment(model)
         host.layoutSubtreeIfNeeded()

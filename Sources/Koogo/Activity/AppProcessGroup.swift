@@ -66,11 +66,12 @@ struct AppProcessGroup: Identifiable, Sendable {
     let iconPath: String
     /// preorder under each parent, heaviest siblings first.
     let members: [AppProcessMember]
-    let footprint: UInt64
+
+    var footprint: UInt64 { members.reduce(0) { $0 + $1.footprint } }
     /// cpu cores used between scans; one busy core reads as 1.
-    let cpu: Double
+    var cpu: Double { members.reduce(0) { $0 + $1.cpu } }
     /// fraction of the sample span spent on the group's gpu work.
-    let gpu: Double
+    var gpu: Double { members.reduce(0) { $0 + $1.gpu } }
 
     func forceTerminate() {
         for member in members {
@@ -101,17 +102,14 @@ struct AppProcessGroup: Identifiable, Sendable {
             .sorted { ($1.footprint, $0.id) < ($0.footprint, $1.id) }
             .prefix(20)
             .map { group in
-                let leader = group.members.first { $0.pid == group.id } ?? group.members.min { $0.pid < $1.pid }!
-                let identity = identity(leader.pid) ?? AppIdentity(executablePath: leader.executablePath)
-                let members = nested(group.members, load: load)
+                let leader =
+                    group.members.first { $0.pid == group.id } ?? group.members.min { $0.launched < $1.launched }!
+                let app = identity(leader.pid) ?? AppIdentity(executablePath: leader.executablePath)
                 return AppProcessGroup(
                     id: group.id,
-                    name: identity.name,
-                    iconPath: identity.iconPath,
-                    members: members,
-                    footprint: group.footprint,
-                    cpu: members.reduce(0) { $0 + $1.cpu },
-                    gpu: members.reduce(0) { $0 + $1.gpu }
+                    name: app.name,
+                    iconPath: app.iconPath,
+                    members: nested(group.members, load: load)
                 )
             }
     }
