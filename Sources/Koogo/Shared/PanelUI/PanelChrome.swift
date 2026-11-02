@@ -7,24 +7,29 @@ enum PanelLayout {
 }
 
 struct PanelSection<Header: View, Content: View>: View {
-    @ViewBuilder let header: () -> Header
-    @ViewBuilder let content: () -> Content
+    @ViewBuilder let header: Header
+    @ViewBuilder let content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            header()
+            header
                 .padding(.horizontal, 6)
 
-            content()
-                .padding(12)
-                .background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            content
+                .panelCard()
         }
     }
 }
 
 extension PanelSection where Header == PanelSectionTitle {
-    init(_ title: String, subtitle: String? = nil, @ViewBuilder content: @escaping () -> Content) {
+    init(_ title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content) {
         self.init(header: { PanelSectionTitle(title: title, subtitle: subtitle) }, content: content)
+    }
+}
+
+extension View {
+    func panelCard() -> some View {
+        padding(12).background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

@@ -4,14 +4,14 @@ struct ProviderUsageCard<Accessory: View>: View {
     let provider: Provider
     let usage: ProviderUsageSnapshot
     let plan: String?
-    @ViewBuilder let accessory: () -> Accessory
+    @ViewBuilder let accessory: Accessory
 
     var body: some View {
         PanelSection {
             ProviderUsageHeader(provider: provider, plan: plan)
         } content: {
             VStack(spacing: 12) {
-                accessory()
+                accessory
 
                 DailyUsageChart(usage: usage.dailyLast30Days)
 
