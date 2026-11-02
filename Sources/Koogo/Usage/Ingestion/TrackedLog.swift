@@ -3,8 +3,7 @@ import Foundation
 protocol TrackedLog: Sendable {
     var events: UsageEventIndex { get }
     var tally: LogTally { get }
-    /// returns true when events or the tally may have changed.
-    mutating func sync(observed metadata: UsageFileMetadata) -> Bool
+    mutating func sync(observed metadata: UsageFileMetadata)
     mutating func discard(before windowStart: Date)
 }
 
@@ -18,16 +17,15 @@ struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
     init?(_ file: any LogFile, since windowStart: Date) {
         self.file = file
         self.windowStart = windowStart
-        guard read() != .unreadable else {
+        guard read() else {
             return nil
         }
     }
 
-    mutating func sync(observed metadata: UsageFileMetadata) -> Bool {
-        guard file.observe(metadata) else {
-            return false
+    mutating func sync(observed metadata: UsageFileMetadata) {
+        if file.observe(metadata) {
+            read()
         }
-        return read() == .readLines
     }
 
     mutating func discard(before windowStart: Date) {
@@ -36,7 +34,8 @@ struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
         tally.discard(before: windowStart)
     }
 
-    private mutating func read() -> FileRead {
+    @discardableResult
+    private mutating func read() -> Bool {
         events.update { batch in
             file.read(
                 restart: {

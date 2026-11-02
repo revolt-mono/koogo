@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -11,9 +10,9 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
             at: workspace.codexSessions.appending(path: "session.jsonl"),
             withDestinationURL: target
         )
-        let service = makePipeline()
+        let pipeline = makePipeline()
 
-        let snapshot = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
+        let snapshot = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(snapshot.providers[.codex]?.periods[.last30Days].total, UsagePeriodSnapshot())
     }
@@ -23,9 +22,9 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         try workspace.write(codexLog(input: 100, output: 20), to: target.appending(path: "session.jsonl"))
         try FileManager.default.removeItem(at: workspace.codexSessions)
         try FileManager.default.createSymbolicLink(at: workspace.codexSessions, withDestinationURL: target)
-        let service = makePipeline()
+        let pipeline = makePipeline()
 
-        let report = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let report = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 1)
         XCTAssertEqual(report.snapshot.todayTokens(.codex), 120)
@@ -39,7 +38,7 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
             ) + "\n",
             to: target.appending(path: "session.jsonl")
         )
-        let appended = try await refresh(service) { $0.snapshot.todayTokens(.codex) != 120 }
+        let appended = try await refresh(pipeline) { $0.snapshot.todayTokens(.codex) != 120 }
         XCTAssertEqual(appended.snapshot.todayTokens(.codex), 180)
     }
 
@@ -50,26 +49,26 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         try workspace.write(codexLog(input: 40, output: 10), to: second.appending(path: "session.jsonl"))
         try FileManager.default.removeItem(at: workspace.codexSessions)
         try FileManager.default.createSymbolicLink(at: workspace.codexSessions, withDestinationURL: first)
-        let service = makePipeline()
-        let initial = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let pipeline = makePipeline()
+        let initial = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(initial.snapshot.todayTokens(.codex), 120)
 
         try FileManager.default.removeItem(at: workspace.codexSessions)
         try FileManager.default.createSymbolicLink(at: workspace.codexSessions, withDestinationURL: second)
-        let retargeted = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let retargeted = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(retargeted.snapshot.todayTokens(.codex), 50)
     }
 
     func testDirectoriesThatAppearMoveInOrVanishLaterAreFollowed() async throws {
-        let service = makePipeline()
-        _ = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let pipeline = makePipeline()
+        _ = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         try workspace.write(
             claudeLog(output: 40),
             to: workspace.claudeProjects.appending(path: "project/session/subagents/agent.jsonl")
         )
-        let created = try await refresh(service) { $0.ingestion.trackedFiles[.claude] != 0 }
+        let created = try await refresh(pipeline) { $0.ingestion.trackedFiles[.claude] != 0 }
         XCTAssertEqual(created.snapshot.todayTokens(.claude), 50)
 
         let staging = workspace.root.appending(path: "staging", directoryHint: .isDirectory)
@@ -78,26 +77,26 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
             at: staging.appending(path: "2026"),
             to: workspace.codexSessions.appending(path: "2026")
         )
-        let movedIn = try await refresh(service) { $0.ingestion.trackedFiles[.codex] != 0 }
+        let movedIn = try await refresh(pipeline) { $0.ingestion.trackedFiles[.codex] != 0 }
         XCTAssertEqual(movedIn.snapshot.todayTokens(.codex), 120)
 
         try FileManager.default.removeItem(at: workspace.claudeProjects.appending(path: "project"))
-        let removed = try await refresh(service) { $0.ingestion.trackedFiles[.claude] == 0 }
+        let removed = try await refresh(pipeline) { $0.ingestion.trackedFiles[.claude] == 0 }
         XCTAssertEqual(removed.snapshot.todayTokens(.claude), 0)
     }
 
     func testHiddenDirectoriesStayUnscannedWhenTheyChangeLater() async throws {
         let hidden = workspace.codexSessions.appending(path: ".cache/deep", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: hidden, withIntermediateDirectories: true)
-        let service = makePipeline()
-        _ = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let pipeline = makePipeline()
+        _ = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         try workspace.write(codexLog(input: 100, output: 20, turn: "cached"), to: hidden.appending(path: "a.jsonl"))
         try workspace.write(
             codexLog(input: 1, output: 0, turn: "witness"),
             to: workspace.codexArchivedSessions.appending(path: "witness.jsonl")
         )
-        let report = try await refresh(service) { $0.ingestion.trackedFiles[.codex] != 0 }
+        let report = try await refresh(pipeline) { $0.ingestion.trackedFiles[.codex] != 0 }
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 1)
         XCTAssertEqual(report.snapshot.todayTokens(.codex), 1)
@@ -106,12 +105,12 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
     func testAppearingLogRootRefreshesTheReport() async throws {
         let archived = workspace.codexArchivedSessions
         try FileManager.default.removeItem(at: archived)
-        let service = makePipeline()
-        let missing = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let pipeline = makePipeline()
+        let missing = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(missing.ingestion.logRoots.first { $0.path == archived.path }?.exists, false)
 
         try FileManager.default.createDirectory(at: archived, withIntermediateDirectories: true)
-        let appeared = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let appeared = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(appeared.ingestion.logRoots.first { $0.path == archived.path }?.exists, true)
     }
@@ -128,9 +127,9 @@ final class UsageLogDiscoveryTests: UsageWorkspaceTestCase {
         let flagged = workspace.codexSessions.appending(path: "flagged.jsonl")
         try workspace.write(codexLog(input: 100, output: 20, turn: "flagged"), to: flagged)
         XCTAssertEqual(chflags(flagged.path, UInt32(UF_HIDDEN)), 0)
-        let service = makePipeline()
+        let pipeline = makePipeline()
 
-        let report = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let report = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         XCTAssertEqual(report.ingestion.trackedFiles[.codex], 0)
     }

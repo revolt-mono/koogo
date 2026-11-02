@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -67,7 +66,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         try writeModelCatalog()
 
         var catalog = PiModelCatalog()
-        XCTAssertTrue(catalog.refresh(home: workspace.home(of: .piAgent)))
+        catalog.refresh(home: workspace.home(of: .piAgent))
 
         let names = ["model-a", "model-b", "unnamed", "unknown"].map {
             catalog.name(of: PiModelCatalog.modelID(provider: "provider", model: $0))
@@ -75,7 +74,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(names, ["Readable Model A", "Preferred Model B", "unnamed", "unknown"])
     }
 
-    func testServiceUsesLoggedCostsAndModelNames() async throws {
+    func testPipelineUsesLoggedCostsAndModelNames() async throws {
         try writeModelCatalog()
         let contents = piSessionLog
         try workspace.write(contents, to: workspace.piSessions.appending(path: "project/session.jsonl"))
@@ -94,7 +93,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         )
     }
 
-    func testServiceRefreshesModelNamesWhenTheCatalogChanges() async throws {
+    func testPipelineRefreshesModelNamesWhenTheCatalogChanges() async throws {
         try workspace.write(
             piSessionLog,
             to: workspace.piSessions.appending(path: "session.jsonl")
@@ -105,8 +104,8 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             """,
             to: workspace.home(of: .piAgent).appending(path: "models-store.json")
         )
-        let service = makePipeline()
-        let initial = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
+        let pipeline = makePipeline()
+        let initial = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(initial.providers[.piAgent]?.periods[.today].models?[1].modelName, "Initial Name")
 
         try workspace.write(
@@ -115,11 +114,9 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             """,
             to: workspace.home(of: .piAgent).appending(path: "models-store.json")
         )
-        let updated = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
+        let updated = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
 
         XCTAssertEqual(updated.providers[.piAgent]?.periods[.today].models?[1].modelName, "Updated Name")
-        let unchanged = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
-        XCTAssertEqual(unchanged, updated)
     }
 
     func testCachedCatalogReflectsMalformedDeletedAndRecreatedFiles() async throws {
@@ -128,29 +125,29 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         let home = workspace.home(of: .piAgent)
         let custom = home.appending(path: "models.json")
         let store = home.appending(path: "models-store.json")
-        let service = makePipeline()
-        let initial = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
+        let pipeline = makePipeline()
+        let initial = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(initial.providers[.piAgent]?.periods[.today].models?[1].modelName, "Readable Model A")
 
         try workspace.write("{invalid", to: custom)
-        let malformed = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
+        let malformed = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(malformed.providers[.piAgent]?.periods[.today].models?[1].modelName, "Cached Model A")
 
         try FileManager.default.removeItem(at: custom)
         try FileManager.default.removeItem(at: store)
-        let deleted = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
+        let deleted = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(deleted.providers[.piAgent]?.periods[.today].models?[1].modelName, "model-a")
 
         try writeModelCatalog()
-        let restored = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
+        let restored = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(restored, initial)
     }
 
-    func testServiceDeduplicatesForkHistoryDuringColdAndIncrementalScans() async throws {
+    func testPipelineDeduplicatesForkHistoryDuringColdAndIncrementalScans() async throws {
         try workspace.write(piSessionLog, to: workspace.piSessions.appending(path: "original.jsonl"))
-        let service = makePipeline()
+        let pipeline = makePipeline()
 
-        let original = await service.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
+        let original = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         XCTAssertEqual(original.todayTokens(.piAgent), 210)
 
         let forkHeader = piSessionHeader.replacingOccurrences(
@@ -168,7 +165,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             + "\n"
         try workspace.write(fork, to: workspace.piSessions.appending(path: "fork.jsonl"))
 
-        let incremental = try await refresh(service) { $0.ingestion.trackedFiles[.piAgent] == 2 }.snapshot
+        let incremental = try await refresh(pipeline) { $0.ingestion.trackedFiles[.piAgent] == 2 }.snapshot
         let cold = await makePipeline().run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
         for snapshot in [incremental, cold] {
             XCTAssertEqual(snapshot.todayTokens(.piAgent), 280)

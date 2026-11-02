@@ -19,18 +19,18 @@ struct CompressedFile: LogFile {
     }
 
     /// a corrupt archive keeps the lines decoded before the damage; rereading an unchanged file cannot recover more.
-    mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> FileRead {
+    mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> Bool {
         guard let file = try? FileDescriptor.open(FilePath(path), .readOnly) else {
-            return .unreadable
+            return false
         }
         defer { try? file.close() }
         guard let current = UsageFileMetadata(fileDescriptor: file.rawValue) else {
-            return .unreadable
+            return false
         }
         metadata = current
         restart()
         Self.decode(file, consume: consume)
-        return .readLines
+        return true
     }
 
     private static func decode(_ file: FileDescriptor, consume: (UnsafeRawBufferPointer) -> Void) {

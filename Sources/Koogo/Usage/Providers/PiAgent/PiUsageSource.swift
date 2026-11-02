@@ -6,7 +6,7 @@ struct PiUsageSource: UsageSource {
     let logFormat = UsageLogFormat.jsonLines(PiUsageLogParser.self)
     private var catalog = PiModelCatalog()
 
-    mutating func refresh(home: URL) -> Bool {
+    mutating func refresh(home: URL) {
         catalog.refresh(home: home)
     }
 

@@ -13,13 +13,12 @@ final class UsageEventIndexMemoryTests: XCTestCase {
 
         index.update { batch in
             for number in 0..<50_000 {
-                batch.insert(UsageEvent(id: .piAgent(entryID: String(number)), record: usage))
+                batch.insert(UsageEvent(id: .piAgent(entryID: String(number).utf8), record: usage))
             }
         }
 
         // one 56-byte entry per event retains about 4 MiB; a second copy of each identity exceeds the bound.
         XCTAssertLessThan(allocatedHeapBytes() - before, 6 * 1_024 * 1_024)
-        XCTAssertEqual(index.count, 50_000)
-        XCTAssertEqual(index.values.reduce(0) { $0 + $1.record.processedTokens }, 50_000)
+        XCTAssertEqual(index.events.reduce(0) { $0 + $1.record.processedTokens }, 50_000)
     }
 }

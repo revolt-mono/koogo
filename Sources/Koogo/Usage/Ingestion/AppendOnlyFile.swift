@@ -36,13 +36,13 @@ struct AppendOnlyFile: LogFile {
         return state != .caughtUp || observed.size > metadata.size
     }
 
-    mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> FileRead {
+    mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> Bool {
         guard let file = try? FileDescriptor.open(FilePath(path), .readOnly) else {
-            return .unreadable
+            return false
         }
         defer { try? file.close() }
         guard let current = UsageFileMetadata(fileDescriptor: file.rawValue) else {
-            return .unreadable
+            return false
         }
 
         let restarted =
@@ -58,10 +58,7 @@ struct AppendOnlyFile: LogFile {
             parsedOffset >= current.size || readLines(file, in: parsedOffset..<current.size, consume: consume)
         metadata = current
         state = finished ? .caughtUp : .unfinished
-        if restarted || parsedOffset > startOffset {
-            return .readLines
-        }
-        return finished ? .nothingNew : .unreadable
+        return finished || restarted || parsedOffset > startOffset
     }
 
     private mutating func readLines(

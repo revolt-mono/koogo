@@ -1,19 +1,12 @@
 import Darwin
 import Foundation
 
-enum FileRead {
-    case nothingNew
-    /// the consumer received lines or a restart, even when the read later failed.
-    case readLines
-    /// the consumer received nothing; the next sync retries.
-    case unreadable
-}
-
 /// delivers complete lines once; a restart invalidates all state derived from previously consumed bytes.
 protocol LogFile: Sendable {
     /// returns whether a read is due.
     mutating func observe(_ observed: UsageFileMetadata) -> Bool
-    mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> FileRead
+    /// returns false when the consumer received nothing because the file could not be read; the next sync retries.
+    mutating func read(restart: () -> Void, consume: (UnsafeRawBufferPointer) -> Void) -> Bool
 }
 
 /// returns the bytes consumed; a trailing partial line stays.

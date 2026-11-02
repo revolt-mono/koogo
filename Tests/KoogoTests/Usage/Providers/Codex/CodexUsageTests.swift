@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -208,37 +207,36 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         let shortWithoutWrites = codexTokenUsage(uncached: 150_000, cached: 100_000, output: 10_000)
         let longWithoutWrites = codexTokenUsage(uncached: 172_001, cached: 100_000, output: 10_000)
 
-        for (model, name, tokens, expectedUSD) in [
-            ("gpt-6.1-sol", "GPT 6.1 Sol", short, "0.435"),
-            ("gpt-6.1-sol", "GPT 6.1 Sol", long, "0.908004"),
-            ("gpt-6.1-terra", "GPT 6.1 Terra", short, "0.2175"),
-            ("gpt-6.1-terra", "GPT 6.1 Terra", long, "0.454002"),
-            ("gpt-6-astra", "GPT 6 Astra", short, "2.225"),
-            ("gpt-6-astra", "GPT 6 Astra", long, "4.64002"),
-            ("gpt-6-sol", "GPT 6 Sol", short, "0.445"),
-            ("gpt-6-sol", "GPT 6 Sol", long, "0.928004"),
-            ("gpt-6-luna", "GPT 6 Luna", short, "0.02225"),
-            ("gpt-6-luna", "GPT 6 Luna", long, "0.0464002"),
-            ("gpt-daybreak-blue-latest", "Daybreak Blue", short, "1.1625"),
-            ("gpt-daybreak-blue-latest", "Daybreak Blue", long, "2.39501"),
-            ("gpt-5.6-sol", "GPT 5.6 Sol", short, "1.1625"),
-            ("gpt-5.6-sol", "GPT 5.6 Sol", long, "2.39501"),
-            ("gpt-5.6-terra", "GPT 5.6 Terra", short, "0.465"),
-            ("gpt-5.6-terra", "GPT 5.6 Terra", long, "0.958004"),
-            ("gpt-5.6-luna", "GPT 5.6 Luna", short, "0.0465"),
-            ("gpt-5.6-luna", "GPT 5.6 Luna", long, "0.0958004"),
-            ("gpt-5.5", "GPT 5.5", shortWithoutWrites, "1.1"),
-            ("gpt-5.5", "GPT 5.5", longWithoutWrites, "2.27001"),
-            ("gpt-5.4", "GPT 5.4", shortWithoutWrites, "0.55"),
-            ("gpt-5.4", "GPT 5.4", longWithoutWrites, "1.135005"),
-            ("gpt-5.4-mini", "GPT 5.4 Mini", shortWithoutWrites, "0.165"),
-            ("gpt-5.4-mini", "GPT 5.4 Mini", longWithoutWrites, "0.18150075"),
-            ("gpt-5.3-codex", "GPT 5.3 Codex", shortWithoutWrites, "0.42"),
-            ("gpt-5.3-codex", "GPT 5.3 Codex", longWithoutWrites, "0.45850175"),
+        for (model, tokens, expectedUSD) in [
+            ("gpt-6.1-sol", short, "0.435"),
+            ("gpt-6.1-sol", long, "0.908004"),
+            ("gpt-6.1-terra", short, "0.2175"),
+            ("gpt-6.1-terra", long, "0.454002"),
+            ("gpt-6-astra", short, "2.225"),
+            ("gpt-6-astra", long, "4.64002"),
+            ("gpt-6-sol", short, "0.445"),
+            ("gpt-6-sol", long, "0.928004"),
+            ("gpt-6-luna", short, "0.02225"),
+            ("gpt-6-luna", long, "0.0464002"),
+            ("gpt-daybreak-blue-latest", short, "1.1625"),
+            ("gpt-daybreak-blue-latest", long, "2.39501"),
+            ("gpt-5.6-sol", short, "1.1625"),
+            ("gpt-5.6-sol", long, "2.39501"),
+            ("gpt-5.6-terra", short, "0.465"),
+            ("gpt-5.6-terra", long, "0.958004"),
+            ("gpt-5.6-luna", short, "0.0465"),
+            ("gpt-5.6-luna", long, "0.0958004"),
+            ("gpt-5.5", shortWithoutWrites, "1.1"),
+            ("gpt-5.5", longWithoutWrites, "2.27001"),
+            ("gpt-5.4", shortWithoutWrites, "0.55"),
+            ("gpt-5.4", longWithoutWrites, "1.135005"),
+            ("gpt-5.4-mini", shortWithoutWrites, "0.165"),
+            ("gpt-5.4-mini", longWithoutWrites, "0.18150075"),
+            ("gpt-5.3-codex", shortWithoutWrites, "0.42"),
+            ("gpt-5.3-codex", longWithoutWrites, "0.45850175"),
         ] {
             let quote = try XCTUnwrap(CodexUsagePricing.quote(model: ModelID(model), tokens: tokens), model)
             XCTAssertEqual(quote.model, ModelID(model))
-            XCTAssertEqual(CodexUsagePricing.displayName(of: quote.model), name)
             XCTAssertEqual(quote.cost.usd, Decimal(string: expectedUSD), model)
         }
     }

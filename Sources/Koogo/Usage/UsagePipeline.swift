@@ -7,17 +7,10 @@ struct UsageReport: Sendable, Encodable {
 }
 
 actor UsagePipeline {
-    private struct LastRun {
-        let intervals: UsagePeriodIntervals
-        let providers: [Provider]
-        let report: UsageReport
-    }
-
     private let home: URL
     private let calendar: Calendar
     private var store = LogStore()
     private var sources = EnumMap<Provider, any UsageSource> { $0.usageSource }
-    private var lastRun: LastRun?
 
     init(
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -33,23 +26,15 @@ actor UsagePipeline {
         let providers = Provider.allCases.filter {
             requested.contains($0) && FileManager.default.fileExists(atPath: $0.home(under: home).path)
         }
-        let roots = providers.flatMap { $0.logRoots(under: home) }
-        let logsChanged = store.sync(roots: roots, since: intervals.last30Days.lowerBound)
-        var namesChanged = false
+        store.sync(roots: providers.flatMap { $0.logRoots(under: home) }, since: intervals.last30Days.lowerBound)
         for provider in providers {
-            namesChanged = sources[provider].refresh(home: provider.home(under: home)) || namesChanged
-        }
-        if !logsChanged, !namesChanged, let lastRun, lastRun.intervals == intervals, lastRun.providers == providers {
-            return lastRun.report
+            sources[provider].refresh(home: provider.home(under: home))
         }
 
-        var builder = UsageSnapshotBuilder(providers: Set(providers), intervals: intervals)
+        var builder = UsageSnapshotBuilder(providers: providers, intervals: intervals)
         let ingestion = store.collect { builder.add($0) }
         log(ingestion, duration: ContinuousClock.now - started)
-
-        let report = UsageReport(ingestion: ingestion, snapshot: builder.snapshot(sources: sources))
-        lastRun = LastRun(intervals: intervals, providers: providers, report: report)
-        return report
+        return UsageReport(ingestion: ingestion, snapshot: builder.snapshot(sources: sources))
     }
 
     private func log(_ ingestion: UsageIngestionStats, duration: Duration) {

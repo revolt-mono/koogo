@@ -9,13 +9,11 @@ struct DailyUsageChart: View {
     @State private var hoveredSlot: Int?
 
     var body: some View {
-        let peakCost = usage.days.map(\.usage.cost.usd).max() ?? 0
-        let heights = usage.days.map { day in
-            peakCost > 0 ? NSDecimalNumber(decimal: day.usage.cost.usd / peakCost).doubleValue : 0
-        }
-        let hoveredDay = hoveredSlot.flatMap { slot in
+        let peakCost = Double(usage.days.map(\.usage.cost).max()?.rawValue ?? 0)
+        let heights = usage.days.map { peakCost > 0 ? Double($0.usage.cost.rawValue) / peakCost : 0 }
+        let hovered = hoveredSlot.flatMap { slot in
             usage.days.indices.contains(slot) && usage.days[slot].usage != UsagePeriodSnapshot()
-                ? usage.days[slot] : nil
+                ? (slot: slot, day: usage.days[slot]) : nil
         }
 
         GeometryReader { geometry in
@@ -30,9 +28,9 @@ struct DailyUsageChart: View {
                     hoveredSlot = if case .active(let point) = phase { Int(point.x / slotWidth) } else { nil }
                 }
                 .overlay {
-                    if let hoveredSlot, let hoveredDay {
-                        ChartAnnotationLayout(anchorX: (CGFloat(hoveredSlot) + 0.5) * slotWidth) {
-                            UsageChartAnnotation(day: hoveredDay)
+                    if let hovered {
+                        ChartAnnotationLayout(anchorX: (CGFloat(hovered.slot) + 0.5) * slotWidth) {
+                            UsageChartAnnotation(day: hovered.day)
                         }
                         .allowsHitTesting(false)
                     }

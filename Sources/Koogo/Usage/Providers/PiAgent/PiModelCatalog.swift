@@ -54,25 +54,22 @@ struct PiModelCatalog: Sendable {
         ModelID("\(provider)/\(model)")
     }
 
-    /// returns true when model names change.
-    mutating func refresh(home: URL) -> Bool {
+    mutating func refresh(home: URL) {
         let storeURL = home.appending(path: "models-store.json", directoryHint: .notDirectory)
         let customURL = home.appending(path: "models.json", directoryHint: .notDirectory)
         let versions = [storeURL, customURL].map(SourceVersion.init)
         guard versions != sourceVersions else {
-            return false
+            return
         }
         sourceVersions = versions
-        let store = try? Data(contentsOf: storeURL)
-        let custom = try? Data(contentsOf: customURL)
         var names: [ModelID: String] = [:]
-        for (provider, configuration) in Self.decode([String: StoredProvider].self, from: store) ?? [:] {
+        for (provider, configuration) in Self.decode([String: StoredProvider].self, at: storeURL) ?? [:] {
             for model in configuration.models {
                 names[Self.modelID(provider: provider, model: model.id)] = model.name
             }
         }
-        for (provider, configuration) in Self.decode(CustomModels.self, from: custom, allowsJSON5: true)?
-            .providers ?? [:]
+        for (provider, configuration) in Self.decode(CustomModels.self, at: customURL, allowsJSON5: true)?.providers
+            ?? [:]
         {
             for model in configuration.models ?? [] {
                 names[Self.modelID(provider: provider, model: model.id)] = model.name ?? model.id
@@ -84,11 +81,7 @@ struct PiModelCatalog: Sendable {
                 names[Self.modelID(provider: provider, model: model)] = name
             }
         }
-        guard names != self.names else {
-            return false
-        }
         self.names = names
-        return true
     }
 
     func name(of model: ModelID) -> String? {
@@ -97,10 +90,10 @@ struct PiModelCatalog: Sendable {
 
     private static func decode<Value: Decodable>(
         _ type: Value.Type,
-        from data: Data?,
+        at url: URL,
         allowsJSON5: Bool = false
     ) -> Value? {
-        guard let data else {
+        guard let data = try? Data(contentsOf: url) else {
             return nil
         }
         let decoder = JSONDecoder()

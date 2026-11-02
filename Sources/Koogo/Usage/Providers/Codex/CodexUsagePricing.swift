@@ -1,5 +1,3 @@
-import Foundation
-
 enum CodexUsagePricing {
     private static let longContextThreshold: UInt64 = 272_000
 

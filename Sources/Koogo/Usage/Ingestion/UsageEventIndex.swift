@@ -14,7 +14,7 @@ struct UsageEventIndex: Sendable {
         }
     }
 
-    /// field order reuses identity padding, keeping each entry at a 56-byte stride.
+    /// the narrow fields come last, keeping each entry at a 56-byte stride.
     fileprivate struct Entry: Sendable {
         let secondsSinceReferenceDate: TimeInterval
         let processedTokens: UInt64
@@ -32,38 +32,17 @@ struct UsageEventIndex: Sendable {
             UsageEvent.Revision(outputTokens: outputTokens, metadataCompleteness: metadataCompleteness)
         }
 
+        /// more output wins, then more explicit metadata, then more tokens, then the earlier copy.
         func isSuperseded(by other: Self) -> Bool {
-            let rank = (other.revision, other.processedTokens)
-            let storedRank = (revision, processedTokens)
-            return rank == storedRank ? other.timestamp < timestamp : rank > storedRank
+            let rank = (other.outputTokens, other.metadataCompleteness, other.processedTokens)
+            let storedRank = (outputTokens, metadataCompleteness, processedTokens)
+            return rank == storedRank
+                ? other.secondsSinceReferenceDate < secondsSinceReferenceDate : rank > storedRank
         }
     }
 
     private var entries: [Entry] = []
     private var models: [ModelID?] = [nil]
-
-    var values: some Collection<UsageEvent> {
-        entries.lazy.map { [models] entry in
-            UsageEvent(
-                id: entry.id,
-                record: UsageRecord(
-                    timestamp: entry.timestamp,
-                    processedTokens: entry.processedTokens,
-                    cost: entry.cost,
-                    model: models[Int(entry.model)]
-                ),
-                revision: entry.revision
-            )
-        }
-    }
-
-    var keys: some Collection<UsageEventID> {
-        entries.lazy.map(\.id)
-    }
-
-    var count: Int {
-        entries.count
-    }
 
     /// publishes the batch, deduplicated, when the body returns.
     mutating func update<Result>(_ body: (inout Batch) -> Result) -> Result {
@@ -115,5 +94,102 @@ struct UsageEventIndex: Sendable {
             metadataCompleteness: event.revision.metadataCompleteness,
             model: UInt32(model)
         )
+    }
+
+    private func event(at position: Int) -> UsageEvent {
+        let entry = entries[position]
+        return UsageEvent(
+            id: entry.id,
+            record: UsageRecord(
+                timestamp: entry.timestamp,
+                processedTokens: entry.processedTokens,
+                cost: entry.cost,
+                model: models[Int(entry.model)]
+            ),
+            revision: entry.revision
+        )
+    }
+}
+
+extension UsageEventIndex {
+    /// visits each id once across the indexes, keeping the superseding copy; an exact tie keeps the earliest index's.
+    static func forEachUnique(in indexes: [UsageEventIndex], _ visit: (UsageEvent) -> Void) {
+        var merge = Merge(indexes)
+        while let copy = merge.next() {
+            visit(indexes[copy.index].event(at: copy.position))
+        }
+    }
+
+    /// a min-heap of one cursor per nonempty index, keyed by the id under each cursor and then the index.
+    private struct Merge {
+        struct Cursor {
+            let index: Int
+            var position: Int
+            var id: UsageEventID
+
+            func precedes(_ other: Self) -> Bool {
+                (id, index) < (other.id, other.index)
+            }
+        }
+
+        private let indexes: [UsageEventIndex]
+        private var heap: [Cursor]
+
+        init(_ indexes: [UsageEventIndex]) {
+            self.indexes = indexes
+            heap = indexes.indices.compactMap { index in
+                indexes[index].entries.first.map { Cursor(index: index, position: 0, id: $0.id) }
+            }
+            for slot in stride(from: heap.count / 2 - 1, through: 0, by: -1) {
+                siftDown(from: slot)
+            }
+        }
+
+        /// pops every copy of the smallest id and returns the one that supersedes the rest.
+        mutating func next() -> Cursor? {
+            guard var kept = heap.first else {
+                return nil
+            }
+            advance()
+            while let copy = heap.first, copy.id == kept.id {
+                if entry(kept).isSuperseded(by: entry(copy)) {
+                    kept = copy
+                }
+                advance()
+            }
+            return kept
+        }
+
+        private func entry(_ cursor: Cursor) -> Entry {
+            indexes[cursor.index].entries[cursor.position]
+        }
+
+        private mutating func advance() {
+            let position = heap[0].position + 1
+            let entries = indexes[heap[0].index].entries
+            if position < entries.count {
+                heap[0].position = position
+                heap[0].id = entries[position].id
+            } else {
+                heap.swapAt(0, heap.count - 1)
+                heap.removeLast()
+            }
+            siftDown(from: 0)
+        }
+
+        private mutating func siftDown(from start: Int) {
+            var parent = start
+            while case let left = 2 * parent + 1, left < heap.count {
+                var smallest = heap[left].precedes(heap[parent]) ? left : parent
+                if left + 1 < heap.count, heap[left + 1].precedes(heap[smallest]) {
+                    smallest = left + 1
+                }
+                guard smallest != parent else {
+                    return
+                }
+                heap.swapAt(parent, smallest)
+                parent = smallest
+            }
+        }
     }
 }

@@ -1,5 +1,3 @@
-import Foundation
-
 enum GrokUsagePricing {
     private struct ModelPrice: Sendable {
         private(set) var displayName: String
@@ -48,9 +46,10 @@ enum GrokUsagePricing {
     /// grok logs build-suffixed model names.
     private static func price(of model: ModelID) -> ModelPrice? {
         let name = model.rawValue
-        guard let price = prices[ModelID(name.replacing(/-build(-fast)?$/, with: ""))] else {
+        let suffix = ["-build-fast", "-build"].first { name.hasSuffix($0) } ?? ""
+        guard let price = prices[ModelID(String(name.dropLast(suffix.count)))] else {
             return nil
         }
-        return name.hasSuffix("-build-fast") ? price.fast : price
+        return suffix == "-build-fast" ? price.fast : price
     }
 }

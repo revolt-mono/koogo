@@ -5,15 +5,15 @@ protocol UsageSource: Sendable {
     var logDirectories: [String] { get }
     var logFormat: UsageLogFormat { get }
     var splitsUsageByModel: Bool { get }
-    /// rereads the home's model catalog; returns true when names may have changed.
-    mutating func refresh(home: URL) -> Bool
+    /// rereads the home's model catalog.
+    mutating func refresh(home: URL)
     func modelName(_ model: ModelID) -> String?
 }
 
 extension UsageSource {
     var splitsUsageByModel: Bool { true }
 
-    mutating func refresh(home: URL) -> Bool { false }
+    mutating func refresh(home: URL) {}
 }
 
 extension Provider {

@@ -37,10 +37,10 @@ struct UsageRecord: Sendable {
     }
 }
 
+/// a 120-bit digest of the logged identity fields, with the provider's case index in the top byte.
 struct UsageEventID: Hashable, Comparable, Sendable {
     private let high: UInt64
     private let low: UInt64
-    let provider: Provider
 
     private init(_ provider: Provider, fields: (inout Hasher) -> Void) {
         func digest(salt: UInt8) -> UInt64 {
@@ -50,53 +50,62 @@ struct UsageEventID: Hashable, Comparable, Sendable {
             return UInt64(bitPattern: Int64(hasher.finalize()))
         }
         high = digest(salt: 0)
-        low = digest(salt: 1)
-        self.provider = provider
+        low = UInt64(Provider.allCases.firstIndex(of: provider)!) << 56 | digest(salt: 1) >> 8
+    }
+
+    var provider: Provider {
+        Provider.allCases[Int(low >> 56)]
     }
 
     static func < (lhs: Self, rhs: Self) -> Bool {
-        (lhs.high, lhs.low, lhs.provider.rawValue) < (rhs.high, rhs.low, rhs.provider.rawValue)
+        (lhs.high, lhs.low) < (rhs.high, rhs.low)
     }
 
     /// codex forks change thread ids, ordinals, and timestamps; turn id and cumulative total remain stable.
-    static func codex(turnID: String, cumulativeTotal: UInt64) -> Self {
+    static func codex(turnID: some Collection<UInt8>, cumulativeTotal: UInt64) -> Self {
         Self(.codex) {
-            $0.combine(turnID)
+            $0.combine(text: turnID)
             $0.combine(cumulativeTotal)
         }
     }
 
-    static func claude(messageID: String, requestID: String) -> Self {
+    static func claude(messageID: some Collection<UInt8>, requestID: some Collection<UInt8>) -> Self {
         Self(.claude) {
-            $0.combine(messageID)
-            $0.combine(requestID)
+            $0.combine(text: messageID)
+            $0.combine(text: requestID)
         }
     }
 
-    static func piAgent(entryID: String) -> Self {
-        Self(.piAgent) { $0.combine(entryID) }
+    static func piAgent(entryID: some Collection<UInt8>) -> Self {
+        Self(.piAgent) { $0.combine(text: entryID) }
     }
 
     /// grok forks preserve both fields; resumed sessions can reuse an event id at a later time.
-    static func grok(eventID: String, timestampMilliseconds: UInt64) -> Self {
+    static func grok(eventID: some Collection<UInt8>, timestampMilliseconds: UInt64) -> Self {
         Self(.grok) {
-            $0.combine(eventID)
+            $0.combine(text: eventID)
             $0.combine(timestampMilliseconds)
+        }
+    }
+}
+
+extension Hasher {
+    /// identity fields hash their logged text; the length prefix keeps adjacent fields from trading bytes.
+    fileprivate mutating func combine(text: some Collection<UInt8>) {
+        combine(text.count)
+        if text.withContiguousStorageIfAvailable({ combine(bytes: UnsafeRawBufferPointer($0)) }) == nil {
+            Array(text).withUnsafeBytes { combine(bytes: $0) }
         }
     }
 }
 
 struct UsageEvent: Sendable {
     /// streamed output grows, while rewritten lines can add speed or cache metadata.
-    struct Revision: Comparable, Sendable {
+    struct Revision: Sendable {
         let outputTokens: UInt64
         let metadataCompleteness: UInt8
 
         static let none = Self(outputTokens: 0, metadataCompleteness: 0)
-
-        static func < (lhs: Self, rhs: Self) -> Bool {
-            (lhs.outputTokens, lhs.metadataCompleteness) < (rhs.outputTokens, rhs.metadataCompleteness)
-        }
     }
 
     let id: UsageEventID

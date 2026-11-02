@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -12,7 +11,6 @@ let usageTestCalendar: Calendar = {
     }
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = utc
-    calendar.firstWeekday = 2
     return calendar
 }()
 
@@ -140,10 +138,10 @@ func usageEvent(
     )
     let eventID: UsageEventID =
         switch provider {
-        case .codex: .codex(turnID: "turn-\(id)", cumulativeTotal: processedTokens)
-        case .claude: .claude(messageID: "message-\(id)", requestID: "request-\(id)")
-        case .piAgent: .piAgent(entryID: "entry-\(id)")
-        case .grok: .grok(eventID: "event-\(id)", timestampMilliseconds: grokMilliseconds(eventDate))
+        case .codex: .codex(turnID: "turn-\(id)".utf8, cumulativeTotal: processedTokens)
+        case .claude: .claude(messageID: "message-\(id)".utf8, requestID: "request-\(id)".utf8)
+        case .piAgent: .piAgent(entryID: "entry-\(id)".utf8)
+        case .grok: .grok(eventID: "event-\(id)".utf8, timestampMilliseconds: grokMilliseconds(eventDate))
         }
     return UsageEvent(id: eventID, record: record)
 }
@@ -158,8 +156,8 @@ func grokMilliseconds(_ date: Date) -> UInt64 {
 
 func usageSnapshot(
     events: [UsageEvent],
-    providers: Set<Provider> = Set(Provider.allCases),
-    intervals: UsagePeriodIntervals,
+    providers: [Provider] = Provider.allCases,
+    intervals: UsagePeriodIntervals = UsagePeriodIntervals(containing: usageTestTimestamp, calendar: usageTestCalendar),
     sources: EnumMap<Provider, any UsageSource> = EnumMap { $0.usageSource }
 ) -> UsageSnapshot {
     var builder = UsageSnapshotBuilder(providers: providers, intervals: intervals)
@@ -167,4 +165,16 @@ func usageSnapshot(
         builder.add(event)
     }
     return builder.snapshot(sources: sources)
+}
+
+extension UsageEventIndex {
+    var events: [UsageEvent] {
+        var events: [UsageEvent] = []
+        Self.forEachUnique(in: [self]) { events.append($0) }
+        return events
+    }
+
+    var count: Int {
+        events.count
+    }
 }

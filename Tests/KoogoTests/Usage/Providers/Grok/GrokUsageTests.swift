@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -57,7 +56,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(report.ingestion.unpricedModels, ["grok-9-build"])
     }
 
-    func testServiceCountsEachTopLevelTurnOnce() async throws {
+    func testPipelineCountsEachTopLevelTurnOnce() async throws {
         let turn = grokTurn(eventID: "parent-1")
         try writeSession("parent", updates: [turn])
         try writeSession("fork", kind: "fork", updates: [turn, grokTurn(eventID: "fork-1")])
@@ -86,16 +85,16 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
     func testSessionIsCountedOnceItsSummaryAppears() async throws {
         let session = workspace.grokSessions.appending(path: "project/late", directoryHint: .isDirectory)
         try workspace.write(grokTurn(eventID: "late-1") + "\n", to: session.appending(path: "updates.jsonl"))
-        let service = makePipeline()
+        let pipeline = makePipeline()
 
-        let before = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let before = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
         XCTAssertEqual(before.ingestion.events[.grok], 0)
 
         try workspace.write(
             "{\"info\":{\"id\":\"late\",\"cwd\":\"/project\"}}",
             to: session.appending(path: "summary.json")
         )
-        let after = try await refresh(service) { $0.ingestion.events[.grok] != 0 }
+        let after = try await refresh(pipeline) { $0.ingestion.events[.grok] != 0 }
         XCTAssertEqual(after.ingestion.events[.grok], 1)
     }
 

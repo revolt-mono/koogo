@@ -19,7 +19,8 @@ final class LogDirectoryWatcher {
         )
 
         let roots: [(resolved: String, given: String)]
-        private let changes = Mutex(Changes.directories([]))
+        /// nil once a change needs a full walk.
+        private let pending = Mutex<Set<String>?>([])
 
         init(roots: [(resolved: String, given: String)]) {
             self.roots = roots
@@ -36,20 +37,19 @@ final class LogDirectoryWatcher {
                 }
                 return root.given + directory.dropFirst(root.resolved.count)
             }.first
-            changes.withLock { changes in
-                guard case .directories(var directories) = changes, flags & Self.everythingFlags == 0, let given else {
-                    changes = .everything
-                    return
+            pending.withLock { pending in
+                if flags & Self.everythingFlags == 0, let given {
+                    pending?.insert(given)
+                } else {
+                    pending = nil
                 }
-                directories.insert(given)
-                changes = .directories(directories)
             }
         }
 
         func take() -> Changes {
-            changes.withLock { changes in
-                defer { changes = .directories([]) }
-                return changes
+            pending.withLock { pending in
+                defer { pending = [] }
+                return pending.map(Changes.directories) ?? .everything
             }
         }
     }

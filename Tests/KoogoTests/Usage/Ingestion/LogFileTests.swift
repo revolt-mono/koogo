@@ -1,10 +1,9 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
 
 final class LogFileTests: UsageWorkspaceTestCase {
-    func testAppendThatCannotBeReadReportsNoChangeUntilItCanBe() throws {
+    func testAppendThatCannotBeReadIsReadOnceItCanBe() throws {
         let log = workspace.codexSessions.appending(path: "session.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: log)
         var parsed = try XCTUnwrap(
@@ -23,10 +22,11 @@ final class LogFileTests: UsageWorkspaceTestCase {
         )
 
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: log.path)
-        XCTAssertFalse(parsed.sync(observed: try metadata(of: log)))
+        parsed.sync(observed: try metadata(of: log))
+        XCTAssertEqual(parsed.events.count, 1)
 
         try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: log.path)
-        XCTAssertTrue(parsed.sync(observed: try metadata(of: log)))
+        parsed.sync(observed: try metadata(of: log))
         XCTAssertEqual(parsed.events.count, 2)
     }
 
@@ -47,15 +47,15 @@ final class LogFileTests: UsageWorkspaceTestCase {
     func testCompressionReplacingAPlainRolloutKeepsItsEventsOnce() async throws {
         let plain = workspace.codexSessions.appending(path: "session.jsonl")
         try workspace.write(codexLog(input: 100, output: 20), to: plain)
-        let service = makePipeline()
-        _ = await service.run(at: usageTestTimestamp, providers: Provider.allCases)
+        let pipeline = makePipeline()
+        _ = await pipeline.run(at: usageTestTimestamp, providers: Provider.allCases)
 
         try workspace.write(codexCompressedLog, to: workspace.codexSessions.appending(path: "session.jsonl.zst"))
-        let both = try await refresh(service) { $0.ingestion.trackedFiles[.codex] == 2 }
+        let both = try await refresh(pipeline) { $0.ingestion.trackedFiles[.codex] == 2 }
         XCTAssertEqual(both.snapshot.todayTokens(.codex), 120)
 
         try FileManager.default.removeItem(at: plain)
-        let compressed = try await refresh(service) { $0.ingestion.trackedFiles[.codex] == 1 }
+        let compressed = try await refresh(pipeline) { $0.ingestion.trackedFiles[.codex] == 1 }
         XCTAssertEqual(compressed.snapshot.todayTokens(.codex), 120)
     }
 

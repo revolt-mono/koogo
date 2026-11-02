@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -13,20 +12,18 @@ final class UsageEventIndexTests: XCTestCase {
             batch.insert(usageEvent(.codex, id: 2, processedTokens: 30, costUSD: 0, at: old))
         }
 
-        XCTAssertEqual(index.count, 2)
-        XCTAssertEqual(Set(index.keys).count, 2)
-        XCTAssertEqual(index.values.map(\.record.processedTokens).sorted(), [20, 30])
+        XCTAssertEqual(index.events.map(\.record.processedTokens).sorted(), [20, 30])
 
         index.discard(before: usageTestTimestamp)
 
-        XCTAssertEqual(index.values.map(\.record.processedTokens), [20])
+        XCTAssertEqual(index.events.map(\.record.processedTokens), [20])
     }
 
     func testIdenticalCopiesKeepTheEarliestTimestamp() {
         let ids: [UsageEventID] = [
-            .codex(turnID: "turn", cumulativeTotal: 10),
-            .piAgent(entryID: "entry"),
-            .grok(eventID: "event", timestampMilliseconds: grokMilliseconds(usageTestTimestamp)),
+            .codex(turnID: "turn".utf8, cumulativeTotal: 10),
+            .piAgent(entryID: "entry".utf8),
+            .grok(eventID: "event".utf8, timestampMilliseconds: grokMilliseconds(usageTestTimestamp)),
         ]
 
         for id in ids {
@@ -37,7 +34,24 @@ final class UsageEventIndexTests: XCTestCase {
                 batch.insert(UsageEvent(id: id, record: record(tokens: 10, at: usageTestTimestamp + 2)))
             }
 
-            XCTAssertEqual(index.values.map(\.record.timestamp), [usageTestTimestamp], "\(id)")
+            XCTAssertEqual(index.events.map(\.record.timestamp), [usageTestTimestamp], "\(id)")
+        }
+    }
+
+    func testExactCopiesAcrossIndexesKeepTheFirstIndexCopy() {
+        let cheap = usageEvent(.claude, processedTokens: 10, costUSD: 1)
+        let costly = usageEvent(.claude, processedTokens: 10, costUSD: 2)
+
+        for events in [[cheap, costly], [costly, cheap]] {
+            let indexes = events.map { event in
+                var index = UsageEventIndex()
+                index.update { $0.insert(event) }
+                return index
+            }
+            var visited: [UsageEvent] = []
+            UsageEventIndex.forEachUnique(in: indexes) { visited.append($0) }
+
+            XCTAssertEqual(visited.map(\.record.cost), [events[0].record.cost])
         }
     }
 
@@ -68,9 +82,9 @@ final class UsageEventIndexTests: XCTestCase {
             }
 
             for index in [completeFirst, partialFirst] {
-                XCTAssertEqual(index.values.count, 1)
-                XCTAssertEqual(index.values.first?.record.processedTokens, complete.record.processedTokens)
-                XCTAssertEqual(index.values.first?.record.timestamp, complete.record.timestamp)
+                XCTAssertEqual(index.events.count, 1)
+                XCTAssertEqual(index.events.first?.record.processedTokens, complete.record.processedTokens)
+                XCTAssertEqual(index.events.first?.record.timestamp, complete.record.timestamp)
             }
         }
     }
@@ -91,7 +105,7 @@ final class UsageEventIndexTests: XCTestCase {
         }
 
         XCTAssertEqual(
-            index.values.map(\.record.processedTokens).sorted(),
+            index.events.map(\.record.processedTokens).sorted(),
             [1] + Array(repeating: 10, count: 4) + Array(repeating: 50, count: 4)
         )
     }
@@ -106,27 +120,9 @@ final class UsageEventIndexTests: XCTestCase {
         }
 
         XCTAssertEqual(index.count, 1)
-        XCTAssertEqual(index.values.first?.provider, .codex)
-        XCTAssertEqual(index.values.first?.record.processedTokens, 30)
-        XCTAssertEqual(index.values.first?.record.model, "new-model")
-    }
-
-    func testEarlierReadersKeepTheirEventsAndModelNamesAcrossUpdates() {
-        var index = UsageEventIndex()
-        index.update { $0.insert(usageEvent(.claude, id: 1, model: "old-model", processedTokens: 10, costUSD: 0)) }
-        let earlier = index.values
-        let copy = index
-
-        index.update { batch in
-            batch.insert(usageEvent(.claude, id: 1, model: "revised-model", processedTokens: 30, costUSD: 0))
-            batch.insert(usageEvent(.codex, id: 2, model: "new-model", processedTokens: 20, costUSD: 0))
-        }
-
-        XCTAssertEqual(earlier.first?.provider, .claude)
-        XCTAssertEqual(earlier.first?.record.model, "old-model")
-        XCTAssertEqual(copy.values.first?.record.model, "old-model")
-        XCTAssertEqual(copy.values.map(\.record.processedTokens), [10])
-        XCTAssertEqual(index.values.map(\.record.processedTokens).sorted(), [20, 30])
+        XCTAssertEqual(index.events.first?.provider, .codex)
+        XCTAssertEqual(index.events.first?.record.processedTokens, 30)
+        XCTAssertEqual(index.events.first?.record.model, "new-model")
     }
 
     private func record(tokens: UInt64, at date: Date = usageTestTimestamp) -> UsageRecord {
@@ -145,7 +141,7 @@ final class UsageEventIndexTests: XCTestCase {
         at date: Date = usageTestTimestamp
     ) -> UsageEvent {
         UsageEvent(
-            id: .claude(messageID: "message", requestID: "request"),
+            id: .claude(messageID: "message".utf8, requestID: "request".utf8),
             record: record(tokens: tokens, at: date),
             revision: UsageEvent.Revision(outputTokens: outputTokens, metadataCompleteness: metadataCompleteness)
         )

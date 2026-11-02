@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -48,6 +47,24 @@ final class JSONObjectReaderTests: XCTestCase {
             .replacingOccurrences(of: #""input_tokens""#, with: #""input_\u0074okens""#)
 
         XCTAssertEqual(try XCTUnwrap(parse(line, with: &parser)?.event).record.processedTokens, 15)
+    }
+
+    func testEscapedIdentitiesAndTimestampsMatchTheirDecodedText() throws {
+        var parser = ClaudeUsageLogParser()
+        let line = claudeAssistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":5"#)
+        let escaped =
+            line
+            .replacingOccurrences(of: #""id":"message""#, with: #""id":"mess\u0061ge""#)
+            .replacingOccurrences(of: #""requestId":"request""#, with: #""requestId":"\u0072equest""#)
+            .replacingOccurrences(
+                of: usageTestTimestampText,
+                with: usageTestTimestampText.replacingOccurrences(of: "T", with: #"\u0054"#)
+            )
+
+        let plain = try XCTUnwrap(parse(line, with: &parser)?.event)
+        let decoded = try XCTUnwrap(parse(escaped, with: &parser)?.event)
+        XCTAssertEqual(decoded.id, plain.id)
+        XCTAssertEqual(decoded.record.timestamp, plain.record.timestamp)
     }
 
     func testSimilarAndNonStringRecordKindsAreSkipped() throws {

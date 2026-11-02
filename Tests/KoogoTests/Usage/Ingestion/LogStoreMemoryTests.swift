@@ -16,7 +16,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
         }
         try workspace.write(turns.joined(), to: workspace.codexSessions.appending(path: "session.jsonl"))
         var store = LogStore()
-        _ = store.sync(
+        store.sync(
             roots: Provider.codex.logRoots(under: workspace.root),
             since: usageTestTimestamp.addingTimeInterval(-86_400)
         )
@@ -57,7 +57,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
 
         let before = allocatedHeapBytes()
         var store = LogStore()
-        _ = store.sync(roots: roots, since: usageTestTimestamp.addingTimeInterval(-86_400))
+        store.sync(roots: roots, since: usageTestTimestamp.addingTimeInterval(-86_400))
         let retainedPerEvent = (allocatedHeapBytes() - before) / (fileCount * repliesPerFile)
 
         XCTAssertEqual(store.collect { _ in }.events[.claude], fileCount * repliesPerFile)

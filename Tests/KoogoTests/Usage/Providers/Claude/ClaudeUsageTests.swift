@@ -1,4 +1,3 @@
-import Foundation
 import XCTest
 
 @testable import Koogo
@@ -118,7 +117,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
                         batch.insert(copy)
                     }
                 }
-                XCTAssertEqual(index.values.map(\.record.processedTokens), [120], detailed)
+                XCTAssertEqual(index.events.map(\.record.processedTokens), [120], detailed)
             }
         }
     }
@@ -136,7 +135,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     }
 
     func testClaudeQuotesMatchPublishedRates() throws {
-        let usage = { (options: Set<ClaudeBillableUsage.Option>) in
+        let usage = { (options: ClaudeBillableUsage.Options) in
             claudeBillableUsage(
                 uncachedInput: 100_000,
                 cachedInput: 100_000,
@@ -151,33 +150,32 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         let usInference = usage([.usInference])
         let shortPrompt = claudeBillableUsage(uncachedInput: 50_000, cachedInput: 50_000, output: 10_000)
 
-        for (model, name, usage, expectedUSD) in [
-            ("claude-fable-5-1", "Fable 5.1", standard, "4.775"),
-            ("claude-mythos-5-1", "Mythos 5.1", standard, "4.775"),
-            ("claude-fable-5", "Fable 5", standard, "4.85"),
-            ("claude-mythos-5", "Mythos 5", standard, "4.85"),
-            ("claude-opus-5-5", "Opus 5.5", standard, "1.92"),
-            ("claude-opus-5-5", "Opus 5.5", fast, "3.84"),
-            ("claude-opus-5", "Opus 5", standard, "2.425"),
-            ("claude-opus-5", "Opus 5", fast, "4.85"),
-            ("claude-opus-4-8", "Opus 4.8", standard, "2.425"),
-            ("claude-opus-4-8", "Opus 4.8", fast, "4.85"),
-            ("claude-opus-4-7", "Opus 4.7", standard, "2.425"),
-            ("claude-opus-4-6", "Opus 4.6", standard, "2.425"),
-            ("claude-opus-4-5-20251101", "Opus 4.5", standard, "2.425"),
-            ("claude-sonnet-5-5", "Sonnet 5.5", standard, "0.96"),
-            ("claude-sonnet-5-5", "Sonnet 5.5", usInference, "1.056"),
-            ("claude-sonnet-5", "Sonnet 5", standard, "0.97"),
-            ("claude-sonnet-5", "Sonnet 5", usInference, "1.067"),
-            ("claude-sonnet-4-6", "Sonnet 4.6", standard, "1.455"),
-            ("claude-sonnet-4-5-20250929", "Sonnet 4.5", standard, "1.455"),
-            ("claude-haiku-5-5", "Haiku 5.5", shortPrompt, "0.0105"),
-            ("claude-haiku-5-5", "Haiku 5.5", standard, "0.2425"),
-            ("claude-haiku-5-5", "Haiku 5.5", usInference, "0.26675"),
+        for (model, usage, expectedUSD) in [
+            ("claude-fable-5-1", standard, "4.775"),
+            ("claude-mythos-5-1", standard, "4.775"),
+            ("claude-fable-5", standard, "4.85"),
+            ("claude-mythos-5", standard, "4.85"),
+            ("claude-opus-5-5", standard, "1.92"),
+            ("claude-opus-5-5", fast, "3.84"),
+            ("claude-opus-5", standard, "2.425"),
+            ("claude-opus-5", fast, "4.85"),
+            ("claude-opus-4-8", standard, "2.425"),
+            ("claude-opus-4-8", fast, "4.85"),
+            ("claude-opus-4-7", standard, "2.425"),
+            ("claude-opus-4-6", standard, "2.425"),
+            ("claude-opus-4-5-20251101", standard, "2.425"),
+            ("claude-sonnet-5-5", standard, "0.96"),
+            ("claude-sonnet-5-5", usInference, "1.056"),
+            ("claude-sonnet-5", standard, "0.97"),
+            ("claude-sonnet-5", usInference, "1.067"),
+            ("claude-sonnet-4-6", standard, "1.455"),
+            ("claude-sonnet-4-5-20250929", standard, "1.455"),
+            ("claude-haiku-5-5", shortPrompt, "0.0105"),
+            ("claude-haiku-5-5", standard, "0.2425"),
+            ("claude-haiku-5-5", usInference, "0.26675"),
         ] {
             let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: ModelID(model), usage: usage), model)
             XCTAssertEqual(quote.model, ModelID(model))
-            XCTAssertEqual(ClaudeUsagePricing.displayName(of: quote.model), name)
             XCTAssertEqual(quote.cost.usd, Decimal(string: expectedUSD), model)
         }
     }
@@ -204,7 +202,6 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(snapshot.cost.usd, Decimal(string: "0.00045"))
         XCTAssertEqual(snapshot.cost.usd, alias.cost.usd)
         XCTAssertEqual(alias.model, ModelID("claude-sonnet-4-5-20250929"))
-        XCTAssertEqual(ClaudeUsagePricing.displayName(of: alias.model), "Sonnet 4.5")
         XCTAssertNotNil(ClaudeUsagePricing.quote(model: "claude-opus-4-5", usage: usage))
         for model in [
             "claude-opus-4-1-20250805",
@@ -234,7 +231,7 @@ private func claudeBillableUsage(
     cacheWrite5MinuteInput: UInt64 = 0,
     cacheWrite1HourInput: UInt64 = 0,
     output: UInt64 = 0,
-    options: Set<ClaudeBillableUsage.Option> = []
+    options: ClaudeBillableUsage.Options = []
 ) -> ClaudeBillableUsage {
     guard
         let tokens = ClaudeTokenUsage(

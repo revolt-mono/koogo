@@ -11,7 +11,7 @@ enum UsageBenchmark {
         let peakFootprintBytes: UInt64
     }
 
-    private struct Result: Encodable {
+    private struct Output: Encodable {
         let digest: String
         let cold: Phase
         let unchanged: Phase
@@ -24,7 +24,7 @@ enum UsageBenchmark {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let (cold, report) = await measure { await pipeline.run(at: date, providers: Provider.allCases) }
-        let result = Result(
+        let output = Output(
             digest: SHA256.hash(data: try encoder.encode(report.snapshot)).map { String(format: "%02x", $0) }.joined(),
             cold: cold,
             unchanged: await measure { await pipeline.run(at: date, providers: Provider.allCases) }.phase,
@@ -32,7 +32,7 @@ enum UsageBenchmark {
                 await pipeline.run(at: date.addingTimeInterval(86_400), providers: Provider.allCases)
             }.phase
         )
-        return try encoder.encode(result)
+        return try encoder.encode(output)
     }
 
     private static func measure(_ work: () async -> UsageReport) async -> (phase: Phase, report: UsageReport) {

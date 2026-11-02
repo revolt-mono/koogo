@@ -5,16 +5,19 @@ import XCTest
 final class UsageEventIDTests: XCTestCase {
     func testIdsDifferWheneverAnyLoggedFieldDiffers() {
         let ids: [UsageEventID] = [
-            .claude(messageID: "ab", requestID: "c"),
-            .claude(messageID: "a", requestID: "bc"),
-            .claude(messageID: "c", requestID: "ab"),
-            .codex(turnID: "ab", cumulativeTotal: 1),
-            .codex(turnID: "ab", cumulativeTotal: 2),
-            .piAgent(entryID: "ab"),
-            .grok(eventID: "ab", timestampMilliseconds: 1),
+            .claude(messageID: "ab".utf8, requestID: "c".utf8),
+            .claude(messageID: "a".utf8, requestID: "bc".utf8),
+            .claude(messageID: "c".utf8, requestID: "ab".utf8),
+            .codex(turnID: "ab".utf8, cumulativeTotal: 1),
+            .codex(turnID: "ab".utf8, cumulativeTotal: 2),
+            .piAgent(entryID: "ab".utf8),
+            .grok(eventID: "ab".utf8, timestampMilliseconds: 1),
         ]
 
         XCTAssertEqual(Set(ids).count, ids.count)
-        XCTAssertEqual(UsageEventID.claude(messageID: "ab", requestID: "c"), .claude(messageID: "ab", requestID: "c"))
+        XCTAssertEqual(
+            UsageEventID.claude(messageID: "ab".utf8, requestID: "c".utf8),
+            .claude(messageID: "ab".utf8, requestID: "c".utf8)
+        )
     }
 }

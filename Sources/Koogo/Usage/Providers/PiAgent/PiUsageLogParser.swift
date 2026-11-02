@@ -22,23 +22,32 @@ struct PiUsageLogParser: UsageLogParser {
 }
 
 private struct PiEntry {
-    let id: String
+    let id: JSONText
     let billed: PiBilledEntry?
 
     init?(_ line: UnsafeRawBufferPointer) throws {
-        guard let record = JSONValue(object: line) else {
+        guard var record = JSONObjectReader(line) else {
             return nil
         }
-        let (type, id, timestamp, message, usage) = try record.fields(
-            .value("type"),
-            .string("id"),
-            .string("timestamp"),
-            .value("message"),
-            .value("usage")
-        )
-        guard let type, let id else {
+        var type: JSONValue?
+        var id: JSONValue?
+        var timestamp: JSONValue?
+        var message: JSONValue?
+        var usage: JSONValue?
+        while let member = try record.next() {
+            switch member.key {
+            case "type": type = member.value
+            case "id": id = member.value
+            case "timestamp": timestamp = member.value
+            case "message": message = member.value
+            case "usage": usage = member.value
+            default: break
+            }
+        }
+        guard let type, let id = try id?.text() else {
             throw MalformedUsageRecord()
         }
+        let timestampText = try timestamp?.text()
         self.id = id
         switch type {
         case "message":
@@ -47,8 +56,8 @@ private struct PiEntry {
             }
             billed = try PiBilledEntry(message: message)
         case "compaction", "branch_summary":
-            billed = try usage.flatMap {
-                try PiBilledEntry(usage: $0, model: nil, timestamp: timestamp.flatMap(Date.init(iso8601:)))
+            billed = try usage?.nonNull.map {
+                try PiBilledEntry(usage: $0, model: nil, timestamp: timestampText.flatMap(Date.init(iso8601:)))
             }
         default:
             billed = nil
@@ -62,15 +71,20 @@ private struct PiBilledEntry {
     let model: ModelID?
     let timestamp: Date
 
-    init?(usage: JSONValue, model: ModelID?, timestamp: Date?) throws {
-        guard let usage = usage.nonNull else {
-            return nil
+    init(usage: JSONValue, model: ModelID?, timestamp: Date?) throws {
+        var processedTokens: JSONValue?
+        var cost: JSONValue?
+        var fields = try usage.object()
+        while let member = try fields.next() {
+            switch member.key {
+            case "totalTokens": processedTokens = member.value
+            case "cost": cost = member.value
+            default: break
+            }
         }
-        let (processedTokens, cost) = try usage.fields(
-            .uint64("totalTokens"),
-            JSONField("cost") { try $0.fields(.usd("total")) }
-        )
-        guard let processedTokens, let cost, let timestamp else {
+        guard let processedTokens = try processedTokens?.uint64(), let cost = try cost?.member("total")?.usd(),
+            let timestamp
+        else {
             throw MalformedUsageRecord()
         }
         self.processedTokens = processedTokens
@@ -80,13 +94,24 @@ private struct PiBilledEntry {
     }
 
     init?(message: JSONValue) throws {
-        let (role, provider, model, milliseconds, usage) = try message.fields(
-            .value("role"),
-            .string("provider"),
-            .string("model"),
-            .value("timestamp"),
-            .value("usage")
-        )
+        var role: JSONValue?
+        var provider: JSONValue?
+        var model: JSONValue?
+        var milliseconds: JSONValue?
+        var usage: JSONValue?
+        var fields = try message.object()
+        while let member = try fields.next() {
+            switch member.key {
+            case "role": role = member.value
+            case "provider": provider = member.value
+            case "model": model = member.value
+            case "timestamp": milliseconds = member.value
+            case "usage": usage = member.value
+            default: break
+            }
+        }
+        let providerName = try provider?.string()
+        let modelName = try model?.string()
         guard let role else {
             throw MalformedUsageRecord()
         }
@@ -96,16 +121,19 @@ private struct PiBilledEntry {
         let reference: ModelID?
         switch role {
         case "assistant":
-            guard let provider, let model else {
+            guard let providerName, let modelName else {
                 throw MalformedUsageRecord()
             }
-            reference = PiModelCatalog.modelID(provider: provider, model: model)
+            reference = PiModelCatalog.modelID(provider: providerName, model: modelName)
         case "toolResult":
             reference = nil
         default:
             return nil
         }
         let timestamp = try milliseconds?.uint64().map(Date.init(unixMilliseconds:))
+        guard let usage = usage.nonNull else {
+            return nil
+        }
         try self.init(usage: usage, model: reference, timestamp: timestamp)
     }
 }

@@ -5,7 +5,8 @@ import Synchronization
 struct LogStore: ~Copyable {
     private struct Entry: Sendable {
         let root: UsageLogRoot
-        /// nil while the file was last written before the window; a resumed writer updates the modification time without a directory event.
+        /// nil while the file was last written before the window or failed to open; both are rechecked without a
+        /// directory event, since a resumed writer updates the modification time without one.
         var log: (any TrackedLog)?
     }
 
@@ -14,97 +15,70 @@ struct LogStore: ~Copyable {
     private var windowStart = Date.distantPast
     private var watcher: LogDirectoryWatcher?
 
-    /// returns true when events or ingestion totals may have changed.
-    mutating func sync(roots: [UsageLogRoot], since windowStart: Date) -> Bool {
+    mutating func sync(roots: [UsageLogRoot], since windowStart: Date) {
         let windowMoved = moveWindow(to: windowStart)
         let rootsChanged = updateRoots(roots)
         let reported = takeReportedChanges(for: roots)
         let changes = windowMoved || rootsChanged ? .everything : reported
         let walks = Self.walks(of: roots, for: changes)
 
-        var changed = windowMoved || rootsChanged
+        var unobserved = entries
+        entries = Dictionary(minimumCapacity: unobserved.count)
         var newFiles: [(path: String, metadata: UsageFileMetadata, root: UsageLogRoot)] = []
-        func observe(_ path: String, _ metadata: UsageFileMetadata, under root: UsageLogRoot) {
-            guard metadata.modificationDate >= windowStart else {
-                changed = entries.updateValue(Entry(root: root, log: nil), forKey: path)?.log != nil || changed
-                return
-            }
-            if let fileChanged = entries[path]?.log?.sync(observed: metadata) {
-                changed = fileChanged || changed
+        func observe(_ path: String, _ metadata: UsageFileMetadata, _ entry: consuming Entry) {
+            if metadata.modificationDate < windowStart {
+                entry.log = nil
+            } else if entry.log == nil {
+                newFiles.append((path, metadata, entry.root))
             } else {
-                newFiles.append((path, metadata, root))
+                entry.log?.sync(observed: metadata)
             }
+            entries[path] = entry
         }
 
-        var seenPaths = Set<String>()
         for (root, directory) in walks {
             Self.walk(root, from: directory) { path, metadata in
-                seenPaths.insert(path)
-                observe(path, metadata, under: root)
+                observe(path, metadata, Entry(root: root, log: unobserved.removeValue(forKey: path)?.log))
             }
         }
         // fsevents reports an appended log only once its writer closes it, so files outside the walks are checked directly.
-        for path in entries.keys.filter({ !seenPaths.contains($0) }) {
-            if case .directories = changes, !walks.contains(where: { path.hasPrefix($0.directory + "/") }),
-                let entry = entries[path], let metadata = UsageFileMetadata(path: path)
-            {
-                observe(path, metadata, under: entry.root)
-            } else {
-                changed = entries.removeValue(forKey: path)?.log != nil || changed
+        if case .directories = changes {
+            let walked = walks.map { $0.directory + "/" }
+            // popping moves each log out, so syncing it appends in place instead of copying its events.
+            while let (path, entry) = unobserved.popFirst() {
+                if !walked.contains(where: path.hasPrefix), let metadata = UsageFileMetadata(path: path) {
+                    observe(path, metadata, entry)
+                }
             }
         }
-        for (path, entry) in Self.open(newFiles, since: windowStart) {
-            entries[path] = entry
-            changed = true
-        }
-        return changed
+        entries.merge(Self.open(newFiles, since: windowStart)) { $1 }
     }
 
-    /// visits each request once, keeping the most complete copy across logs.
+    /// visits each request once, keeping the most complete copy across logs; equal copies keep the first path's.
     func collect(_ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
         var trackedFiles = EnumMap<Provider, Int> { _ in 0 }
         var malformedLines = EnumMap<Provider, Int> { _ in 0 }
         var unpricedModels = Set<ModelID>()
-        for entry in entries.values {
+        var indexes: [UsageEventIndex] = []
+        for (_, entry) in entries.sorted(by: { $0.key < $1.key }) {
             guard let log = entry.log else {
                 continue
             }
             trackedFiles[entry.root.provider] += 1
             malformedLines[entry.root.provider] += log.tally.malformedLines
             unpricedModels.formUnion(log.tally.unpricedModelIDs)
+            indexes.append(log.events)
         }
 
-        let logs = entries.sorted { $0.key < $1.key }.compactMap(\.value.log)
-        var seenHashes = Set<Int>(minimumCapacity: logs.reduce(0) { $0 + $1.events.count })
-        var sharedHashes = Set<Int>()
-        for log in logs {
-            for id in log.events.keys where !seenHashes.insert(id.hashValue).inserted {
-                sharedHashes.insert(id.hashValue)
-            }
-        }
-
-        var counts = EnumMap<Provider, Int> { _ in 0 }
-        func countAndVisit(_ event: UsageEvent) {
-            counts[event.provider] += 1
+        var events = EnumMap<Provider, Int> { _ in 0 }
+        UsageEventIndex.forEachUnique(in: indexes) { event in
+            events[event.provider] += 1
             visit(event)
         }
-        var shared = UsageEventIndex()
-        shared.update { batch in
-            for log in logs {
-                for event in log.events.values {
-                    if sharedHashes.contains(event.id.hashValue) {
-                        batch.insert(event)
-                    } else {
-                        countAndVisit(event)
-                    }
-                }
-            }
-        }
-        shared.values.forEach(countAndVisit)
         return UsageIngestionStats(
             logRoots: logRoots,
             trackedFiles: trackedFiles,
-            events: counts,
+            events: events,
             malformedLines: malformedLines,
             unpricedModels: unpricedModels.sorted().map(\.rawValue)
         )

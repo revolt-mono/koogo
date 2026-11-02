@@ -1,5 +1,3 @@
-import Foundation
-
 enum ClaudeUsagePricing {
     private static let longPromptThreshold: UInt64 = 100_000
 
@@ -35,7 +33,7 @@ enum ClaudeUsagePricing {
         let displayName: String
         let rates: Rates
         var longPromptRates: Rates?
-        let options: Set<ClaudeBillableUsage.Option>
+        let options: ClaudeBillableUsage.Options
     }
 
     // pricing checked 2026-10-08: https://platform.claude.com/docs/en/about-claude/pricing and https://platform.claude.com/docs/en/models/overview
@@ -132,15 +130,11 @@ enum ClaudeUsagePricing {
 
         let promptTokens = usage.tokens.processed - usage.tokens.output
         let rates = promptTokens > longPromptThreshold ? price.longPromptRates ?? price.rates : price.rates
-        guard usage.options.isSubset(of: price.options) else {
+        guard price.options.isSuperset(of: usage.options) else {
             return nil
         }
-        let tokenCost = usage.options.reduce(rates.cost(of: usage.tokens)) { cost, option in
-            switch option {
-            case .fastMode: cost * 2
-            case .usInference: cost.scaled(by: 11, over: 10)
-            }
-        }
+        let speedCost = rates.cost(of: usage.tokens) * (usage.options.contains(.fastMode) ? 2 : 1)
+        let tokenCost = usage.options.contains(.usInference) ? speedCost.scaled(by: 11, over: 10) : speedCost
         return UsageQuote(
             model: model,
             cost: tokenCost + Picodollars(nanodollars: 10_000_000) * usage.webSearchRequests

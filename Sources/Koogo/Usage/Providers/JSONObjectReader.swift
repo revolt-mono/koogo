@@ -1,5 +1,6 @@
 import Foundation
 
+/// walks one object's members in order; nested values stay unread until a parser opens them.
 struct JSONObjectReader {
     struct Member {
         let key: JSONValue
@@ -129,8 +130,44 @@ struct JSONObjectReader {
     }
 }
 
+/// a json string's utf-8 content.
+enum JSONText: RandomAccessCollection {
+    case logged(UnsafeRawBufferPointer)
+    case decoded([UInt8])
+
+    var startIndex: Int { 0 }
+
+    var endIndex: Int {
+        switch self {
+        case .logged(let bytes): bytes.count
+        case .decoded(let bytes): bytes.count
+        }
+    }
+
+    subscript(position: Int) -> UInt8 {
+        switch self {
+        case .logged(let bytes): bytes[position]
+        case .decoded(let bytes): bytes[position]
+        }
+    }
+
+    func withContiguousStorageIfAvailable<Result>(
+        _ body: (UnsafeBufferPointer<UInt8>) throws -> Result
+    ) rethrows -> Result? {
+        switch self {
+        case .logged(let bytes): try bytes.withMemoryRebound(to: UInt8.self, body)
+        case .decoded(let bytes): try bytes.withUnsafeBufferPointer(body)
+        }
+    }
+}
+
+/// one value's bytes, borrowed from the line; decoding happens on request.
 struct JSONValue {
     let bytes: UnsafeRawBufferPointer
+
+    fileprivate init(bytes: UnsafeRawBufferPointer) {
+        self.bytes = bytes
+    }
 
     static func ~= (literal: StaticString, value: Self) -> Bool {
         value.isString(literal)
@@ -140,29 +177,66 @@ struct JSONValue {
         bytes.elementsEqual("null".utf8)
     }
 
+    var nonNull: Self? {
+        isNull ? nil : self
+    }
+
+    /// literals hold no quotes or backslashes, so only an escaped spelling needs decoding.
     func isString(_ literal: StaticString) -> Bool {
-        guard let content = unescapedString else {
-            return bytes.first == UInt8(ascii: "\"") && (try? string()) == literal.description
+        let count = literal.utf8CodeUnitCount
+        guard bytes.count == count + 2 else {
+            return bytes.count > count + 2 && hasEscape && (try? string()) == literal.description
         }
-        return content.count == literal.utf8CodeUnitCount
-            && memcmp(content.baseAddress, literal.utf8Start, literal.utf8CodeUnitCount) == 0
+        return bytes[0] == UInt8(ascii: "\"") && memcmp(bytes.baseAddress! + 1, literal.utf8Start, count) == 0
+    }
+
+    func object() throws -> JSONObjectReader {
+        guard let object = JSONObjectReader(bytes) else {
+            throw MalformedUsageRecord()
+        }
+        return object
+    }
+
+    /// the last member under the key.
+    func member(_ key: StaticString) throws -> JSONValue? {
+        var object = try object()
+        var value: JSONValue?
+        while let member = try object.next() {
+            if member.key.isString(key) {
+                value = member.value
+            }
+        }
+        return value
+    }
+
+    /// a string's utf-8 content; only content with escapes is copied out of the line to decode.
+    func text() throws -> JSONText? {
+        guard !isNull else {
+            return nil
+        }
+        guard bytes.count >= 2, bytes[0] == UInt8(ascii: "\"") else {
+            throw MalformedUsageRecord()
+        }
+        let content = UnsafeRawBufferPointer(rebasing: bytes[1..<bytes.count - 1])
+        if content.allSatisfy(Self.isPlainASCII) {
+            return .logged(content)
+        }
+        let string = try decodedString()
+        return hasEscape ? .decoded(Array(string.utf8)) : .logged(content)
     }
 
     func string() throws -> String? {
-        if isNull {
-            return nil
-        }
-        if let raw = unescapedString, !raw.contains(where: { $0 < 0x20 }) {
-            guard let string = String(validating: raw, as: UTF8.self) else {
-                throw MalformedUsageRecord()
-            }
-            return string
-        }
-        return try JSONDecoder().decode(String.self, from: Data(bytes))
+        isNull ? nil : try decodedString()
     }
 
-    var nonNull: Self? {
-        isNull ? nil : self
+    private func decodedString() throws -> String {
+        guard let content = plainContent else {
+            return try JSONDecoder().decode(String.self, from: Data(bytes))
+        }
+        guard let string = String(validating: content, as: UTF8.self) else {
+            throw MalformedUsageRecord()
+        }
+        return string
     }
 
     func uint64() throws -> UInt64? {
@@ -241,13 +315,6 @@ struct JSONValue {
         return Picodollars(remainder >= divisor - remainder ? quotient + 1 : quotient)
     }
 
-    func object() throws -> JSONObjectReader {
-        guard let object = JSONObjectReader(bytes) else {
-            throw MalformedUsageRecord()
-        }
-        return object
-    }
-
     private var isNumber: Bool {
         var index = 0
         func skipDigits() -> Bool {
@@ -283,25 +350,24 @@ struct JSONValue {
         return index == bytes.count
     }
 
+    private var hasEscape: Bool {
+        memchr(bytes.baseAddress, Int32(UInt8(ascii: "\\")), bytes.count) != nil
+    }
+
+    /// the content of a string that needs no unescaping.
+    private var plainContent: UnsafeRawBufferPointer? {
+        guard bytes.count >= 2, bytes[0] == UInt8(ascii: "\""), !hasEscape else {
+            return nil
+        }
+        let content = UnsafeRawBufferPointer(rebasing: bytes[1..<bytes.count - 1])
+        return content.contains { $0 < 0x20 } ? nil : content
+    }
+
     private static func isDigit(_ byte: UInt8) -> Bool {
         (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte)
     }
 
-    private var unescapedString: UnsafeRawBufferPointer? {
-        guard bytes.count >= 2, bytes.first == UInt8(ascii: "\""), let base = bytes.baseAddress,
-            memchr(base + 1, Int32(UInt8(ascii: "\\")), bytes.count - 2) == nil
-        else {
-            return nil
-        }
-        return UnsafeRawBufferPointer(rebasing: bytes[1..<bytes.count - 1])
-    }
-}
-
-extension JSONValue {
-    init?(object line: UnsafeRawBufferPointer) {
-        guard JSONObjectReader(line) != nil else {
-            return nil
-        }
-        bytes = line
+    private static func isPlainASCII(_ byte: UInt8) -> Bool {
+        byte >= 0x20 && byte < 0x7F && byte != UInt8(ascii: "\\")
     }
 }

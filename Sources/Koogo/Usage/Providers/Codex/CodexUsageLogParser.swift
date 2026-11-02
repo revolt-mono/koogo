@@ -5,37 +5,49 @@ struct CodexUsageLogParser: UsageLogParser {
     private var model: ModelID?
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
-        guard let object = JSONValue(object: line) else {
+        guard var record = JSONObjectReader(line) else {
             return nil
         }
-        let (kind, timestamp, payload) = try object.fields(
-            .kind("type") { $0.isString("turn_context") || $0.isString("token_usage_record") },
-            .value("timestamp"),
-            .value("payload")
-        )
-        guard let kind else {
-            return nil
+        var kind: JSONValue?
+        var timestamp: JSONValue?
+        var payload: JSONValue?
+        while let member = try record.next() {
+            switch member.key {
+            case "type":
+                guard member.value.isString("turn_context") || member.value.isString("token_usage_record") else {
+                    return nil
+                }
+                kind = member.value
+            case "timestamp": timestamp = member.value
+            case "payload": payload = member.value
+            default: break
+            }
         }
         switch kind {
-        case "turn_context":
-            model = try? payload?.fields(.string("model"))?.nonEmpty.map(ModelID.init(_:))
+        case nil:
+            return nil
+        case "turn_context"?:
+            model = try? payload?.member("model")?.string()?.nonEmpty.map(ModelID.init(_:))
             guard model != nil else {
                 throw MalformedUsageRecord()
             }
             return nil
         default:
-            let record = try CodexTokenUsageRecord(payload: payload, timestamp: timestamp)
+            guard let payload, let timestamp = try timestamp?.text().flatMap(Date.init(iso8601:)) else {
+                throw MalformedUsageRecord()
+            }
+            let record = try CodexTokenUsageRecord(payload)
             guard let model else {
                 return nil
             }
             guard let quote = CodexUsagePricing.quote(model: model, tokens: record.usage) else {
-                return .unpricedModel(model, timestamp: record.timestamp)
+                return .unpricedModel(model, timestamp: timestamp)
             }
             return .event(
                 UsageEvent(
                     id: .codex(turnID: record.turnID, cumulativeTotal: record.threadTotal),
                     record: UsageRecord(
-                        timestamp: record.timestamp,
+                        timestamp: timestamp,
                         processedTokens: record.usage.processed,
                         cost: quote.cost,
                         model: quote.model
@@ -47,27 +59,31 @@ struct CodexUsageLogParser: UsageLogParser {
 }
 
 private struct CodexTokenUsageRecord {
-    let turnID: String
+    let turnID: JSONText
     let usage: CodexTokenUsage
     let threadTotal: UInt64
-    let timestamp: Date
 
-    init(payload: JSONValue?, timestamp: JSONValue?) throws {
-        guard let payload, let logged = try timestamp?.string(), let timestamp = Date(iso8601: logged) else {
-            throw MalformedUsageRecord()
+    init(_ payload: JSONValue) throws {
+        var turnID: JSONValue?
+        var usage: JSONValue?
+        var threadUsage: JSONValue?
+        var fields = try payload.object()
+        while let member = try fields.next() {
+            switch member.key {
+            case "turn_id": turnID = member.value
+            case "usage": usage = member.value
+            case "thread_token_usage": threadUsage = member.value
+            default: break
+            }
         }
-        let (turnID, usage, threadTotal) = try payload.fields(
-            .string("turn_id"),
-            JSONField("usage", CodexTokenUsage.init(_:)),
-            JSONField("thread_token_usage") { try $0.fields(.uint64("total_tokens")) }
-        )
-        guard let turnID, let usage, let threadTotal else {
+        guard let turnID = try turnID?.text(), let usage = try usage.map(CodexTokenUsage.init),
+            let threadTotal = try threadUsage?.member("total_tokens")?.uint64()
+        else {
             throw MalformedUsageRecord()
         }
         self.turnID = turnID
         self.usage = usage
         self.threadTotal = threadTotal
-        self.timestamp = timestamp
     }
 }
 
@@ -94,18 +110,28 @@ struct CodexTokenUsage: Sendable {
     }
 
     fileprivate init(_ value: JSONValue) throws {
-        let (input, cachedInput, cacheWrite, output, processed) = try value.fields(
-            .uint64("input_tokens"),
-            .uint64("cached_input_tokens"),
-            .uint64("cache_write_input_tokens"),
-            .uint64("output_tokens"),
-            .uint64("total_tokens")
-        )
-        guard let input, let cachedInput, let output, let processed,
+        var input: JSONValue?
+        var cachedInput: JSONValue?
+        var cacheWrite: JSONValue?
+        var output: JSONValue?
+        var processed: JSONValue?
+        var fields = try value.object()
+        while let member = try fields.next() {
+            switch member.key {
+            case "input_tokens": input = member.value
+            case "cached_input_tokens": cachedInput = member.value
+            case "cache_write_input_tokens": cacheWrite = member.value
+            case "output_tokens": output = member.value
+            case "total_tokens": processed = member.value
+            default: break
+            }
+        }
+        guard let input = try input?.uint64(), let cachedInput = try cachedInput?.uint64(),
+            let output = try output?.uint64(), let processed = try processed?.uint64(),
             let usage = CodexTokenUsage(
                 input: input,
                 cachedInput: cachedInput,
-                cacheWrite: cacheWrite ?? 0,
+                cacheWrite: try cacheWrite?.uint64() ?? 0,
                 output: output,
                 processed: processed
             )

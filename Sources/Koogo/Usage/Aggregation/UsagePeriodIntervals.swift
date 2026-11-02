@@ -14,26 +14,32 @@ enum UsagePeriod: String, CaseIterable, Sendable, Encodable, CodingKeyRepresenta
     }
 }
 
-struct UsagePeriodIntervals: Equatable, Sendable {
-    let last30Days: Range<Date>
-    let last30DayStarts: [Date]
+/// day bounds in seconds since the reference date, so per-event lookups skip resilient date comparisons.
+struct UsagePeriodIntervals: Sendable {
+    /// local midnights, newest first.
+    private let dayStarts: [TimeInterval]
+    private let end: TimeInterval
 
     init(containing date: Date, calendar: Calendar) {
         guard let todayInterval = calendar.dateInterval(of: .day, for: date) else {
             preconditionFailure("calendar must provide day intervals")
         }
-        let dayCount = UsagePeriod.last30Days.dayCount
-        last30DayStarts = Array(
-            sequence(first: todayInterval.start) { calendar.startOfDay(for: $0.addingTimeInterval(-1)) }
-                .prefix(dayCount)
-        )
-        last30Days = last30DayStarts[dayCount - 1]..<todayInterval.end
+        dayStarts = sequence(first: todayInterval.start) { calendar.startOfDay(for: $0.addingTimeInterval(-1)) }
+            .prefix(UsagePeriod.last30Days.dayCount)
+            .map(\.timeIntervalSinceReferenceDate)
+        end = todayInterval.end.timeIntervalSinceReferenceDate
+    }
+
+    var last30Days: Range<Date> {
+        Date(timeIntervalSinceReferenceDate: dayStarts[dayStarts.count - 1])..<Date(timeIntervalSinceReferenceDate: end)
+    }
+
+    var last30DayStarts: [Date] {
+        dayStarts.map(Date.init(timeIntervalSinceReferenceDate:))
     }
 
     func last30DayIndex(containing date: Date) -> Int? {
-        guard last30Days.contains(date) else {
-            return nil
-        }
-        return last30DayStarts.firstIndex { $0 <= date }
+        let seconds = date.timeIntervalSinceReferenceDate
+        return seconds < end ? dayStarts.firstIndex { $0 <= seconds } : nil
     }
 }
