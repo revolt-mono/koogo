@@ -86,7 +86,6 @@ extension Date {
 }
 
 extension UnsafeBufferPointer<UInt8> {
-    /// the decimal digits in `range`, when every byte is a digit and the value is in `valid`.
     fileprivate func number(_ range: Range<Int>, in valid: ClosedRange<Int>) -> Int? {
         guard range.upperBound <= count else {
             return nil

@@ -5,7 +5,6 @@ import os
 @MainActor
 @Observable
 final class ActivityModel {
-    /// one sample's charted metrics; a metric the machine lacks is nil and skipped in its trend.
     private struct Reading {
         let cpu: Double
         let gpu: Double?
@@ -19,14 +18,12 @@ final class ActivityModel {
     private let sample: @Sendable () async throws -> ActivitySample
 
     private(set) var latest: ActivitySample?
-    /// the newest samples, oldest first.
     private var readings: [Reading] = []
 
     var cpuTrend: [Double] { readings.map(\.cpu) }
 
     var gpuTrend: [Double] { readings.compactMap(\.gpu) }
 
-    /// battery draw as fractions of its recent peak.
     var drawTrend: [Double] {
         let draws = readings.compactMap(\.draw)
         let peak = draws.max() ?? 0

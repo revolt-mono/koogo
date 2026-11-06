@@ -120,7 +120,6 @@ extension UsageEventIndex {
         }
     }
 
-    /// a min-heap of one cursor per nonempty index, keyed by the id under each cursor and then the index.
     private struct Merge {
         struct Cursor {
             let index: Int
@@ -145,7 +144,6 @@ extension UsageEventIndex {
             }
         }
 
-        /// pops every copy of the smallest id and returns the one that supersedes the rest.
         mutating func next() -> Cursor? {
             guard var kept = heap.first else {
                 return nil

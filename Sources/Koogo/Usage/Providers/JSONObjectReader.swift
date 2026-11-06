@@ -209,7 +209,6 @@ struct JSONValue {
         return value
     }
 
-    /// a string's utf-8 content; only content with escapes is copied out of the line to decode.
     func text() throws -> JSONText? {
         guard !isNull else {
             return nil
@@ -354,7 +353,6 @@ struct JSONValue {
         memchr(bytes.baseAddress, Int32(UInt8(ascii: "\\")), bytes.count) != nil
     }
 
-    /// the content of a string that needs no unescaping.
     private var plainContent: UnsafeRawBufferPointer? {
         guard bytes.count >= 2, bytes[0] == UInt8(ascii: "\""), !hasEscape else {
             return nil

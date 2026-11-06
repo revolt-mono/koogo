@@ -7,6 +7,7 @@ import os
 @MainActor
 @Observable
 final class KeepAwakeModel {
+    /// a plain bool, since `PersistedValue` encodes property lists, which reject a top-level scalar.
     private static let key = "keep-awake"
 
     private let defaults: UserDefaults

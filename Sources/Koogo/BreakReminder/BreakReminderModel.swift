@@ -37,7 +37,7 @@ final class BreakReminderModel {
         countdown = if let stored, stored.isValid(at: now()) { stored } else { .initial }
     }
 
-    /// returns the issue this action ran into; a dropped or unchanged action has none.
+    /// a dropped or unchanged action returns nil, even while an earlier issue stands.
     @discardableResult
     func perform(_ action: BreakReminderCountdown.Action) async -> BreakReminderIssue? {
         var raised: BreakReminderIssue?

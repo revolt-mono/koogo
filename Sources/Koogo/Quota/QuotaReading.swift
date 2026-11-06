@@ -3,7 +3,6 @@ enum QuotaUnavailability: String, Encodable, Sendable {
     case timedOut
     /// the tool exited, never ran, or refused the request.
     case sessionFailed
-    /// the tool answered with an unsupported message shape.
     case invalidMessage
     case emptyLimits
     /// the tool determined locally that plan limits do not apply, such as for an api key.

@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ProviderUsageToggles: View {
+    /// `script/build.sh` declares this type in the bundle's info plist.
     private static let dragType = UTType(exportedAs: "com.revolt.koogo.provider")
 
     @Environment(ProviderPreferences.self) private var preferences

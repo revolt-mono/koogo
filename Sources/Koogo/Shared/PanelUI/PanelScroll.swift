@@ -8,7 +8,6 @@ extension View {
             .panelScroll(scrollerInset: PanelLayout.inset)
     }
 
-    /// fades scrolled edges while leaving the trailing scroller inset unfaded.
     func panelScroll(scrollerInset: CGFloat) -> some View {
         contentMargins(.trailing, scrollerInset, for: .scrollContent)
             .modifier(ScrollEdgeFade(scrollerInset: scrollerInset))

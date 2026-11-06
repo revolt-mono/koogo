@@ -41,7 +41,6 @@ final class ScrollRewriter {
         optionStrip = OptionStrip(source: source)
     }
 
-    /// posts replacements synchronously before returning drop.
     func rewrite(_ event: CGEvent, rules: InputRules, post: (borrowing PostedScrollEvent) -> Void) -> ScrollRewrite {
         guard Self.isWheelNotchEvent(event) else {
             return .deliver

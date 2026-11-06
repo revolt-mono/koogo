@@ -1,6 +1,5 @@
 import Foundation
 
-/// saturating arithmetic; encodes as us dollars.
 struct Picodollars: Comparable, Sendable, Encodable {
     static let zero = Self(0)
 

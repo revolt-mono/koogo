@@ -1,4 +1,4 @@
-/// contains a value for every key case, stored in case order; lookups are never optional.
+/// contains a value for every key case.
 struct EnumMap<Key: CaseIterable & Hashable, Value> where Key.AllCases == [Key] {
     private var values: [Value]
 
