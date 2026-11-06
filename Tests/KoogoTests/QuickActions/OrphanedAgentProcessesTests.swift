@@ -20,7 +20,7 @@ final class OrphanedAgentProcessesTests: XCTestCase {
     }
 
     func testOrphanedAgentProcessSkipsTerminalSessionsAndOwnQuotaReads() {
-        XCTAssertNil(orphan(parentPID: 1, terminalDevice: 0x1000_0003, executablePath: claudePath))
+        XCTAssertNil(orphan(parentPID: 1, hasTerminal: true, executablePath: claudePath))
         XCTAssertNil(orphan(parentPID: ProcessInfo.processInfo.processIdentifier, executablePath: claudePath))
     }
 
@@ -36,13 +36,13 @@ final class OrphanedAgentProcessesTests: XCTestCase {
 
     private func orphan(
         parentPID: pid_t,
-        terminalDevice: UInt32 = OrphanedAgentProcess.noTerminal,
+        hasTerminal: Bool = false,
         executablePath: String
     ) -> OrphanedAgentProcess? {
         OrphanedAgentProcess(
             identity,
             parentPID: parentPID,
-            terminalDevice: terminalDevice,
+            hasTerminal: hasTerminal,
             executablePath: executablePath
         )
     }

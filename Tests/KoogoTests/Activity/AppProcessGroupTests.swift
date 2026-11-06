@@ -148,7 +148,7 @@ final class AppProcessGroupTests: XCTestCase {
     }
 
     func testTheRunningMachineMeasuresThisProcessAndRanksTheHeaviestGroups() throws {
-        let before = try ProcessScan.read()
+        let before = try ProcessScan.read(after: nil)
         let spinUntil = ContinuousClock.now + .milliseconds(300)
         while ContinuousClock.now < spinUntil {}
         let after = try ProcessScan.read(after: before)
@@ -183,7 +183,7 @@ final class AppProcessGroupTests: XCTestCase {
 
         var scanned: SuspendingClock.Instant?
         try await waitUntil {
-            scanned = (try? ProcessScan.read())?.records.first { $0.pid == child.processIdentifier }?.launched
+            scanned = (try? ProcessScan.read(after: nil))?.records.first { $0.pid == child.processIdentifier }?.launched
             return scanned != nil
         }
 
@@ -291,7 +291,7 @@ final class ProcessScanTests: XCTestCase {
         child.standardInput = input
         try child.run()
         addTeardownBlock { child.terminate() }
-        let beforeExec = try ProcessScan.read()
+        let beforeExec = try ProcessScan.read(after: nil)
         let shell = try XCTUnwrap(beforeExec.records.first { $0.pid == child.processIdentifier })
         XCTAssertEqual(shell.executablePath, "/bin/zsh")
 
@@ -317,7 +317,7 @@ final class ProcessScanTests: XCTestCase {
         var scan: ProcessScan?
         var sleeper: ProcessRecord?
         try await waitUntil {
-            scan = try? ProcessScan.read()
+            scan = try? ProcessScan.read(after: nil)
             sleeper = scan?.records.first { $0.parentPID == shell }
             return sleeper != nil
         }

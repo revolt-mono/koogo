@@ -3,17 +3,17 @@ import Foundation
 
 /// agent processes without a driving terminal session: daemons, pty hosts, spares, and closed-terminal leftovers.
 struct OrphanedAgentProcess: Sendable {
-    static let noTerminal = UInt32.max
+    static let providers = Provider.allCases.filter { $0.ownsProcess != nil }
 
     fileprivate let identity: ProcessIdentity
     let provider: Provider
 
-    init?(_ identity: ProcessIdentity, parentPID: pid_t, terminalDevice: UInt32, executablePath: String) {
+    init?(_ identity: ProcessIdentity, parentPID: pid_t, hasTerminal: Bool, executablePath: String) {
         guard
-            terminalDevice == Self.noTerminal,
+            !hasTerminal,
             parentPID != ProcessInfo.processInfo.processIdentifier,
             case let executable = URL(filePath: executablePath),
-            let provider = Provider.allCases.first(where: { $0.ownsProcess(executable) })
+            let provider = Self.providers.first(where: { $0.ownsProcess?(executable) == true })
         else { return nil }
         self.identity = identity
         self.provider = provider
@@ -21,13 +21,13 @@ struct OrphanedAgentProcess: Sendable {
 }
 
 private extension Provider {
-    func ownsProcess(_ executable: URL) -> Bool {
-        let name = executable.lastPathComponent
-        return switch self {
-        case .codex: name == "codex"
-        case .claude: name.wholeMatch(of: /\d+\.\d+\.\d+/) != nil && executable.pathComponents.contains("claude")
-        case .piAgent: false
-        case .grok: name.hasPrefix("grok")
+    var ownsProcess: ((URL) -> Bool)? {
+        switch self {
+        case .codex: { $0.lastPathComponent == "codex" }
+        case .claude:
+            { $0.lastPathComponent.wholeMatch(of: /\d+\.\d+\.\d+/) != nil && $0.pathComponents.contains("claude") }
+        case .piAgent: nil
+        case .grok: { $0.lastPathComponent.hasPrefix("grok") }
         }
     }
 }
@@ -57,7 +57,7 @@ struct OrphanedAgentProcesses: Sendable {
     }
 
     var summary: String {
-        Provider.allCases.compactMap { provider in
+        OrphanedAgentProcess.providers.compactMap { provider in
             let count = values.count { $0.provider == provider }
             return count > 0 ? "\(count) \(provider.title.lowercased())" : nil
         }
@@ -72,14 +72,14 @@ struct OrphanedAgentProcesses: Sendable {
 
     private static func orphanedAgentProcess(_ pid: pid_t) -> OrphanedAgentProcess? {
         guard
-            let info = LibProc.bsdInfo(of: pid)?.info,
+            let info = LibProc.bsdInfo(of: pid),
             let executablePath = LibProc.executablePath(of: pid),
             let identity = LibProc.identity(of: pid)
         else { return nil }
         return OrphanedAgentProcess(
             identity,
-            parentPID: pid_t(info.pbi_ppid),
-            terminalDevice: info.e_tdev,
+            parentPID: info.parentPID,
+            hasTerminal: info.hasTerminal,
             executablePath: executablePath
         )
     }

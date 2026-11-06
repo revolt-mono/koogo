@@ -156,7 +156,7 @@ extension ProcessScan {
     /// a record of `earlier` holds while its pid version does, so a path stays as exec saw it, like the kernel's
     /// process name. a kept responsibility also needs the responsible process's record to hold, since the kernel hands
     /// a process back to itself once that one exits.
-    static func read(after earlier: ProcessScan? = nil) throws -> ProcessScan {
+    static func read(after earlier: ProcessScan?) throws -> ProcessScan {
         guard let pids = LibProc.currentUserPIDs() else { throw ActivityReadFailure.processes }
         let taken = SuspendingClock.now
         let gpuTimes = GPULoad.timePerProcess()
@@ -177,7 +177,7 @@ extension ProcessScan {
                 return ProcessRecord(
                     identity: ProcessIdentity(pid: pid, startTicks: usage.ri_proc_start_abstime),
                     pidVersion: bsd.pidVersion,
-                    parentPID: pid_t(bsd.info.pbi_ppid),
+                    parentPID: bsd.parentPID,
                     responsiblePID: responsible > 0 ? responsible : pid,
                     executablePath: executablePath,
                     launched: absoluteTimeZero + duration(ofTicks: usage.ri_proc_start_abstime),

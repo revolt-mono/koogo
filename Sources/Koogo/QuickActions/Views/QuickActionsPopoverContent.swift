@@ -3,6 +3,8 @@ import SwiftUI
 
 struct QuickActionsPopoverContent: View {
     private static let volumes = NSWorkspace.shared.notificationCenter
+    private static let agentNames = OrphanedAgentProcess.providers.map { $0.title.lowercased() }
+        .formatted(.list(type: .and).locale(.display))
 
     @State private var systemAppearance = QuickActionModel(perform: SystemAppearance.toggle)
     @State private var diskImages = QuickActionModel(scan: MountedDiskImages.mounted) { try await $0.eject() }
@@ -61,7 +63,7 @@ struct QuickActionsPopoverContent: View {
                     case .scanning:
                         QuickActionCopy(
                             title: "Checking Agent Processes",
-                            detail: "Looking for orphaned claude, codex, and grok"
+                            detail: "Looking for orphaned \(Self.agentNames)"
                         )
                     case .idle:
                         QuickActionCopy(title: "No Orphaned Agents", detail: "Agent processes left behind appear here")

@@ -8,6 +8,12 @@ struct ProcessIdentity: Hashable, Sendable {
 }
 
 enum LibProc {
+    struct BSDInfo {
+        let parentPID: pid_t
+        let pidVersion: Int32
+        let hasTerminal: Bool
+    }
+
     /// a missing or reused pid counts as already gone.
     static func forceKill(_ process: ProcessIdentity) throws(Errno) {
         guard identity(of: process.pid) == process else { return }
@@ -42,12 +48,18 @@ enum LibProc {
     /// the kernel numbers each process image from one counter, so a pid version is unique among running processes
     /// and changes on exec, as audit tokens rely on. the public headers omit this `PROC_PIDT_BSDINFOWITHUNIQID` flavor;
     /// it appends a 56-byte `proc_uniqidentifierinfo` whose version follows a uuid and two unique ids.
-    static func bsdInfo(of pid: pid_t) -> (info: proc_bsdinfo, pidVersion: Int32)? {
+    static func bsdInfo(of pid: pid_t) -> BSDInfo? {
         let infoSize = MemoryLayout<proc_bsdinfo>.size
         let size = infoSize + 56
         return withUnsafeTemporaryAllocation(byteCount: size, alignment: 8) { buffer in
             guard proc_pidinfo(pid, 18, 0, buffer.baseAddress, Int32(size)) == size else { return nil }
-            return (buffer.load(as: proc_bsdinfo.self), buffer.load(fromByteOffset: infoSize + 32, as: Int32.self))
+            let info = buffer.load(as: proc_bsdinfo.self)
+            return BSDInfo(
+                parentPID: pid_t(info.pbi_ppid),
+                pidVersion: buffer.load(fromByteOffset: infoSize + 32, as: Int32.self),
+                // the kernel reports `NODEV` for a process without a controlling terminal.
+                hasTerminal: info.e_tdev != UInt32.max
+            )
         }
     }
 
