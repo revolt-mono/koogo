@@ -23,9 +23,9 @@ enum BreakReminderStatus: Equatable {
             }
 
         let whole = Duration.seconds(ceil(remaining))
-        return whole.formatted(
-            .displayTime(pattern: whole >= .seconds(3_600) ? .hourMinuteSecond : .minuteSecond(padMinuteToLength: 2))
-        )
+        let pattern: Duration.TimeFormatStyle.Pattern =
+            whole >= .seconds(3_600) ? .hourMinuteSecond : .minuteSecond(padMinuteToLength: 2)
+        return whole.formatted(Duration.TimeFormatStyle(pattern: pattern).locale(.display))
     }
 }
 

@@ -23,5 +23,5 @@ custom_rules:
   display_locale:
     name: Display Locale
     regex: '\.formatted\(\s*(\)|date:|\.(number|dateTime|percent|currency|units|time)\b)'
-    message: Render user-visible text with a display-locale style from Shared/DisplayLocale.swift.
+    message: Render user-visible text with a format style that carries Locale.display.
     severity: error
