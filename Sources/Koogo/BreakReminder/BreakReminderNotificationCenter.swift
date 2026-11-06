@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import os
 
 @MainActor
 final class BreakReminderNotificationCenter: NSObject, BreakReminderNotifications {
@@ -17,6 +18,7 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
         do {
             isAuthorized = try await center.requestAuthorization(options: [.alert, .sound])
         } catch {
+            Logger.app.warning("break reminder authorization failed: \(error, privacy: .public)")
             throw .schedulingFailed
         }
         guard isAuthorized else {
@@ -42,11 +44,13 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
         do {
             try await center.add(request)
         } catch {
+            Logger.app.warning("break reminder scheduling failed: \(error, privacy: .public)")
             throw .schedulingFailed
         }
     }
 
     func hasPendingReminder() async -> Bool {
+        // the center isn't sendable, so each concurrent read takes its own handle.
         async let status = UNUserNotificationCenter.current().notificationSettings().authorizationStatus
         async let identifiers = UNUserNotificationCenter.current().pendingNotificationRequests().map(\.identifier)
         switch await status {
