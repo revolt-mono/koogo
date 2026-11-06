@@ -22,12 +22,6 @@ struct UsageDaySnapshot: Equatable, Sendable, Encodable {
     let usage: UsagePeriodSnapshot
 }
 
-/// days run oldest first, including days without events.
-struct UsageDailySnapshot: Equatable, Sendable, Encodable {
-    let range: Range<Date>
-    let days: [UsageDaySnapshot]
-}
-
 struct ProviderUsagePeriodSnapshot: Equatable, Sendable, Encodable {
     let total: UsagePeriodSnapshot
     let models: [ModelUsageSnapshot]?
@@ -41,7 +35,8 @@ struct ModelUsageSnapshot: Equatable, Identifiable, Sendable, Encodable {
 
 struct ProviderUsageSnapshot: Equatable, Sendable, Encodable {
     let periods: EnumMap<UsagePeriod, ProviderUsagePeriodSnapshot>
-    let dailyLast30Days: UsageDailySnapshot
+    /// oldest first, including days without events.
+    let dailyLast30Days: [UsageDaySnapshot]
 }
 
 enum UsageCostChange: Equatable, Sendable, Encodable {

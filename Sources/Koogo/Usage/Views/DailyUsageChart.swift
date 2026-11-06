@@ -4,16 +4,16 @@ import SwiftUI
 struct DailyUsageChart: View {
     @Environment(\.displayScale) private var displayScale
 
-    let usage: UsageDailySnapshot
+    let days: [UsageDaySnapshot]
 
     @State private var hoveredSlot: Int?
 
     var body: some View {
-        let peakCost = Double(usage.days.map(\.usage.cost).max()?.rawValue ?? 0)
-        let heights = usage.days.map { peakCost > 0 ? Double($0.usage.cost.rawValue) / peakCost : 0 }
+        let peakCost = Double(days.map(\.usage.cost).max()?.rawValue ?? 0)
+        let heights = days.map { peakCost > 0 ? Double($0.usage.cost.rawValue) / peakCost : 0 }
         let hovered = hoveredSlot.flatMap { slot in
-            usage.days.indices.contains(slot) && usage.days[slot].usage != UsagePeriodSnapshot()
-                ? (slot: slot, day: usage.days[slot]) : nil
+            days.indices.contains(slot) && days[slot].usage != UsagePeriodSnapshot()
+                ? (slot: slot, day: days[slot]) : nil
         }
 
         GeometryReader { geometry in
@@ -38,7 +38,7 @@ struct DailyUsageChart: View {
         }
         .frame(height: 44)
         .accessibilityHidden(true)
-        .motionAnimation(.smooth(duration: 0.35), value: usage)
+        .motionAnimation(.smooth(duration: 0.35), value: days)
     }
 }
 

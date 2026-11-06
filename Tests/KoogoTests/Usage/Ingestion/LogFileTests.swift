@@ -22,11 +22,11 @@ final class LogFileTests: UsageWorkspaceTestCase {
         )
 
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: log.path)
-        parsed.sync(observed: try metadata(of: log))
+        parsed.sync(observed: try metadata(of: log), since: .distantPast)
         XCTAssertEqual(parsed.events.count, 1)
 
         try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: log.path)
-        parsed.sync(observed: try metadata(of: log))
+        parsed.sync(observed: try metadata(of: log), since: .distantPast)
         XCTAssertEqual(parsed.events.count, 2)
     }
 

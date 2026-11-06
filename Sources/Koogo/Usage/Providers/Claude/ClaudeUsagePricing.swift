@@ -116,14 +116,13 @@ enum ClaudeUsagePricing {
         ),
     ]
 
+    private static let aliases: [ModelID: ModelID] = [
+        "claude-opus-4-5": "claude-opus-4-5-20251101",
+        "claude-sonnet-4-5": "claude-sonnet-4-5-20250929",
+    ]
+
     static func quote(model logged: ModelID, usage: ClaudeBillableUsage) -> UsageQuote? {
-        let canonical: ModelID =
-            switch logged {
-            case "claude-opus-4-5": "claude-opus-4-5-20251101"
-            case "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
-            default: logged
-            }
-        guard let index = prices.index(forKey: canonical) else {
+        guard let index = prices.index(forKey: aliases[logged] ?? logged) else {
             return nil
         }
         let (model, price) = prices[index]

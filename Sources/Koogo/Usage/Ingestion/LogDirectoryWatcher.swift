@@ -28,14 +28,8 @@ final class LogDirectoryWatcher {
 
         func record(_ path: String, flags: FSEventStreamEventFlags) {
             let directory = path.hasSuffix("/") ? String(path.dropLast()) : path
-            let given = roots.lazy.compactMap { root -> String? in
-                if directory == root.resolved {
-                    return root.given
-                }
-                guard directory.hasPrefix(root.resolved + "/") else {
-                    return nil
-                }
-                return root.given + directory.dropFirst(root.resolved.count)
+            let given = roots.lazy.compactMap { root in
+                directory.isPath(within: root.resolved) ? root.given + directory.dropFirst(root.resolved.count) : nil
             }.first
             pending.withLock { pending in
                 if flags & Self.everythingFlags == 0, let given {

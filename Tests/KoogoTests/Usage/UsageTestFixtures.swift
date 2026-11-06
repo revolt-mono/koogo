@@ -134,7 +134,7 @@ func usageEvent(
         timestamp: eventDate,
         processedTokens: processedTokens,
         cost: picodollars(costUSD),
-        model: model.map { ModelID($0) }
+        model: model.map { ModelID(rawValue: $0) }
     )
     let eventID: UsageEventID =
         switch provider {

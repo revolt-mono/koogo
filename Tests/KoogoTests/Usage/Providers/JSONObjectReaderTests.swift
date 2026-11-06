@@ -23,7 +23,7 @@ final class JSONObjectReaderTests: XCTestCase {
         )
 
         XCTAssertEqual(event.record.processedTokens, 120)
-        XCTAssertEqual(event.record.model, ModelID("gpt-5.6-sol"))
+        XCTAssertEqual(event.record.model, "gpt-5.6-sol")
     }
 
     func testSkippedValuesMayHoldEscapesAndBrackets() throws {

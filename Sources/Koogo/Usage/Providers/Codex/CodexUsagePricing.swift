@@ -111,8 +111,10 @@ enum CodexUsagePricing {
         ),
     ]
 
-    static func quote(model: ModelID, tokens: CodexTokenUsage) -> UsageQuote? {
-        guard let index = prices.index(forKey: model == "gpt-5.6" ? "gpt-5.6-sol" : model) else {
+    private static let aliases: [ModelID: ModelID] = ["gpt-5.6": "gpt-5.6-sol"]
+
+    static func quote(model logged: ModelID, tokens: CodexTokenUsage) -> UsageQuote? {
+        guard let index = prices.index(forKey: aliases[logged] ?? logged) else {
             return nil
         }
         let (model, price) = prices[index]

@@ -23,7 +23,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(event.record.timestamp, usageTestTimestamp)
         XCTAssertEqual(event.record.processedTokens, 100)
         XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.125"))
-        XCTAssertEqual(event.record.model, ModelID("provider/model-a"))
+        XCTAssertEqual(event.record.model, "provider/model-a")
         XCTAssertNil(
             try parse(
                 piAssistant(id: "free", parentID: "first", model: "model-a", usage: piUsage(input: 0, cost: "0")),
@@ -62,7 +62,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(event.record.processedTokens, 91)
         XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.009"))
-        XCTAssertEqual(event.record.model, ModelID("provider/model-b"))
+        XCTAssertEqual(event.record.model, "provider/model-b")
     }
 
     func testParserUsesProviderTotalTokens() throws {
@@ -96,7 +96,10 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(snapshot.todayTokens(.piAgent), 210)
         XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd, Decimal(string: "0.21"))
         let models = try XCTUnwrap(snapshot.providers[.piAgent]?.periods[.today].models)
-        XCTAssertEqual(models.map(\.id), [nil, ModelID("provider/model-a"), ModelID("provider/model-b")])
+        XCTAssertEqual(
+            models.map(\.id),
+            [nil, "provider/model-a", "provider/model-b"]
+        )
         XCTAssertEqual(models.map(\.modelName), ["Unattributed", "Readable Model A", "Preferred Model B"])
         XCTAssertEqual(models.map(\.usage.processedTokens), [150, 30, 30])
         XCTAssertEqual(
@@ -238,7 +241,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
             )?.event
         )
 
-        XCTAssertEqual(event.record.model, ModelID("provider/model-a"))
+        XCTAssertEqual(event.record.model, "provider/model-a")
     }
 }
 

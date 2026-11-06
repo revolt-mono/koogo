@@ -110,7 +110,7 @@ final class UsageEventIndexTests: XCTestCase {
         )
     }
 
-    func testRestartDropsBothStoredAndPendingEventsAndTheirModels() {
+    func testRestartDropsBothStoredAndPendingEvents() {
         var index = UsageEventIndex()
         index.update { $0.insert(usageEvent(.claude, model: "old-model", processedTokens: 10, costUSD: 0)) }
         index.update { batch in

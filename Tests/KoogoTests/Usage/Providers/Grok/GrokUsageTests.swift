@@ -3,14 +3,14 @@ import XCTest
 @testable import Koogo
 
 final class GrokUsageTests: UsageWorkspaceTestCase {
-    func testParserPricesEveryModelAndBillsUnderTheMostCalledOne() throws {
+    func testParserPricesEveryModelInOneTurn() throws {
         var parser = GrokUsageLogParser()
 
         let event = try XCTUnwrap(
             try parse(
                 grokTurn(
                     eventID: "session-1",
-                    models: ["grok-4.6-build": GrokModelRow(calls: 10), "grok-4.7-build-fast": GrokModelRow(calls: 6)]
+                    models: ["grok-4.6-build": GrokModelRow(), "grok-4.7-build-fast": GrokModelRow()]
                 ),
                 with: &parser
             )?.event
@@ -19,8 +19,6 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(event.record.timestamp, usageTestTimestamp)
         XCTAssertEqual(event.record.processedTokens, 2_200_000)
         XCTAssertEqual(event.record.cost.usd, 6)
-        XCTAssertEqual(event.record.model, ModelID("grok-4.6-build"))
-        XCTAssertEqual(GrokUsagePricing.displayName(of: ModelID("grok-4.6-build")), "Grok 4.6")
     }
 
     func testParserIgnoresUpdatesWithoutUsage() {
@@ -103,7 +101,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
 
     func testBuildModelsUseFlatStandardRatesAndFastDoublesThem() throws {
         let tokens = try XCTUnwrap(
-            GrokTokenUsage(input: 1_000_000, cachedInput: 400_000, output: 100_000, modelCalls: 1)
+            GrokTokenUsage(input: 1_000_000, cachedInput: 400_000, output: 100_000)
         )
         func usd(_ model: ModelID) -> Decimal? {
             GrokUsagePricing.cost(of: tokens, model: model)?.usd
@@ -112,7 +110,6 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
         XCTAssertEqual(usd("grok-4.6-build"), 2)
         XCTAssertEqual(usd("grok-4.6"), 2)
         XCTAssertEqual(usd("grok-4.7-build-fast"), 4)
-        XCTAssertEqual(GrokUsagePricing.displayName(of: "grok-4.7-build-fast"), "Grok 4.7 Fast")
         XCTAssertEqual(usd("grok-4.5-build"), Decimal(string: "1.92"))
         XCTAssertNil(usd("grok-9-build"))
         XCTAssertNil(usd("grok-4.6-fast"))

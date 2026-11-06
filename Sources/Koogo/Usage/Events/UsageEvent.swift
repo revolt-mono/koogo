@@ -1,10 +1,10 @@
 import Foundation
 
 /// the logged model identifier, prefixed with `provider/model` for pi.
-struct ModelID: Hashable, Comparable, Sendable, Encodable, ExpressibleByStringLiteral {
+struct ModelID: RawRepresentable, Hashable, Comparable, Sendable, Encodable, ExpressibleByStringLiteral {
     let rawValue: String
 
-    init(_ rawValue: String) {
+    init(rawValue: String) {
         self.rawValue = rawValue
     }
 
@@ -37,12 +37,11 @@ struct UsageRecord: Sendable {
     }
 }
 
-/// a 120-bit digest of the logged identity fields, with the provider's case index in the top byte.
 struct UsageEventID: Hashable, Comparable, Sendable {
     private let high: UInt64
     private let low: UInt64
 
-    private init(_ provider: Provider, fields: (inout Hasher) -> Void) {
+    init(_ provider: Provider, fields: (inout Hasher) -> Void) {
         func digest(salt: UInt8) -> UInt64 {
             var hasher = Hasher()
             hasher.combine(salt)
@@ -60,39 +59,11 @@ struct UsageEventID: Hashable, Comparable, Sendable {
     static func < (lhs: Self, rhs: Self) -> Bool {
         (lhs.high, lhs.low) < (rhs.high, rhs.low)
     }
-
-    /// codex forks change thread ids, ordinals, and timestamps; each copied record keeps its response id.
-    static func codex(responseID: some Collection<UInt8>) -> Self {
-        Self(.codex) { $0.combine(text: responseID) }
-    }
-
-    static func claude(messageID: some Collection<UInt8>, requestID: some Collection<UInt8>) -> Self {
-        Self(.claude) {
-            $0.combine(text: messageID)
-            $0.combine(text: requestID)
-        }
-    }
-
-    /// pi entry ids are eight hex digits unique only within a session; forks copy entries with their timestamps.
-    static func piAgent(entryID: some Collection<UInt8>, timestamp: Date) -> Self {
-        Self(.piAgent) {
-            $0.combine(text: entryID)
-            $0.combine(timestamp)
-        }
-    }
-
-    /// grok forks preserve both fields; resumed sessions can reuse an event id at a later time.
-    static func grok(eventID: some Collection<UInt8>, timestampMilliseconds: UInt64) -> Self {
-        Self(.grok) {
-            $0.combine(text: eventID)
-            $0.combine(timestampMilliseconds)
-        }
-    }
 }
 
 extension Hasher {
     /// identity fields hash their logged text; the length prefix keeps adjacent fields from trading bytes.
-    fileprivate mutating func combine(text: some Collection<UInt8>) {
+    mutating func combine(text: some Collection<UInt8>) {
         combine(text.count)
         if text.withContiguousStorageIfAvailable({ combine(bytes: UnsafeRawBufferPointer($0)) }) == nil {
             Array(text).withUnsafeBytes { combine(bytes: $0) }

@@ -13,7 +13,7 @@ struct ProviderUsageCard<Accessory: View>: View {
             VStack(spacing: 12) {
                 accessory
 
-                DailyUsageChart(usage: usage.dailyLast30Days)
+                DailyUsageChart(days: usage.dailyLast30Days)
 
                 VStack(spacing: 6) {
                     ForEach(UsagePeriod.allCases, id: \.self) { period in

@@ -8,7 +8,7 @@ struct GrokUsageLogParser: UsageLogParser {
         }
         let timestamp = Date(unixMilliseconds: turn.milliseconds)
         let prompt = try GrokPromptUsage(turn.usage)
-        guard let primaryModel = prompt.primaryModel else {
+        guard !prompt.modelUsage.isEmpty else {
             // cancelled grok prompts can complete with no model rows and zero billable tokens.
             guard prompt.totalTokens == 0 else { throw MalformedUsageRecord() }
             return nil
@@ -28,14 +28,13 @@ struct GrokUsageLogParser: UsageLogParser {
                     timestamp: timestamp,
                     processedTokens: prompt.totalTokens,
                     cost: cost,
-                    model: primaryModel
+                    model: nil
                 )
             )
         )
     }
 }
 
-/// a session update that completed a turn with usage; other lines read as nil.
 private struct GrokCompletedTurn {
     let usage: JSONValue
     let eventID: JSONText
@@ -108,18 +107,10 @@ private struct GrokPromptUsage {
             guard let name = try row.key.string() else {
                 throw MalformedUsageRecord()
             }
-            usage.append((ModelID(name), try GrokTokenUsage(row.value)))
+            usage.append((ModelID(rawValue: name), try GrokTokenUsage(row.value)))
         }
         self.totalTokens = totalTokens
         self.modelUsage = usage
-    }
-
-    /// grok's rule: most calls, then most tokens; remaining ties go to the first name.
-    var primaryModel: ModelID? {
-        modelUsage.max { lhs, rhs in
-            (lhs.tokens.modelCalls, lhs.tokens.totalTokens, rhs.model)
-                < (rhs.tokens.modelCalls, rhs.tokens.totalTokens, lhs.model)
-        }?.model
     }
 }
 
@@ -127,47 +118,49 @@ struct GrokTokenUsage: Sendable {
     let input: UInt64
     let cachedInput: UInt64
     let output: UInt64
-    let modelCalls: UInt64
 
-    init?(input: UInt64, cachedInput: UInt64, output: UInt64, modelCalls: UInt64) {
+    init?(input: UInt64, cachedInput: UInt64, output: UInt64) {
         guard cachedInput <= input else {
             return nil
         }
         self.input = input
         self.cachedInput = cachedInput
         self.output = output
-        self.modelCalls = modelCalls
     }
 
     var uncachedInput: UInt64 {
         input - cachedInput
     }
 
-    var totalTokens: UInt64 {
-        input.saturatingAdding(output)
-    }
-
     fileprivate init(_ value: JSONValue) throws {
         var input: JSONValue?
         var cachedInput: JSONValue?
         var output: JSONValue?
-        var modelCalls: JSONValue?
         var fields = try value.object()
         while let member = try fields.next() {
             switch member.key {
             case "inputTokens": input = member.value
             case "cachedReadTokens": cachedInput = member.value
             case "outputTokens": output = member.value
-            case "modelCalls": modelCalls = member.value
             default: break
             }
         }
         guard let input = try input?.uint64(), let cachedInput = try cachedInput?.uint64(),
-            let output = try output?.uint64(), let modelCalls = try modelCalls?.uint64(),
-            let usage = GrokTokenUsage(input: input, cachedInput: cachedInput, output: output, modelCalls: modelCalls)
+            let output = try output?.uint64(),
+            let usage = GrokTokenUsage(input: input, cachedInput: cachedInput, output: output)
         else {
             throw MalformedUsageRecord()
         }
         self = usage
+    }
+}
+
+extension UsageEventID {
+    /// grok forks preserve both fields; resumed sessions can reuse an event id at a later time.
+    static func grok(eventID: some Collection<UInt8>, timestampMilliseconds: UInt64) -> Self {
+        Self(.grok) {
+            $0.combine(text: eventID)
+            $0.combine(timestampMilliseconds)
+        }
     }
 }

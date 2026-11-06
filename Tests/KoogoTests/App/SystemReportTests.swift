@@ -130,10 +130,9 @@ private let reportKeyPaths =
     ]
     + ["claude", "codex", "grok", "piAgent"].flatMap { provider in
         [
-            "dailyLast30Days.days[].date",
-            "dailyLast30Days.days[].usage.cost",
-            "dailyLast30Days.days[].usage.processedTokens",
-            "dailyLast30Days.range[]",
+            "dailyLast30Days[].date",
+            "dailyLast30Days[].usage.cost",
+            "dailyLast30Days[].usage.processedTokens",
             "periods.last30Days.total.cost",
             "periods.last30Days.total.processedTokens",
             "periods.last7Days.total.cost",
@@ -144,7 +143,7 @@ private let reportKeyPaths =
     }
     + ["claude", "codex", "piAgent"].flatMap { provider in
         ["today", "last7Days", "last30Days"].flatMap { period in
-            ["id.rawValue", "modelName", "usage.cost", "usage.processedTokens"].map {
+            ["id", "modelName", "usage.cost", "usage.processedTokens"].map {
                 "usage.snapshot.providers.\(provider).periods.\(period).models[].\($0)"
             }
         }

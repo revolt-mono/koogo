@@ -27,7 +27,7 @@ struct CodexUsageLogParser: UsageLogParser {
         case nil:
             return nil
         case "turn_context"?:
-            model = try? payload?.member("model")?.string()?.nonEmpty.map(ModelID.init(_:))
+            model = try? payload?.member("model")?.string()?.nonEmpty.map(ModelID.init(rawValue:))
             guard model != nil else {
                 throw MalformedUsageRecord()
             }
@@ -135,5 +135,12 @@ struct CodexTokenUsage: Sendable {
             throw MalformedUsageRecord()
         }
         self = usage
+    }
+}
+
+extension UsageEventID {
+    /// codex forks change thread ids, ordinals, and timestamps; each copied record keeps its response id.
+    static func codex(responseID: some Collection<UInt8>) -> Self {
+        Self(.codex) { $0.combine(text: responseID) }
     }
 }

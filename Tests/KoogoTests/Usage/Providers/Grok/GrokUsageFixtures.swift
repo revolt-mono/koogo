@@ -4,7 +4,6 @@ struct GrokModelRow {
     var input = 1_000_000
     var cachedInput = 400_000
     var output = 100_000
-    var calls = 10
 }
 
 func grokTurn(
@@ -17,7 +16,7 @@ func grokTurn(
     let modelUsage = models.map { model, row in
         """
         "\(model)":{"inputTokens":\(row.input),"cachedReadTokens":\(row.cachedInput),"outputTokens":\(row.output),\
-        "modelCalls":\(row.calls),"costUsdTicks":1}
+        "modelCalls":1,"costUsdTicks":1}
         """
     }
     return """

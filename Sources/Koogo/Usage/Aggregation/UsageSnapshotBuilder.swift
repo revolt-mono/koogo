@@ -46,7 +46,7 @@ struct UsageSnapshotBuilder {
         }
         return ProviderUsageSnapshot(
             periods: EnumMap { Self.period(daily, dayCount: $0.dayCount, source: source) },
-            dailyLast30Days: UsageDailySnapshot(range: intervals.last30Days, days: days)
+            dailyLast30Days: days
         )
     }
 

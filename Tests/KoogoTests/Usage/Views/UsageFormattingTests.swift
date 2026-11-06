@@ -17,6 +17,6 @@ final class UsageFormattingTests: XCTestCase {
     func testPercentagesRoundToOneDecimalPlace() throws {
         XCTAssertEqual((1 as Decimal).formatted(.usagePercent), "100%")
         XCTAssertEqual((0 as Decimal).formatted(.usagePercent), "0%")
-        XCTAssertEqual(try XCTUnwrap(Decimal(string: "0.125")).formatted(.usagePercent), "12.5%")
+        XCTAssertEqual(try XCTUnwrap(Decimal(string: "0.1225")).formatted(.usagePercent), "12.3%")
     }
 }

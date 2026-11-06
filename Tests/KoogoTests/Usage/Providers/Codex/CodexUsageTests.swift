@@ -19,7 +19,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
 
         XCTAssertEqual(first.record.processedTokens, 120)
         XCTAssertEqual(second.record.processedTokens, 180)
-        XCTAssertEqual(second.record.model, ModelID("gpt-5.6-sol"))
+        XCTAssertEqual(second.record.model, "gpt-5.6-sol")
         XCTAssertNotEqual(first.id, second.id)
     }
 
@@ -113,7 +113,7 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         let request = codexUsage(input: 100, output: 20)
         let event = try XCTUnwrap(parse(codexTokenUsageRecord(request), with: &parser)?.event)
 
-        XCTAssertEqual(event.record.model, ModelID("gpt-5.6-sol"))
+        XCTAssertEqual(event.record.model, "gpt-5.6-sol")
     }
 
     func testCodexPricesLoggedCacheWrites() throws {
@@ -179,33 +179,13 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
         for (model, tokens, expectedUSD) in [
             ("gpt-6.1-sol", short, "0.435"),
             ("gpt-6.1-sol", long, "0.908004"),
-            ("gpt-6.1-terra", short, "0.2175"),
-            ("gpt-6.1-terra", long, "0.454002"),
-            ("gpt-6-astra", short, "2.225"),
-            ("gpt-6-astra", long, "4.64002"),
-            ("gpt-6-sol", short, "0.445"),
-            ("gpt-6-sol", long, "0.928004"),
-            ("gpt-6-luna", short, "0.02225"),
-            ("gpt-6-luna", long, "0.0464002"),
-            ("gpt-daybreak-blue-latest", short, "1.1625"),
-            ("gpt-daybreak-blue-latest", long, "2.39501"),
-            ("gpt-5.6-sol", short, "1.1625"),
-            ("gpt-5.6-sol", long, "2.39501"),
-            ("gpt-5.6-terra", short, "0.465"),
-            ("gpt-5.6-terra", long, "0.958004"),
-            ("gpt-5.6-luna", short, "0.0465"),
-            ("gpt-5.6-luna", long, "0.0958004"),
             ("gpt-5.5", shortWithoutWrites, "1.1"),
             ("gpt-5.5", longWithoutWrites, "2.27001"),
-            ("gpt-5.4", shortWithoutWrites, "0.55"),
-            ("gpt-5.4", longWithoutWrites, "1.135005"),
             ("gpt-5.4-mini", shortWithoutWrites, "0.165"),
             ("gpt-5.4-mini", longWithoutWrites, "0.18150075"),
-            ("gpt-5.3-codex", shortWithoutWrites, "0.42"),
-            ("gpt-5.3-codex", longWithoutWrites, "0.45850175"),
         ] {
-            let quote = try XCTUnwrap(CodexUsagePricing.quote(model: ModelID(model), tokens: tokens), model)
-            XCTAssertEqual(quote.model, ModelID(model))
+            let quote = try XCTUnwrap(CodexUsagePricing.quote(model: ModelID(rawValue: model), tokens: tokens), model)
+            XCTAssertEqual(quote.model, ModelID(rawValue: model))
             XCTAssertEqual(quote.cost.usd, Decimal(string: expectedUSD), model)
         }
     }

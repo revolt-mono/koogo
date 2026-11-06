@@ -31,7 +31,7 @@ struct LogStore: ~Copyable {
             } else if entry.log == nil {
                 newFiles.append((path, metadata, entry.root))
             } else {
-                entry.log?.sync(observed: metadata)
+                entry.log?.sync(observed: metadata, since: windowStart)
             }
             entries[path] = entry
         }
@@ -43,10 +43,11 @@ struct LogStore: ~Copyable {
         }
         // fsevents reports an appended log only once its writer closes it, so files outside the walks are checked directly.
         if case .directories = changes {
-            let walked = walks.map { $0.directory + "/" }
             // popping moves each log out, so syncing it appends in place instead of copying its events.
             while let (path, entry) = unobserved.popFirst() {
-                if !walked.contains(where: path.hasPrefix), let metadata = UsageFileMetadata(path: path) {
+                if !walks.contains(where: { path.isPath(within: $0.directory) }),
+                    let metadata = UsageFileMetadata(path: path)
+                {
                     observe(path, metadata, entry)
                 }
             }
@@ -54,12 +55,12 @@ struct LogStore: ~Copyable {
         entries.merge(Self.open(newFiles, since: windowStart)) { $1 }
     }
 
-    /// visits each request once, keeping the most complete copy across logs; equal copies keep the first path's.
     func collect(_ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
         var trackedFiles = EnumMap<Provider, Int> { _ in 0 }
         var malformedLines = EnumMap<Provider, Int> { _ in 0 }
         var unpricedModels = Set<ModelID>()
         var indexes: [UsageEventIndex] = []
+        // path order makes an exact tie between logs keep the first path's copy.
         for (_, entry) in entries.sorted(by: { $0.key < $1.key }) {
             guard let log = entry.log else {
                 continue
@@ -130,9 +131,8 @@ struct LogStore: ~Copyable {
             return roots.map { ($0, $0.path) }
         }
         var walks: [(root: UsageLogRoot, directory: String)] = []
-        for directory in directories.sorted() where !walks.contains(where: { directory.hasPrefix($0.directory + "/") })
-        {
-            if let root = roots.first(where: { directory == $0.path || directory.hasPrefix($0.path + "/") }) {
+        for directory in directories.sorted() where !walks.contains(where: { directory.isPath(within: $0.directory) }) {
+            if let root = roots.first(where: { directory.isPath(within: $0.path) }) {
                 walks.append((root, directory))
             }
         }
@@ -204,5 +204,14 @@ struct LogStore: ~Copyable {
             }
         }
         return opened.withLock { $0 }
+    }
+}
+
+extension String {
+    func isPath(within directory: String) -> Bool {
+        guard hasPrefix(directory) else {
+            return false
+        }
+        return dropFirst(directory.count).first.map { $0 == "/" } ?? true
     }
 }

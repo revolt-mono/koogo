@@ -13,12 +13,8 @@ struct GrokUsageSource: UsageSource {
         }
         return ParsedLog<GrokUsageLogParser>(AppendOnlyFile(path, observed: metadata), since: windowStart)
     }
-    /// grok bills every model used in a prompt under the primary model.
+    /// a grok turn prices all of its models as one event.
     let splitsUsageByModel = false
-
-    func modelName(_ model: ModelID) -> String? {
-        GrokUsagePricing.displayName(of: model)
-    }
 }
 
 private struct GrokSessionSummary: Decodable {

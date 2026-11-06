@@ -12,8 +12,3 @@ enum UsageLineOutcome: Sendable {
 }
 
 struct MalformedUsageRecord: Error {}
-
-struct UsageQuote: Sendable {
-    let model: ModelID
-    let cost: Picodollars
-}

@@ -118,14 +118,14 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(codex.periods[.today].total.processedTokens, 384)
         XCTAssertEqual(codex.periods[.last7Days].total.processedTokens, 480)
         XCTAssertEqual(codex.periods[.last30Days].total.processedTokens, 504)
-        XCTAssertEqual(codex.dailyLast30Days.days.count, 30)
-        XCTAssertEqual(codex.dailyLast30Days.days.first?.date, Date(iso8601: "2026-08-03T00:00:00Z".utf8))
+        XCTAssertEqual(codex.dailyLast30Days.count, 30)
+        XCTAssertEqual(codex.dailyLast30Days.first?.date, Date(iso8601: "2026-08-03T00:00:00Z".utf8))
         XCTAssertEqual(
-            codex.dailyLast30Days.days.filter { $0.usage != UsagePeriodSnapshot() }.map(\.usage.processedTokens),
+            codex.dailyLast30Days.filter { $0.usage != UsagePeriodSnapshot() }.map(\.usage.processedTokens),
             [8, 16, 32, 64, 384]
         )
         XCTAssertEqual(
-            codex.dailyLast30Days.days.map(\.usage).reduce(UsagePeriodSnapshot(), +),
+            codex.dailyLast30Days.map(\.usage).reduce(UsagePeriodSnapshot(), +),
             codex.periods[.last30Days].total
         )
         XCTAssertEqual(snapshot.summary.last7Days.current, codex.periods[.last7Days].total)
@@ -164,7 +164,7 @@ extension UsageSnapshotBuilderTests {
             let usage = try XCTUnwrap(snapshot.providers[provider])
             for (period, tokens) in expected {
                 let models = try XCTUnwrap(usage.periods[period].models)
-                XCTAssertEqual(models.map(\.id), [ModelID("model-b"), ModelID("model-a")])
+                XCTAssertEqual(models.map(\.id), ["model-b", "model-a"])
                 XCTAssertEqual(models.map(\.usage.processedTokens), tokens)
                 XCTAssertEqual(models.map(\.usage.cost.usd), tokens.map { Decimal($0) / 100 })
                 XCTAssertEqual(models.map(\.usage).reduce(UsagePeriodSnapshot(), +), usage.periods[period].total)
@@ -199,7 +199,7 @@ extension UsageSnapshotBuilderTests {
                 sources: EnumMap { _ in SameNameUsageSource() }
             )
             let models = try XCTUnwrap(snapshot.providers[.codex]?.periods[.today].models)
-            XCTAssertEqual(models.map(\.id), [ModelID("c"), ModelID("a"), ModelID("b")])
+            XCTAssertEqual(models.map(\.id), ["c", "a", "b"])
             XCTAssertEqual(models.map(\.modelName), ["Same name", "Same name", "Same name"])
         }
     }
@@ -212,7 +212,7 @@ extension UsageSnapshotBuilderTests {
             ]
         )
         let models = try XCTUnwrap(snapshot.providers[.claude]?.periods[.today].models)
-        XCTAssertEqual(models.map(\.id), [ModelID("search")])
+        XCTAssertEqual(models.map(\.id), ["search"])
         XCTAssertEqual(models.map(\.usage.cost.usd), [Decimal(string: "0.01")])
         XCTAssertEqual(models.map(\.usage.processedTokens), [0])
         XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].models, [])
@@ -221,7 +221,7 @@ extension UsageSnapshotBuilderTests {
 
 private struct SameNameUsageSource: UsageSource {
     let logDirectories: [String] = []
-    let logFormat = UsageLogFormat(match: .jsonLines) { _, _, _ in nil }
+    let logFormat = UsageLogFormat.jsonLines(CodexUsageLogParser.self)
 
     func modelName(_ model: ModelID) -> String? {
         "Same name"

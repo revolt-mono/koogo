@@ -51,7 +51,7 @@ struct PiModelCatalog: Sendable {
     private var sourceVersions: [SourceVersion?] = [nil, nil]
 
     static func modelID(provider: String, model: String) -> ModelID {
-        ModelID("\(provider)/\(model)")
+        ModelID(rawValue: "\(provider)/\(model)")
     }
 
     mutating func refresh(home: URL) {

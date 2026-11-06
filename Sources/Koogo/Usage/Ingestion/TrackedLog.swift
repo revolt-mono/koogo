@@ -3,39 +3,36 @@ import Foundation
 protocol TrackedLog: Sendable {
     var events: UsageEventIndex { get }
     var tally: LogTally { get }
-    mutating func sync(observed metadata: UsageFileMetadata)
+    mutating func sync(observed metadata: UsageFileMetadata, since windowStart: Date)
     mutating func discard(before windowStart: Date)
 }
 
 struct ParsedLog<Parser: UsageLogParser>: TrackedLog {
     private var file: any LogFile
     private var parser = Parser()
-    private var windowStart: Date
     private(set) var events = UsageEventIndex()
     private(set) var tally = LogTally()
 
     init?(_ file: any LogFile, since windowStart: Date) {
         self.file = file
-        self.windowStart = windowStart
-        guard read() else {
+        guard read(since: windowStart) else {
             return nil
         }
     }
 
-    mutating func sync(observed metadata: UsageFileMetadata) {
+    mutating func sync(observed metadata: UsageFileMetadata, since windowStart: Date) {
         if file.observe(metadata) {
-            read()
+            read(since: windowStart)
         }
     }
 
     mutating func discard(before windowStart: Date) {
-        self.windowStart = windowStart
         events.discard(before: windowStart)
         tally.discard(before: windowStart)
     }
 
     @discardableResult
-    private mutating func read() -> Bool {
+    private mutating func read(since windowStart: Date) -> Bool {
         events.update { batch in
             file.read(
                 restart: {

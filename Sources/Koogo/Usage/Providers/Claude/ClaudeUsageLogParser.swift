@@ -11,7 +11,7 @@ struct ClaudeUsageLogParser: UsageLogParser {
             return nil
         }
         guard let messageID = reply.messageID, !messageID.isEmpty, let requestID = reply.requestID, !requestID.isEmpty,
-            let model = reply.model?.nonEmpty.map(ModelID.init(_:)),
+            let model = reply.model?.nonEmpty.map(ModelID.init(rawValue:)),
             let timestamp = reply.timestamp.flatMap(Date.init(iso8601:))
         else {
             throw MalformedUsageRecord()
@@ -231,5 +231,14 @@ private struct ClaudeLoggedUsage {
             throw MalformedUsageRecord()
         }
         return .byDuration(fiveMinute: fiveMinuteTokens, oneHour: oneHourTokens)
+    }
+}
+
+extension UsageEventID {
+    static func claude(messageID: some Collection<UInt8>, requestID: some Collection<UInt8>) -> Self {
+        Self(.claude) {
+            $0.combine(text: messageID)
+            $0.combine(text: requestID)
+        }
     }
 }

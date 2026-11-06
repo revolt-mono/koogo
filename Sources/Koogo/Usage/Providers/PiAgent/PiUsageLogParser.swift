@@ -151,3 +151,13 @@ private struct PiBilledEntry {
         try self.init(usage: usage, model: reference, timestamp: timestamp)
     }
 }
+
+extension UsageEventID {
+    /// pi entry ids are eight hex digits unique only within a session; forks copy entries with their timestamps.
+    static func piAgent(entryID: some Collection<UInt8>, timestamp: Date) -> Self {
+        Self(.piAgent) {
+            $0.combine(text: entryID)
+            $0.combine(timestamp)
+        }
+    }
+}

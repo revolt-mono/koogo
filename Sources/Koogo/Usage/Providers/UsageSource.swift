@@ -14,6 +14,10 @@ extension UsageSource {
     var splitsUsageByModel: Bool { true }
 
     mutating func refresh(home: URL) {}
+
+    func modelName(_: ModelID) -> String? {
+        nil
+    }
 }
 
 extension Provider {
