@@ -7,9 +7,7 @@ import XCTest
 final class UsageSummaryMemoryTests: XCTestCase {
     @MainActor
     func testTextTransitionsKeepFootprintAndRetainedHeapBounded() async throws {
-        guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
-            throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to profile rendered transitions.")
-        }
+        try skipUnlessMeasuringMemory()
         try XCTSkipIf(
             NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
             "Numeric transitions require Reduce Motion to be off."
@@ -29,13 +27,13 @@ final class UsageSummaryMemoryTests: XCTestCase {
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .seconds(1))
         let heapBefore = allocatedHeapBytes()
-        let footprintBefore = physicalFootprint()
+        let footprintBefore = try physicalFootprint()
 
         var footprintDuringTransitions: UInt64 = 0
         for step in 1...32 {
             host.rootView = summaryView(step: step)
             try await Task.sleep(for: .milliseconds(100))
-            footprintDuringTransitions = max(footprintDuringTransitions, physicalFootprint())
+            footprintDuringTransitions = max(footprintDuringTransitions, try physicalFootprint())
             try await Task.sleep(for: .milliseconds(300))
         }
         // gpu scratch buffers for rasterized transitions count toward the footprint but not the live heap.
@@ -44,11 +42,8 @@ final class UsageSummaryMemoryTests: XCTestCase {
         XCTAssertLessThan(allocatedHeapBytes(), heapBefore + 16 * 1_024 * 1_024)
     }
 
-    private func physicalFootprint() -> UInt64 {
-        guard let usage = LibProc.resourceUsage(of: getpid()) else {
-            preconditionFailure("a process can always read its own resource usage")
-        }
-        return usage.ri_phys_footprint
+    private func physicalFootprint() throws -> UInt64 {
+        try XCTUnwrap(LibProc.resourceUsage(of: getpid())).ri_phys_footprint
     }
 
     private func summaryView(step: Int) -> some View {

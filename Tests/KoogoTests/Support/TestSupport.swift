@@ -33,6 +33,14 @@ extension XCTestCase {
     }
 }
 
+/// memory measurements need a quiet process, so they run separately on request.
+func skipUnlessMeasuringMemory() throws {
+    try XCTSkipUnless(
+        ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1",
+        "Run separately with KOOGO_MEMORY_TESTS=1."
+    )
+}
+
 func makeTestExecutable(in directory: URL, script: String) throws -> URL {
     let executable = directory.appending(path: UUID().uuidString)
     try script.write(to: executable, atomically: true, encoding: .utf8)

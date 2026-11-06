@@ -4,9 +4,7 @@ import XCTest
 
 final class LogStoreMemoryTests: UsageWorkspaceTestCase {
     func testVisitingEventsDoesNotCopyTheStore() throws {
-        guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
-            throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to measure retained heap.")
-        }
+        try skipUnlessMeasuringMemory()
         let usage = codexUsage(input: 100, output: 20)
         let turns = (1...20_000).map {
             codexTurn() + "\n" + codexTokenUsageRecord(usage, response: "response-\($0)") + "\n"
@@ -34,9 +32,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
     }
 
     func testDecodingACompressedLogKeepsItsWindowOutOfTheHeap() throws {
-        guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
-            throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to measure retained heap.")
-        }
+        try skipUnlessMeasuringMemory()
         let url = workspace.codexSessions.appending(path: "session.jsonl.zst")
         try workspace.write(zstdFrame(of: codexLog(input: 100, output: 20)), to: url)
         var file = CompressedFile(url.path, observed: try XCTUnwrap(UsageFileMetadata(path: url.path)))
@@ -57,9 +53,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
     }
 
     func testTrackedEventsRetainCompactRecords() throws {
-        guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
-            throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to measure retained heap.")
-        }
+        try skipUnlessMeasuringMemory()
         let (fileCount, repliesPerFile) = (400, 125)
         for file in 0..<fileCount {
             let replies = (0..<repliesPerFile).map { reply in

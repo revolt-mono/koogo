@@ -4,9 +4,7 @@ import XCTest
 
 final class UsageEventIndexMemoryTests: XCTestCase {
     func testRetainedHeapStoresEachEventIdentityOnce() throws {
-        guard ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1" else {
-            throw XCTSkip("Run separately with KOOGO_MEMORY_TESTS=1 to measure retained heap.")
-        }
+        try skipUnlessMeasuringMemory()
         var index = UsageEventIndex()
         let usage = UsageRecord(timestamp: usageTestTimestamp, processedTokens: 1, cost: .zero, model: nil)
         let before = allocatedHeapBytes()
