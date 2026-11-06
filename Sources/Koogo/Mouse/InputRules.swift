@@ -1,3 +1,5 @@
+import Synchronization
+
 struct InputRules: Equatable {
     enum NotchMode: UInt32, CaseIterable {
         case standard
@@ -78,4 +80,33 @@ struct ScrollStep: Equatable {
     let axis: WheelNotch.Axis
     let lines: Int32
     let stripsOption: Bool
+}
+
+extension InputRules: AtomicRepresentable {
+    typealias AtomicRepresentation = UInt32.AtomicRepresentation
+
+    static func encodeAtomicRepresentation(_ value: consuming InputRules) -> AtomicRepresentation {
+        let bits =
+            value.wheelStep.rawValue
+            | value.direction.rawValue << 4
+            | value.notchMode.rawValue << 8
+            | (value.isLookUpEnabled ? 1 : 0) << 12
+        return UInt32.encodeAtomicRepresentation(bits)
+    }
+
+    static func decodeAtomicRepresentation(_ storage: consuming AtomicRepresentation) -> InputRules {
+        let bits = UInt32.decodeAtomicRepresentation(storage)
+        guard let wheelStep = WheelStep(rawValue: bits & 0xF),
+            let direction = ScrollDirection(rawValue: bits >> 4 & 0xF),
+            let notchMode = NotchMode(rawValue: bits >> 8 & 0xF)
+        else {
+            preconditionFailure("only encodeAtomicRepresentation writes the word")
+        }
+        return InputRules(
+            wheelStep: wheelStep,
+            direction: direction,
+            notchMode: notchMode,
+            isLookUpEnabled: bits >> 12 & 1 == 1
+        )
+    }
 }

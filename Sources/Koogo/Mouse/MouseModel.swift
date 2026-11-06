@@ -35,10 +35,8 @@ final class MouseModel {
 
     func start() {
         Task {
-            for await _ in AccessibilityPermission.changes {
-                // accessibility notifications arrive before the trust query reflects the change.
-                try? await Task.sleep(for: .milliseconds(250))
-                isTrusted = AccessibilityPermission.isTrusted
+            for await isTrusted in AccessibilityPermission.changes {
+                self.isTrusted = isTrusted
                 applyRules()
             }
         }
