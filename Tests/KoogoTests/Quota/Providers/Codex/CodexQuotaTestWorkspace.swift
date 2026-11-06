@@ -20,8 +20,6 @@ struct CodexQuotaTestWorkspace: ScriptedToolWorkspace {
     }
 
     var quotaResponseFile: URL { root.appending(path: "quota-response.json") }
-    var consumeRequestsFile: URL { root.appending(path: "consume-requests.jsonl") }
-    var readRequestsFile: URL { root.appending(path: "read-requests.jsonl") }
 
     func makeAppServer(
         quotaResponse: String = rateLimitsResponse(resetCount: 1, credits: "[\(resetCredit)]"),
@@ -42,11 +40,9 @@ struct CodexQuotaTestWorkspace: ScriptedToolWorkspace {
                     *'"initialize"'*)
                       printf '%s\\n' '{"id":1,"result":{}}' ;;
                     *rateLimits*read*)
-                      printf '%s\\n' "$request" >> '\(readRequestsFile.path)'
                       printf '%s\\n' '{"method":"unrelated/notification","params":{}}'
                       printf '%s\\n' "$(/bin/cat '\(quotaResponseFile.path)')" ;;
                     *ResetCredit*consume*)
-                      printf '%s\\n' "$request" >> '\(consumeRequestsFile.path)'
                       \(onConsume)
                       printf '%s\\n' '\(consumeResponse)' ;;
                   esac

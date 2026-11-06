@@ -2,17 +2,18 @@ import Foundation
 
 /// grok initialization refreshes credentials unattended; billing needs no session or model prompt.
 struct GrokQuotaSource: QuotaSource {
+    private static let protocolVersion = 1
     private let tool: CommandLineTool
 
     init(
-        executableCandidates: [URL] = CommandLineTool.candidates(
+        tool: CommandLineTool = CommandLineTool(
             named: "grok",
             preferring: [
                 Provider.grok.home(under: FileManager.default.homeDirectoryForCurrentUser).appending(path: "bin")
             ]
         )
     ) {
-        tool = CommandLineTool(candidates: executableCandidates)
+        self.tool = tool
     }
 
     func load() async -> QuotaReading {
@@ -21,9 +22,9 @@ struct GrokQuotaSource: QuotaSource {
                 var connection = JSONRPCConnection(streams, dateDecodingStrategy: .iso8601)
                 let initialized: InitializeResponse = try await connection.request(
                     "initialize",
-                    params: InitializeParams()
+                    params: InitializeParams(protocolVersion: Self.protocolVersion)
                 )
-                guard initialized.protocolVersion == 1 else { throw ToolFailure.invalidMessage }
+                guard initialized.protocolVersion == Self.protocolVersion else { throw ToolFailure.invalidMessage }
                 do {
                     let response: GrokQuotaResponse = try await connection.request(
                         "_x.ai/billing",
@@ -42,7 +43,7 @@ struct GrokQuotaSource: QuotaSource {
 }
 
 private struct InitializeParams: Encodable {
-    let protocolVersion = 1
+    let protocolVersion: Int
     let clientCapabilities: [String: String] = [:]
     let clientInfo = ["name": "koogo", "version": "1.0"]
 }

@@ -6,7 +6,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
     func testFetchSendsOneIsolatedUsageRequestAndReadsThePlanWindows() async throws {
         let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let executable = try workspace.makeCLI()
-        let snapshot = try await ClaudeQuotaSource(executableCandidates: [executable]).load().get()
+        let snapshot = try await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
         XCTAssertEqual(snapshot.plan, "Max")
         XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 12)
@@ -39,7 +39,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
             let executable = try workspace.makeCLI(
                 output: ClaudeQuotaTestWorkspace.response(rateLimits: limits, available: false)
             )
-            let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
+            let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
             XCTAssertEqual(result, .unavailable(.noPlan), limits)
         }
         for limits in [
@@ -47,7 +47,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
             #"{"five_hour":{"utilization":null,"resets_at":null},"seven_day":null,"model_scoped":[]}"#,
         ] {
             let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
-            let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
+            let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
             XCTAssertEqual(result, .unavailable(.emptyLimits), limits)
         }
         let outputs: [(String, QuotaUnavailability)] = [
@@ -73,11 +73,11 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         ]
         for (output, reason) in outputs {
             let executable = try workspace.makeCLI(output: output)
-            let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
+            let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
             XCTAssertEqual(result, .unavailable(reason), output)
         }
         let executable = try workspace.makeCLI(beforeOutput: "exit 1")
-        let result = await ClaudeQuotaSource(executableCandidates: [executable]).load()
+        let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
         XCTAssertEqual(result, .unavailable(.sessionFailed))
     }
 
@@ -91,7 +91,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
             {"display_name":"Unstarted","utilization":null,"resets_at":null}]}
             """
         let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
-        let snapshot = try await ClaudeQuotaSource(executableCandidates: [executable]).load().get()
+        let snapshot = try await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
         XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 0)
         XCTAssertNil(snapshot.windows["Session"]?.resetsAt)
@@ -104,8 +104,10 @@ final class ClaudeQuotaSourceTests: XCTestCase {
         let root = try makeTemporaryDirectory()
         let notExecutable = root.appending(path: "claude")
         try Data().write(to: notExecutable)
-        let result = await ClaudeQuotaSource(executableCandidates: [root.appending(path: "missing"), notExecutable])
-            .load()
+        let result = await ClaudeQuotaSource(
+            tool: CommandLineTool(candidates: [root.appending(path: "missing"), notExecutable])
+        )
+        .load()
         XCTAssertEqual(result, .unavailable(.binaryNotFound))
     }
 
@@ -125,8 +127,7 @@ final class ClaudeQuotaSourceTests: XCTestCase {
             )
             let fetch = Task {
                 await ClaudeQuotaSource(
-                    executableCandidates: [executable],
-                    timeout: cancel ? .seconds(15) : .seconds(1)
+                    tool: CommandLineTool(candidates: [executable], timeout: cancel ? .seconds(15) : .seconds(1))
                 )
                 .load()
             }

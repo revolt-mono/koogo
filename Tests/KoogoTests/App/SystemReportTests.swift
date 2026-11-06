@@ -15,7 +15,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         let data = try await SystemReport.generate(
             pipeline: makePipeline(),
             quotaSources: QuotaSources(
-                codex: CodexQuotaSource(executableCandidates: [try quotaWorkspace.makeAppServer()]),
+                codex: CodexQuotaSource(tool: CommandLineTool(candidates: [try quotaWorkspace.makeAppServer()])),
                 claude: missingExecutables.claude,
                 grok: missingExecutables.grok
             ),
@@ -71,9 +71,9 @@ final class SystemReportTests: UsageWorkspaceTestCase {
         let data = try await SystemReport.generate(
             pipeline: makePipeline(),
             quotaSources: QuotaSources(
-                codex: CodexQuotaSource(executableCandidates: [codexExecutable]),
-                claude: ClaudeQuotaSource(executableCandidates: [claudeExecutable]),
-                grok: GrokQuotaSource(executableCandidates: [grokExecutable])
+                codex: CodexQuotaSource(tool: CommandLineTool(candidates: [codexExecutable])),
+                claude: ClaudeQuotaSource(tool: CommandLineTool(candidates: [claudeExecutable])),
+                grok: GrokQuotaSource(tool: CommandLineTool(candidates: [grokExecutable]))
             ),
             at: usageTestTimestamp
         )

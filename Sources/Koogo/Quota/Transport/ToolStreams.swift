@@ -20,10 +20,16 @@ struct ToolStreams: ~Copyable {
     }
 
     mutating func first<Value>(_ match: (Data) throws -> Value?) async throws -> Value {
-        while let line = try await lines.next() {
-            if let value = try match(Data(line.utf8)) {
-                return value
+        do {
+            while let line = try await lines.next() {
+                if let value = try match(Data(line.utf8)) {
+                    return value
+                }
             }
+        } catch is DecodingError {
+            throw ToolFailure.invalidMessage
+        } catch let error as SubprocessError where error.code == .outputLimitExceeded {
+            throw ToolFailure.invalidMessage
         }
         throw ToolFailure.closed
     }

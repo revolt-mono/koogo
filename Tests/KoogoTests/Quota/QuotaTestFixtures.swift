@@ -62,9 +62,9 @@ final class ScriptedQuotaSource: CodexQuotaResetSource {
 extension QuotaSources {
     static var missingExecutables: Self {
         QuotaSources(
-            codex: CodexQuotaSource(executableCandidates: []),
-            claude: ClaudeQuotaSource(executableCandidates: []),
-            grok: GrokQuotaSource(executableCandidates: [])
+            codex: CodexQuotaSource(tool: CommandLineTool(candidates: [])),
+            claude: ClaudeQuotaSource(tool: CommandLineTool(candidates: [])),
+            grok: GrokQuotaSource(tool: CommandLineTool(candidates: []))
         )
     }
 }

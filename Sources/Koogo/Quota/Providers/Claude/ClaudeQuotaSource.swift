@@ -16,11 +16,8 @@ struct ClaudeQuotaSource: QuotaSource {
 
     private let tool: CommandLineTool
 
-    init(
-        executableCandidates: [URL] = CommandLineTool.candidates(named: "claude"),
-        timeout: Duration = CommandLineTool.defaultTimeout
-    ) {
-        tool = CommandLineTool(candidates: executableCandidates, timeout: timeout)
+    init(tool: CommandLineTool = CommandLineTool(named: "claude")) {
+        self.tool = tool
     }
 
     func load() async -> QuotaReading {

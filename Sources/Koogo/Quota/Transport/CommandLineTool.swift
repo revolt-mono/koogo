@@ -23,7 +23,7 @@ struct CommandLineTool: Sendable {
     private static let workingDirectory = FilePath("/tmp")
 
     /// the usage page waits for every quota read, so this also bounds a cold start.
-    static let defaultTimeout: Duration = .seconds(10)
+    private static let defaultTimeout: Duration = .seconds(10)
 
     private let candidates: [URL]
     private let timeout: Duration
@@ -33,11 +33,11 @@ struct CommandLineTool: Sendable {
         self.timeout = timeout
     }
 
-    static func candidates(named name: String, preferring preferred: [URL] = []) -> [URL] {
+    init(named name: String, preferring preferred: [URL] = []) {
         let path = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map {
             URL(filePath: String($0))
         }
-        return (preferred + installDirectories + path).map { $0.appending(path: name) }
+        self.init(candidates: (preferred + Self.installDirectories + path).map { $0.appending(path: name) })
     }
 
     func session<Value: Sendable>(
@@ -51,10 +51,6 @@ struct CommandLineTool: Sendable {
             return try await converse(with: executable, arguments, session)
         } catch let failure as ToolFailure {
             throw failure
-        } catch is DecodingError {
-            throw .invalidMessage
-        } catch let error as SubprocessError where error.code == .outputLimitExceeded {
-            throw .invalidMessage
         } catch {
             Logger.quota.warning(
                 "\(executable.lastPathComponent, privacy: .public) session closed: \(error, privacy: .public)"
@@ -98,6 +94,7 @@ struct CommandLineTool: Sendable {
                 // subprocess waits for tool exit; teardown also releases reads blocked beyond the conversation timeout.
                 group.cancelAll()
                 await execution.teardown(using: Self.platformOptions.teardownSequence)
+                // subprocess skips its final group kill once the tool exits, leaving descendants spawned during the grace.
                 try? execution.send(signal: .kill, toProcessGroup: true)
                 return try outcome.get()
             }

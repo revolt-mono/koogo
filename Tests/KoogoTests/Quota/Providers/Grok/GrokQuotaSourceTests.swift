@@ -19,7 +19,7 @@ final class GrokQuotaSourceTests: XCTestCase {
                 """
         )
 
-        let snapshot = try await GrokQuotaSource(executableCandidates: [executable]).load().get()
+        let snapshot = try await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
         XCTAssertEqual(snapshot.plan, "SuperGrok Heavy")
         XCTAssertEqual(snapshot.windows.map(\.title), ["Weekly"])
@@ -43,7 +43,7 @@ final class GrokQuotaSourceTests: XCTestCase {
             )
         )
 
-        let result = await GrokQuotaSource(executableCandidates: [executable]).load()
+        let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
 
         XCTAssertEqual(try result.get().windows, [QuotaWindow(title: "Monthly limit", usedPercent: 0, resetsAt: nil)])
     }
@@ -57,7 +57,7 @@ final class GrokQuotaSourceTests: XCTestCase {
             )
         )
 
-        let snapshot = try await GrokQuotaSource(executableCandidates: [executable]).load().get()
+        let snapshot = try await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
         XCTAssertEqual(snapshot.windows.map(\.title), ["Usage limit"])
         XCTAssertEqual(snapshot.windows["Usage limit"]?.usedPercent, 100)
@@ -78,7 +78,7 @@ final class GrokQuotaSourceTests: XCTestCase {
         for (response, expected) in cases {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(billingResponse: response)
-            let result = await GrokQuotaSource(executableCandidates: [executable]).load()
+            let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
             XCTAssertEqual(result, expected)
         }
     }
@@ -87,7 +87,7 @@ final class GrokQuotaSourceTests: XCTestCase {
         let refused = #"{"id":2,"error":{"code":-32000,"message":"Authentication required"}}"#
         let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
         let executable = try workspace.makeAgent(billingResponse: refused)
-        let result = await GrokQuotaSource(executableCandidates: [executable]).load()
+        let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
         XCTAssertEqual(result, .unavailable(.noPlan))
 
         let responses: [(String, QuotaUnavailability)] = [
@@ -98,7 +98,7 @@ final class GrokQuotaSourceTests: XCTestCase {
         for (response, reason) in responses {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(billingResponse: response)
-            let result = await GrokQuotaSource(executableCandidates: [executable]).load()
+            let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
             XCTAssertEqual(result, .unavailable(reason), response)
         }
     }
@@ -113,7 +113,7 @@ final class GrokQuotaSourceTests: XCTestCase {
         for (response, reason) in responses {
             let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
             let executable = try workspace.makeAgent(initializeResponse: response)
-            let result = await GrokQuotaSource(executableCandidates: [executable]).load()
+            let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
             XCTAssertEqual(result, .unavailable(reason), response)
             XCTAssertEqual(try jsonObjects(in: workspace.requestsFile).count, 1)
         }

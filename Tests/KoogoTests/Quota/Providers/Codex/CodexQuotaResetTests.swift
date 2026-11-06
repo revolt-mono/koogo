@@ -19,7 +19,7 @@ final class CodexQuotaResetTests: XCTestCase {
         let executable = try workspace.makeAppServer(
             quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(resetCount: 5, credits: credits)
         )
-        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
+        let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
         let summary = try XCTUnwrap(snapshot.resetCredits)
         let details = try XCTUnwrap(summary.credits)
 
@@ -39,7 +39,7 @@ final class CodexQuotaResetTests: XCTestCase {
             let executable = try workspace.makeAppServer(
                 quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(resetCount: 3, credits: credits)
             )
-            let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
+            let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
             let summary = try XCTUnwrap(snapshot.resetCredits)
             XCTAssertEqual(summary.availableCount, 3)
             XCTAssertEqual(summary.credits, credits == "null" ? nil : [])
@@ -57,17 +57,19 @@ final class CodexQuotaResetTests: XCTestCase {
             let executable = try workspace.makeAppServer(
                 consumeResponse: "{\"id\":2,\"result\":{\"outcome\":\"\(value)\"}}"
             )
-            let result = await CodexQuotaSource(executableCandidates: [executable]).consume(attempt)
+            let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).consume(attempt)
             XCTAssertEqual(result, .success(expected))
         }
-        let requests = try jsonObjects(in: workspace.consumeRequestsFile)
-        XCTAssertEqual(requests.count, 4)
-        for request in requests {
-            XCTAssertEqual(request["method"] as? String, "account/rateLimitResetCredit/consume")
+        let requests = try jsonObjects(in: workspace.requestsFile)
+        let consume = "account/rateLimitResetCredit/consume"
+        XCTAssertEqual(
+            requests.map { $0["method"] as? String },
+            Array(repeating: ["initialize", "initialized", consume], count: 4).flatMap { $0 }
+        )
+        for request in requests where request["method"] as? String == consume {
             let params = try XCTUnwrap(request["params"] as? [String: String])
             XCTAssertEqual(params, ["creditId": "credit-a", "idempotencyKey": attempt.idempotencyKey.uuidString])
         }
-        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.readRequestsFile.path))
     }
 
     func testRefusedRequestsAreRejectedWhileFailedOrUnknownOutcomesStayUnconfirmed() async throws {
@@ -81,7 +83,7 @@ final class CodexQuotaResetTests: XCTestCase {
         ]
         for (response, expected) in cases {
             let executable = try workspace.makeAppServer(consumeResponse: response)
-            let result = await CodexQuotaSource(executableCandidates: [executable]).consume(attempt)
+            let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).consume(attempt)
             XCTAssertEqual(result, .failure(expected), response)
         }
     }
@@ -101,7 +103,7 @@ final class CodexQuotaResetTests: XCTestCase {
                 """
         )
 
-        let result = await CodexQuotaSource(executableCandidates: [executable]).consume(resetAttempt())
+        let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).consume(resetAttempt())
 
         XCTAssertEqual(result, .failure(.rejected(.rpc(code: -32603))))
         XCTAssertFalse(FileManager.default.fileExists(atPath: unexpected.path))
@@ -112,19 +114,23 @@ final class CodexQuotaResetTests: XCTestCase {
         let initializing = try workspace.makeAppServer(onStart: "while :; do :; done")
         let consuming = try workspace.makeAppServer(onConsume: "while :; do :; done")
         // macos vets new executables on first launch, which can exceed the timeout below.
-        _ = await CodexQuotaSource(executableCandidates: [consuming]).load()
+        _ = await CodexQuotaSource(tool: CommandLineTool(candidates: [consuming])).load()
 
-        let rejected = await CodexQuotaSource(executableCandidates: [initializing], timeout: .milliseconds(500))
-            .consume(resetAttempt())
-        let unconfirmed = await CodexQuotaSource(executableCandidates: [consuming], timeout: .milliseconds(500))
-            .consume(resetAttempt())
+        let rejected = await CodexQuotaSource(
+            tool: CommandLineTool(candidates: [initializing], timeout: .milliseconds(500))
+        )
+        .consume(resetAttempt())
+        let unconfirmed = await CodexQuotaSource(
+            tool: CommandLineTool(candidates: [consuming], timeout: .milliseconds(500))
+        )
+        .consume(resetAttempt())
 
         XCTAssertEqual(rejected, .failure(.rejected(.timedOut)))
         XCTAssertEqual(unconfirmed, .failure(.unconfirmed(.timedOut)))
     }
 
     func testFailureBeforeTheWriteIsRejected() async {
-        let result = await CodexQuotaSource(executableCandidates: []).consume(resetAttempt())
+        let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [])).consume(resetAttempt())
         XCTAssertEqual(result, .failure(.rejected(.notFound)))
     }
 }

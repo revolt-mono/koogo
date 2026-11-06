@@ -130,7 +130,7 @@ private struct CodexQuotaResetStatus: View {
 
     private func failureMessage(_ failure: ToolFailure) -> String {
         switch failure {
-        case .rpc(code: -32601):
+        case .methodNotFound:
             "This Codex version cannot use banked resets. Update Codex, then retry."
         case .rpc(let code):
             "Codex returned an error (code \(code))."

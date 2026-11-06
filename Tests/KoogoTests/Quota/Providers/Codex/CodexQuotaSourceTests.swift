@@ -11,7 +11,7 @@ final class CodexQuotaSourceTests: XCTestCase {
                 """
         )
 
-        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
+        let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
         XCTAssertEqual(
             snapshot.windows.map(\.title),
@@ -41,10 +41,10 @@ final class CodexQuotaSourceTests: XCTestCase {
 
     func testPlanNamesFollowTheCodexTUIAndOtherCodesShowCapitalized() throws {
         for (planType, expected) in [("team", "Business"), ("mystery", "Mystery")] {
-            let response = try decodeResponse(
+            let snapshot = try decodeSnapshot(
                 #"{"rateLimits":{"planType":"\#(planType)","primary":{"usedPercent":25,"windowDurationMins":300}}}"#
             )
-            XCTAssertEqual(response.snapshot?.plan, expected, planType)
+            XCTAssertEqual(snapshot.plan, expected, planType)
         }
     }
 
@@ -57,7 +57,7 @@ final class CodexQuotaSourceTests: XCTestCase {
                 """
         )
 
-        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
+        let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
         XCTAssertEqual(snapshot.windows.map(\.title), ["id_x", "id_y"])
     }
@@ -73,7 +73,7 @@ final class CodexQuotaSourceTests: XCTestCase {
             )
         )
 
-        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
+        let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
         XCTAssertEqual(snapshot.windows, [])
         XCTAssertEqual(snapshot.plan, "Pro 100")
@@ -87,7 +87,7 @@ final class CodexQuotaSourceTests: XCTestCase {
             quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(resetCount: -1, credits: "[]")
         )
 
-        let snapshot = try await CodexQuotaSource(executableCandidates: [executable]).load().get()
+        let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
         XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
         XCTAssertNil(snapshot.resetCredits)
@@ -105,10 +105,9 @@ final class CodexQuotaSourceTests: XCTestCase {
             ("null", nil),
         ]
         for (credits, expected) in cases {
-            let response = try decodeResponse(
+            let snapshot = try decodeSnapshot(
                 #"{"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300},"credits":\#(credits)}}"#
             )
-            let snapshot = try XCTUnwrap(response.snapshot)
 
             XCTAssertEqual(snapshot.credits, expected, credits)
             XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
@@ -116,10 +115,9 @@ final class CodexQuotaSourceTests: XCTestCase {
     }
 
     func testCreditsWithoutWindowsOrBankedResets() throws {
-        let response = try decodeResponse(
+        let snapshot = try decodeSnapshot(
             #"{"rateLimits":{"credits":{"hasCredits":true,"unlimited":false,"balance":"50"}}}"#
         )
-        let snapshot = try XCTUnwrap(response.snapshot)
 
         XCTAssertEqual(snapshot.credits, .balance(amount: 50))
         XCTAssertEqual(snapshot.windows, [])
@@ -132,7 +130,7 @@ final class CodexQuotaSourceTests: XCTestCase {
             quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(usedPercent: 20, windowMinutes: 1_440)
         )
 
-        let result = await CodexQuotaSource(executableCandidates: [executable]).load()
+        let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
 
         XCTAssertEqual(result, .unavailable(.emptyLimits))
     }
@@ -144,7 +142,7 @@ final class CodexQuotaSourceTests: XCTestCase {
             let executable = try workspace.makeAppServer(
                 quotaResponse: #"{"id":2,"error":{"code":\#(code),"message":"chatgpt authentication required"}}"#
             )
-            let result = await CodexQuotaSource(executableCandidates: [executable]).load()
+            let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
             XCTAssertEqual(result, expected, "\(code)")
         }
     }
@@ -156,7 +154,7 @@ final class CodexQuotaSourceTests: XCTestCase {
             script: "#!/bin/sh\nIFS= read -r initialize\nprintf '%s\\n' '{\"id\":1,\"error\":{\"code\":-32600}}'\n"
         )
 
-        let result = await CodexQuotaSource(executableCandidates: [executable]).load()
+        let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
 
         XCTAssertEqual(result, .unavailable(.sessionFailed))
     }
@@ -169,7 +167,7 @@ final class CodexQuotaSourceTests: XCTestCase {
                 "#!/bin/sh\nIFS= read -r initialize\nexec 0<&-\nprintf '%s\\n' '{\"id\":1,\"result\":{}}'\nsleep 1\n"
         )
 
-        let result = await CodexQuotaSource(executableCandidates: [executable]).load()
+        let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
 
         XCTAssertEqual(result, .unavailable(.sessionFailed))
     }
@@ -198,7 +196,7 @@ final class CodexQuotaSourceTests: XCTestCase {
         )
 
         let fetch = Task {
-            await CodexQuotaSource(executableCandidates: [executable]).load()
+            await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
         }
         try await waitUntil(timeout: .seconds(2)) { FileManager.default.fileExists(atPath: readyMarker.path) }
 
@@ -213,8 +211,8 @@ final class CodexQuotaSourceTests: XCTestCase {
 }
 
 /// decodes like the app server connection, which reads dates as unix seconds.
-private func decodeResponse(_ json: String) throws -> CodexQuotaResponse {
+private func decodeSnapshot(_ result: String) throws -> QuotaSnapshot {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .secondsSince1970
-    return try decoder.decode(CodexQuotaResponse.self, from: Data(json.utf8))
+    return try XCTUnwrap(decoder.decode(CodexQuotaResponse.self, from: Data(result.utf8)).snapshot)
 }
