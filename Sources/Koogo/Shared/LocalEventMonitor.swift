@@ -11,7 +11,16 @@ extension NSEvent {
     }
 }
 
-struct LocalEventMonitor: NSViewRepresentable {
+extension View {
+    func onLocalEvent(
+        _ events: NSEvent.EventTypeMask,
+        perform handler: @escaping @MainActor (NSEvent, NSView) -> NSEvent?
+    ) -> some View {
+        background(LocalEventMonitor(events: events, handler: handler).allowsHitTesting(false))
+    }
+}
+
+private struct LocalEventMonitor: NSViewRepresentable {
     let events: NSEvent.EventTypeMask
     let handler: @MainActor (NSEvent, NSView) -> NSEvent?
 

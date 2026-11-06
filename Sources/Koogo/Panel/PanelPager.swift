@@ -58,20 +58,17 @@ struct PanelPager: View {
             PanelPageIndicator(shown: shown, onSelect: show)
                 .padding(.bottom, 6)
         }
-        .background {
-            LocalEventMonitor(events: .scrollWheel) { event, view in
-                guard let window = view.window, event.window === window else { return event }
-                switch WheelPaging(event) {
-                case .step(let step):
-                    if let shown, let page = PanelPage(rawValue: shown.rawValue + step) { show(page) }
-                    return nil
-                case .drop:
-                    return nil
-                case .pass:
-                    return event
-                }
+        .onLocalEvent(.scrollWheel) { event, view in
+            guard let window = view.window, event.window === window else { return event }
+            switch WheelPaging(event) {
+            case .step(let step):
+                if let shown, let page = PanelPage(rawValue: shown.rawValue + step) { show(page) }
+                return nil
+            case .drop:
+                return nil
+            case .pass:
+                return event
             }
-            .allowsHitTesting(false)
         }
     }
 

@@ -35,11 +35,8 @@ struct PanelDisclosure<Label: View, Content: View>: View {
         }
         .buttonStyle(.plain)
         .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
-        .background {
-            LocalEventMonitor(events: [.leftMouseDown, .leftMouseUp]) { event, view in
-                event.independentClick(in: view)
-            }
-            .allowsHitTesting(false)
+        .onLocalEvent([.leftMouseDown, .leftMouseUp]) { event, view in
+            event.independentClick(in: view)
         }
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
             content()

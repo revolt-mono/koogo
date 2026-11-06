@@ -14,7 +14,7 @@ final class LocalEventMonitorTests: XCTestCase {
             let captured = Owner()
             owner = captured
             let host = NSHostingView(
-                rootView: LocalEventMonitor(events: .keyDown) { event, _ in
+                rootView: Color.clear.onLocalEvent(.keyDown) { event, _ in
                     withExtendedLifetime(captured) { event }
                 }
             )
