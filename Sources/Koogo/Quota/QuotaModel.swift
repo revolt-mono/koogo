@@ -19,7 +19,7 @@ enum QuotaStatus: Equatable, Sendable {
     }
 }
 
-/// app-scoped; refreshed by the app at launch and by the panel on open. reads are single-flight per provider;
+/// app-scoped; refreshed by the app at launch and by the usage page on open. reads are single-flight per provider;
 /// requests made during a read are dropped.
 @MainActor
 @Observable

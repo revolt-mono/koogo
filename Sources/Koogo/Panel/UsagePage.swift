@@ -31,6 +31,12 @@ struct UsagePage: View {
                 )
             }
         }
+        .task(id: preferences.usageProviders) {
+            usageModel.refresh(providers: preferences.usageProviders)
+        }
+        .task(id: preferences.quotaProviders) {
+            quotaModel.refresh(preferences.quotaProviders)
+        }
     }
 }
 

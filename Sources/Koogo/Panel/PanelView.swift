@@ -4,7 +4,7 @@ import SwiftUI
 struct PanelView: View {
     private static let toolbarGap: CGFloat = 8
 
-    /// smoothstep over squared progress holds the top dark and lands the fade with zero slope; dense stops keep the linear segments between them from banding.
+    /// dense stops keep the linear segments between them from banding.
     private static let backdrop = Gradient(
         stops: (0...32).map { step in
             let progress = Double(step) / 32
@@ -13,9 +13,6 @@ struct PanelView: View {
         }
     )
 
-    @Environment(ProviderPreferences.self) private var preferences
-    @Environment(UsageModel.self) private var usageModel
-    @Environment(QuotaModel.self) private var quotaModel
     @State private var toolbarHeight: CGFloat = 0
 
     var body: some View {
@@ -31,12 +28,6 @@ struct PanelView: View {
         .foregroundStyle(.panelLabel)
         .background {
             LinearGradient(gradient: Self.backdrop, startPoint: .top, endPoint: .bottom)
-        }
-        .task(id: preferences.usageProviders) {
-            usageModel.refresh(providers: preferences.usageProviders)
-        }
-        .task(id: preferences.quotaProviders) {
-            quotaModel.refresh(preferences.quotaProviders)
         }
     }
 }

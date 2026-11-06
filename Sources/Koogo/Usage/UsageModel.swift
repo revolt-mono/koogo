@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// app-scoped; refreshed by the app at launch and by the panel on open or provider changes.
+/// app-scoped; refreshed by the app at launch and by the usage page on open or provider changes.
 @MainActor
 @Observable
 final class UsageModel {
