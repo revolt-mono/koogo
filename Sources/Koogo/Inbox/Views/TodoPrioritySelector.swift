@@ -131,7 +131,6 @@ private struct TodoPriorityOption: View, Animatable {
         let showsFeedback = !isSelected && !isScrubbing
         let isPressed = showsFeedback && configuration.isPressed
         let isHighlighted = showsFeedback && (isHovered || configuration.isPressed)
-        // feedback enters quickly and settles back with a slight overshoot.
         let fade = Animation.timingCurve(0.25, 0.1, 0.25, 1, duration: isHighlighted ? 0.12 : 0.16)
         let scale =
             isHighlighted
@@ -170,7 +169,7 @@ private struct TodoPriorityOption: View, Animatable {
         }
         .background {
             Circle()
-                .fill(.white.opacity(0.06))
+                .fill(.panelRaised)
                 .frame(width: TodoPriorityMorphLayout.hitSize, height: TodoPriorityMorphLayout.hitSize)
                 .animation(fade) { $0.opacity(isHighlighted ? 1 : 0) }
                 .animation(scale) {
