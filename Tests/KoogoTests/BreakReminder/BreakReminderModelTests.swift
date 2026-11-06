@@ -8,15 +8,14 @@ final class BreakReminderModelTests: XCTestCase {
         var now = Date(timeIntervalSince1970: 1_000)
     }
 
-    func testMissingOrInvalidPersistedStateFallsBackToPausedHour() throws {
-        let outOfRangePause = try PropertyListSerialization.data(
-            fromPropertyList: ["paused": ["interval": 60, "remaining": 9_999.0] as [String: Any]],
-            format: .binary,
-            options: 0
+    func testMissingOrInvalidPersistedStateFallsBackToPausedHour() async throws {
+        let outOfRangePause = try PropertyListEncoder().encode(
+            BreakReminderCountdown.paused(interval: .oneHour, remaining: 9_999)
         )
 
         for payload in [nil, Data("garbage".utf8), outOfRangePause] {
             let defaults = try makeIsolatedDefaults()
+            await makeModel(defaults: defaults).perform(.setInterval(.twoHours))
             defaults.set(payload, forKey: "break-reminder-state")
 
             let model = makeModel(defaults: defaults)

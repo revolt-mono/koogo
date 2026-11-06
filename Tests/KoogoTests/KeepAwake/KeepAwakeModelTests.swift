@@ -23,6 +23,7 @@ final class KeepAwakeModelTests: XCTestCase {
     func testEnabledStateSurvivesRelaunch() throws {
         let defaults = try makeIsolatedDefaults()
         KeepAwakeModel(defaults: defaults).isEnabled = true
+        XCTAssertEqual(try ownedAssertionCount(), 0, "a released model releases its assertion")
 
         let relaunched = KeepAwakeModel(defaults: defaults)
         XCTAssertEqual(try ownedAssertionCount(), 0, "construction has no launch effects")

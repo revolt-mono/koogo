@@ -38,6 +38,7 @@ final class MouseModelTests: XCTestCase {
 
     func testUndecodableSettingsFallBackToDefaultsWithInstalledTerminals() throws {
         let defaults = try makeIsolatedDefaults()
+        MouseModel(defaults: defaults, isInstalled: { _ in true }).settings.isLookUpEnabled = false
         defaults.set(Data("junk".utf8), forKey: "mouse-settings")
 
         XCTAssertEqual(

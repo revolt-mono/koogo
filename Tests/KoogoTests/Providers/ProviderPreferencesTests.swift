@@ -42,6 +42,7 @@ final class ProviderPreferencesTests: XCTestCase {
 
     func testUndecodableStorageFallsBackToDefaults() throws {
         let defaults = try makeIsolatedDefaults()
+        ProviderPreferences(defaults: defaults)[usage: .codex] = false
         defaults.set(Data("junk".utf8), forKey: "provider-preferences")
 
         let preferences = ProviderPreferences(defaults: defaults)

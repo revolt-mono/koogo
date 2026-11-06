@@ -68,6 +68,7 @@ final class InboxModelTests: XCTestCase {
 
     func testUndecodablePersistenceLoadsEmpty() throws {
         let defaults = try makeIsolatedDefaults()
+        InboxModel(defaults: defaults).add(try todoText("saved"), priority: .normal)
         defaults.set(Data("invalid".utf8), forKey: "inbox-todo-items")
 
         XCTAssertTrue(InboxModel(defaults: defaults).todos.isEmpty)
