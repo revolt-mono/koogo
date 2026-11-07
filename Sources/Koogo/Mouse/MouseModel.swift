@@ -5,9 +5,18 @@ import Observation
 @MainActor
 @Observable
 final class MouseModel {
+    enum AccessibilityAccess {
+        case untrusted
+        case granted
+        /// trusted, yet the requested tap isn't running; the stale grant usually needs renewing.
+        case stale
+    }
+
     private let storage: PersistedValue<MouseSettings>
     private let tap = EventTap()
-    private(set) var isTrusted = false
+    private var isTrusted: Bool {
+        didSet { applyRules() }
+    }
 
     var settings: MouseSettings {
         didSet {
@@ -22,22 +31,27 @@ final class MouseModel {
         }
     }
 
-    /// an enabled, trusted tap that is not running usually needs its stale grant renewed.
-    var isTapStopped: Bool {
-        settings.isEnabled && isTrusted && !tap.isRunning
+    var access: AccessibilityAccess {
+        if !isTrusted {
+            .untrusted
+        } else if tap.isStopped {
+            .stale
+        } else {
+            .granted
+        }
     }
 
     init(defaults: UserDefaults, isInstalled: (String) -> Bool) {
         storage = PersistedValue(key: "mouse-settings", defaults: defaults)
         settings =
             storage.load() ?? MouseSettings(lineByLineApps: MouseSettings.terminalApps.filter(isInstalled))
+        isTrusted = AccessibilityPermission.isTrusted
     }
 
     func start() {
         Task {
             for await isTrusted in AccessibilityPermission.changes {
                 self.isTrusted = isTrusted
-                applyRules()
             }
         }
         Task {
@@ -48,7 +62,6 @@ final class MouseModel {
                 applyRules()
             }
         }
-        isTrusted = AccessibilityPermission.isTrusted
         applyRules()
     }
 

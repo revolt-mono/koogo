@@ -10,11 +10,12 @@ struct AccessibilityPermissionRow: View {
 
     var body: some View {
         LabeledContent {
-            if !mouse.isTrusted {
+            switch mouse.access {
+            case .untrusted:
                 Button("Grant", action: AccessibilityPermission.request)
-            } else if mouse.isTapStopped {
+            case .stale:
                 Button("Re-grant") { openURL(Self.accessibilityPane) }
-            } else {
+            case .granted:
                 Text("Granted")
             }
         } label: {

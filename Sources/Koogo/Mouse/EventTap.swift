@@ -11,15 +11,17 @@ import os
 @Observable
 final class EventTap {
     private enum State: Equatable {
-        case notInstalled
+        case idle
         case paused(CFMachPort)
         case running(CFMachPort)
+        /// running was requested, but the tap couldn't install or its run loop exited.
+        case stopped
     }
 
-    private var state = State.notInstalled
+    private var state = State.idle
 
-    var isRunning: Bool {
-        if case .running = state { true } else { false }
+    var isStopped: Bool {
+        state == .stopped
     }
 
     private let rules = Atomic(InputRules(MouseSettings(), frontmostApp: nil))
@@ -31,10 +33,11 @@ final class EventTap {
         self.rules.store(rules, ordering: .relaxed)
         let port: CFMachPort? =
             switch state {
-            case .notInstalled: install()
+            case .idle, .stopped: install()
             case .paused(let port), .running(let port): port
             }
         guard let port else {
+            state = .stopped
             return
         }
         CGEvent.tapEnable(tap: port, enable: true)
@@ -42,11 +45,15 @@ final class EventTap {
     }
 
     func pause() {
-        guard case .running(let port) = state else {
-            return
+        switch state {
+        case .running(let port):
+            CGEvent.tapEnable(tap: port, enable: false)
+            state = .paused(port)
+        case .stopped:
+            state = .idle
+        case .idle, .paused:
+            break
         }
-        CGEvent.tapEnable(tap: port, enable: false)
-        state = .paused(port)
     }
 
     nonisolated static let callback: CGEventTapCallBack = { proxy, type, event, userInfo in
@@ -81,7 +88,7 @@ final class EventTap {
             CFRunLoopRun()
             Task { @MainActor in
                 Logger.mouse.warning("event tap stopped")
-                state = .notInstalled
+                state = if case .running = state { .stopped } else { .idle }
             }
         }
         thread.name = "Koogo Event Tap"
