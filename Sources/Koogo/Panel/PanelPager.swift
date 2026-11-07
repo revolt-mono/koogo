@@ -20,7 +20,7 @@ struct PanelPager: View {
 
     let maxHeight: CGFloat
 
-    @State private var shown: PanelPage? = .usage
+    @State private var shown = PanelPage.usage
     @State private var usageHeight: CGFloat = 0
     @State private var slide = PageSlide()
 
@@ -51,7 +51,7 @@ struct PanelPager: View {
             .background { PageSlideAnchor(slide: slide) }
         }
         .scrollTargetBehavior(.paging)
-        .scrollPosition(id: $shown)
+        .scrollPosition(id: Binding($shown))
         .scrollIndicators(.never, axes: .horizontal)
         .frame(height: min(usageHeight, maxHeight))
         .overlay(alignment: .bottom) {
@@ -62,7 +62,7 @@ struct PanelPager: View {
             guard let window = view.window, event.window === window else { return event }
             switch WheelPaging(event) {
             case .step(let step):
-                if let shown, let page = PanelPage(rawValue: shown.rawValue + step) { show(page) }
+                if let page = PanelPage(rawValue: shown.rawValue + step) { show(page) }
                 return nil
             case .drop:
                 return nil
@@ -113,7 +113,7 @@ private struct PageSlideAnchor: NSViewRepresentable {
 }
 
 private struct PanelPageIndicator: View {
-    let shown: PanelPage?
+    let shown: PanelPage
     let onSelect: (PanelPage) -> Void
 
     var body: some View {
