@@ -2,22 +2,35 @@ import Foundation
 
 /// codex writes one `token_usage_record` per completed response; the preceding `turn_context` names the model.
 struct CodexUsageLogParser: UsageLogParser {
+    private enum RecordKind {
+        case turnContext
+        case tokenUsageRecord
+
+        init?(_ value: JSONValue) {
+            switch value {
+            case "turn_context": self = .turnContext
+            case "token_usage_record": self = .tokenUsageRecord
+            default: return nil
+            }
+        }
+    }
+
     private var model: ModelID?
 
     mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
         guard var record = JSONObjectReader(line) else {
             return nil
         }
-        var kind: JSONValue?
+        var kind: RecordKind?
         var timestamp: JSONValue?
         var payload: JSONValue?
         while let member = try record.next() {
             switch member.key {
             case "type":
-                guard member.value.isString("turn_context") || member.value.isString("token_usage_record") else {
+                guard let recordKind = RecordKind(member.value) else {
                     return nil
                 }
-                kind = member.value
+                kind = recordKind
             case "timestamp": timestamp = member.value
             case "payload": payload = member.value
             default: break
@@ -26,13 +39,13 @@ struct CodexUsageLogParser: UsageLogParser {
         switch kind {
         case nil:
             return nil
-        case "turn_context"?:
+        case .turnContext:
             model = try? payload?.member("model")?.string()?.nonEmpty.map(ModelID.init(rawValue:))
             guard model != nil else {
                 throw MalformedUsageRecord()
             }
             return nil
-        default:
+        case .tokenUsageRecord:
             guard let payload, let timestamp = try timestamp?.text().flatMap(Date.init(iso8601:)) else {
                 throw MalformedUsageRecord()
             }
