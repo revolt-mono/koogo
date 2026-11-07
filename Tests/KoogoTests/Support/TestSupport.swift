@@ -56,10 +56,12 @@ func waitUntil(
     _ condition: () -> Bool
 ) async throws {
     let deadline = ContinuousClock.now + timeout
-    while !condition(), ContinuousClock.now < deadline {
+    var met = condition()
+    while !met, ContinuousClock.now < deadline {
         try await Task.sleep(for: .milliseconds(10))
+        met = condition()
     }
-    XCTAssertTrue(condition(), "condition not met within timeout", file: file, line: line)
+    XCTAssertTrue(met, "condition not met within timeout", file: file, line: line)
 }
 
 func allocatedHeapBytes() -> Int {
