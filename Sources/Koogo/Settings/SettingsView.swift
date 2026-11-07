@@ -96,21 +96,23 @@ private struct SettingsWindowStyle: NSViewRepresentable {
 }
 
 private struct LaunchAtLoginToggle: View {
-    private static var isRegistered: Bool { SMAppService.mainApp.status == .enabled }
-
-    @State private var launchesAtLogin = Self.isRegistered
+    @State private var status = SMAppService.mainApp.status
     @State private var failure: (any Error)?
 
     var body: some View {
         Toggle(
-            "Launch at Login",
             isOn: Binding(
-                get: { launchesAtLogin },
+                get: { status == .enabled || status == .requiresApproval },
                 set: setLaunchesAtLogin
             )
-        )
+        ) {
+            Text("Launch at Login")
+            if status == .requiresApproval {
+                Text("Allow Koogo in Login Items to finish.")
+            }
+        }
         .onAppear {
-            launchesAtLogin = Self.isRegistered
+            status = SMAppService.mainApp.status
         }
         .alert(
             "Couldn't Change Login Setting",
@@ -130,16 +132,15 @@ private struct LaunchAtLoginToggle: View {
         do {
             if launches {
                 try SMAppService.mainApp.register()
-                if SMAppService.mainApp.status == .requiresApproval {
-                    SMAppService.openSystemSettingsLoginItems()
-                }
             } else {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
             failure = error
         }
-
-        launchesAtLogin = Self.isRegistered
+        status = SMAppService.mainApp.status
+        if status == .requiresApproval {
+            SMAppService.openSystemSettingsLoginItems()
+        }
     }
 }
