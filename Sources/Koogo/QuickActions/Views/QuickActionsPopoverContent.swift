@@ -20,7 +20,7 @@ struct QuickActionsPopoverContent: View {
             VStack(spacing: 8) {
                 QuickActionRow(model: systemAppearance, systemImage: "circle.lefthalf.filled") { phase in
                     switch phase {
-                    case .scanning, .idle, .ready:
+                    case .unscanned, .scanning, .idle, .ready:
                         QuickActionCopy(title: "Toggle System Appearance", detail: "Switch macOS light and dark mode")
                     case .performing:
                         QuickActionCopy(title: "Changing System Appearance", detail: "Waiting for System Events")
@@ -31,7 +31,7 @@ struct QuickActionsPopoverContent: View {
 
                 QuickActionRow(model: diskImages, systemImage: "eject") { phase in
                     switch phase {
-                    case .scanning:
+                    case .unscanned, .scanning:
                         QuickActionCopy(title: "Checking Disk Images", detail: "Looking for visible mounted DMGs")
                     case .idle:
                         QuickActionCopy(title: "No Mounted DMGs", detail: "Visible disk images appear here")
@@ -60,7 +60,7 @@ struct QuickActionsPopoverContent: View {
 
                 QuickActionRow(model: agentProcesses, systemImage: "xmark.octagon") { phase in
                     switch phase {
-                    case .scanning:
+                    case .unscanned, .scanning:
                         QuickActionCopy(
                             title: "Checking Agent Processes",
                             detail: "Looking for orphaned \(Self.agentNames)"

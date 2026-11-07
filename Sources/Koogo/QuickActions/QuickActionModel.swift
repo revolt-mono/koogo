@@ -1,11 +1,12 @@
 import Observation
 
-/// row-scoped; appearing starts a scan and disappearing cancels it, leaving `.scanning` until the next appearance. started actions finish and rescan after closure.
+/// row-scoped; appearing starts a scan and disappearing cancels it, leaving `.unscanned` until the next appearance. started actions finish and rescan after closure.
 @MainActor
 @Observable
 final class QuickActionModel<Targets: Sendable> {
     enum Phase {
-        case scanning
+        case unscanned
+        case scanning(Task<Void, Never>)
         case idle
         case ready(Targets)
         case performing(Targets)
@@ -21,7 +22,6 @@ final class QuickActionModel<Targets: Sendable> {
     private(set) var phase: Phase
     private let source: Source
     private let action: @Sendable (Targets) async throws -> Void
-    @ObservationIgnored private var scanTask: Task<Void, Never>?
 
     convenience init(
         scan: @escaping @Sendable () async throws -> Targets?,
@@ -36,7 +36,7 @@ final class QuickActionModel<Targets: Sendable> {
         phase =
             switch source {
             case .fixed(let targets): .ready(targets)
-            case .scan: .scanning
+            case .scan: .unscanned
             }
     }
 
@@ -44,7 +44,7 @@ final class QuickActionModel<Targets: Sendable> {
         switch phase {
         case .ready: perform
         case .scanFailed, .performFailed: refresh
-        case .scanning, .idle, .performing: nil
+        case .unscanned, .scanning, .idle, .performing: nil
         }
     }
 
@@ -56,7 +56,11 @@ final class QuickActionModel<Targets: Sendable> {
     }
 
     func cancel() {
-        scanTask?.cancel()
+        guard case .scanning(let task) = phase else {
+            return
+        }
+        task.cancel()
+        phase = .unscanned
     }
 
     func perform() {
@@ -76,23 +80,24 @@ final class QuickActionModel<Targets: Sendable> {
     }
 
     private func startScan() {
-        scanTask?.cancel()
+        cancel()
         switch source {
         case .fixed(let targets):
             phase = .ready(targets)
         case .scan(let scan):
-            phase = .scanning
-            scanTask = Task {
-                let result = await Result { try await scan() }
-                guard !Task.isCancelled else {
-                    return
-                }
-                phase =
-                    switch result {
-                    case .success(let targets): targets.map(Phase.ready) ?? .idle
-                    case .failure(let error): .scanFailed(error.localizedDescription)
+            phase = .scanning(
+                Task {
+                    let result = await Result { try await scan() }
+                    guard !Task.isCancelled else {
+                        return
                     }
-            }
+                    phase =
+                        switch result {
+                        case .success(let targets): targets.map(Phase.ready) ?? .idle
+                        case .failure(let error): .scanFailed(error.localizedDescription)
+                        }
+                }
+            )
         }
     }
 }

@@ -24,7 +24,7 @@ struct QuickActionRow<Targets: Sendable>: View {
             HStack(spacing: 8) {
                 Group {
                     switch phase {
-                    case .scanning, .performing:
+                    case .unscanned, .scanning, .performing:
                         ProgressView()
                             .controlSize(.small)
                     case .idle, .ready, .scanFailed, .performFailed:

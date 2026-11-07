@@ -8,7 +8,7 @@ final class QuickActionModelTests: XCTestCase {
         let ready = QuickActionModel(scan: { ["a", "b"] }, perform: { _ in })
         let idle = QuickActionModel<[String]>(scan: { nil }, perform: { _ in })
 
-        XCTAssertEqual(ready.phase, .scanning)
+        XCTAssertEqual(ready.phase, .unscanned)
         ready.refresh()
         idle.refresh()
 
@@ -134,7 +134,7 @@ final class QuickActionModelTests: XCTestCase {
         await gate.open()
 
         try await waitUntil { performing.phase == .ready(1) }
-        XCTAssertEqual(scanning.phase, .scanning)
+        XCTAssertEqual(scanning.phase, .unscanned)
     }
 
     func testScanlessActionIsReadyBeforeAndAfterPerforming() async throws {
