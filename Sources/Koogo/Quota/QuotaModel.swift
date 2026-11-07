@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 import os
 
@@ -20,18 +21,29 @@ enum QuotaStatus: Equatable, Sendable {
 }
 
 /// app-scoped; refreshed by the app at launch and by the usage page on open. reads are single-flight per provider;
-/// requests made during a read are dropped.
+/// requests made during a read are dropped. a codex reset holds codex busy through submission and reread.
 @MainActor
 @Observable
 final class QuotaModel {
     private let sources: QuotaSources
+    let now: @MainActor () -> Date
     private let monotonicNow: @MainActor () -> ContinuousClock.Instant
 
     private(set) var statuses = EnumMap<QuotaProvider, QuotaStatus> { _ in .unread }
+    private(set) var codexReset = CodexQuotaResetFlow.idle
 
-    init(sources: QuotaSources, now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }) {
+    init(
+        sources: QuotaSources,
+        now: @escaping @MainActor () -> Date = { .now },
+        monotonicNow: @escaping @MainActor () -> ContinuousClock.Instant = { .now }
+    ) {
         self.sources = sources
-        self.monotonicNow = now
+        self.now = now
+        self.monotonicNow = monotonicNow
+    }
+
+    var codexResetCredits: QuotaSnapshot.ResetCredits? {
+        statuses[.codex].latest?.snapshot?.resetCredits
     }
 
     func refresh(_ providers: [QuotaProvider]) {
@@ -53,30 +65,59 @@ final class QuotaModel {
     }
 
     func reload(_ providers: [QuotaProvider]) {
-        for provider in providers {
+        for provider in providers where !statuses[provider].isBusy {
             let source = sources[provider]
-            _ = read(provider) { await source.load() }
+            read(provider) { await source.load() }
         }
     }
 
-    /// returns false while codex is busy; settles the reset result and refreshed limits in one busy span.
-    func resetCodex(
-        _ attempt: CodexQuotaResetAttempt,
-        settle: @escaping @MainActor (CodexQuotaResetResult) -> Void
-    ) -> Bool {
+    func canUseCodexReset(_ credit: QuotaSnapshot.ResetCredit) -> Bool {
+        !statuses[.codex].isBusy && codexReset.acceptsChoice && credit.canUse(at: now())
+    }
+
+    func beginCodexReset(creditID: String) {
+        guard let credit = codexCredit(id: creditID), canUseCodexReset(credit) else {
+            return
+        }
+        codexReset = .confirming(CodexQuotaResetAttempt(credit: credit))
+    }
+
+    func cancelCodexReset() {
+        guard case .confirming = codexReset else {
+            return
+        }
+        codexReset = .idle
+    }
+
+    func submitCodexReset() {
+        dropLapsedCodexConfirmation()
+        guard !statuses[.codex].isBusy, let submission = codexReset.submission else {
+            return
+        }
+        codexReset = .submitting
         let source = sources.codex
-        return read(.codex) {
-            let result = await source.consume(attempt)
+        read(.codex) {
+            let result = await source.consume(submission.attempt)
             let reading = await source.load()
-            settle(result)
+            self.codexReset = .settled(submission, result)
             return reading
         }
     }
 
-    private func read(_ provider: QuotaProvider, _ work: @escaping @MainActor () async -> QuotaReading) -> Bool {
-        guard !statuses[provider].isBusy else {
-            return false
+    private func dropLapsedCodexConfirmation() {
+        guard case .confirming(let attempt, _) = codexReset,
+            codexCredit(id: attempt.credit.id)?.canUse(at: now()) != true
+        else {
+            return
         }
+        codexReset = .idle
+    }
+
+    private func codexCredit(id: String) -> QuotaSnapshot.ResetCredit? {
+        codexResetCredits?.credits?.first { $0.id == id }
+    }
+
+    private func read(_ provider: QuotaProvider, _ work: @escaping @MainActor () async -> QuotaReading) {
         statuses[provider] = .reading(last: statuses[provider].latest)
         Task {
             let reading = await work()
@@ -87,7 +128,9 @@ final class QuotaModel {
                 }
             Logger.quota.info("\(provider.rawValue, privacy: .public) fetch \(outcome, privacy: .public)")
             statuses[provider] = .read(reading, since: monotonicNow())
+            if provider == .codex {
+                dropLapsedCodexConfirmation()
+            }
         }
-        return true
     }
 }

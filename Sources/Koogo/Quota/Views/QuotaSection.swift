@@ -2,12 +2,12 @@ import SwiftUI
 
 struct QuotaSection: View {
     @Environment(QuotaModel.self) private var quotaModel
-    @Environment(CodexQuotaResetModel.self) private var resetModel
     let provider: QuotaProvider
 
     var body: some View {
         let snapshot = quotaModel.statuses[provider].latest?.snapshot
-        let showsReset = provider == .codex && resetModel.hasResetActivity
+        let showsReset =
+            provider == .codex && (quotaModel.codexResetCredits != nil || quotaModel.codexReset != .idle)
         if snapshot != nil || showsReset {
             VStack(spacing: 16) {
                 VStack(spacing: 8) {

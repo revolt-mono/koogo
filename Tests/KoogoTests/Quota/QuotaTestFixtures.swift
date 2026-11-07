@@ -74,9 +74,10 @@ func makeQuotaModel(
     codex: any CodexQuotaResetSource = ScriptedQuotaSource(),
     claude: any QuotaSource = ScriptedQuotaSource([]),
     grok: any QuotaSource = ScriptedQuotaSource([]),
-    now: @escaping @MainActor () -> ContinuousClock.Instant = { .now }
+    now: @escaping @MainActor () -> Date = { .now },
+    monotonicNow: @escaping @MainActor () -> ContinuousClock.Instant = { .now }
 ) -> QuotaModel {
-    QuotaModel(sources: QuotaSources(codex: codex, claude: claude, grok: grok), now: now)
+    QuotaModel(sources: QuotaSources(codex: codex, claude: claude, grok: grok), now: now, monotonicNow: monotonicNow)
 }
 
 func waitForExit(

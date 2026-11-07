@@ -7,7 +7,6 @@ struct AppModels {
     let preferences: ProviderPreferences
     let usage: UsageModel
     let quota: QuotaModel
-    let codexReset: CodexQuotaResetModel
     let update: UpdateModel
     let breakReminder: BreakReminderModel
     let inbox: InboxModel
@@ -26,8 +25,7 @@ struct AppModels {
     ) {
         preferences = ProviderPreferences(defaults: defaults)
         usage = UsageModel(pipeline: pipeline, now: now)
-        quota = QuotaModel(sources: quotaSources)
-        codexReset = CodexQuotaResetModel(quota: quota, now: now)
+        quota = QuotaModel(sources: quotaSources, now: now)
         update = UpdateModel()
         breakReminder = BreakReminderModel(notifications: breakNotifications, defaults: defaults, now: now)
         inbox = InboxModel(defaults: defaults)
@@ -42,7 +40,6 @@ extension View {
         environment(models.preferences)
             .environment(models.usage)
             .environment(models.quota)
-            .environment(models.codexReset)
             .environment(models.update)
             .environment(models.breakReminder)
             .environment(models.inbox)

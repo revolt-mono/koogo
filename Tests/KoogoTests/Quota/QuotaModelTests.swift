@@ -54,7 +54,7 @@ final class QuotaModelTests: XCTestCase {
             .available(.stub(1)), .available(.stub(2)), .unavailable(.noPlan), .available(.stub(3)),
         ])
         var now = ContinuousClock.now
-        let model = makeQuotaModel(grok: source, now: { now })
+        let model = makeQuotaModel(grok: source, monotonicNow: { now })
 
         model.refresh([.grok])
         try await waitUntil { !model.statuses[.grok].isBusy }
