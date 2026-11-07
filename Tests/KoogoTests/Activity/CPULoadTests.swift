@@ -33,9 +33,13 @@ final class CPULoadTests: XCTestCase {
     }
 
     func testTheRunningMachineReportsItsCores() throws {
-        let cores = try CPUCores.read()
+        let count =
+            switch try CPUCores.read() {
+            case .uniform(let count): count
+            case .hybrid(let performance, let efficiency): performance + efficiency
+            }
 
-        XCTAssertGreaterThan(cores.performance, 0)
-        XCTAssertLessThanOrEqual(cores.performance + cores.efficiency, ProcessInfo.processInfo.processorCount)
+        XCTAssertGreaterThan(count, 0)
+        XCTAssertLessThanOrEqual(count, ProcessInfo.processInfo.processorCount)
     }
 }

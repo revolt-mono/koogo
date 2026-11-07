@@ -12,7 +12,7 @@ func activitySample(
             from: CPUTicks(user: 0, system: 0, idle: 0),
             to: CPUTicks(user: busy, system: 0, idle: 100 - busy)
         ),
-        cores: CPUCores(performance: 8, efficiency: 4),
+        cores: .hybrid(performance: 8, efficiency: 4),
         memory: MemoryUsage(total: 64 << 30, app: 32 << 30, wired: 0, compressed: 0),
         gpu: gpu.map { GPULoad(name: "Test GPU", utilization: $0, renderer: $0, tiler: 0) },
         battery: draw.flatMap { batteryState(draw: $0) },

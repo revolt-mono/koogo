@@ -42,11 +42,14 @@ private struct CPUSection: View {
     let trend: [Double]
 
     var body: some View {
+        let subtitle =
+            switch cores {
+            case .uniform(let count): "\(count) cores"
+            case .hybrid(let performance, let efficiency): "\(performance)P · \(efficiency)E"
+            }
         ActivityLoadTile(
             title: "CPU",
-            subtitle: cores.efficiency > 0
-                ? "\(cores.performance)P · \(cores.efficiency)E"
-                : "\(cores.performance) cores",
+            subtitle: subtitle,
             headline: Measure(fraction: load.total),
             details: [
                 "User": Measure(fraction: load.user).text,

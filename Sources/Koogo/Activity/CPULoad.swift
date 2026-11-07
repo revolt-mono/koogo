@@ -20,15 +20,18 @@ struct CPUTicks: Sendable {
     }
 }
 
-struct CPUCores: Sendable {
-    let performance: Int
-    let efficiency: Int
+enum CPUCores: Sendable {
+    case uniform(Int)
+    case hybrid(performance: Int, efficiency: Int)
 
     static func read() throws -> CPUCores {
-        guard let performance: Int32 = Sysctl.value("hw.perflevel0.physicalcpu") ?? Sysctl.value("hw.physicalcpu")
-        else { throw ActivityReadFailure.cpu }
-        let efficiency: Int32 = Sysctl.value("hw.perflevel1.physicalcpu") ?? 0
-        return CPUCores(performance: Int(performance), efficiency: Int(efficiency))
+        if let performance: Int32 = Sysctl.value("hw.perflevel0.physicalcpu"),
+            let efficiency: Int32 = Sysctl.value("hw.perflevel1.physicalcpu")
+        {
+            return .hybrid(performance: Int(performance), efficiency: Int(efficiency))
+        }
+        guard let count: Int32 = Sysctl.value("hw.physicalcpu") else { throw ActivityReadFailure.cpu }
+        return .uniform(Int(count))
     }
 }
 
