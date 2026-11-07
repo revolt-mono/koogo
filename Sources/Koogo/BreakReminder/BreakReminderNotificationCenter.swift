@@ -14,6 +14,9 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
     }
 
     func schedule(after duration: TimeInterval) async throws(BreakReminderIssue) {
+        guard await center.notificationSettings().authorizationStatus != .denied else {
+            throw .notificationsBlocked
+        }
         let isAuthorized: Bool
         do {
             isAuthorized = try await center.requestAuthorization(options: [.alert, .sound])
@@ -22,7 +25,7 @@ final class BreakReminderNotificationCenter: NSObject, BreakReminderNotification
             throw .schedulingFailed
         }
         guard isAuthorized else {
-            throw .notificationsDisabled
+            throw .notificationsDeclined
         }
 
         let content = UNMutableNotificationContent()

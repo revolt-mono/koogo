@@ -30,12 +30,14 @@ enum BreakReminderStatus: Equatable {
 }
 
 enum BreakReminderIssue: Error {
-    case notificationsDisabled
+    case notificationsDeclined
+    /// refused earlier; macos prompts only once, so only system settings can allow notifications now.
+    case notificationsBlocked
     case schedulingFailed
 
     var explanation: String {
         switch self {
-        case .notificationsDisabled:
+        case .notificationsDeclined, .notificationsBlocked:
             "Notifications are off. Allow them in System Settings, then resume the reminder."
         case .schedulingFailed:
             "Koogo couldn't schedule the notification. Resume the reminder to try again."
