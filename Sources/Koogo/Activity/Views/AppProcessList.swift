@@ -45,19 +45,21 @@ private struct AppProcessRow: View {
             processCount: group.members.count,
             footprint: Measure(bytes: group.footprint).text,
             load: "\(Measure(fraction: group.cpu).text) CPU, \(Measure(fraction: group.gpu).text) GPU",
-            isExpanded: hasTree ? isExpanded : nil
+            disclosure: disclosure
         )
 
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                if hasTree {
+                if disclosure == .leaf {
+                    summary
+                } else {
                     Button(action: toggle) {
                         summary.contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint(showsTree ? "Collapses the process tree" : "Expands the process tree")
-                } else {
-                    summary
+                    .accessibilityHint(
+                        disclosure == .expanded ? "Collapses the process tree" : "Expands the process tree"
+                    )
                 }
 
                 Button(action: quit) {
@@ -73,7 +75,7 @@ private struct AppProcessRow: View {
                 .accessibilityLabel("Quit \(group.name)")
             }
 
-            if showsTree {
+            if disclosure == .expanded {
                 AppProcessTree(members: group.members)
                     .padding(.leading, 28)
                     .padding(.trailing, 20)
@@ -91,14 +93,21 @@ private struct AppProcessRow: View {
 
     private var isQuitting: Bool { quittingProcessCount != nil }
 
-    private var hasTree: Bool { group.members.count > 1 }
-
-    private var showsTree: Bool { hasTree && isExpanded }
+    private var disclosure: ProcessTreeDisclosure {
+        guard group.members.count > 1 else { return .leaf }
+        return isExpanded ? .expanded : .collapsed
+    }
 
     private func quit() {
         quittingProcessCount = group.members.count
         group.forceTerminate()
     }
+}
+
+private enum ProcessTreeDisclosure {
+    case leaf
+    case collapsed
+    case expanded
 }
 
 /// displayed text only, so samples that leave a row's text unchanged skip rebuilding it.
@@ -108,8 +117,7 @@ private struct AppProcessSummary: View, Equatable {
     let processCount: Int
     let footprint: String
     let load: String
-    /// nil when the group has no tree to expand.
-    let isExpanded: Bool?
+    let disclosure: ProcessTreeDisclosure
 
     var body: some View {
         HStack(spacing: 8) {
@@ -122,10 +130,10 @@ private struct AppProcessSummary: View, Equatable {
                 HStack(spacing: 2) {
                     Text("^[\(processCount) process](inflect: true)")
 
-                    if let isExpanded {
+                    if disclosure != .leaf {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 7, weight: .bold))
-                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                            .rotationEffect(.degrees(disclosure == .expanded ? 90 : 0))
                             .accessibilityHidden(true)
                     }
                 }
