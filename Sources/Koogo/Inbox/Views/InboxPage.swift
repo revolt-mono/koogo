@@ -2,6 +2,7 @@ import SwiftUI
 
 struct InboxPage: View {
     @Environment(InboxModel.self) private var inboxModel
+    @State private var editingID: Todo.ID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -33,7 +34,7 @@ struct InboxPage: View {
                                 .stroke(.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                                 .frame(height: 1)
                         }
-                        TodoRow(todo: todo)
+                        TodoRow(todo: todo, editingID: $editingID)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
@@ -55,11 +56,12 @@ private struct DashedLine: Shape {
 
 private struct TodoRow: View {
     let todo: Todo
+    @Binding var editingID: Todo.ID?
 
     @Environment(InboxModel.self) private var inboxModel
-    @State private var isEditing = false
 
     var body: some View {
+        let isEditing = editingID == todo.id
         HStack(spacing: 8) {
             Button {
                 inboxModel.toggleCompleted(todo.id)
@@ -90,7 +92,7 @@ private struct TodoRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(.rect)
                     .onTapGesture(count: 2) {
-                        isEditing = true
+                        editingID = todo.id
                     }
             }
         }
@@ -103,7 +105,7 @@ private struct TodoRow: View {
         .padding(.horizontal, -8)
         .contextMenu {
             Button("Edit") {
-                isEditing = true
+                editingID = todo.id
             }
 
             Picker(
@@ -130,6 +132,6 @@ private struct TodoRow: View {
         if let text {
             inboxModel.setText(text, of: todo.id)
         }
-        isEditing = false
+        editingID = nil
     }
 }
