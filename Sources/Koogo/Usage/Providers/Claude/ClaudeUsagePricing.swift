@@ -36,8 +36,13 @@ enum ClaudeUsagePricing {
         let options: ClaudeBillableUsage.Options
     }
 
-    // pricing checked 2026-10-08: https://platform.claude.com/docs/en/about-claude/pricing and https://platform.claude.com/docs/en/models/overview
+    // pricing checked 2026-11-10: https://platform.claude.com/docs/en/about-claude/pricing and https://platform.claude.com/docs/en/models/overview
     private static let prices: [ModelID: ModelPrice] = [
+        "claude-fable-5-2": ModelPrice(
+            displayName: "Fable 5.2",
+            rates: Rates(input: 8_000, cacheRead: 200, output: 40_000),
+            options: [.fastMode, .usInference]
+        ),
         "claude-fable-5-1": ModelPrice(
             displayName: "Fable 5.1",
             rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),

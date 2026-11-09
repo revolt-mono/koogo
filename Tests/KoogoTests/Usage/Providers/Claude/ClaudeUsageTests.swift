@@ -151,6 +151,7 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         let shortPrompt = claudeBillableUsage(uncachedInput: 50_000, cachedInput: 50_000, output: 10_000)
 
         for (model, usage, expectedUSD) in [
+            ("claude-fable-5-2", fast, "7.64"),
             ("claude-opus-5", standard, "2.425"),
             ("claude-opus-5", fast, "4.85"),
             ("claude-sonnet-5", standard, "0.97"),
