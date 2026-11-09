@@ -3,7 +3,7 @@ import XCTest
 @testable import Koogo
 
 final class CommandLineToolTests: XCTestCase {
-    func testToolsRunInTmpWithAFixedEnvironmentInsteadOfTheAppsOwn() async throws {
+    func testToolsRunInAnEmptyDirectoryWithAFixedEnvironmentInsteadOfTheAppsOwn() async throws {
         let root = try makeTemporaryDirectory()
         let executable = try makeTestExecutable(
             in: root,
@@ -30,10 +30,7 @@ final class CommandLineToolTests: XCTestCase {
         XCTAssertEqual(String(fields[1]), NSUserName())
         XCTAssertTrue(fields[2].hasPrefix("\(root.path):"))
         XCTAssertTrue(fields[2].contains(":/opt/homebrew/bin:"))
-        XCTAssertEqual(
-            URL(filePath: String(fields[3])).resolvingSymlinksInPath(),
-            URL(filePath: "/tmp").resolvingSymlinksInPath()
-        )
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: String(fields[3])), [])
     }
 
     func testReplyNearTheDeadlineSurvivesASlowExit() async throws {
