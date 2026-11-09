@@ -33,7 +33,7 @@ struct AppIdentity: Sendable {
         iconPath =
             components.lastIndex { $0.hasSuffix(".app") }
             .map { NSString.path(withComponents: Array(components[...$0])) } ?? executablePath
-        name = URL(filePath: iconPath).deletingPathExtension().lastPathComponent
+        name = ((iconPath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
     private init(name: String, iconPath: String) {
@@ -127,7 +127,7 @@ struct AppProcessGroup: Identifiable, Sendable {
                 .flatMap { record in
                     let member = AppProcessMember(
                         identity: record.identity,
-                        name: URL(filePath: record.executablePath).lastPathComponent,
+                        name: (record.executablePath as NSString).lastPathComponent,
                         depth: depth,
                         footprint: record.footprint,
                         cpu: load(record, \.cpuTime),
