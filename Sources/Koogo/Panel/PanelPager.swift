@@ -31,7 +31,7 @@ struct PanelPager: View {
                     Group {
                         switch page {
                         case .usage:
-                            UsagePage(maxHeight: maxHeight)
+                            UsagePage(maxHeight: maxHeight, isShown: shown == .usage)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .onGeometryChange(for: CGFloat.self) {
                                     $0.size.height.rounded()

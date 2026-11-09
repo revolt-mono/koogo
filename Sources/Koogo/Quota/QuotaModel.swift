@@ -20,7 +20,7 @@ enum QuotaStatus: Equatable, Sendable {
     }
 }
 
-/// app-scoped; refreshed by the app at launch and by the usage page on open. reads are single-flight per provider;
+/// app-scoped; refreshed by the app at launch and by the usage page when shown. reads are single-flight per provider;
 /// requests made during a read are dropped. a codex reset holds codex busy through submission and reread.
 @MainActor
 @Observable

@@ -40,4 +40,39 @@ final class PanelViewTests: XCTestCase {
         XCTAssertEqual(activitySamples.value, 0)
         withExtendedLifetime(host) {}
     }
+
+    @MainActor
+    func testAHiddenUsagePageReadsOnlyNeverReadQuotaUntilShown() async throws {
+        let workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
+        let failed = QuotaReading.unavailable(.sessionFailed)
+        let models = AppModels(
+            defaults: try makeIsolatedDefaults(),
+            pipeline: UsagePipeline(home: workspace.root, calendar: usageTestCalendar),
+            quotaSources: QuotaSources(
+                codex: ScriptedQuotaSource([failed, failed]),
+                claude: ScriptedQuotaSource([failed, failed]),
+                grok: ScriptedQuotaSource([failed, failed])
+            ),
+            breakNotifications: BreakReminderTestNotifications(),
+            activitySample: { activitySample() },
+            isInstalled: { _ in false },
+            now: { usageTestTimestamp }
+        )
+        let quota = models.quota
+        models.preferences[usage: .codex] = false
+        quota.refresh(models.preferences.quotaProviders)
+        try await waitUntil { quota.statuses[.claude].latest != nil && quota.statuses[.grok].latest != nil }
+        let launchReading = quota.statuses[.claude]
+        models.preferences[usage: .codex] = true
+
+        let host = NSHostingView(rootView: UsagePage(maxHeight: 600, isShown: false).sceneRoot(models))
+        host.layoutSubtreeIfNeeded()
+        try await waitUntil { quota.statuses[.codex].latest != nil }
+        XCTAssertEqual(quota.statuses[.claude], launchReading)
+
+        host.rootView = UsagePage(maxHeight: 600, isShown: true).sceneRoot(models)
+        host.layoutSubtreeIfNeeded()
+        try await waitUntil { quota.statuses[.claude] != launchReading && !quota.statuses[.claude].isBusy }
+        withExtendedLifetime(host) {}
+    }
 }

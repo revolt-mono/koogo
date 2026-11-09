@@ -10,10 +10,13 @@ struct UsagePage: View {
     @State private var headerHeight: CGFloat = 0
 
     let maxHeight: CGFloat
+    let isShown: Bool
 
     var body: some View {
-        let quotaLoaded = preferences.quotaProviders.allSatisfy { quotaModel.statuses[$0].latest != nil }
-        PanelPageContent(quotaLoaded ? usageModel.snapshot : nil, loading: "Loading…") { snapshot in
+        let awaitedQuota = preferences.quotaProviders.filter { quotaModel.statuses[$0].latest == nil }
+        // every page takes this page's height, so the quota its placeholder awaits is due even off screen.
+        let dueQuota = isShown ? preferences.quotaProviders : awaitedQuota
+        PanelPageContent(awaitedQuota.isEmpty ? usageModel.snapshot : nil, loading: "Loading…") { snapshot in
             VStack(spacing: Self.cardsGapExcludingScrollMargin) {
                 VStack(spacing: Self.headerGap) {
                     UsageSummaryView(summary: snapshot.summary)
@@ -34,8 +37,8 @@ struct UsagePage: View {
         .task(id: preferences.usageProviders) {
             usageModel.refresh(providers: preferences.usageProviders)
         }
-        .task(id: preferences.quotaProviders) {
-            quotaModel.refresh(preferences.quotaProviders)
+        .task(id: dueQuota) {
+            quotaModel.refresh(dueQuota)
         }
     }
 }
