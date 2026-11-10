@@ -11,6 +11,7 @@ struct QuickActionsPopoverContent: View {
     @State private var agentProcesses = QuickActionModel(scan: OrphanedAgentProcesses.running) {
         try $0.forceTerminate()
     }
+    @State private var lingeringApps = QuickActionModel(scan: LingeringApps.running) { try await $0.forceTerminate() }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -79,6 +80,35 @@ struct QuickActionsPopoverContent: View {
                         )
                     case .scanFailed(let message):
                         QuickActionCopy(title: "Retry Agent Process Scan", detail: message)
+                    case .performFailed(let message):
+                        QuickActionCopy(title: "Stop Failed", detail: message)
+                    }
+                }
+
+                QuickActionRow(model: lingeringApps, systemImage: "xmark.app") { phase in
+                    switch phase {
+                    case .unscanned, .scanning:
+                        QuickActionCopy(
+                            title: "Checking Lingering Apps",
+                            detail: "Looking for quit apps running in the background"
+                        )
+                    case .idle:
+                        QuickActionCopy(
+                            title: "No Lingering Apps",
+                            detail: "Quit apps still running in the background appear here"
+                        )
+                    case .ready(let apps):
+                        QuickActionCopy(
+                            title: "Stop \(plural(apps.values.count, "Lingering App"))",
+                            detail: apps.summary
+                        )
+                    case .performing(let apps):
+                        QuickActionCopy(
+                            title: "Stopping \(plural(apps.values.count, "App"))",
+                            detail: "Waiting for the processes to exit"
+                        )
+                    case .scanFailed(let message):
+                        QuickActionCopy(title: "Retry Lingering App Scan", detail: message)
                     case .performFailed(let message):
                         QuickActionCopy(title: "Stop Failed", detail: message)
                     }

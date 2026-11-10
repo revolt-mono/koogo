@@ -57,7 +57,7 @@
 │   │   ├── Transport      cli and json-rpc plumbing
 │   │   ├── Providers      per-provider quota sources
 │   │   └── Views
-│   ├── QuickActions       appearance, disk image, and orphaned agent actions
+│   ├── QuickActions       appearance, disk image, orphaned agent, and lingering app actions
 │   ├── Activity           cpu, memory, gpu, and process load
 │   ├── Mouse              wheel step and button remapping through an event tap
 │   ├── BreakReminder      break countdown and notifications
