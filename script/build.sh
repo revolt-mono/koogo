@@ -67,6 +67,8 @@ xcrun actool \
   --output-partial-info-plist "$CONTENTS_DIR/AppIcon.plist" \
   "$APP_ICON"
 
+# `LSEnvironment` selects the space-efficient allocator, which only a launch environment can: the app default keeps
+# freed pages dirty, so every view opened for the first time raises the footprint for good.
 cat >"$CONTENTS_DIR/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -80,6 +82,7 @@ cat >"$CONTENTS_DIR/Info.plist" <<EOF
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0.$BUILD_NUMBER</string>
   <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
+  <key>LSEnvironment</key><dict><key>MallocSpaceEfficient</key><string>1</string></dict>
   <key>LSUIElement</key><true/>
   <key>LSMinimumSystemVersion</key><string>$MIN_SYSTEM_VERSION</string>
   <key>NSAppleEventsUsageDescription</key><string>Koogo uses System Events to switch the system between light and dark appearance when you choose the quick action.</string>

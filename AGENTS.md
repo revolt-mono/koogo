@@ -33,6 +33,7 @@
 
 - verify pipeline behavior with `report` rather than screenshots; its json covers log roots, ingestion counts, the usage snapshot, and typed quota outcomes.
 - measure pipeline changes with `benchmark` on the same logs and day: compare retired instructions, which stay stable across runs, and memory across repeated release runs without allocation tracing. the digest stays fixed unless the snapshot is meant to change.
+- measure app footprint on the bundle opened through launch services: its `LSEnvironment` selects the space-efficient allocator, which a directly run binary (`swift run`, `swift test`, `lldb`) lacks.
 - dropped input stays out of the ui: known-kind lines with unusable fields count in `malformedLines`, events with an unpriced model or billed option list their model in `unpricedModels`, and both log telemetry warnings.
 - stream telemetry (subsystem `com.revolt.koogo`, categories `app`, `usage`, `quota`, `activity`, `mouse`) with `script/build_and_run.sh telemetry`.
 
