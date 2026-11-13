@@ -4,108 +4,113 @@ import Observation
 @MainActor
 @Observable
 final class QuickActionModel<Targets: Sendable> {
-    enum Phase {
-        case unscanned
-        case scanning(Task<Void, Never>)
-        case idle
-        case ready(Targets)
-        case performing(Targets)
-        case scanFailed(String)
-        case performFailed(String)
+  convenience init(
+    scan: @escaping @Sendable () async throws -> Targets?,
+    perform action: @escaping @Sendable (Targets) async throws -> Void,
+  ) {
+    self.init(source: .scan(scan), perform: action)
+  }
+
+  private init(source: Source, perform action: @escaping @Sendable (Targets) async throws -> Void) {
+    self.source = source
+    self.action = action
+    phase =
+      switch source {
+      case .fixed(let targets): .ready(targets)
+      case .scan: .unscanned
+      }
+  }
+
+  enum Phase {
+    case unscanned
+    case scanning(Task<Void, Never>)
+    case idle
+    case ready(Targets)
+    case performing(Targets)
+    case scanFailed(String)
+    case performFailed(String)
+  }
+
+  private(set) var phase: Phase
+
+  var activate: (@MainActor () -> Void)? {
+    switch phase {
+    case .ready: perform
+    case .scanFailed,
+         .performFailed: refresh
+    case .unscanned,
+         .scanning,
+         .idle,
+         .performing: nil
     }
+  }
 
-    private enum Source {
-        case fixed(Targets)
-        case scan(@Sendable () async throws -> Targets?)
+  func refresh() {
+    if case .performing = phase {
+      return
     }
+    startScan()
+  }
 
-    private(set) var phase: Phase
-    private let source: Source
-    private let action: @Sendable (Targets) async throws -> Void
-
-    convenience init(
-        scan: @escaping @Sendable () async throws -> Targets?,
-        perform action: @escaping @Sendable (Targets) async throws -> Void
-    ) {
-        self.init(source: .scan(scan), perform: action)
+  func cancel() {
+    guard case .scanning(let task) = phase else {
+      return
     }
+    task.cancel()
+    phase = .unscanned
+  }
 
-    private init(source: Source, perform action: @escaping @Sendable (Targets) async throws -> Void) {
-        self.source = source
-        self.action = action
-        phase =
-            switch source {
-            case .fixed(let targets): .ready(targets)
-            case .scan: .unscanned
-            }
+  func perform() {
+    guard case .ready(let targets) = phase else {
+      return
     }
-
-    var activate: (@MainActor () -> Void)? {
-        switch phase {
-        case .ready: perform
-        case .scanFailed, .performFailed: refresh
-        case .unscanned, .scanning, .idle, .performing: nil
-        }
+    phase = .performing(targets)
+    Task {
+      do {
+        try await action(targets)
+      } catch {
+        phase = .performFailed(error.localizedDescription)
+        return
+      }
+      startScan()
     }
+  }
 
-    func refresh() {
-        if case .performing = phase {
-            return
-        }
-        startScan()
-    }
+  private enum Source {
+    case fixed(Targets)
+    case scan(@Sendable () async throws -> Targets?)
+  }
 
-    func cancel() {
-        guard case .scanning(let task) = phase else {
-            return
-        }
-        task.cancel()
-        phase = .unscanned
-    }
+  private let source: Source
+  private let action: @Sendable (Targets) async throws -> Void
 
-    func perform() {
-        guard case .ready(let targets) = phase else {
-            return
-        }
-        phase = .performing(targets)
+  private func startScan() {
+    cancel()
+    switch source {
+    case .fixed(let targets):
+      phase = .ready(targets)
+    case .scan(let scan):
+      phase = .scanning(
         Task {
-            do {
-                try await action(targets)
-            } catch {
-                phase = .performFailed(error.localizedDescription)
-                return
+          let result = await Result { try await scan() }
+          guard !Task.isCancelled else {
+            return
+          }
+          phase =
+            switch result {
+            case .success(let targets): targets.map(Phase.ready) ?? .idle
+            case .failure(let error): .scanFailed(error.localizedDescription)
             }
-            startScan()
         }
+      )
     }
-
-    private func startScan() {
-        cancel()
-        switch source {
-        case .fixed(let targets):
-            phase = .ready(targets)
-        case .scan(let scan):
-            phase = .scanning(
-                Task {
-                    let result = await Result { try await scan() }
-                    guard !Task.isCancelled else {
-                        return
-                    }
-                    phase =
-                        switch result {
-                        case .success(let targets): targets.map(Phase.ready) ?? .idle
-                        case .failure(let error): .scanFailed(error.localizedDescription)
-                        }
-                }
-            )
-        }
-    }
+  }
 }
 
 extension QuickActionModel where Targets == Void {
-    convenience init(perform action: @escaping @Sendable () async throws -> Void) {
-        self.init(source: .fixed(()), perform: { try await action() })
-    }
+  convenience init(perform action: @escaping @Sendable () async throws -> Void) {
+    self.init(source: .fixed(()), perform: { try await action() })
+  }
 }
 
-extension QuickActionModel.Phase: Equatable where Targets: Equatable {}
+extension QuickActionModel.Phase: Equatable where Targets: Equatable { }

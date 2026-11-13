@@ -5,109 +5,116 @@ import XCTest
 @testable import Koogo
 
 extension [QuotaWindow] {
-    subscript(title: String) -> QuotaWindow? {
-        first { $0.title == title }
-    }
+  subscript(title: String) -> QuotaWindow? {
+    first { $0.title == title }
+  }
 }
 
-extension QuotaUnavailability: Error {}
+extension QuotaUnavailability: Error { }
 
 extension QuotaReading {
-    func get() throws -> QuotaSnapshot {
-        switch self {
-        case .available(let snapshot): snapshot
-        case .unavailable(let reason): throw reason
-        }
+  func get() throws -> QuotaSnapshot {
+    switch self {
+    case .available(let snapshot): snapshot
+    case .unavailable(let reason): throw reason
     }
+  }
 }
 
 extension QuotaSnapshot.ResetCredit {
-    static let stub = QuotaSnapshot.ResetCredit(
-        id: "credit-a",
-        title: "Usage reset",
-        expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
-    )
+  static let stub = QuotaSnapshot.ResetCredit(
+    id: "credit-a",
+    title: "Usage reset",
+    expiresAt: Date(timeIntervalSince1970: 4_102_444_800),
+  )
 }
 
 extension QuotaSnapshot {
-    static func stub(_ usedPercent: Int = 50) -> QuotaSnapshot {
-        QuotaSnapshot(windows: [
-            QuotaWindow(title: "Session", usedPercent: Double(usedPercent), resetsAt: nil)
-        ])!
-    }
+  static func stub(_ usedPercent: Int = 50) -> QuotaSnapshot {
+    QuotaSnapshot(windows: [
+      QuotaWindow(title: "Session", usedPercent: Double(usedPercent), resetsAt: nil)
+    ])!
+  }
 }
 
 final class ScriptedQuotaSource: CodexQuotaResetSource {
-    let loads = Mutex(0)
-    let consumed = Mutex<[CodexQuotaResetAttempt]>([])
-    private let readings: Mutex<[QuotaReading]>
-    private let consumes: Mutex<[CodexQuotaResetResult]>
+  init(_ readings: [QuotaReading] = [], consumes: [CodexQuotaResetResult] = []) {
+    self.readings = Mutex(readings)
+    self.consumes = Mutex(consumes)
+  }
 
-    init(_ readings: [QuotaReading] = [], consumes: [CodexQuotaResetResult] = []) {
-        self.readings = Mutex(readings)
-        self.consumes = Mutex(consumes)
-    }
+  let loads = Mutex(0)
+  let consumed = Mutex<[CodexQuotaResetAttempt]>([])
 
-    func load() async -> QuotaReading {
-        loads.withLock { $0 += 1 }
-        return readings.withLock { $0.removeFirst() }
-    }
+  func load() async -> QuotaReading {
+    loads.withLock { $0 += 1 }
+    return readings.withLock { $0.removeFirst() }
+  }
 
-    func consume(_ attempt: CodexQuotaResetAttempt) async -> CodexQuotaResetResult {
-        consumed.withLock { $0.append(attempt) }
-        return consumes.withLock { $0.removeFirst() }
-    }
+  func consume(_ attempt: CodexQuotaResetAttempt) async -> CodexQuotaResetResult {
+    consumed.withLock { $0.append(attempt) }
+    return consumes.withLock { $0.removeFirst() }
+  }
+
+  private let readings: Mutex<[QuotaReading]>
+  private let consumes: Mutex<[CodexQuotaResetResult]>
 }
 
 extension QuotaSources {
-    static var missingExecutables: Self {
-        QuotaSources(
-            codex: CodexQuotaSource(tool: CommandLineTool(candidates: [])),
-            claude: ClaudeQuotaSource(tool: CommandLineTool(candidates: [])),
-            grok: GrokQuotaSource(tool: CommandLineTool(candidates: []))
-        )
-    }
-}
+  static var missingExecutables: Self {
+    QuotaSources(
+      codex: CodexQuotaSource(tool: CommandLineTool(candidates: [])),
+      claude: ClaudeQuotaSource(tool: CommandLineTool(candidates: [])),
+      grok: GrokQuotaSource(tool: CommandLineTool(candidates: [])),
+    )
+  }
 
-@MainActor
-func makeQuotaModel(
+  static func scripted(
     codex: any CodexQuotaResetSource = ScriptedQuotaSource(),
     claude: any QuotaSource = ScriptedQuotaSource([]),
     grok: any QuotaSource = ScriptedQuotaSource([]),
-    now: @escaping @MainActor () -> Date = { .now },
-    monotonicNow: @escaping @MainActor () -> ContinuousClock.Instant = { .now }
-) -> QuotaModel {
-    QuotaModel(sources: QuotaSources(codex: codex, claude: claude, grok: grok), now: now, monotonicNow: monotonicNow)
+  ) -> Self {
+    QuotaSources(codex: codex, claude: claude, grok: grok)
+  }
 }
 
-func waitForExit(
+extension Poll {
+  static func untilExit(
     pidIn marker: URL,
     file: StaticString = #filePath,
-    line: UInt = #line
-) async throws {
+    line: UInt = #line,
+  ) async throws {
     let text = try String(contentsOf: marker, encoding: .utf8).trimmingCharacters(in: .newlines)
     let pid = try XCTUnwrap(pid_t(text), file: file, line: line)
-    try await waitUntil(timeout: .seconds(3), file: file, line: line) { kill(pid, 0) == -1 && errno == ESRCH }
+    try await until(timeout: .seconds(3), file: file, line: line) { kill(pid, 0) == -1 && errno == ESRCH }
+  }
 }
 
 protocol ScriptedToolWorkspace {
-    var root: URL { get }
+  var root: URL { get }
 }
 
 extension ScriptedToolWorkspace {
-    var requestsFile: URL { root.appending(path: "requests.jsonl") }
-    var argumentsFile: URL { root.appending(path: "arguments") }
+  var requestsFile: URL {
+    root.appending(path: "requests.jsonl")
+  }
 
-    var prologue: String {
-        """
-        #!/bin/sh
-        printf '%s\\n' "$@" > '\(argumentsFile.path)'
-        """
-    }
+  var argumentsFile: URL {
+    root.appending(path: "arguments")
+  }
+
+  var prologue: String {
+    """
+    #!/bin/sh
+    printf '%s\\n' "$@" > '\(argumentsFile.path)'
+    """
+  }
 }
 
-func jsonObjects(in file: URL) throws -> [[String: Any]] {
+extension JSONSerialization {
+  static func jsonObjects(inLinesOf file: URL) throws -> [[String: Any]] {
     try String(contentsOf: file, encoding: .utf8).split(separator: "\n").map { line in
-        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
+      try XCTUnwrap(jsonObject(with: Data(line.utf8)) as? [String: Any])
     }
+  }
 }

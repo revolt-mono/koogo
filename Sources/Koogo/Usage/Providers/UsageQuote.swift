@@ -1,4 +1,4 @@
 struct UsageQuote: Sendable {
-    let model: ModelID
-    let cost: Picodollars
+  let model: ModelID
+  let cost: Picodollars
 }

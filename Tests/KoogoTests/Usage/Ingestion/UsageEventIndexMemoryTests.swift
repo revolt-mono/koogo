@@ -3,22 +3,22 @@ import XCTest
 @testable import Koogo
 
 final class UsageEventIndexMemoryTests: XCTestCase {
-    func testRetainedHeapStoresEachEventIdentityOnce() throws {
-        try skipUnlessMeasuringMemory()
-        var index = UsageEventIndex()
-        let usage = UsageRecord(timestamp: usageTestTimestamp, processedTokens: 1, cost: .zero, model: nil)
-        let before = allocatedHeapBytes()
+  func testRetainedHeapStoresEachEventIdentityOnce() throws {
+    try MemoryMeasurement.skipUnlessRequested()
+    var index = UsageEventIndex()
+    let usage = UsageRecord(timestamp: UsageFixture.timestamp, processedTokens: 1, cost: .zero, model: nil)
+    let before = MemoryMeasurement.allocatedHeapBytes()
 
-        index.update { batch in
-            for number in 0..<50_000 {
-                batch.insert(
-                    UsageEvent(id: .piAgent(entryID: String(number).utf8, timestamp: usage.timestamp), record: usage)
-                )
-            }
-        }
-
-        // one 56-byte entry per event retains about 4 MiB; a second copy of each identity exceeds the bound.
-        XCTAssertLessThan(allocatedHeapBytes() - before, 6 * 1_024 * 1_024)
-        XCTAssertEqual(index.events.reduce(0) { $0 + $1.record.processedTokens }, 50_000)
+    index.update { batch in
+      for number in 0..<50_000 {
+        batch.insert(
+          UsageEvent(id: .piAgent(entryID: String(number).utf8, timestamp: usage.timestamp), record: usage)
+        )
+      }
     }
+
+    // one 56-byte entry per event retains about 4 MiB; a second copy of each identity exceeds the bound.
+    XCTAssertLessThan(MemoryMeasurement.allocatedHeapBytes() - before, 6 * 1_024 * 1_024)
+    XCTAssertEqual(index.events.reduce(0) { $0 + $1.record.processedTokens }, 50_000)
+  }
 }

@@ -4,46 +4,46 @@ import XCTest
 
 @MainActor
 final class MouseModelTests: XCTestCase {
-    func testStartsOffWithInstalledTerminalsAsLineByLineApps() throws {
-        let installed: Set = ["com.mitchellh.ghostty", "com.apple.Terminal", "com.apple.Safari"]
-        let mouse = MouseModel(defaults: try makeIsolatedDefaults(), isInstalled: installed.contains)
+  func testStartsOffWithInstalledTerminalsAsLineByLineApps() throws {
+    let installed: Set = ["com.mitchellh.ghostty", "com.apple.Terminal", "com.apple.Safari"]
+    let mouse = MouseModel(defaults: try makeIsolatedDefaults(), isInstalled: installed.contains)
 
-        XCTAssertEqual(mouse.settings.lineByLineApps, ["com.apple.Terminal", "com.mitchellh.ghostty"])
-        XCTAssertFalse(mouse.settings.isEnabled)
-    }
+    XCTAssertEqual(mouse.settings.lineByLineApps, ["com.apple.Terminal", "com.mitchellh.ghostty"])
+    XCTAssertFalse(mouse.settings.isEnabled)
+  }
 
-    func testSettingsPersistAcrossLaunchesIncludingRemovedPresets() throws {
-        let defaults = try makeIsolatedDefaults()
-        let mouse = MouseModel(defaults: defaults, isInstalled: { _ in true })
+  func testSettingsPersistAcrossLaunchesIncludingRemovedPresets() throws {
+    let defaults = try makeIsolatedDefaults()
+    let mouse = MouseModel(defaults: defaults, isInstalled: { _ in true })
 
-        mouse.settings.wheelStep = .slow
-        mouse.settings.direction = .natural
-        mouse.settings.isLookUpEnabled = false
-        mouse.settings.removeLineByLineApp("com.apple.Terminal")
-        mouse.settings.addLineByLineApp("com.microsoft.VSCode")
+    mouse.settings.wheelStep = .slow
+    mouse.settings.direction = .natural
+    mouse.settings.isLookUpEnabled = false
+    mouse.settings.removeLineByLineApp("com.apple.Terminal")
+    mouse.settings.addLineByLineApp("com.microsoft.VSCode")
 
-        let relaunched = MouseModel(defaults: defaults, isInstalled: { _ in true })
-        XCTAssertEqual(relaunched.settings, mouse.settings)
-        XCTAssertFalse(relaunched.settings.lineByLineApps.contains("com.apple.Terminal"))
-        XCTAssertEqual(relaunched.settings.lineByLineApps.last, "com.microsoft.VSCode")
-    }
+    let relaunched = MouseModel(defaults: defaults, isInstalled: { _ in true })
+    XCTAssertEqual(relaunched.settings, mouse.settings)
+    XCTAssertFalse(relaunched.settings.lineByLineApps.contains("com.apple.Terminal"))
+    XCTAssertEqual(relaunched.settings.lineByLineApps.last, "com.microsoft.VSCode")
+  }
 
-    func testAddingAListedAppKeepsOneEntry() {
-        var settings = MouseSettings(lineByLineApps: ["com.mitchellh.ghostty"])
+  func testAddingAListedAppKeepsOneEntry() {
+    var settings = MouseSettings(lineByLineApps: ["com.mitchellh.ghostty"])
 
-        settings.addLineByLineApp("com.mitchellh.ghostty")
+    settings.addLineByLineApp("com.mitchellh.ghostty")
 
-        XCTAssertEqual(settings.lineByLineApps, ["com.mitchellh.ghostty"])
-    }
+    XCTAssertEqual(settings.lineByLineApps, ["com.mitchellh.ghostty"])
+  }
 
-    func testUndecodableSettingsFallBackToDefaultsWithInstalledTerminals() throws {
-        let defaults = try makeIsolatedDefaults()
-        MouseModel(defaults: defaults, isInstalled: { _ in true }).settings.isLookUpEnabled = false
-        defaults.set(Data("junk".utf8), forKey: "mouse-settings")
+  func testUndecodableSettingsFallBackToDefaultsWithInstalledTerminals() throws {
+    let defaults = try makeIsolatedDefaults()
+    MouseModel(defaults: defaults, isInstalled: { _ in true }).settings.isLookUpEnabled = false
+    defaults.set(Data("junk".utf8), forKey: "mouse-settings")
 
-        XCTAssertEqual(
-            MouseModel(defaults: defaults, isInstalled: { _ in true }).settings,
-            MouseSettings(lineByLineApps: MouseSettings.terminalApps)
-        )
-    }
+    XCTAssertEqual(
+      MouseModel(defaults: defaults, isInstalled: { _ in true }).settings,
+      MouseSettings(lineByLineApps: MouseSettings.terminalApps),
+    )
+  }
 }

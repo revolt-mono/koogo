@@ -3,216 +3,216 @@ import XCTest
 @testable import Koogo
 
 final class CodexQuotaSourceTests: XCTestCase {
-    func testFetchUsesAccountAndNamedWindowsAndClassifiesSwappedWindows() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeAppServer(
-            quotaResponse: """
-                {"id":2,"result":{"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":15,"windowDurationMins":10584,"resetsAt":1800000000},"secondary":{"usedPercent":45,"windowDurationMins":285,"resetsAt":1700000000}},"rateLimitsByLimitId":{"codex_bengalfox":{"limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1900000000},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":2000000000}},"codex":{"limitName":null,"primary":{"usedPercent":99,"windowDurationMins":300,"resetsAt":1600000000},"secondary":null}},"rateLimitResetCredits":null}}
-                """
-        )
+  func testFetchUsesAccountAndNamedWindowsAndClassifiesSwappedWindows() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let executable = try workspace.makeAppServer(
+      quotaResponse: """
+        {"id":2,"result":{"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":15,"windowDurationMins":10584,"resetsAt":1800000000},"secondary":{"usedPercent":45,"windowDurationMins":285,"resetsAt":1700000000}},"rateLimitsByLimitId":{"codex_bengalfox":{"limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1900000000},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":2000000000}},"codex":{"limitName":null,"primary":{"usedPercent":99,"windowDurationMins":300,"resetsAt":1600000000},"secondary":null}},"rateLimitResetCredits":null}}
+        """
+    )
 
-        let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
+    let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
-        XCTAssertEqual(
-            snapshot.windows.map(\.title),
-            ["Session", "Weekly", "GPT-5.3-Codex-Spark Session", "GPT-5.3-Codex-Spark Weekly"]
-        )
-        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 45)
-        XCTAssertEqual(
-            snapshot.windows["Session"]?.resetsAt,
-            Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 15)
-        XCTAssertEqual(
-            snapshot.windows["Weekly"]?.resetsAt,
-            Date(timeIntervalSince1970: 1_800_000_000)
-        )
-        XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Session"]?.usedPercent, 10)
-        XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Weekly"]?.usedPercent, 20)
-        XCTAssertNil(snapshot.plan)
-        let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8).split(separator: "\n")
-        XCTAssertEqual(arguments, ["app-server", "--stdio"])
-        let requests = try jsonObjects(in: workspace.requestsFile)
-        XCTAssertEqual(
-            requests.map { $0["method"] as? String },
-            ["initialize", "initialized", "account/rateLimits/read"]
-        )
+    XCTAssertEqual(
+      snapshot.windows.map(\.title),
+      ["Session", "Weekly", "GPT-5.3-Codex-Spark Session", "GPT-5.3-Codex-Spark Weekly"],
+    )
+    XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 45)
+    XCTAssertEqual(
+      snapshot.windows["Session"]?.resetsAt,
+      Date(timeIntervalSince1970: 1_700_000_000),
+    )
+    XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 15)
+    XCTAssertEqual(
+      snapshot.windows["Weekly"]?.resetsAt,
+      Date(timeIntervalSince1970: 1_800_000_000),
+    )
+    XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Session"]?.usedPercent, 10)
+    XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Weekly"]?.usedPercent, 20)
+    XCTAssertNil(snapshot.plan)
+    let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8).split(separator: "\n")
+    XCTAssertEqual(arguments, ["app-server", "--stdio"])
+    let requests = try JSONSerialization.jsonObjects(inLinesOf: workspace.requestsFile)
+    XCTAssertEqual(
+      requests.map { $0["method"] as? String },
+      ["initialize", "initialized", "account/rateLimits/read"],
+    )
+  }
+
+  func testPlanNamesFollowTheCodexTUIAndOtherCodesShowCapitalized() throws {
+    for (planType, expected) in [("team", "Business"), ("mystery", "Mystery")] {
+      let snapshot = try decodeSnapshot(
+        #"{"rateLimits":{"planType":"\#(planType)","primary":{"usedPercent":25,"windowDurationMins":300}}}"#
+      )
+      XCTAssertEqual(snapshot.plan, expected, planType)
     }
+  }
 
-    func testPlanNamesFollowTheCodexTUIAndOtherCodesShowCapitalized() throws {
-        for (planType, expected) in [("team", "Business"), ("mystery", "Mystery")] {
-            let snapshot = try decodeSnapshot(
-                #"{"rateLimits":{"planType":"\#(planType)","primary":{"usedPercent":25,"windowDurationMins":300}}}"#
-            )
-            XCTAssertEqual(snapshot.plan, expected, planType)
+  func testFetchDropsEmptyIDsAndTitlesUnnamedWindowsByID() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let window = #"{"usedPercent":10,"windowDurationMins":300}"#
+    let executable = try workspace.makeAppServer(
+      quotaResponse: """
+        {"id":2,"result":{"rateLimits":{"limitId":"codex"},"rateLimitsByLimitId":{"":{"limitName":"Nameless","primary":\(window)},"id_x":{"limitName":"","primary":\(window)},"id_y":{"limitName":null,"primary":\(window)}}}}
+        """
+    )
+
+    let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
+
+    XCTAssertEqual(snapshot.windows.map(\.title), ["id_x", "id_y"])
+  }
+
+  func testFetchOmitsUnknownWindowsAndPreservesKnownZeroResets() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let executable = try workspace.makeAppServer(
+      quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(
+        usedPercent: 20,
+        windowMinutes: 1_440,
+        resetCount: 0,
+        credits: "[]",
+      )
+    )
+
+    let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
+
+    XCTAssertEqual(snapshot.windows, [])
+    XCTAssertEqual(snapshot.plan, "Pro 100")
+    XCTAssertEqual(snapshot.resetCredits?.availableCount, 0)
+    XCTAssertEqual(snapshot.resetCredits?.credits, [])
+  }
+
+  func testFetchKeepsLimitsWhenResetCreditsAreInvalid() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let executable = try workspace.makeAppServer(
+      quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(resetCount: -1, credits: "[]")
+    )
+
+    let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
+
+    XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
+    XCTAssertNil(snapshot.resetCredits)
+  }
+
+  func testCreditsAvailabilityAndHiddenBalance() throws {
+    let cases: [(String, QuotaSnapshot.Credits?)] = [
+      (#"{"hasCredits":true,"unlimited":false,"balance":" 42.25 "}"#, .balance(amount: 42.25)),
+      (#"{"hasCredits":true,"unlimited":false,"balance":"0"}"#, .balance(amount: 0)),
+      (#"{"hasCredits":true,"unlimited":false,"balance":null}"#, .available),
+      (#"{"hasCredits":true,"unlimited":false,"balance":"unavailable"}"#, .available),
+      (#"{"hasCredits":true,"unlimited":false,"balance":"nan"}"#, .available),
+      (#"{"hasCredits":false,"unlimited":true,"balance":"12"}"#, .unlimited),
+      (#"{"hasCredits":false,"unlimited":false,"balance":"12"}"#, nil),
+      ("null", nil),
+    ]
+    for (credits, expected) in cases {
+      let snapshot = try decodeSnapshot(
+        #"{"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300},"credits":\#(credits)}}"#
+      )
+
+      XCTAssertEqual(snapshot.credits, expected, credits)
+      XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
+    }
+  }
+
+  func testCreditsWithoutWindowsOrBankedResets() throws {
+    let snapshot = try decodeSnapshot(
+      #"{"rateLimits":{"credits":{"hasCredits":true,"unlimited":false,"balance":"50"}}}"#
+    )
+
+    XCTAssertEqual(snapshot.credits, .balance(amount: 50))
+    XCTAssertEqual(snapshot.windows, [])
+    XCTAssertNil(snapshot.resetCredits)
+  }
+
+  func testFetchReportsEmptyLimitsWhenNoWindowOrCreditSurvives() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let executable = try workspace.makeAppServer(
+      quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(usedPercent: 20, windowMinutes: 1_440)
+    )
+
+    let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
+
+    XCTAssertEqual(result, .unavailable(.emptyLimits))
+  }
+
+  func testARefusedReadMeansNoPlanWhileOtherErrorsFailTheSession() async throws {
+    let cases: [(Int, QuotaReading)] = [(-32600, .unavailable(.noPlan)), (-32603, .unavailable(.sessionFailed))]
+    for (code, expected) in cases {
+      let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+      let executable = try workspace.makeAppServer(
+        quotaResponse: #"{"id":2,"error":{"code":\#(code),"message":"chatgpt authentication required"}}"#
+      )
+      let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
+      XCTAssertEqual(result, expected, "\(code)")
+    }
+  }
+
+  func testARefusedHandshakeFailsTheSession() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let executable = try TestExecutable.make(
+      in: workspace.root,
+      script: "#!/bin/sh\nIFS= read -r initialize\nprintf '%s\\n' '{\"id\":1,\"error\":{\"code\":-32600}}'\n",
+    )
+
+    let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
+
+    XCTAssertEqual(result, .unavailable(.sessionFailed))
+  }
+
+  func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let executable = try TestExecutable.make(
+      in: workspace.root,
+      script:
+      "#!/bin/sh\nIFS= read -r initialize\nexec 0<&-\nprintf '%s\\n' '{\"id\":1,\"result\":{}}'\nsleep 1\n",
+    )
+
+    let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
+
+    XCTAssertEqual(result, .unavailable(.sessionFailed))
+  }
+
+  func testCancellationKillsDescendantsSpawnedDuringTerminationGrace() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let readyMarker = workspace.root.appending(path: "ready")
+    let childMarker = workspace.root.appending(path: "child")
+    let executable = try TestExecutable.make(
+      in: workspace.root,
+      script: """
+        #!/bin/sh
+        IFS= read -r initialize
+        printf '%s\\n' '{"id":1,"result":{}}'
+        IFS= read -r initialized
+        IFS= read -r rate_limits
+        terminate() {
+          (trap '' TERM; sleep 5) &
+          printf '%s\\n' "$!" > '\(childMarker.path)'
+          exit 0
         }
+        trap terminate TERM
+        printf 'ready\\n' > '\(readyMarker.path)'
+        while :; do :; done
+        """,
+    )
+
+    let fetch = Task {
+      await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
     }
+    try await Poll.until(timeout: .seconds(2)) { FileManager.default.fileExists(atPath: readyMarker.path) }
 
-    func testFetchDropsEmptyIDsAndTitlesUnnamedWindowsByID() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let window = #"{"usedPercent":10,"windowDurationMins":300}"#
-        let executable = try workspace.makeAppServer(
-            quotaResponse: """
-                {"id":2,"result":{"rateLimits":{"limitId":"codex"},"rateLimitsByLimitId":{"":{"limitName":"Nameless","primary":\(window)},"id_x":{"limitName":"","primary":\(window)},"id_y":{"limitName":null,"primary":\(window)}}}}
-                """
-        )
+    let cancellationStarted = ContinuousClock.now
+    fetch.cancel()
+    let result = await fetch.value
 
-        let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
+    XCTAssertThrowsError(try result.get())
+    XCTAssertLessThan(ContinuousClock.now - cancellationStarted, .seconds(3))
+    try await Poll.untilExit(pidIn: childMarker)
+  }
 
-        XCTAssertEqual(snapshot.windows.map(\.title), ["id_x", "id_y"])
-    }
-
-    func testFetchOmitsUnknownWindowsAndPreservesKnownZeroResets() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeAppServer(
-            quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(
-                usedPercent: 20,
-                windowMinutes: 1_440,
-                resetCount: 0,
-                credits: "[]"
-            )
-        )
-
-        let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
-
-        XCTAssertEqual(snapshot.windows, [])
-        XCTAssertEqual(snapshot.plan, "Pro 100")
-        XCTAssertEqual(snapshot.resetCredits?.availableCount, 0)
-        XCTAssertEqual(snapshot.resetCredits?.credits, [])
-    }
-
-    func testFetchKeepsLimitsWhenResetCreditsAreInvalid() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeAppServer(
-            quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(resetCount: -1, credits: "[]")
-        )
-
-        let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
-
-        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
-        XCTAssertNil(snapshot.resetCredits)
-    }
-
-    func testCreditsAvailabilityAndHiddenBalance() throws {
-        let cases: [(String, QuotaSnapshot.Credits?)] = [
-            (#"{"hasCredits":true,"unlimited":false,"balance":" 42.25 "}"#, .balance(amount: 42.25)),
-            (#"{"hasCredits":true,"unlimited":false,"balance":"0"}"#, .balance(amount: 0)),
-            (#"{"hasCredits":true,"unlimited":false,"balance":null}"#, .available),
-            (#"{"hasCredits":true,"unlimited":false,"balance":"unavailable"}"#, .available),
-            (#"{"hasCredits":true,"unlimited":false,"balance":"nan"}"#, .available),
-            (#"{"hasCredits":false,"unlimited":true,"balance":"12"}"#, .unlimited),
-            (#"{"hasCredits":false,"unlimited":false,"balance":"12"}"#, nil),
-            ("null", nil),
-        ]
-        for (credits, expected) in cases {
-            let snapshot = try decodeSnapshot(
-                #"{"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300},"credits":\#(credits)}}"#
-            )
-
-            XCTAssertEqual(snapshot.credits, expected, credits)
-            XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
-        }
-    }
-
-    func testCreditsWithoutWindowsOrBankedResets() throws {
-        let snapshot = try decodeSnapshot(
-            #"{"rateLimits":{"credits":{"hasCredits":true,"unlimited":false,"balance":"50"}}}"#
-        )
-
-        XCTAssertEqual(snapshot.credits, .balance(amount: 50))
-        XCTAssertEqual(snapshot.windows, [])
-        XCTAssertNil(snapshot.resetCredits)
-    }
-
-    func testFetchReportsEmptyLimitsWhenNoWindowOrCreditSurvives() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeAppServer(
-            quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(usedPercent: 20, windowMinutes: 1_440)
-        )
-
-        let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-
-        XCTAssertEqual(result, .unavailable(.emptyLimits))
-    }
-
-    func testARefusedReadMeansNoPlanWhileOtherErrorsFailTheSession() async throws {
-        let cases: [(Int, QuotaReading)] = [(-32600, .unavailable(.noPlan)), (-32603, .unavailable(.sessionFailed))]
-        for (code, expected) in cases {
-            let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-            let executable = try workspace.makeAppServer(
-                quotaResponse: #"{"id":2,"error":{"code":\#(code),"message":"chatgpt authentication required"}}"#
-            )
-            let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-            XCTAssertEqual(result, expected, "\(code)")
-        }
-    }
-
-    func testARefusedHandshakeFailsTheSession() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try makeTestExecutable(
-            in: workspace.root,
-            script: "#!/bin/sh\nIFS= read -r initialize\nprintf '%s\\n' '{\"id\":1,\"error\":{\"code\":-32600}}'\n"
-        )
-
-        let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-
-        XCTAssertEqual(result, .unavailable(.sessionFailed))
-    }
-
-    func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try makeTestExecutable(
-            in: workspace.root,
-            script:
-                "#!/bin/sh\nIFS= read -r initialize\nexec 0<&-\nprintf '%s\\n' '{\"id\":1,\"result\":{}}'\nsleep 1\n"
-        )
-
-        let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-
-        XCTAssertEqual(result, .unavailable(.sessionFailed))
-    }
-
-    func testCancellationKillsDescendantsSpawnedDuringTerminationGrace() async throws {
-        let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let readyMarker = workspace.root.appending(path: "ready")
-        let childMarker = workspace.root.appending(path: "child")
-        let executable = try makeTestExecutable(
-            in: workspace.root,
-            script: """
-                #!/bin/sh
-                IFS= read -r initialize
-                printf '%s\\n' '{"id":1,"result":{}}'
-                IFS= read -r initialized
-                IFS= read -r rate_limits
-                terminate() {
-                  (trap '' TERM; sleep 5) &
-                  printf '%s\\n' "$!" > '\(childMarker.path)'
-                  exit 0
-                }
-                trap terminate TERM
-                printf 'ready\\n' > '\(readyMarker.path)'
-                while :; do :; done
-                """
-        )
-
-        let fetch = Task {
-            await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-        }
-        try await waitUntil(timeout: .seconds(2)) { FileManager.default.fileExists(atPath: readyMarker.path) }
-
-        let cancellationStarted = ContinuousClock.now
-        fetch.cancel()
-        let result = await fetch.value
-
-        XCTAssertThrowsError(try result.get())
-        XCTAssertLessThan(ContinuousClock.now - cancellationStarted, .seconds(3))
-        try await waitForExit(pidIn: childMarker)
-    }
-}
-
-/// decodes like the app server connection, which reads dates as unix seconds.
-private func decodeSnapshot(_ result: String) throws -> QuotaSnapshot {
+  /// decodes like the app server connection, which reads dates as unix seconds.
+  private func decodeSnapshot(_ result: String) throws -> QuotaSnapshot {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .secondsSince1970
     return try XCTUnwrap(decoder.decode(CodexQuotaResponse.self, from: Data(result.utf8)).snapshot)
+  }
 }

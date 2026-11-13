@@ -1,5 +1,5 @@
 {
-  "originHash" : "b25455390e0e688737c62330c14a7e553d637a2bd5bcb03d73a448de883f744f",
+  "originHash" : "da9648208b2dfcf7a3406f4499ec185f0d22397cee762db2ee6be99f94f832d3",
   "pins" : [
     {
       "identity" : "sparkle",
@@ -8,6 +8,23 @@
       "state" : {
         "revision" : "ac2def288cbff5cfc7df3ffef6abdf45b72bcb0a",
         "version" : "2.9.6"
+      }
+    },
+    {
+      "identity" : "swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/airbnb/swift",
+      "state" : {
+        "revision" : "341e15448fce4c28aa8d36af171f39ab98b2913b"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version" : "1.8.2"
       }
     },
     {

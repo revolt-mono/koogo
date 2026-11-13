@@ -1,91 +1,94 @@
 import Foundation
 
 struct JSONRPCConnection: ~Copyable {
-    private var streams: ToolStreams
-    private let decoder: JSONDecoder
-    private var nextID = 1
+  init(_ streams: consuming ToolStreams, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy) {
+    self.streams = streams
+    decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = dateDecodingStrategy
+  }
 
-    init(_ streams: consuming ToolStreams, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy) {
-        self.streams = streams
-        decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = dateDecodingStrategy
+  mutating func request<Value: Decodable>(
+    _ method: String,
+    params: some Encodable?,
+  ) async throws -> Value {
+    let id = nextID
+    nextID += 1
+    try await send(Request(id: id, method: method, params: params))
+    return try await streams.first { line in
+      guard case .response(id) = try decoder.decode(Header.self, from: line) else { return nil }
+      return try decoder.decode(Response<Value>.self, from: line).result
     }
+  }
 
-    mutating func request<Value: Decodable, Params: Encodable>(
-        _ method: String,
-        params: Params?
-    ) async throws -> Value {
-        let id = nextID
-        nextID += 1
-        try await send(Request(id: id, method: method, params: params))
-        return try await streams.first { line in
-            guard case .response(id) = try decoder.decode(Header.self, from: line) else { return nil }
-            return try decoder.decode(Response<Value>.self, from: line).result
-        }
-    }
+  func notify(_ method: String) async throws {
+    try await send(Notification(method: method))
+  }
 
-    func notify(_ method: String) async throws {
-        try await send(Notification(method: method))
-    }
+  private var streams: ToolStreams
+  private let decoder: JSONDecoder
+  private var nextID = 1
 
-    private func send(_ message: some Encodable) async throws {
-        var data = try JSONEncoder().encode(message)
-        data.append(0x0A)
-        try await streams.write(data)
-    }
+  private func send(_ message: some Encodable) async throws {
+    var data = try JSONEncoder().encode(message)
+    data.append(0x0A)
+    try await streams.write(data)
+  }
 }
 
 extension JSONRPCConnection {
-    private enum CodingKeys: CodingKey {
-        case id, method, result, error
-    }
+  private enum CodingKeys: CodingKey {
+    case id
+    case method
+    case result
+    case error
+  }
 
-    private struct Request<Params: Encodable>: Encodable {
-        let jsonrpc = "2.0"
-        let id: Int
-        let method: String
-        let params: Params?
-    }
+  private struct Request<Params: Encodable>: Encodable {
+    let jsonrpc = "2.0"
+    let id: Int
+    let method: String
+    let params: Params?
+  }
 
-    private struct Notification: Encodable {
-        let jsonrpc = "2.0"
-        let method: String
-    }
+  private struct Notification: Encodable {
+    let jsonrpc = "2.0"
+    let method: String
+  }
 
-    private enum Header: Decodable {
-        case notification
-        case response(Int)
+  private enum Header: Decodable {
+    case notification
+    case response(Int)
 
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            if container.contains(.method) {
-                _ = try container.decode(String.self, forKey: .method)
-                guard !container.contains(.id), !container.contains(.result), !container.contains(.error) else {
-                    throw ToolFailure.invalidMessage
-                }
-                self = .notification
-            } else {
-                self = .response(try container.decode(Int.self, forKey: .id))
-            }
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      if container.contains(.method) {
+        _ = try container.decode(String.self, forKey: .method)
+        guard !container.contains(.id), !container.contains(.result), !container.contains(.error) else {
+          throw ToolFailure.invalidMessage
         }
+        self = .notification
+      } else {
+        self = .response(try container.decode(Int.self, forKey: .id))
+      }
+    }
+  }
+
+  private struct Response<Value: Decodable>: Decodable {
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      guard container.contains(.result) != container.contains(.error) else {
+        throw ToolFailure.invalidMessage
+      }
+      if container.contains(.error) {
+        throw ToolFailure.rpc(code: try container.decode(RemoteError.self, forKey: .error).code)
+      }
+      result = try container.decode(Value.self, forKey: .result)
     }
 
-    private struct Response<Value: Decodable>: Decodable {
-        let result: Value
+    let result: Value
 
-        private struct RemoteError: Decodable {
-            let code: Int
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            guard container.contains(.result) != container.contains(.error) else {
-                throw ToolFailure.invalidMessage
-            }
-            if container.contains(.error) {
-                throw ToolFailure.rpc(code: try container.decode(RemoteError.self, forKey: .error).code)
-            }
-            result = try container.decode(Value.self, forKey: .result)
-        }
+    private struct RemoteError: Decodable {
+      let code: Int
     }
+  }
 }

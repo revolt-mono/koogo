@@ -2,90 +2,90 @@ import AppKit
 import SwiftUI
 
 struct LineByLineAppList: View {
-    private static let rowHeight: CGFloat = 32
+  var body: some View {
+    Text("Each notch scrolls one line in these apps.")
+      .foregroundStyle(.secondary)
 
-    @Environment(MouseModel.self) private var mouse
-    @State private var selection: String?
-    @State private var isChoosingApps = false
-
-    var body: some View {
-        Text("Each notch scrolls one line in these apps.")
-            .foregroundStyle(.secondary)
-
-        List(mouse.settings.lineByLineApps, id: \.self, selection: $selection) { bundleID in
-            LineByLineAppRow(bundleID: bundleID)
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .scrollDisabled(true)
-        .environment(\.defaultMinListRowHeight, Self.rowHeight)
-        .frame(height: Self.rowHeight * CGFloat(mouse.settings.lineByLineApps.count))
-        .onDeleteCommand(perform: removeSelection)
-
-        HStack(spacing: 4) {
-            Button {
-                isChoosingApps = true
-            } label: {
-                Label("Add App", systemImage: "plus")
-                    .frame(width: 20, height: 20)
-                    .contentShape(.rect)
-            }
-
-            Divider()
-                .frame(height: 12)
-
-            Button(action: removeSelection) {
-                Label("Remove App", systemImage: "minus")
-                    .frame(width: 20, height: 20)
-                    .contentShape(.rect)
-            }
-            .disabled(selection == nil)
-
-            Spacer()
-        }
-        .labelStyle(.iconOnly)
-        .buttonStyle(.borderless)
-        .fileImporter(
-            isPresented: $isChoosingApps,
-            allowedContentTypes: [.application],
-            allowsMultipleSelection: true
-        ) {
-            guard case .success(let apps) = $0 else {
-                return
-            }
-            var settings = mouse.settings
-            for bundleID in apps.compactMap({ Bundle(url: $0)?.bundleIdentifier }) {
-                settings.addLineByLineApp(bundleID)
-            }
-            mouse.settings = settings
-        }
-        .fileDialogDefaultDirectory(URL(filePath: "/Applications", directoryHint: .isDirectory))
+    List(mouse.settings.lineByLineApps, id: \.self, selection: $selection) { bundleID in
+      LineByLineAppRow(bundleID: bundleID)
     }
+    .listStyle(.plain)
+    .scrollContentBackground(.hidden)
+    .scrollDisabled(true)
+    .environment(\.defaultMinListRowHeight, Self.rowHeight)
+    .frame(height: Self.rowHeight * CGFloat(mouse.settings.lineByLineApps.count))
+    .onDeleteCommand(perform: removeSelection)
 
-    private func removeSelection() {
-        guard let selection else {
-            return
-        }
-        mouse.settings.removeLineByLineApp(selection)
-        self.selection = nil
+    HStack(spacing: 4) {
+      Button {
+        isChoosingApps = true
+      } label: {
+        Label("Add App", systemImage: "plus")
+          .frame(width: 20, height: 20)
+          .contentShape(.rect)
+      }
+
+      Divider()
+        .frame(height: 12)
+
+      Button(action: removeSelection) {
+        Label("Remove App", systemImage: "minus")
+          .frame(width: 20, height: 20)
+          .contentShape(.rect)
+      }
+      .disabled(selection == nil)
+
+      Spacer()
     }
+    .labelStyle(.iconOnly)
+    .buttonStyle(.borderless)
+    .fileImporter(
+      isPresented: $isChoosingApps,
+      allowedContentTypes: [.application],
+      allowsMultipleSelection: true,
+    ) {
+      guard case .success(let apps) = $0 else {
+        return
+      }
+      var settings = mouse.settings
+      for bundleID in apps.compactMap({ Bundle(url: $0)?.bundleIdentifier }) {
+        settings.addLineByLineApp(bundleID)
+      }
+      mouse.settings = settings
+    }
+    .fileDialogDefaultDirectory(URL(filePath: "/Applications", directoryHint: .isDirectory))
+  }
+
+  private static let rowHeight: CGFloat = 32
+
+  @Environment(MouseModel.self) private var mouse
+  @State private var selection: String?
+  @State private var isChoosingApps = false
+
+  private func removeSelection() {
+    guard let selection else {
+      return
+    }
+    mouse.settings.removeLineByLineApp(selection)
+    self.selection = nil
+  }
 }
 
 private struct LineByLineAppRow: View {
-    let bundleID: String
+  let bundleID: String
 
-    var body: some View {
-        let location = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+  var body: some View {
+    let location = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
 
-        HStack(spacing: 8) {
-            Image(
-                nsImage: location.map { NSWorkspace.shared.icon(forFile: $0.path) }
-                    ?? NSWorkspace.shared.icon(for: .application)
-            )
-            .resizable()
-            .frame(width: 24, height: 24)
+    HStack(spacing: 8) {
+      Image(
+        nsImage: location.map { NSWorkspace.shared.icon(forFile: $0.path) }
+          ?? NSWorkspace.shared.icon(for: .application)
+      )
+      .resizable()
+      .frame(width: 24, height: 24)
 
-            Text(location.map { FileManager.default.displayName(atPath: $0.path) } ?? bundleID)
-        }
+      Text(location.map { FileManager.default.displayName(atPath: $0.path) } ?? bundleID)
     }
+  }
 }

@@ -3,153 +3,152 @@ import XCTest
 @testable import Koogo
 
 final class SystemReportTests: UsageWorkspaceTestCase {
-    func testReportDescribesUsagePipelineAndQuotaOutcome() async throws {
-        let quotaWorkspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  func testReportDescribesUsagePipelineAndQuotaOutcome() async throws {
+    let quotaWorkspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
 
-        try workspace.write(
-            codexLog(input: 100, output: 20),
-            to: workspace.codexSessions.appending(path: "session.jsonl")
-        )
+    try workspace.write(
+      CodexLog.session(input: 100, output: 20),
+      to: workspace.codexSessions.appending(path: "session.jsonl"),
+    )
 
-        let missingExecutables = QuotaSources.missingExecutables
-        let data = try await SystemReport.generate(
-            pipeline: makePipeline(),
-            quotaSources: QuotaSources(
-                codex: CodexQuotaSource(tool: CommandLineTool(candidates: [try quotaWorkspace.makeAppServer()])),
-                claude: missingExecutables.claude,
-                grok: missingExecutables.grok
-            ),
-            at: usageTestTimestamp
-        )
-        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let missingExecutables = QuotaSources.missingExecutables
+    let data = try await SystemReport.generate(
+      pipeline: makePipeline(),
+      quotaSources: QuotaSources(
+        codex: CodexQuotaSource(tool: CommandLineTool(candidates: [try quotaWorkspace.makeAppServer()])),
+        claude: missingExecutables.claude,
+        grok: missingExecutables.grok,
+      ),
+      at: UsageFixture.timestamp,
+    )
+    let report = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        XCTAssertEqual(report["generatedAt"] as? String, "2026-08-25T18:00:00Z")
-        let usage = try XCTUnwrap(report["usage"] as? [String: Any])
-        let ingestion = try XCTUnwrap(usage["ingestion"] as? [String: Any])
-        XCTAssertEqual(
-            ingestion["trackedFiles"] as? [String: Int],
-            ["codex": 1, "claude": 0, "piAgent": 0, "grok": 0]
-        )
-        XCTAssertEqual(ingestion["events"] as? [String: Int], ["codex": 1, "claude": 0, "piAgent": 0, "grok": 0])
-        XCTAssertEqual(ingestion["unpricedModels"] as? [String], [])
-        let logRoots = try XCTUnwrap(ingestion["logRoots"] as? [[String: Any]])
-        XCTAssertEqual(logRoots.count, 5)
-        XCTAssertTrue(logRoots.allSatisfy { $0["exists"] as? Bool == true })
+    XCTAssertEqual(report["generatedAt"] as? String, "2026-08-25T18:00:00Z")
+    let usage = try XCTUnwrap(report["usage"] as? [String: Any])
+    let ingestion = try XCTUnwrap(usage["ingestion"] as? [String: Any])
+    XCTAssertEqual(
+      ingestion["trackedFiles"] as? [String: Int],
+      ["codex": 1, "claude": 0, "piAgent": 0, "grok": 0],
+    )
+    XCTAssertEqual(ingestion["events"] as? [String: Int], ["codex": 1, "claude": 0, "piAgent": 0, "grok": 0])
+    XCTAssertEqual(ingestion["unpricedModels"] as? [String], [])
+    let logRoots = try XCTUnwrap(ingestion["logRoots"] as? [[String: Any]])
+    XCTAssertEqual(logRoots.count, 5)
+    XCTAssertTrue(logRoots.allSatisfy { $0["exists"] as? Bool == true })
 
-        let quota = try XCTUnwrap(report["quota"] as? [String: Any])
-        let codex = try XCTUnwrap(quota["codex"] as? [String: Any])
-        XCTAssertEqual(codex["state"] as? String, "available")
-        for provider in ["claude", "grok"] {
-            let status = try XCTUnwrap(quota[provider] as? [String: Any], provider)
-            XCTAssertEqual(status["state"] as? String, "unavailable", provider)
-            XCTAssertEqual(status["reason"] as? String, "binaryNotFound", provider)
-            XCTAssertNil(status["snapshot"], provider)
-        }
+    let quota = try XCTUnwrap(report["quota"] as? [String: Any])
+    let codex = try XCTUnwrap(quota["codex"] as? [String: Any])
+    XCTAssertEqual(codex["state"] as? String, "available")
+    for provider in ["claude", "grok"] {
+      let status = try XCTUnwrap(quota[provider] as? [String: Any], provider)
+      XCTAssertEqual(status["state"] as? String, "unavailable", provider)
+      XCTAssertEqual(status["reason"] as? String, "binaryNotFound", provider)
+      XCTAssertNil(status["snapshot"], provider)
     }
+  }
 
-    func testReportKeyPathsAreStable() async throws {
-        let quotaWorkspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  func testReportKeyPathsAreStable() async throws {
+    let quotaWorkspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
 
-        try workspace.write(
-            codexLog(input: 100, output: 20),
-            to: workspace.codexSessions.appending(path: "session.jsonl")
-        )
-        try workspace.write(claudeLog(output: 40), to: workspace.claudeProjects.appending(path: "project/main.jsonl"))
-        try workspace.write(
-            piAssistant(id: "assistant", parentID: nil, model: "model-a", usage: piUsage(input: 100, cost: "0.1"))
-                + "\n",
-            to: workspace.piSessions.appending(path: "session.jsonl")
-        )
-        let grokSession = workspace.grokSessions.appending(path: "project/s", directoryHint: .isDirectory)
-        try workspace.write("{}", to: grokSession.appending(path: "summary.json"))
-        try workspace.write(grokTurn(eventID: "s-1") + "\n", to: grokSession.appending(path: "updates.jsonl"))
+    try workspace.write(
+      CodexLog.session(input: 100, output: 20),
+      to: workspace.codexSessions.appending(path: "session.jsonl"),
+    )
+    try workspace.write(ClaudeLog.session(output: 40), to: workspace.claudeProjects.appending(path: "project/main.jsonl"))
+    try workspace.write(
+      PiLog.assistant(id: "assistant", parentID: nil, model: "model-a", usage: PiLog.usage(input: 100, cost: "0.1"))
+        + "\n",
+      to: workspace.piSessions.appending(path: "session.jsonl"),
+    )
+    let grokSession = workspace.grokSessions.appending(path: "project/s", directoryHint: .isDirectory)
+    try workspace.write("{}", to: grokSession.appending(path: "summary.json"))
+    try workspace.write(GrokLog.turn(eventID: "s-1") + "\n", to: grokSession.appending(path: "updates.jsonl"))
 
-        let codexExecutable = try quotaWorkspace.makeAppServer(quotaResponse: codexQuotaResponse)
-        let claudeExecutable = try ClaudeQuotaTestWorkspace(root: makeTemporaryDirectory()).makeCLI()
-        let grokExecutable = try GrokQuotaTestWorkspace(root: makeTemporaryDirectory()).makeAgent()
+    let codexExecutable = try quotaWorkspace.makeAppServer(quotaResponse: Self.codexQuotaResponse)
+    let claudeExecutable = try ClaudeQuotaTestWorkspace(root: makeTemporaryDirectory()).makeCLI()
+    let grokExecutable = try GrokQuotaTestWorkspace(root: makeTemporaryDirectory()).makeAgent()
 
-        let data = try await SystemReport.generate(
-            pipeline: makePipeline(),
-            quotaSources: QuotaSources(
-                codex: CodexQuotaSource(tool: CommandLineTool(candidates: [codexExecutable])),
-                claude: ClaudeQuotaSource(tool: CommandLineTool(candidates: [claudeExecutable])),
-                grok: GrokQuotaSource(tool: CommandLineTool(candidates: [grokExecutable]))
-            ),
-            at: usageTestTimestamp
-        )
+    let data = try await SystemReport.generate(
+      pipeline: makePipeline(),
+      quotaSources: QuotaSources(
+        codex: CodexQuotaSource(tool: CommandLineTool(candidates: [codexExecutable])),
+        claude: ClaudeQuotaSource(tool: CommandLineTool(candidates: [claudeExecutable])),
+        grok: GrokQuotaSource(tool: CommandLineTool(candidates: [grokExecutable])),
+      ),
+      at: UsageFixture.timestamp,
+    )
 
-        XCTAssertEqual(keyPaths(of: try JSONSerialization.jsonObject(with: data)).sorted(), reportKeyPaths.sorted())
-    }
-}
+    XCTAssertEqual(keyPaths(of: try JSONSerialization.jsonObject(with: data)).sorted(), Self.reportKeyPaths.sorted())
+  }
 
-private let reportKeyPaths =
+  private static let reportKeyPaths =
     [
-        "generatedAt",
-        "quota.claude.snapshot.plan",
-        "quota.claude.snapshot.windows[].resetsAt",
-        "quota.claude.snapshot.windows[].title",
-        "quota.claude.snapshot.windows[].usedPercent",
-        "quota.claude.state",
-        "quota.codex.snapshot.credits.balance.amount",
-        "quota.codex.snapshot.plan",
-        "quota.codex.snapshot.resetCredits.availableCount",
-        "quota.codex.snapshot.resetCredits.credits[].expiresAt",
-        "quota.codex.snapshot.resetCredits.credits[].id",
-        "quota.codex.snapshot.resetCredits.credits[].title",
-        "quota.codex.snapshot.windows[].resetsAt",
-        "quota.codex.snapshot.windows[].title",
-        "quota.codex.snapshot.windows[].usedPercent",
-        "quota.codex.state",
-        "quota.grok.snapshot.plan",
-        "quota.grok.snapshot.windows[].resetsAt",
-        "quota.grok.snapshot.windows[].title",
-        "quota.grok.snapshot.windows[].usedPercent",
-        "quota.grok.state",
-        "usage.ingestion.events.claude",
-        "usage.ingestion.events.codex",
-        "usage.ingestion.events.grok",
-        "usage.ingestion.events.piAgent",
-        "usage.ingestion.logRoots[].exists",
-        "usage.ingestion.logRoots[].path",
-        "usage.ingestion.logRoots[].provider",
-        "usage.ingestion.malformedLines.claude",
-        "usage.ingestion.malformedLines.codex",
-        "usage.ingestion.malformedLines.grok",
-        "usage.ingestion.malformedLines.piAgent",
-        "usage.ingestion.trackedFiles.claude",
-        "usage.ingestion.trackedFiles.codex",
-        "usage.ingestion.trackedFiles.grok",
-        "usage.ingestion.trackedFiles.piAgent",
-        "usage.ingestion.unpricedModels",
-        "usage.snapshot.summary.last7Days.costChange.increase.fraction",
-        "usage.snapshot.summary.last7Days.current.cost",
-        "usage.snapshot.summary.last7Days.current.processedTokens",
-        "usage.snapshot.summary.today.costChange.increase.fraction",
-        "usage.snapshot.summary.today.current.cost",
-        "usage.snapshot.summary.today.current.processedTokens",
+      "generatedAt",
+      "quota.claude.snapshot.plan",
+      "quota.claude.snapshot.windows[].resetsAt",
+      "quota.claude.snapshot.windows[].title",
+      "quota.claude.snapshot.windows[].usedPercent",
+      "quota.claude.state",
+      "quota.codex.snapshot.credits.balance.amount",
+      "quota.codex.snapshot.plan",
+      "quota.codex.snapshot.resetCredits.availableCount",
+      "quota.codex.snapshot.resetCredits.credits[].expiresAt",
+      "quota.codex.snapshot.resetCredits.credits[].id",
+      "quota.codex.snapshot.resetCredits.credits[].title",
+      "quota.codex.snapshot.windows[].resetsAt",
+      "quota.codex.snapshot.windows[].title",
+      "quota.codex.snapshot.windows[].usedPercent",
+      "quota.codex.state",
+      "quota.grok.snapshot.plan",
+      "quota.grok.snapshot.windows[].resetsAt",
+      "quota.grok.snapshot.windows[].title",
+      "quota.grok.snapshot.windows[].usedPercent",
+      "quota.grok.state",
+      "usage.ingestion.events.claude",
+      "usage.ingestion.events.codex",
+      "usage.ingestion.events.grok",
+      "usage.ingestion.events.piAgent",
+      "usage.ingestion.logRoots[].exists",
+      "usage.ingestion.logRoots[].path",
+      "usage.ingestion.logRoots[].provider",
+      "usage.ingestion.malformedLines.claude",
+      "usage.ingestion.malformedLines.codex",
+      "usage.ingestion.malformedLines.grok",
+      "usage.ingestion.malformedLines.piAgent",
+      "usage.ingestion.trackedFiles.claude",
+      "usage.ingestion.trackedFiles.codex",
+      "usage.ingestion.trackedFiles.grok",
+      "usage.ingestion.trackedFiles.piAgent",
+      "usage.ingestion.unpricedModels",
+      "usage.snapshot.summary.last7Days.costChange.increase.fraction",
+      "usage.snapshot.summary.last7Days.current.cost",
+      "usage.snapshot.summary.last7Days.current.processedTokens",
+      "usage.snapshot.summary.today.costChange.increase.fraction",
+      "usage.snapshot.summary.today.current.cost",
+      "usage.snapshot.summary.today.current.processedTokens",
     ]
     + ["claude", "codex", "grok", "piAgent"].flatMap { provider in
-        [
-            "dailyLast30Days[].date",
-            "dailyLast30Days[].usage.cost",
-            "dailyLast30Days[].usage.processedTokens",
-            "periods.last30Days.total.cost",
-            "periods.last30Days.total.processedTokens",
-            "periods.last7Days.total.cost",
-            "periods.last7Days.total.processedTokens",
-            "periods.today.total.cost",
-            "periods.today.total.processedTokens",
-        ].map { "usage.snapshot.providers.\(provider).\($0)" }
+      [
+        "dailyLast30Days[].date",
+        "dailyLast30Days[].usage.cost",
+        "dailyLast30Days[].usage.processedTokens",
+        "periods.last30Days.total.cost",
+        "periods.last30Days.total.processedTokens",
+        "periods.last7Days.total.cost",
+        "periods.last7Days.total.processedTokens",
+        "periods.today.total.cost",
+        "periods.today.total.processedTokens",
+      ].map { "usage.snapshot.providers.\(provider).\($0)" }
     }
     + ["claude", "codex", "piAgent"].flatMap { provider in
-        ["today", "last7Days", "last30Days"].flatMap { period in
-            ["id", "modelName", "usage.cost", "usage.processedTokens"].map {
-                "usage.snapshot.providers.\(provider).periods.\(period).models[].\($0)"
-            }
+      ["today", "last7Days", "last30Days"].flatMap { period in
+        ["id", "modelName", "usage.cost", "usage.processedTokens"].map {
+          "usage.snapshot.providers.\(provider).periods.\(period).models[].\($0)"
         }
+      }
     }
 
-private let codexQuotaResponse = """
+  private static let codexQuotaResponse = """
     {"id":2,"result":{"rateLimits":{"limitId":"codex","planType":"prolite","primary":{"usedPercent":25,\
     "windowDurationMins":300,"resetsAt":1787698800},"secondary":{"usedPercent":40,\
     "windowDurationMins":10080,"resetsAt":1788134400},"credits":{"hasCredits":true,"unlimited":false,\
@@ -159,18 +158,21 @@ private let codexQuotaResponse = """
     "credits":[\(CodexQuotaTestWorkspace.resetCredit)]}}}
     """
 
-private func keyPaths(of value: Any, prefix: String = "") -> Set<String> {
+  private func keyPaths(of value: Any, prefix: String = "") -> Set<String> {
     switch value {
     case let object as [String: Any] where !object.isEmpty:
-        object.reduce(into: []) { paths, entry in
-            let path = prefix.isEmpty ? entry.key : "\(prefix).\(entry.key)"
-            paths.formUnion(keyPaths(of: entry.value, prefix: path))
-        }
+      object.reduce(into: []) { paths, entry in
+        let path = prefix.isEmpty ? entry.key : "\(prefix).\(entry.key)"
+        paths.formUnion(keyPaths(of: entry.value, prefix: path))
+      }
+
     case let array as [Any] where !array.isEmpty:
-        array.reduce(into: []) { paths, element in
-            paths.formUnion(keyPaths(of: element, prefix: prefix + "[]"))
-        }
+      array.reduce(into: []) { paths, element in
+        paths.formUnion(keyPaths(of: element, prefix: prefix + "[]"))
+      }
+
     default:
-        [prefix]
+      [prefix]
     }
+  }
 }

@@ -1,23 +1,4 @@
-disabled_rules:
-  - opening_brace
-  - trailing_comma
-
-line_length:
-  warning: 120
-  error: 200
-  ignores_comments: true
-  ignores_multiline_strings: true
-
-cyclomatic_complexity:
-  ignores_case_statements: true
-
-large_tuple:
-  warning: 3
-  error: 4
-
-nesting:
-  type_level:
-    warning: 3
+parent_config: .build/checkouts/swift/Sources/AirbnbSwiftFormatTool/swiftlint.yml
 
 custom_rules:
   display_locale:

@@ -3,237 +3,236 @@ import XCTest
 @testable import Koogo
 
 final class CodexUsageTests: UsageWorkspaceTestCase {
-    func testCodexBillsEachResponseRecordUnderTheTurnModel() throws {
-        var parser = CodexUsageLogParser()
-        XCTAssertNil(try parse(codexMeta(), with: &parser))
-        XCTAssertNil(try parse(codexTurn(), with: &parser))
-
-        let request = codexUsage(input: 100, output: 20)
-        let first = try XCTUnwrap(parse(codexTokenUsageRecord(request), with: &parser)?.event)
-        let second = try XCTUnwrap(
-            try parse(
-                codexTokenUsageRecord(codexUsage(input: 150, output: 30), response: "second"),
-                with: &parser
-            )?.event
-        )
-
-        XCTAssertEqual(first.record.processedTokens, 120)
-        XCTAssertEqual(second.record.processedTokens, 180)
-        XCTAssertEqual(second.record.model, "gpt-5.6-sol")
-        XCTAssertNotEqual(first.id, second.id)
-    }
-
-    func testCodexRecordsBeforeTheFirstTurnContextAreSkipped() throws {
-        var parser = CodexUsageLogParser()
-        let request = codexUsage(input: 100, output: 20)
-        XCTAssertNil(try parse(codexMeta(), with: &parser))
-        XCTAssertNil(try parse(codexTokenUsageRecord(request), with: &parser))
-        XCTAssertNil(try parse(codexTurn(), with: &parser))
-
-        let event = try XCTUnwrap(parse(codexTokenUsageRecord(codexUsage(input: 50, output: 10)), with: &parser)?.event)
-
-        XCTAssertEqual(event.record.processedTokens, 60)
-    }
-
-    func testMalformedTurnContextsDoNotReuseThePreviousModel() async throws {
-        for context in [
-            #"{"type":"turn_context"}"#,
-            #"{"type":"turn_context","payload":null}"#,
-            #"{"type":"turn_context","payload":{}}"#,
-            #"{"type":"turn_context","payload":{"model":12}}"#,
-            #"{"type":"turn_context","payload":{"model":""}}"#,
-        ] {
-            let request = codexUsage(input: 100, output: 20)
-            try workspace.write(
-                [
-                    codexLog(input: 100, output: 20, response: "before"),
-                    context,
-                    codexTokenUsageRecord(request, response: "invalid"),
-                    codexLog(input: 50, output: 10, response: "after", model: "gpt-6-luna"),
-                ].joined(separator: "\n"),
-                to: workspace.codexSessions.appending(path: "session.jsonl")
-            )
-
-            let report = await makePipeline().run(at: usageTestTimestamp, providers: [.codex])
-
-            XCTAssertEqual(report.ingestion.malformedLines[.codex], 1, context)
-            XCTAssertTrue(report.ingestion.unpricedModels.isEmpty, context)
-            XCTAssertEqual(report.ingestion.events[.codex], 2, context)
-            XCTAssertEqual(report.snapshot.todayTokens(.codex), 180, context)
-            XCTAssertEqual(
-                report.snapshot.providers[.codex]?.periods[.today].total.cost.usd,
-                Decimal(string: "0.00111"),
-                context
-            )
-        }
-    }
-
-    func testCodexRejectsRecordsMissingUsageOrTimestamp() throws {
-        var parser = try codexParserInTurn()
-        let request = codexUsage(input: 100, output: 20)
-        let record = codexTokenUsageRecord(request)
-        let undated = record.replacingOccurrences(of: #""timestamp":"\#(usageTestTimestampText)","#, with: "")
-        var outsideTurn = CodexUsageLogParser()
-
-        XCTAssertThrowsError(
-            try parse(record.replacingOccurrences(of: #""usage":\#(request),"#, with: ""), with: &parser)
-        )
-        XCTAssertThrowsError(try parse(undated, with: &parser))
-        XCTAssertThrowsError(try parse(undated, with: &outsideTurn))
-        XCTAssertEqual(try parse(record, with: &parser)?.event?.record.processedTokens, 120)
-    }
-
-    func testCodexRejectsMalformedOutputTokens() throws {
-        for outputTokens in ["\"20\"", "true", "18446744073709551616"] {
-            var parser = try codexParserInTurn()
-            let request = codexUsage(input: 100, output: 20)
-            let line = codexTokenUsageRecord(request)
-
-            XCTAssertThrowsError(
-                try parse(
-                    line.replacingOccurrences(of: "\"output_tokens\":20", with: "\"output_tokens\":\(outputTokens)"),
-                    with: &parser
-                )
-            )
-            let event = try XCTUnwrap(parse(line, with: &parser)?.event)
-            XCTAssertEqual(event.record.processedTokens, 120)
-        }
-    }
-
-    func testCodexThreadSettingsDoNotOverrideTurnUsageMetadata() throws {
-        var parser = try codexParserInTurn()
-        XCTAssertNil(
-            try parse(
-                """
-                {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-luna","reasoning_effort":"low","service_tier":"priority"}}}
-                """,
-                with: &parser
-            )
-        )
-        let request = codexUsage(input: 100, output: 20)
-        let event = try XCTUnwrap(parse(codexTokenUsageRecord(request), with: &parser)?.event)
-
-        XCTAssertEqual(event.record.model, "gpt-5.6-sol")
-    }
-
-    func testCodexPricesLoggedCacheWrites() throws {
-        for (model, expectedUSD) in [
-            ("gpt-5.6-sol", "0.0010925"),
-            ("gpt-6.1-sol", "0.000396"),
-        ] {
-            var parser = try codexParserInTurn(model: model)
-            let request = codexUsage(input: 100, output: 20, cached: 10, cacheWrite: 30)
-            let event = try XCTUnwrap(parse(codexTokenUsageRecord(request), with: &parser)?.event)
-
-            XCTAssertEqual(event.record.processedTokens, 120)
-            XCTAssertEqual(event.record.model?.rawValue, model)
-            XCTAssertEqual(event.record.cost.usd, Decimal(string: expectedUSD), model)
-        }
-    }
-
-    func testCodexRejectsOverflowingTokenFields() throws {
-        var parser = try codexParserInTurn()
-        let overflow = """
-            {"input_tokens":18446744073709551615,"cached_input_tokens":18446744073709551615,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":18446744073709551615}
-            """
-
-        XCTAssertThrowsError(try parse(codexTokenUsageRecord(overflow), with: &parser))
-    }
-
-    func testCodexReportsUnpricedModelsAndUnsupportedCacheWrites() throws {
-        func outcome(model: String, cacheWrite: Int = 0) throws -> UsageLineOutcome? {
-            var parser = try codexParserInTurn(model: model)
-            let request = codexUsage(input: 100, output: 20, cacheWrite: cacheWrite)
-            return try parse(codexTokenUsageRecord(request), with: &parser)
-        }
-
-        XCTAssertEqual(try outcome(model: "unknown-model")?.unpricedModel, "unknown-model")
-        XCTAssertEqual(try outcome(model: "gpt-5.5", cacheWrite: 1)?.unpricedModel, "gpt-5.5")
-        XCTAssertNotNil(try outcome(model: "gpt-5.5")?.event)
-    }
-
-    func testCodexIdenticalRequestUsageAtTheSameTimestampCountsTwice() async throws {
-        let request = codexUsage(input: 50, output: 10)
-        try workspace.write(
-            [
-                codexMeta(),
-                codexTurn(),
-                codexTokenUsageRecord(request),
-                codexTokenUsageRecord(request, response: "second"),
-                "",
-            ].joined(separator: "\n"),
-            to: workspace.codexSessions.appending(path: "session.jsonl")
-        )
-
-        let snapshot = await makePipeline().run(at: usageTestTimestamp, providers: Provider.allCases).snapshot
-
-        XCTAssertEqual(snapshot.todayTokens(.codex), 120)
-    }
-
-    func testCodexQuotesMatchPublishedRates() throws {
-        let short = codexTokenUsage(uncached: 100_000, cached: 100_000, cacheWrite: 50_000, output: 10_000)
-        let long = codexTokenUsage(uncached: 122_001, cached: 100_000, cacheWrite: 50_000, output: 10_000)
-        let shortWithoutWrites = codexTokenUsage(uncached: 150_000, cached: 100_000, output: 10_000)
-        let longWithoutWrites = codexTokenUsage(uncached: 172_001, cached: 100_000, output: 10_000)
-
-        for (model, tokens, expectedUSD) in [
-            ("gpt-6.1-sol", short, "0.435"),
-            ("gpt-6.1-sol", long, "0.908004"),
-            ("gpt-5.5", shortWithoutWrites, "1.1"),
-            ("gpt-5.5", longWithoutWrites, "2.27001"),
-            ("gpt-5.4-mini", shortWithoutWrites, "0.165"),
-            ("gpt-5.4-mini", longWithoutWrites, "0.18150075"),
-        ] {
-            let quote = try XCTUnwrap(CodexUsagePricing.quote(model: ModelID(rawValue: model), tokens: tokens), model)
-            XCTAssertEqual(quote.model, ModelID(rawValue: model))
-            XCTAssertEqual(quote.cost.usd, Decimal(string: expectedUSD), model)
-        }
-    }
-
-    func testCodexLongContextRatesApplyToTheWholeRequest() throws {
-        let atBoundary = try XCTUnwrap(
-            CodexUsagePricing.quote(model: "gpt-5.6-sol", tokens: codexTokenUsage(uncached: 272_000))
-        )
-        let long = try XCTUnwrap(
-            CodexUsagePricing.quote(model: "gpt-5.6-sol", tokens: codexTokenUsage(uncached: 272_001))
-        )
-
-        XCTAssertEqual(atBoundary.cost.usd, Decimal(string: "1.36"))
-        XCTAssertEqual(long.cost.usd, Decimal(string: "2.72001"))
-    }
-
-    func testCodexAliasResolvesToCanonicalModel() throws {
-        let tokens = codexTokenUsage(uncached: 1)
-        let canonical = try XCTUnwrap(CodexUsagePricing.quote(model: "gpt-5.6-sol", tokens: tokens))
-        let alias = try XCTUnwrap(CodexUsagePricing.quote(model: "gpt-5.6", tokens: tokens))
-
-        XCTAssertEqual(alias.model, canonical.model)
-    }
-}
-
-private func codexParserInTurn(model: String = "gpt-5.6-sol") throws -> CodexUsageLogParser {
+  func testCodexBillsEachResponseRecordUnderTheTurnModel() throws {
     var parser = CodexUsageLogParser()
-    _ = try parse(codexMeta(), with: &parser)
-    _ = try parse(codexTurn(model: model), with: &parser)
+    XCTAssertNil(try parser.parse(CodexLog.meta()))
+    XCTAssertNil(try parser.parse(CodexLog.turn()))
+
+    let request = CodexLog.usage(input: 100, output: 20)
+    let first = try XCTUnwrap(parser.parse(CodexLog.tokenUsageRecord(request))?.event)
+    let second = try XCTUnwrap(
+      try parser.parse(
+        CodexLog.tokenUsageRecord(CodexLog.usage(input: 150, output: 30), response: "second")
+      )?.event
+    )
+
+    XCTAssertEqual(first.record.processedTokens, 120)
+    XCTAssertEqual(second.record.processedTokens, 180)
+    XCTAssertEqual(second.record.model, "gpt-5.6-sol")
+    XCTAssertNotEqual(first.id, second.id)
+  }
+
+  func testCodexRecordsBeforeTheFirstTurnContextAreSkipped() throws {
+    var parser = CodexUsageLogParser()
+    let request = CodexLog.usage(input: 100, output: 20)
+    XCTAssertNil(try parser.parse(CodexLog.meta()))
+    XCTAssertNil(try parser.parse(CodexLog.tokenUsageRecord(request)))
+    XCTAssertNil(try parser.parse(CodexLog.turn()))
+
+    let event = try XCTUnwrap(parser.parse(CodexLog.tokenUsageRecord(CodexLog.usage(input: 50, output: 10)))?.event)
+
+    XCTAssertEqual(event.record.processedTokens, 60)
+  }
+
+  func testMalformedTurnContextsDoNotReuseThePreviousModel() async throws {
+    for context in [
+      #"{"type":"turn_context"}"#,
+      #"{"type":"turn_context","payload":null}"#,
+      #"{"type":"turn_context","payload":{}}"#,
+      #"{"type":"turn_context","payload":{"model":12}}"#,
+      #"{"type":"turn_context","payload":{"model":""}}"#,
+    ] {
+      let request = CodexLog.usage(input: 100, output: 20)
+      try workspace.write(
+        [
+          CodexLog.session(input: 100, output: 20, response: "before"),
+          context,
+          CodexLog.tokenUsageRecord(request, response: "invalid"),
+          CodexLog.session(input: 50, output: 10, response: "after", model: "gpt-6-luna"),
+        ].joined(separator: "\n"),
+        to: workspace.codexSessions.appending(path: "session.jsonl"),
+      )
+
+      let report = await makePipeline().run(at: UsageFixture.timestamp, providers: [.codex])
+
+      XCTAssertEqual(report.ingestion.malformedLines[.codex], 1, context)
+      XCTAssertTrue(report.ingestion.unpricedModels.isEmpty, context)
+      XCTAssertEqual(report.ingestion.events[.codex], 2, context)
+      XCTAssertEqual(report.snapshot.todayTokens(.codex), 180, context)
+      XCTAssertEqual(
+        report.snapshot.providers[.codex]?.periods[.today].total.cost.usd,
+        Decimal(string: "0.00111"),
+        context,
+      )
+    }
+  }
+
+  func testCodexRejectsRecordsMissingUsageOrTimestamp() throws {
+    var parser = try parserInTurn()
+    let request = CodexLog.usage(input: 100, output: 20)
+    let record = CodexLog.tokenUsageRecord(request)
+    let undated = record.replacing(#""timestamp":"\#(UsageFixture.timestampText)","#, with: "")
+    var outsideTurn = CodexUsageLogParser()
+
+    XCTAssertThrowsError(
+      try parser.parse(record.replacing(#""usage":\#(request),"#, with: ""))
+    )
+    XCTAssertThrowsError(try parser.parse(undated))
+    XCTAssertThrowsError(try outsideTurn.parse(undated))
+    XCTAssertEqual(try parser.parse(record)?.event?.record.processedTokens, 120)
+  }
+
+  func testCodexRejectsMalformedOutputTokens() throws {
+    for outputTokens in ["\"20\"", "true", "18446744073709551616"] {
+      var parser = try parserInTurn()
+      let request = CodexLog.usage(input: 100, output: 20)
+      let line = CodexLog.tokenUsageRecord(request)
+
+      XCTAssertThrowsError(
+        try parser.parse(
+          line.replacing("\"output_tokens\":20", with: "\"output_tokens\":\(outputTokens)")
+        )
+      )
+      let event = try XCTUnwrap(parser.parse(line)?.event)
+      XCTAssertEqual(event.record.processedTokens, 120)
+    }
+  }
+
+  func testCodexThreadSettingsDoNotOverrideTurnUsageMetadata() throws {
+    var parser = try parserInTurn()
+    XCTAssertNil(
+      try parser.parse(
+        """
+        {"timestamp":"2026-08-25T12:00:00.000Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-luna","reasoning_effort":"low","service_tier":"priority"}}}
+        """
+      )
+    )
+    let request = CodexLog.usage(input: 100, output: 20)
+    let event = try XCTUnwrap(parser.parse(CodexLog.tokenUsageRecord(request))?.event)
+
+    XCTAssertEqual(event.record.model, "gpt-5.6-sol")
+  }
+
+  func testCodexPricesLoggedCacheWrites() throws {
+    for (model, expectedUSD) in [
+      ("gpt-5.6-sol", "0.0010925"),
+      ("gpt-6.1-sol", "0.000396"),
+    ] {
+      var parser = try parserInTurn(model: model)
+      let request = CodexLog.usage(input: 100, output: 20, cached: 10, cacheWrite: 30)
+      let event = try XCTUnwrap(parser.parse(CodexLog.tokenUsageRecord(request))?.event)
+
+      XCTAssertEqual(event.record.processedTokens, 120)
+      XCTAssertEqual(event.record.model?.rawValue, model)
+      XCTAssertEqual(event.record.cost.usd, Decimal(string: expectedUSD), model)
+    }
+  }
+
+  func testCodexRejectsOverflowingTokenFields() throws {
+    var parser = try parserInTurn()
+    let overflow = """
+      {"input_tokens":18446744073709551615,"cached_input_tokens":18446744073709551615,"cache_write_input_tokens":1,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":18446744073709551615}
+      """
+
+    XCTAssertThrowsError(try parser.parse(CodexLog.tokenUsageRecord(overflow)))
+  }
+
+  func testCodexReportsUnpricedModelsAndUnsupportedCacheWrites() throws {
+    func outcome(model: String, cacheWrite: Int = 0) throws -> UsageLineOutcome? {
+      var parser = try parserInTurn(model: model)
+      let request = CodexLog.usage(input: 100, output: 20, cacheWrite: cacheWrite)
+      return try parser.parse(CodexLog.tokenUsageRecord(request))
+    }
+
+    XCTAssertEqual(try outcome(model: "unknown-model")?.unpricedModel, "unknown-model")
+    XCTAssertEqual(try outcome(model: "gpt-5.5", cacheWrite: 1)?.unpricedModel, "gpt-5.5")
+    XCTAssertNotNil(try outcome(model: "gpt-5.5")?.event)
+  }
+
+  func testCodexIdenticalRequestUsageAtTheSameTimestampCountsTwice() async throws {
+    let request = CodexLog.usage(input: 50, output: 10)
+    try workspace.write(
+      [
+        CodexLog.meta(),
+        CodexLog.turn(),
+        CodexLog.tokenUsageRecord(request),
+        CodexLog.tokenUsageRecord(request, response: "second"),
+        "",
+      ].joined(separator: "\n"),
+      to: workspace.codexSessions.appending(path: "session.jsonl"),
+    )
+
+    let snapshot = await makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
+
+    XCTAssertEqual(snapshot.todayTokens(.codex), 120)
+  }
+
+  func testCodexQuotesMatchPublishedRates() throws {
+    let short = CodexTokenUsage.stub(uncached: 100_000, cached: 100_000, cacheWrite: 50_000, output: 10_000)
+    let long = CodexTokenUsage.stub(uncached: 122_001, cached: 100_000, cacheWrite: 50_000, output: 10_000)
+    let shortWithoutWrites = CodexTokenUsage.stub(uncached: 150_000, cached: 100_000, output: 10_000)
+    let longWithoutWrites = CodexTokenUsage.stub(uncached: 172_001, cached: 100_000, output: 10_000)
+
+    for (model, tokens, expectedUSD) in [
+      ("gpt-6.1-sol", short, "0.435"),
+      ("gpt-6.1-sol", long, "0.908004"),
+      ("gpt-5.5", shortWithoutWrites, "1.1"),
+      ("gpt-5.5", longWithoutWrites, "2.27001"),
+      ("gpt-5.4-mini", shortWithoutWrites, "0.165"),
+      ("gpt-5.4-mini", longWithoutWrites, "0.18150075"),
+    ] {
+      let quote = try XCTUnwrap(CodexUsagePricing.quote(model: ModelID(rawValue: model), tokens: tokens), model)
+      XCTAssertEqual(quote.model, ModelID(rawValue: model))
+      XCTAssertEqual(quote.cost.usd, Decimal(string: expectedUSD), model)
+    }
+  }
+
+  func testCodexLongContextRatesApplyToTheWholeRequest() throws {
+    let atBoundary = try XCTUnwrap(
+      CodexUsagePricing.quote(model: "gpt-5.6-sol", tokens: CodexTokenUsage.stub(uncached: 272_000))
+    )
+    let long = try XCTUnwrap(
+      CodexUsagePricing.quote(model: "gpt-5.6-sol", tokens: CodexTokenUsage.stub(uncached: 272_001))
+    )
+
+    XCTAssertEqual(atBoundary.cost.usd, Decimal(string: "1.36"))
+    XCTAssertEqual(long.cost.usd, Decimal(string: "2.72001"))
+  }
+
+  func testCodexAliasResolvesToCanonicalModel() throws {
+    let tokens = CodexTokenUsage.stub(uncached: 1)
+    let canonical = try XCTUnwrap(CodexUsagePricing.quote(model: "gpt-5.6-sol", tokens: tokens))
+    let alias = try XCTUnwrap(CodexUsagePricing.quote(model: "gpt-5.6", tokens: tokens))
+
+    XCTAssertEqual(alias.model, canonical.model)
+  }
+
+  private func parserInTurn(model: String = "gpt-5.6-sol") throws -> CodexUsageLogParser {
+    var parser = CodexUsageLogParser()
+    _ = try parser.parse(CodexLog.meta())
+    _ = try parser.parse(CodexLog.turn(model: model))
     return parser
+  }
 }
 
-private func codexTokenUsage(
+extension CodexTokenUsage {
+  fileprivate static func stub(
     uncached: UInt64,
     cached: UInt64 = 0,
     cacheWrite: UInt64 = 0,
-    output: UInt64 = 0
-) -> CodexTokenUsage {
+    output: UInt64 = 0,
+  ) -> Self {
     guard
-        let usage = CodexTokenUsage(
-            input: uncached + cached + cacheWrite,
-            cachedInput: cached,
-            cacheWrite: cacheWrite,
-            output: output,
-            processed: uncached + cached + cacheWrite + output
-        )
+      let usage = CodexTokenUsage(
+        input: uncached + cached + cacheWrite,
+        cachedInput: cached,
+        cacheWrite: cacheWrite,
+        output: output,
+        processed: uncached + cached + cacheWrite + output,
+      )
     else {
-        preconditionFailure("invalid codex usage fixture")
+      preconditionFailure("invalid codex usage fixture")
     }
     return usage
+  }
 }

@@ -1,151 +1,151 @@
 enum ClaudeUsagePricing {
-    private static let longPromptThreshold: UInt64 = 100_000
+  static func quote(model logged: ModelID, usage: ClaudeBillableUsage) -> UsageQuote? {
+    guard let index = prices.index(forKey: aliases[logged] ?? logged) else {
+      return nil
+    }
+    let (model, price) = prices[index]
 
-    private struct Rates: Sendable {
-        let input: Picodollars
-        let cacheRead: Picodollars
-        let output: Picodollars
-        let cacheWriteFiveMinute: Picodollars
-        let cacheWriteOneHour: Picodollars
+    let promptTokens = usage.tokens.processed - usage.tokens.output
+    let rates = promptTokens > longPromptThreshold ? price.longPromptRates ?? price.rates : price.rates
+    guard price.options.isSuperset(of: usage.options) else {
+      return nil
+    }
+    let speedCost = rates.cost(of: usage.tokens) * (usage.options.contains(.fastMode) ? 2 : 1)
+    let tokenCost = usage.options.contains(.usInference) ? speedCost.scaled(by: 11, over: 10) : speedCost
+    return UsageQuote(
+      model: model,
+      cost: tokenCost + Picodollars(nanodollars: 10_000_000) * usage.webSearchRequests,
+    )
+  }
 
-        /// rates are nanodollars per token.
-        init(input: UInt64, cacheRead: UInt64, output: UInt64) {
-            self.input = Picodollars(nanodollars: input)
-            self.cacheRead = Picodollars(nanodollars: cacheRead)
-            self.output = Picodollars(nanodollars: output)
-            cacheWriteFiveMinute = self.input.scaled(by: 5, over: 4)
-            cacheWriteOneHour = self.input * 2
-        }
+  static func displayName(of model: ModelID) -> String? {
+    prices[model]?.displayName
+  }
 
-        func cost(of tokens: ClaudeTokenUsage) -> Picodollars {
-            let cacheCreationCost =
-                switch tokens.cacheCreation {
-                case .aggregate(let amount):
-                    cacheWriteFiveMinute * amount
-                case .byDuration(let fiveMinute, let oneHour):
-                    cacheWriteFiveMinute * fiveMinute + cacheWriteOneHour * oneHour
-                }
-            return input * tokens.input + cacheRead * tokens.cacheRead + cacheCreationCost + output * tokens.output
-        }
+  private struct Rates: Sendable {
+    /// rates are nanodollars per token.
+    init(input: UInt64, cacheRead: UInt64, output: UInt64) {
+      self.input = Picodollars(nanodollars: input)
+      self.cacheRead = Picodollars(nanodollars: cacheRead)
+      self.output = Picodollars(nanodollars: output)
+      cacheWriteFiveMinute = self.input.scaled(by: 5, over: 4)
+      cacheWriteOneHour = self.input * 2
     }
 
-    private struct ModelPrice: Sendable {
-        let displayName: String
-        let rates: Rates
-        var longPromptRates: Rates?
-        let options: ClaudeBillableUsage.Options
-    }
+    let input: Picodollars
+    let cacheRead: Picodollars
+    let output: Picodollars
+    let cacheWriteFiveMinute: Picodollars
+    let cacheWriteOneHour: Picodollars
 
-    // pricing checked 2026-11-10: https://platform.claude.com/docs/en/about-claude/pricing and https://platform.claude.com/docs/en/models/overview
-    private static let prices: [ModelID: ModelPrice] = [
-        "claude-fable-5-2": ModelPrice(
-            displayName: "Fable 5.2",
-            rates: Rates(input: 8_000, cacheRead: 200, output: 40_000),
-            options: [.fastMode, .usInference]
-        ),
-        "claude-fable-5-1": ModelPrice(
-            displayName: "Fable 5.1",
-            rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),
-            options: [.usInference]
-        ),
-        "claude-mythos-5-1": ModelPrice(
-            displayName: "Mythos 5.1",
-            rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),
-            options: [.usInference]
-        ),
-        "claude-fable-5": ModelPrice(
-            displayName: "Fable 5",
-            rates: Rates(input: 10_000, cacheRead: 1_000, output: 50_000),
-            options: [.usInference]
-        ),
-        "claude-mythos-5": ModelPrice(
-            displayName: "Mythos 5",
-            rates: Rates(input: 10_000, cacheRead: 1_000, output: 50_000),
-            options: [.usInference]
-        ),
-        "claude-opus-5-5": ModelPrice(
-            displayName: "Opus 5.5",
-            rates: Rates(input: 4_000, cacheRead: 200, output: 20_000),
-            options: [.fastMode, .usInference]
-        ),
-        "claude-opus-5": ModelPrice(
-            displayName: "Opus 5",
-            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            options: [.fastMode, .usInference]
-        ),
-        "claude-opus-4-8": ModelPrice(
-            displayName: "Opus 4.8",
-            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            options: [.fastMode, .usInference]
-        ),
-        "claude-opus-4-7": ModelPrice(
-            displayName: "Opus 4.7",
-            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            options: [.usInference]
-        ),
-        "claude-opus-4-6": ModelPrice(
-            displayName: "Opus 4.6",
-            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            options: [.usInference]
-        ),
-        "claude-opus-4-5-20251101": ModelPrice(
-            displayName: "Opus 4.5",
-            rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
-            options: []
-        ),
-        "claude-sonnet-5-5": ModelPrice(
-            displayName: "Sonnet 5.5",
-            rates: Rates(input: 2_000, cacheRead: 100, output: 10_000),
-            options: [.usInference]
-        ),
-        "claude-sonnet-5": ModelPrice(
-            displayName: "Sonnet 5",
-            rates: Rates(input: 2_000, cacheRead: 200, output: 10_000),
-            options: [.usInference]
-        ),
-        "claude-sonnet-4-6": ModelPrice(
-            displayName: "Sonnet 4.6",
-            rates: Rates(input: 3_000, cacheRead: 300, output: 15_000),
-            options: [.usInference]
-        ),
-        "claude-sonnet-4-5-20250929": ModelPrice(
-            displayName: "Sonnet 4.5",
-            rates: Rates(input: 3_000, cacheRead: 300, output: 15_000),
-            options: []
-        ),
-        "claude-haiku-5-5": ModelPrice(
-            displayName: "Haiku 5.5",
-            rates: Rates(input: 100, cacheRead: 10, output: 500),
-            longPromptRates: Rates(input: 500, cacheRead: 50, output: 2_500),
-            options: [.usInference]
-        ),
-    ]
-
-    private static let aliases: [ModelID: ModelID] = [
-        "claude-opus-4-5": "claude-opus-4-5-20251101",
-        "claude-sonnet-4-5": "claude-sonnet-4-5-20250929",
-    ]
-
-    static func quote(model logged: ModelID, usage: ClaudeBillableUsage) -> UsageQuote? {
-        guard let index = prices.index(forKey: aliases[logged] ?? logged) else {
-            return nil
+    func cost(of tokens: ClaudeTokenUsage) -> Picodollars {
+      let cacheCreationCost =
+        switch tokens.cacheCreation {
+        case .aggregate(let amount):
+          cacheWriteFiveMinute * amount
+        case .byDuration(let fiveMinute, let oneHour):
+          cacheWriteFiveMinute * fiveMinute + cacheWriteOneHour * oneHour
         }
-        let (model, price) = prices[index]
-
-        let promptTokens = usage.tokens.processed - usage.tokens.output
-        let rates = promptTokens > longPromptThreshold ? price.longPromptRates ?? price.rates : price.rates
-        guard price.options.isSuperset(of: usage.options) else {
-            return nil
-        }
-        let speedCost = rates.cost(of: usage.tokens) * (usage.options.contains(.fastMode) ? 2 : 1)
-        let tokenCost = usage.options.contains(.usInference) ? speedCost.scaled(by: 11, over: 10) : speedCost
-        return UsageQuote(
-            model: model,
-            cost: tokenCost + Picodollars(nanodollars: 10_000_000) * usage.webSearchRequests
-        )
+      return input * tokens.input + cacheRead * tokens.cacheRead + cacheCreationCost + output * tokens.output
     }
+  }
 
-    static func displayName(of model: ModelID) -> String? {
-        prices[model]?.displayName
-    }
+  private struct ModelPrice: Sendable {
+    let displayName: String
+    let rates: Rates
+    var longPromptRates: Rates?
+    let options: ClaudeBillableUsage.Options
+  }
+
+  private static let longPromptThreshold: UInt64 = 100_000
+
+  /// pricing checked 2026-11-10: https://platform.claude.com/docs/en/about-claude/pricing and https://platform.claude.com/docs/en/models/overview
+  private static let prices: [ModelID: ModelPrice] = [
+    "claude-fable-5-2": ModelPrice(
+      displayName: "Fable 5.2",
+      rates: Rates(input: 8_000, cacheRead: 200, output: 40_000),
+      options: [.fastMode, .usInference],
+    ),
+    "claude-fable-5-1": ModelPrice(
+      displayName: "Fable 5.1",
+      rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),
+      options: [.usInference],
+    ),
+    "claude-mythos-5-1": ModelPrice(
+      displayName: "Mythos 5.1",
+      rates: Rates(input: 10_000, cacheRead: 250, output: 50_000),
+      options: [.usInference],
+    ),
+    "claude-fable-5": ModelPrice(
+      displayName: "Fable 5",
+      rates: Rates(input: 10_000, cacheRead: 1_000, output: 50_000),
+      options: [.usInference],
+    ),
+    "claude-mythos-5": ModelPrice(
+      displayName: "Mythos 5",
+      rates: Rates(input: 10_000, cacheRead: 1_000, output: 50_000),
+      options: [.usInference],
+    ),
+    "claude-opus-5-5": ModelPrice(
+      displayName: "Opus 5.5",
+      rates: Rates(input: 4_000, cacheRead: 200, output: 20_000),
+      options: [.fastMode, .usInference],
+    ),
+    "claude-opus-5": ModelPrice(
+      displayName: "Opus 5",
+      rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+      options: [.fastMode, .usInference],
+    ),
+    "claude-opus-4-8": ModelPrice(
+      displayName: "Opus 4.8",
+      rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+      options: [.fastMode, .usInference],
+    ),
+    "claude-opus-4-7": ModelPrice(
+      displayName: "Opus 4.7",
+      rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+      options: [.usInference],
+    ),
+    "claude-opus-4-6": ModelPrice(
+      displayName: "Opus 4.6",
+      rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+      options: [.usInference],
+    ),
+    "claude-opus-4-5-20251101": ModelPrice(
+      displayName: "Opus 4.5",
+      rates: Rates(input: 5_000, cacheRead: 500, output: 25_000),
+      options: [],
+    ),
+    "claude-sonnet-5-5": ModelPrice(
+      displayName: "Sonnet 5.5",
+      rates: Rates(input: 2_000, cacheRead: 100, output: 10_000),
+      options: [.usInference],
+    ),
+    "claude-sonnet-5": ModelPrice(
+      displayName: "Sonnet 5",
+      rates: Rates(input: 2_000, cacheRead: 200, output: 10_000),
+      options: [.usInference],
+    ),
+    "claude-sonnet-4-6": ModelPrice(
+      displayName: "Sonnet 4.6",
+      rates: Rates(input: 3_000, cacheRead: 300, output: 15_000),
+      options: [.usInference],
+    ),
+    "claude-sonnet-4-5-20250929": ModelPrice(
+      displayName: "Sonnet 4.5",
+      rates: Rates(input: 3_000, cacheRead: 300, output: 15_000),
+      options: [],
+    ),
+    "claude-haiku-5-5": ModelPrice(
+      displayName: "Haiku 5.5",
+      rates: Rates(input: 100, cacheRead: 10, output: 500),
+      longPromptRates: Rates(input: 500, cacheRead: 50, output: 2_500),
+      options: [.usInference],
+    ),
+  ]
+
+  private static let aliases: [ModelID: ModelID] = [
+    "claude-opus-4-5": "claude-opus-4-5-20251101",
+    "claude-sonnet-4-5": "claude-sonnet-4-5-20250929",
+  ]
 }

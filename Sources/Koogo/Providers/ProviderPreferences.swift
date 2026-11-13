@@ -5,55 +5,59 @@ import Observation
 @MainActor
 @Observable
 final class ProviderPreferences {
-    private struct Stored: Codable {
-        var order: [Provider]
-        var usageDisabled: Set<Provider>
-    }
+  init(defaults: UserDefaults) {
+    storage = PersistedValue(key: "provider-preferences", defaults: defaults)
+    let loaded = storage.load()
+    var seen = Set<Provider>()
+    stored = Stored(
+      order: ((loaded?.order ?? []) + Provider.allCases).filter { seen.insert($0).inserted },
+      usageDisabled: loaded?.usageDisabled ?? [],
+    )
+  }
 
-    private let storage: PersistedValue<Stored>
-    private var stored: Stored {
-        didSet { storage.save(stored) }
-    }
+  var order: [Provider] {
+    stored.order
+  }
 
-    var order: [Provider] { stored.order }
+  var usageProviders: [Provider] {
+    order.filter { self[usage: $0] }
+  }
 
-    var usageProviders: [Provider] {
-        order.filter { self[usage: $0] }
-    }
+  var quotaProviders: [QuotaProvider] {
+    usageProviders.compactMap(\.quota)
+  }
 
-    var quotaProviders: [QuotaProvider] {
-        usageProviders.compactMap(\.quota)
+  subscript(usage provider: Provider) -> Bool {
+    get { !stored.usageDisabled.contains(provider) }
+    set {
+      if newValue {
+        stored.usageDisabled.remove(provider)
+      } else {
+        stored.usageDisabled.insert(provider)
+      }
     }
+  }
 
-    subscript(usage provider: Provider) -> Bool {
-        get { !stored.usageDisabled.contains(provider) }
-        set {
-            if newValue {
-                stored.usageDisabled.remove(provider)
-            } else {
-                stored.usageDisabled.insert(provider)
-            }
-        }
-    }
+  func move(_ provider: Provider, to destination: Provider) {
+    guard
+      let source = order.firstIndex(of: provider),
+      let target = order.firstIndex(of: destination),
+      source != target
+    else { return }
+    var order = order
+    order.remove(at: source)
+    order.insert(provider, at: target)
+    stored.order = order
+  }
 
-    init(defaults: UserDefaults) {
-        storage = PersistedValue(key: "provider-preferences", defaults: defaults)
-        let loaded = storage.load()
-        var seen = Set<Provider>()
-        stored = Stored(
-            order: ((loaded?.order ?? []) + Provider.allCases).filter { seen.insert($0).inserted },
-            usageDisabled: loaded?.usageDisabled ?? []
-        )
-    }
+  private struct Stored: Codable {
+    var order: [Provider]
+    var usageDisabled: Set<Provider>
+  }
 
-    func move(_ provider: Provider, to destination: Provider) {
-        guard let source = order.firstIndex(of: provider),
-            let target = order.firstIndex(of: destination),
-            source != target
-        else { return }
-        var order = order
-        order.remove(at: source)
-        order.insert(provider, at: target)
-        stored.order = order
-    }
+  private let storage: PersistedValue<Stored>
+
+  private var stored: Stored {
+    didSet { storage.save(stored) }
+  }
 }

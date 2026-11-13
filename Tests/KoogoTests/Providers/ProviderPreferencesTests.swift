@@ -4,64 +4,64 @@ import XCTest
 
 @MainActor
 final class ProviderPreferencesTests: XCTestCase {
-    func testDefaultsShowEveryProviderAndFetchEveryQuotaInDeclarationOrder() throws {
-        let preferences = ProviderPreferences(defaults: try makeIsolatedDefaults())
+  func testDefaultsShowEveryProviderAndFetchEveryQuotaInDeclarationOrder() throws {
+    let preferences = ProviderPreferences(defaults: try makeIsolatedDefaults())
 
-        XCTAssertEqual(preferences.usageProviders, Provider.allCases)
-        XCTAssertEqual(preferences.quotaProviders, [.codex, .claude, .grok])
-    }
+    XCTAssertEqual(preferences.usageProviders, Provider.allCases)
+    XCTAssertEqual(preferences.quotaProviders, [.codex, .claude, .grok])
+  }
 
-    func testMovedProviderTakesTheTargetSlotAndOrdersQuotaProvidersToo() throws {
-        let defaults = try makeIsolatedDefaults()
-        let preferences = ProviderPreferences(defaults: defaults)
+  func testMovedProviderTakesTheTargetSlotAndOrdersQuotaProvidersToo() throws {
+    let defaults = try makeIsolatedDefaults()
+    let preferences = ProviderPreferences(defaults: defaults)
 
-        preferences.move(.grok, to: .codex)
-        XCTAssertEqual(preferences.order, [.grok, .codex, .claude, .piAgent])
-        preferences.move(.piAgent, to: .codex)
-        XCTAssertEqual(preferences.order, [.grok, .piAgent, .codex, .claude])
-        preferences.move(.grok, to: .grok)
-        XCTAssertEqual(preferences.quotaProviders, [.grok, .codex, .claude])
+    preferences.move(.grok, to: .codex)
+    XCTAssertEqual(preferences.order, [.grok, .codex, .claude, .piAgent])
+    preferences.move(.piAgent, to: .codex)
+    XCTAssertEqual(preferences.order, [.grok, .piAgent, .codex, .claude])
+    preferences.move(.grok, to: .grok)
+    XCTAssertEqual(preferences.quotaProviders, [.grok, .codex, .claude])
 
-        XCTAssertEqual(ProviderPreferences(defaults: defaults).order, [.grok, .piAgent, .codex, .claude])
-    }
+    XCTAssertEqual(ProviderPreferences(defaults: defaults).order, [.grok, .piAgent, .codex, .claude])
+  }
 
-    func testHidingAProviderPersistsAndDropsItsQuota() throws {
-        let defaults = try makeIsolatedDefaults()
-        let preferences = ProviderPreferences(defaults: defaults)
+  func testHidingAProviderPersistsAndDropsItsQuota() throws {
+    let defaults = try makeIsolatedDefaults()
+    let preferences = ProviderPreferences(defaults: defaults)
 
-        preferences[usage: .codex] = false
+    preferences[usage: .codex] = false
 
-        XCTAssertEqual(preferences.usageProviders, [.claude, .piAgent, .grok])
-        XCTAssertEqual(preferences.quotaProviders, [.claude, .grok], "a provider hidden from usage fetches no quota")
+    XCTAssertEqual(preferences.usageProviders, [.claude, .piAgent, .grok])
+    XCTAssertEqual(preferences.quotaProviders, [.claude, .grok], "a provider hidden from usage fetches no quota")
 
-        let relaunched = ProviderPreferences(defaults: defaults)
-        XCTAssertEqual(relaunched.usageProviders, [.claude, .piAgent, .grok])
-        relaunched[usage: .codex] = true
-        XCTAssertEqual(ProviderPreferences(defaults: defaults).usageProviders, Provider.allCases)
-    }
+    let relaunched = ProviderPreferences(defaults: defaults)
+    XCTAssertEqual(relaunched.usageProviders, [.claude, .piAgent, .grok])
+    relaunched[usage: .codex] = true
+    XCTAssertEqual(ProviderPreferences(defaults: defaults).usageProviders, Provider.allCases)
+  }
 
-    func testUndecodableStorageFallsBackToDefaults() throws {
-        let defaults = try makeIsolatedDefaults()
-        ProviderPreferences(defaults: defaults)[usage: .codex] = false
-        defaults.set(Data("junk".utf8), forKey: "provider-preferences")
+  func testUndecodableStorageFallsBackToDefaults() throws {
+    let defaults = try makeIsolatedDefaults()
+    ProviderPreferences(defaults: defaults)[usage: .codex] = false
+    defaults.set(Data("junk".utf8), forKey: "provider-preferences")
 
-        let preferences = ProviderPreferences(defaults: defaults)
+    let preferences = ProviderPreferences(defaults: defaults)
 
-        XCTAssertEqual(preferences.order, Provider.allCases)
-        XCTAssertEqual(preferences.usageProviders, Provider.allCases)
-    }
+    XCTAssertEqual(preferences.order, Provider.allCases)
+    XCTAssertEqual(preferences.usageProviders, Provider.allCases)
+  }
 
-    func testRepeatedStoredProvidersKeepTheirFirstSlot() throws {
-        let defaults = try makeIsolatedDefaults()
-        let stored: [String: Any] = ["order": ["grok", "codex", "grok"], "usageDisabled": [String]()]
-        defaults.set(
-            try PropertyListSerialization.data(fromPropertyList: stored, format: .binary, options: 0),
-            forKey: "provider-preferences"
-        )
+  func testRepeatedStoredProvidersKeepTheirFirstSlot() throws {
+    let defaults = try makeIsolatedDefaults()
+    let stored: [String: Any] = ["order": ["grok", "codex", "grok"], "usageDisabled": [String]()]
+    defaults.set(
+      try PropertyListSerialization.data(fromPropertyList: stored, format: .binary, options: 0),
+      forKey: "provider-preferences",
+    )
 
-        let preferences = ProviderPreferences(defaults: defaults)
+    let preferences = ProviderPreferences(defaults: defaults)
 
-        XCTAssertEqual(preferences.order, [.grok, .codex, .claude, .piAgent])
-        XCTAssertEqual(preferences.quotaProviders, [.grok, .codex, .claude])
-    }
+    XCTAssertEqual(preferences.order, [.grok, .codex, .claude, .piAgent])
+    XCTAssertEqual(preferences.quotaProviders, [.grok, .codex, .claude])
+  }
 }

@@ -1,146 +1,146 @@
 import SwiftUI
 
 struct ProviderUsageCard<Accessory: View>: View {
-    let provider: Provider
-    let usage: ProviderUsageSnapshot
-    let plan: String?
-    @ViewBuilder let accessory: Accessory
+  let provider: Provider
+  let usage: ProviderUsageSnapshot
+  let plan: String?
+  @ContentBuilder let accessory: Accessory
 
-    var body: some View {
-        PanelSection {
-            ProviderUsageHeader(provider: provider, plan: plan)
-        } content: {
-            VStack(spacing: 12) {
-                accessory
+  var body: some View {
+    PanelSection {
+      ProviderUsageHeader(provider: provider, plan: plan)
+    } content: {
+      VStack(spacing: 12) {
+        accessory
 
-                DailyUsageChart(days: usage.dailyLast30Days)
+        DailyUsageChart(days: usage.dailyLast30Days)
 
-                VStack(spacing: 6) {
-                    ForEach(UsagePeriod.allCases, id: \.self) { period in
-                        ProviderUsagePeriodRow(
-                            provider: provider,
-                            period: period,
-                            usage: usage.periods[period]
-                        )
-                    }
-                }
-                .font(.system(size: 9, weight: .medium))
-            }
+        VStack(spacing: 6) {
+          ForEach(UsagePeriod.allCases, id: \.self) { period in
+            ProviderUsagePeriodRow(
+              provider: provider,
+              period: period,
+              usage: usage.periods[period],
+            )
+          }
         }
+        .font(.system(size: 9, weight: .medium))
+      }
     }
+  }
 }
 
 private struct ProviderUsagePeriodRow: View {
-    let provider: Provider
-    let period: UsagePeriod
-    let usage: ProviderUsagePeriodSnapshot
+  let provider: Provider
+  let period: UsagePeriod
+  let usage: ProviderUsagePeriodSnapshot
 
-    var body: some View {
-        if let models = usage.models {
-            PanelDisclosure {
-                HStack(spacing: 4) {
-                    ProviderUsageRow(title: period.title, usage: usage.total)
+  var body: some View {
+    if let models = usage.models {
+      PanelDisclosure {
+        HStack(spacing: 4) {
+          ProviderUsageRow(title: period.title, usage: usage.total)
 
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.secondary)
-                }
-            } content: {
-                ProviderUsageModelsView(title: period.title, models: models)
-            }
-            .accessibilityLabel("\(provider.title) \(period.title) model usage")
-        } else {
-            ProviderUsageRow(title: period.title, usage: usage.total)
+          Image(systemName: "chevron.right")
+            .foregroundStyle(.secondary)
         }
+      } content: {
+        ProviderUsageModelsView(title: period.title, models: models)
+      }
+      .accessibilityLabel("\(provider.title) \(period.title) model usage")
+    } else {
+      ProviderUsageRow(title: period.title, usage: usage.total)
     }
+  }
 }
 
 private struct ProviderUsageModelsView: View {
-    let title: String
-    let models: [ModelUsageSnapshot]
+  let title: String
+  let models: [ModelUsageSnapshot]
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .fontWeight(.semibold)
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(title)
+        .fontWeight(.semibold)
 
-            if models.isEmpty {
-                Text("No usage during this period")
-                    .foregroundStyle(.secondary)
-            } else {
-                let rowHeight: CGFloat = 16
-                let rowSpacing: CGFloat = 8
-                let contentHeight = CGFloat(models.count) * (rowHeight + rowSpacing) - rowSpacing
-                let visibleHeight = min(contentHeight, 256)
-                let scrolls = contentHeight > visibleHeight
+      if models.isEmpty {
+        Text("No usage during this period")
+          .foregroundStyle(.secondary)
+      } else {
+        let rowHeight: CGFloat = 16
+        let rowSpacing: CGFloat = 8
+        let contentHeight = CGFloat(models.count) * (rowHeight + rowSpacing) - rowSpacing
+        let visibleHeight = min(contentHeight, 256)
+        let scrolls = contentHeight > visibleHeight
 
-                ScrollView {
-                    VStack(spacing: rowSpacing) {
-                        ForEach(models) { model in
-                            ProviderUsageRow(title: model.modelName, usage: model.usage)
-                                .tooltip(model.modelName)
-                                .frame(height: rowHeight)
-                        }
-                    }
-                }
-                .panelScroll(scrollerInset: scrolls ? 16 : 0)
-                .frame(height: visibleHeight)
+        ScrollView {
+          VStack(spacing: rowSpacing) {
+            ForEach(models) { model in
+              ProviderUsageRow(title: model.modelName, usage: model.usage)
+                .tooltip(model.modelName)
+                .frame(height: rowHeight)
             }
+          }
         }
+        .panelScroll(scrollerInset: scrolls ? 16 : 0)
+        .frame(height: visibleHeight)
+      }
     }
+  }
 }
 
 private struct ProviderUsageHeader: View {
-    let provider: Provider
-    let plan: String?
+  let provider: Provider
+  let plan: String?
 
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(provider.symbolAsset, bundle: .module)
-                .resizable()
-                .renderingMode(.template)
-                .scaledToFit()
-                .foregroundStyle(.secondary)
-                .frame(width: 12, height: 12)
-                .accessibilityHidden(true)
+  var body: some View {
+    HStack(spacing: 4) {
+      Image(provider.symbolAsset, bundle: .module)
+        .resizable()
+        .renderingMode(.template)
+        .scaledToFit()
+        .foregroundStyle(.secondary)
+        .frame(width: 12, height: 12)
+        .accessibilityHidden(true)
 
-            Text(provider.title)
-                .font(.system(size: 11, weight: .semibold))
+      Text(provider.title)
+        .font(.system(size: 11, weight: .semibold))
 
-            if let plan {
-                Spacer(minLength: 12)
+      if let plan {
+        Spacer(minLength: 12)
 
-                Text(plan)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .accessibilityLabel("\(plan) plan")
-            }
-        }
+        Text(plan)
+          .font(.system(size: 9, weight: .medium))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .accessibilityLabel("\(plan) plan")
+      }
     }
+  }
 }
 
 private struct ProviderUsageRow: View {
-    let title: String
-    let usage: UsagePeriodSnapshot
+  let title: String
+  let usage: UsagePeriodSnapshot
 
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(title)
-                .fontWeight(.semibold)
-                .lineLimit(1)
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 12) {
+      Text(title)
+        .fontWeight(.semibold)
+        .lineLimit(1)
 
-            Spacer(minLength: 12)
+      Spacer(minLength: 12)
 
-            HStack(spacing: 4) {
-                Text("\(usage.processedTokens.formatted(.compactTokens)) tokens ·")
-                    .foregroundStyle(.secondary)
+      HStack(spacing: 4) {
+        Text("\(usage.processedTokens.formatted(.compactTokens)) tokens ·")
+          .foregroundStyle(.secondary)
 
-                Text(usage.cost.usd.formatted(.usd))
-                    .foregroundStyle(.primary)
-            }
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-        }
-        .frame(maxWidth: .infinity)
+        Text(usage.cost.usd.formatted(.usd))
+          .foregroundStyle(.primary)
+      }
+      .lineLimit(1)
+      .fixedSize(horizontal: true, vertical: false)
     }
+    .frame(maxWidth: .infinity)
+  }
 }

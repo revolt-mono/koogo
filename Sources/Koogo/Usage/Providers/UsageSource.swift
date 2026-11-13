@@ -1,43 +1,46 @@
 import Foundation
 
 protocol UsageSource: Sendable {
-    /// log directories relative to the tool's home.
-    var logDirectories: [String] { get }
-    var logFormat: UsageLogFormat { get }
-    var splitsUsageByModel: Bool { get }
-    /// rereads the home's model catalog.
-    mutating func refresh(home: URL)
-    func modelName(_ model: ModelID) -> String?
+  /// log directories relative to the tool's home.
+  var logDirectories: [String] { get }
+  var logFormat: UsageLogFormat { get }
+  var splitsUsageByModel: Bool { get }
+
+  /// rereads the home's model catalog.
+  mutating func refresh(home: URL)
+  func modelName(_ model: ModelID) -> String?
 }
 
 extension UsageSource {
-    var splitsUsageByModel: Bool { true }
+  var splitsUsageByModel: Bool {
+    true
+  }
 
-    mutating func refresh(home: URL) {}
+  mutating func refresh(home _: URL) { }
 
-    func modelName(_: ModelID) -> String? {
-        nil
-    }
+  func modelName(_: ModelID) -> String? {
+    nil
+  }
 }
 
 extension Provider {
-    var usageSource: any UsageSource {
-        switch self {
-        case .codex: CodexUsageSource()
-        case .claude: ClaudeUsageSource()
-        case .piAgent: PiUsageSource()
-        case .grok: GrokUsageSource()
-        }
+  var usageSource: any UsageSource {
+    switch self {
+    case .codex: CodexUsageSource()
+    case .claude: ClaudeUsageSource()
+    case .piAgent: PiUsageSource()
+    case .grok: GrokUsageSource()
     }
+  }
 
-    func logRoots(under root: URL) -> [UsageLogRoot] {
-        let source = usageSource
-        return source.logDirectories.map {
-            UsageLogRoot(
-                provider: self,
-                path: home(under: root).appending(path: $0, directoryHint: .isDirectory).path,
-                format: source.logFormat
-            )
-        }
+  func logRoots(under root: URL) -> [UsageLogRoot] {
+    let source = usageSource
+    return source.logDirectories.map {
+      UsageLogRoot(
+        provider: self,
+        path: home(under: root).appending(path: $0, directoryHint: .isDirectory).path,
+        format: source.logFormat,
+      )
     }
+  }
 }

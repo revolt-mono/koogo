@@ -2,149 +2,155 @@ import AppKit
 import SwiftUI
 
 enum PanelPage: Int, CaseIterable {
-    case usage
-    case activity
-    case inbox
+  case usage
+  case activity
+  case inbox
 
-    var accessibilityLabel: String {
-        switch self {
-        case .usage: "Usage"
-        case .activity: "Activity"
-        case .inbox: "Inbox"
-        }
+  var accessibilityLabel: String {
+    switch self {
+    case .usage: "Usage"
+    case .activity: "Activity"
+    case .inbox: "Inbox"
     }
+  }
 }
 
 struct PanelPager: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  let maxHeight: CGFloat
 
-    let maxHeight: CGFloat
-
-    @State private var shown = PanelPage.usage
-    @State private var usageHeight: CGFloat = 0
-    @State private var slide = PageSlide()
-
-    var body: some View {
-        ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 0) {
-                ForEach(PanelPage.allCases, id: \.self) { page in
-                    Group {
-                        switch page {
-                        case .usage:
-                            UsagePage(maxHeight: maxHeight, isShown: shown == .usage)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .onGeometryChange(for: CGFloat.self) {
-                                    $0.size.height.rounded()
-                                } action: {
-                                    usageHeight = $0
-                                }
-                        case .activity:
-                            ActivityPage(isShown: shown == .activity)
-                        case .inbox:
-                            InboxPage()
-                        }
-                    }
-                    .containerRelativeFrame(.horizontal)
+  var body: some View {
+    ScrollView(.horizontal) {
+      HStack(alignment: .top, spacing: 0) {
+        ForEach(PanelPage.allCases, id: \.self) { page in
+          Group {
+            switch page {
+            case .usage:
+              UsagePage(maxHeight: maxHeight, isShown: shown == .usage)
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self) {
+                  $0.size.height.rounded()
+                } action: {
+                  usageHeight = $0
                 }
-            }
-            .scrollTargetLayout()
-            .background { PageSlideAnchor(slide: slide) }
-        }
-        .scrollTargetBehavior(.paging)
-        .scrollPosition(id: Binding($shown))
-        .scrollIndicators(.never, axes: .horizontal)
-        .frame(height: min(usageHeight, maxHeight))
-        .overlay(alignment: .bottom) {
-            PanelPageIndicator(shown: shown, onSelect: show)
-                .padding(.bottom, 6)
-        }
-        .onLocalEvent(.scrollWheel) { event, view in
-            guard let window = view.window, event.window === window else { return event }
-            switch WheelPaging(event) {
-            case .step(let step):
-                if let page = PanelPage(rawValue: shown.rawValue + step) { show(page) }
-                return nil
-            case .drop:
-                return nil
-            case .pass:
-                return event
-            }
-        }
-    }
 
-    /// disable swiftui scrolling animation while the render-server slide runs to avoid duplicate frame work.
-    private func show(_ page: PanelPage) {
-        var jump = Transaction()
-        jump.disablesAnimations = true
-        withTransaction(jump) {
-            shown = page
+            case .activity:
+              ActivityPage(isShown: shown == .activity)
+
+            case .inbox:
+              InboxPage()
+            }
+          }
+          .containerRelativeFrame(.horizontal)
         }
-        if !reduceMotion {
-            slide.run(to: page)
-        }
+      }
+      .scrollTargetLayout()
+      .background { PageSlideAnchor(slide: slide) }
     }
+    .scrollTargetBehavior(.paging)
+    .scrollPosition(id: Binding($shown))
+    .scrollIndicators(.never, axes: .horizontal)
+    .frame(height: min(usageHeight, maxHeight))
+    .overlay(alignment: .bottom) {
+      PanelPageIndicator(shown: shown, onSelect: show)
+        .padding(.bottom, 6)
+    }
+    .onLocalEvent(.scrollWheel) { event, view in
+      guard let window = view.window, event.window === window else { return event }
+      switch WheelPaging(event) {
+      case .step(let step):
+        if let page = PanelPage(rawValue: shown.rawValue + step) {
+          show(page)
+        }
+        return nil
+
+      case .drop:
+        return nil
+
+      case .pass:
+        return event
+      }
+    }
+  }
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  @State private var shown = PanelPage.usage
+  @State private var usageHeight: CGFloat = 0
+  @State private var slide = PageSlide()
+
+  /// disable swiftui scrolling animation while the render-server slide runs to avoid duplicate frame work.
+  private func show(_ page: PanelPage) {
+    var jump = Transaction()
+    jump.disablesAnimations = true
+    withTransaction(jump) {
+      shown = page
+    }
+    if !reduceMotion {
+      slide.run(to: page)
+    }
+  }
 }
 
 /// render-server translation avoids swiftui laying out every page on each animation frame.
 @MainActor
 private final class PageSlide {
-    weak var anchor: NSView?
+  weak var anchor: NSView?
 
-    func run(to page: PanelPage) {
-        guard let clip = anchor?.enclosingScrollView?.contentView, let layer = clip.layer else { return }
-        let slide = CASpringAnimation(perceptualDuration: 0.3, bounce: 0)
-        slide.keyPath = "bounds.origin.x"
-        slide.fromValue = (layer.presentation() ?? layer).bounds.origin.x
-        slide.toValue = CGFloat(page.rawValue) * clip.bounds.width
-        layer.add(slide, forKey: "slide")
-    }
+  func run(to page: PanelPage) {
+    guard let clip = anchor?.enclosingScrollView?.contentView, let layer = clip.layer else { return }
+    let slide = CASpringAnimation(perceptualDuration: 0.3, bounce: 0)
+    slide.keyPath = "bounds.origin.x"
+    slide.fromValue = (layer.presentation() ?? layer).bounds.origin.x
+    slide.toValue = CGFloat(page.rawValue) * clip.bounds.width
+    layer.add(slide, forKey: "slide")
+  }
 }
 
 private struct PageSlideAnchor: NSViewRepresentable {
-    let slide: PageSlide
+  let slide: PageSlide
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        slide.anchor = view
-        return view
-    }
+  func makeNSView(context _: Context) -> NSView {
+    let view = NSView()
+    slide.anchor = view
+    return view
+  }
 
-    func updateNSView(_: NSView, context: Context) {}
+  func updateNSView(_: NSView, context _: Context) { }
 }
 
 private struct PanelPageIndicator: View {
-    let shown: PanelPage
-    let onSelect: (PanelPage) -> Void
+  let shown: PanelPage
+  let onSelect: (PanelPage) -> Void
 
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(PanelPage.allCases, id: \.self) { page in
-                let isShown = shown == page
+  var body: some View {
+    HStack(spacing: 4) {
+      ForEach(PanelPage.allCases, id: \.self) { page in
+        let isShown = shown == page
 
-                Button {
-                    onSelect(page)
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(Color.secondary)
+        Button {
+          onSelect(page)
+        } label: {
+          ZStack {
+            Circle()
+              .fill(Color.secondary)
 
-                        if isShown {
-                            Circle()
-                                .fill(Color.white)
-                                .transition(.asymmetric(insertion: .identity, removal: .opacity))
-                        }
-                    }
-                    .frame(width: 5, height: 5)
-                    .frame(width: 14, height: 14)
-                    .contentShape(.rect)
-                    .motionAnimation(.easeOut(duration: 0.2), value: isShown)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(page.accessibilityLabel)
-                .accessibilityAddTraits(isShown ? .isSelected : [])
+            if isShown {
+              Circle()
+                .fill(Color.white)
+                .transition(.asymmetric(insertion: .identity, removal: .opacity))
             }
+          }
+          .frame(width: 5, height: 5)
+          .frame(width: 14, height: 14)
+          .contentShape(.rect)
+          .motionAnimation(.easeOut(duration: 0.2), value: isShown)
         }
-        .padding(.horizontal, 4)
-        .glassEffect(.regular, in: Capsule())
+        .buttonStyle(.plain)
+        .accessibilityLabel(page.accessibilityLabel)
+        .accessibilityAddTraits(isShown ? .isSelected : [])
+      }
     }
+    .padding(.horizontal, 4)
+    .glassEffect(.regular, in: Capsule())
+  }
 }

@@ -4,28 +4,28 @@ import Foundation
 
 @MainActor
 final class BreakReminderTestNotifications: BreakReminderNotifications {
-    var beforeOperation: (() async -> Void)?
-    var schedulingIssue: BreakReminderIssue?
-    var scheduledDurations: [TimeInterval] = []
-    var cancellationCount = 0
-    var isReminderPending = false
+  var beforeOperation: (() async -> Void)?
+  var schedulingIssue: BreakReminderIssue?
+  var scheduledDurations = [TimeInterval]()
+  var cancellationCount = 0
+  var isReminderPending = false
 
-    func schedule(after duration: TimeInterval) async throws(BreakReminderIssue) {
-        await beforeOperation?()
-        if let schedulingIssue {
-            throw schedulingIssue
-        }
-        scheduledDurations.append(duration)
-        isReminderPending = true
+  func schedule(after duration: TimeInterval) async throws(BreakReminderIssue) {
+    await beforeOperation?()
+    if let schedulingIssue {
+      throw schedulingIssue
     }
+    scheduledDurations.append(duration)
+    isReminderPending = true
+  }
 
-    func hasPendingReminder() async -> Bool {
-        await beforeOperation?()
-        return isReminderPending
-    }
+  func hasPendingReminder() async -> Bool {
+    await beforeOperation?()
+    return isReminderPending
+  }
 
-    func cancel() {
-        cancellationCount += 1
-        isReminderPending = false
-    }
+  func cancel() {
+    cancellationCount += 1
+    isReminderPending = false
+  }
 }

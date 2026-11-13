@@ -1,148 +1,153 @@
 import Foundation
 
 struct CodexQuotaResponse: Decodable, Sendable {
-    private let rateLimits: CodexRateLimitSnapshot
-    private let rateLimitsByLimitID: [String: CodexRateLimitSnapshot]?
-    private let rateLimitResetCredits: CodexRateLimitResetCredits?
+  var snapshot: QuotaSnapshot? {
+    let accountID = rateLimits.limitID ?? "codex"
+    let named = (rateLimitsByLimitID ?? [:])
+      .filter { id, _ in !id.isEmpty && id != accountID }
+      .map { id, rateLimit in
+        (id: id, name: rateLimit.limitName?.nonEmpty ?? id, rateLimit: rateLimit)
+      }
+      .sorted {
+        let order = $0.name.localizedCaseInsensitiveCompare($1.name)
+        return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
+      }
+    return QuotaSnapshot(
+      plan: rateLimits.planType.map(Self.planName),
+      windows: rateLimits.windows(named: nil) + named.flatMap { $0.rateLimit.windows(named: $0.name) },
+      credits: rateLimits.credits?.snapshot,
+      resetCredits: rateLimitResetCredits?.snapshot,
+    )
+  }
 
-    var snapshot: QuotaSnapshot? {
-        let accountID = rateLimits.limitID ?? "codex"
-        let named = (rateLimitsByLimitID ?? [:])
-            .filter { id, _ in !id.isEmpty && id != accountID }
-            .map { id, rateLimit in
-                (id: id, name: rateLimit.limitName?.nonEmpty ?? id, rateLimit: rateLimit)
-            }
-            .sorted {
-                let order = $0.name.localizedCaseInsensitiveCompare($1.name)
-                return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
-            }
-        return QuotaSnapshot(
-            plan: rateLimits.planType.map(Self.planName),
-            windows: rateLimits.windows(named: nil) + named.flatMap { $0.rateLimit.windows(named: $0.name) },
-            credits: rateLimits.credits?.snapshot,
-            resetCredits: rateLimitResetCredits?.snapshot
-        )
-    }
+  private enum CodingKeys: String, CodingKey {
+    case rateLimits
+    case rateLimitsByLimitID = "rateLimitsByLimitId"
+    case rateLimitResetCredits
+  }
 
-    private static func planName(_ planType: String) -> String {
-        switch planType {
-        case "free": "Free"
-        case "go": "Go"
-        case "plus": "Plus"
-        case "pro": "Pro 200"
-        case "prolite": "Pro 100"
-        case "promax": "Pro 500"
-        case "team", "self_serve_business_usage_based": "Business"
-        case "self_serve_business_prolite": "Business Premium"
-        case "business", "ent26", "enterprise_cbp_usage_based": "Enterprise"
-        case "enterprise_cbp_automation": "Enterprise (Automation)"
-        case "edu_plus": "Edu Plus"
-        case "edu_pro": "Edu Pro"
-        default: planType.capitalized
-        }
-    }
+  private let rateLimits: CodexRateLimitSnapshot
+  private let rateLimitsByLimitID: [String: CodexRateLimitSnapshot]?
+  private let rateLimitResetCredits: CodexRateLimitResetCredits?
 
-    private enum CodingKeys: String, CodingKey {
-        case rateLimits
-        case rateLimitsByLimitID = "rateLimitsByLimitId"
-        case rateLimitResetCredits
+  private static func planName(_ planType: String) -> String {
+    switch planType {
+    case "free": "Free"
+    case "go": "Go"
+    case "plus": "Plus"
+    case "pro": "Pro 200"
+    case "prolite": "Pro 100"
+    case "promax": "Pro 500"
+    case "team",
+         "self_serve_business_usage_based": "Business"
+    case "self_serve_business_prolite": "Business Premium"
+    case "business",
+         "ent26",
+         "enterprise_cbp_usage_based": "Enterprise"
+    case "enterprise_cbp_automation": "Enterprise (Automation)"
+    case "edu_plus": "Edu Plus"
+    case "edu_pro": "Edu Pro"
+    default: planType.capitalized
     }
+  }
 }
 
 private struct CodexRateLimitSnapshot: Decodable {
-    let limitID: String?
-    let limitName: String?
-    let planType: String?
-    let primary: CodexRateLimitWindow?
-    let secondary: CodexRateLimitWindow?
-    let credits: CodexCredits?
+  let limitID: String?
+  let limitName: String?
+  let planType: String?
+  let primary: CodexRateLimitWindow?
+  let secondary: CodexRateLimitWindow?
+  let credits: CodexCredits?
 
-    func windows(named name: String?) -> [QuotaWindow] {
-        let found = [("Session", 300), ("Weekly", 10_080)].compactMap { period, minutes in
-            window(around: minutes).map { (period: period, window: $0) }
-        }
-        return found.map { period, window in
-            let title =
-                switch name {
-                case nil: period
-                case let name? where found.count == 1: name
-                case let name?: "\(name) \(period)"
-                }
-            return QuotaWindow(title: title, usedPercent: Double(window.usedPercent), resetsAt: window.resetsAt)
-        }
+  func windows(named name: String?) -> [QuotaWindow] {
+    let found = [("Session", 300), ("Weekly", 10_080)].compactMap { period, minutes in
+      window(around: minutes).map { (period: period, window: $0) }
     }
+    return found.map { period, window in
+      let title =
+        switch name {
+        case nil: period
+        case let name? where found.count == 1: name
+        case let name?: "\(name) \(period)"
+        }
+      return QuotaWindow(title: title, usedPercent: Double(window.usedPercent), resetsAt: window.resetsAt)
+    }
+  }
 
-    private enum CodingKeys: String, CodingKey {
-        case limitID = "limitId"
-        case limitName
-        case planType
-        case primary
-        case secondary
-        case credits
-    }
+  private enum CodingKeys: String, CodingKey {
+    case limitID = "limitId"
+    case limitName
+    case planType
+    case primary
+    case secondary
+    case credits
+  }
 
-    private func window(around expectedMinutes: Int64) -> CodexRateLimitWindow? {
-        let durations = (expectedMinutes * 95 / 100)...(expectedMinutes * 105 / 100)
-        return [primary, secondary].compactMap { $0 }.first { window in
-            window.windowDurationMinutes.map { durations ~= $0 } ?? false
-        }
+  private func window(around expectedMinutes: Int64) -> CodexRateLimitWindow? {
+    let durations = (expectedMinutes * 95 / 100)...(expectedMinutes * 105 / 100)
+    return [primary, secondary].compactMap { $0 }.first { window in
+      window.windowDurationMinutes.map { durations ~= $0 } ?? false
     }
+  }
 }
 
 private struct CodexCredits: Decodable {
-    let hasCredits: Bool
-    let unlimited: Bool
-    let balance: String?
+  let hasCredits: Bool
+  let unlimited: Bool
+  let balance: String?
 
-    var snapshot: QuotaSnapshot.Credits? {
-        if unlimited { return .unlimited }
-        guard hasCredits else { return nil }
-        guard let balance, let amount = Double(balance.trimmingCharacters(in: .whitespacesAndNewlines)), amount.isFinite
-        else { return .available }
-        return .balance(amount: amount)
+  var snapshot: QuotaSnapshot.Credits? {
+    if unlimited {
+      return .unlimited
     }
+    guard hasCredits else { return nil }
+    guard let balance, let amount = Double(balance.trimmingCharacters(in: .whitespacesAndNewlines)), amount.isFinite
+    else { return .available }
+    return .balance(amount: amount)
+  }
 }
 
 private struct CodexRateLimitResetCredits: Decodable {
-    let availableCount: Int64
-    let credits: [Credit]?
+  struct Credit: Decodable {
+    let id: String
+    let resetType: String
+    let status: String
+    let expiresAt: Date?
+    let title: String?
+  }
 
-    var snapshot: QuotaSnapshot.ResetCredits? {
-        guard let availableCount = UInt64(exactly: availableCount) else {
-            return nil
-        }
-        return QuotaSnapshot.ResetCredits(
-            availableCount: availableCount,
-            credits: credits?
-                .filter { $0.status == "available" && $0.resetType == "codexRateLimits" }
-                .sorted { ($0.expiresAt ?? .distantFuture, $0.id) < ($1.expiresAt ?? .distantFuture, $1.id) }
-                .map {
-                    QuotaSnapshot.ResetCredit(
-                        id: $0.id,
-                        title: $0.title ?? "Banked reset",
-                        expiresAt: $0.expiresAt
-                    )
-                }
-        )
-    }
+  let availableCount: Int64
+  let credits: [Credit]?
 
-    struct Credit: Decodable {
-        let id: String
-        let resetType: String
-        let status: String
-        let expiresAt: Date?
-        let title: String?
+  var snapshot: QuotaSnapshot.ResetCredits? {
+    guard let availableCount = UInt64(exactly: availableCount) else {
+      return nil
     }
+    return QuotaSnapshot.ResetCredits(
+      availableCount: availableCount,
+      credits: credits?
+        .filter { $0.status == "available" && $0.resetType == "codexRateLimits" }
+        .sorted { ($0.expiresAt ?? .distantFuture, $0.id) < ($1.expiresAt ?? .distantFuture, $1.id) }
+        .map {
+          QuotaSnapshot.ResetCredit(
+            id: $0.id,
+            title: $0.title ?? "Banked reset",
+            expiresAt: $0.expiresAt,
+          )
+        },
+    )
+  }
 }
 
 private struct CodexRateLimitWindow: Decodable {
-    let usedPercent: Int
-    let windowDurationMinutes: Int64?
-    let resetsAt: Date?
+  let usedPercent: Int
+  let windowDurationMinutes: Int64?
+  let resetsAt: Date?
 
-    private enum CodingKeys: String, CodingKey {
-        case usedPercent
-        case windowDurationMinutes = "windowDurationMins"
-        case resetsAt
-    }
+  private enum CodingKeys: String, CodingKey {
+    case usedPercent
+    case windowDurationMinutes = "windowDurationMins"
+    case resetsAt
+  }
 }

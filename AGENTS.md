@@ -3,6 +3,10 @@
 - prefer the simplest end-to-end solution for current requirements. extract shared logic only for real reuse or a shared invariant.
 - preserve runtime behavior during formatting, lint, typing, and test-structure changes.
 
+## style
+
+- follow the airbnb swift style guide (https://github.com/airbnb/swift), including the rules the formatter can't apply, minus `// MARK:` comments. the `airbnb/swift` package plugin pins swiftformat, swiftlint, and both configs; `.swiftformat` and `.swiftlint.yml` layer this repo's deviations over the configs in the plugin checkout.
+
 ## boundaries
 
 - treat `refs/` as read-only reference material; do not edit or import from that directory.
@@ -15,8 +19,8 @@
 
 ## commands
 
-- format: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift format --configuration .swift-format --in-place Package.swift --recursive Sources Tests`
-- lint: `swiftlint lint --strict Package.swift Sources Tests`
+- format: `script/format.sh`
+- lint (checks formatting and runs strict swiftlint without writing): `script/format.sh --lint`
 - test: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test`
 - report: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift run Koogo --report` (or `script/build_and_run.sh report` for the signed bundle)
 - benchmark: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift run -c release Koogo --benchmark [home]`
@@ -67,7 +71,7 @@
 │   ├── Update             sparkle updates
 │   └── Resources          image assets
 ├── Tests/KoogoTests       mirrors the source tree; Support holds slice-free helpers
-└── script                 signing, bundling, launch, verification
+└── script                 formatting, signing, bundling, launch, verification
 ```
 
 ## slices and owners

@@ -2,46 +2,46 @@ import Darwin
 import Foundation
 
 struct UsageFileMetadata: Sendable {
-    struct Identity: Equatable, Sendable {
-        let device: UInt64
-        let inode: UInt64
+  init?(fileDescriptor: Int32) {
+    var status = Darwin.stat()
+    guard Darwin.fstat(fileDescriptor, &status) == 0 else {
+      return nil
+    }
+    self.init(status: status)
+  }
 
-        init(_ status: Darwin.stat) {
-            device = UInt64(status.st_dev)
-            inode = UInt64(status.st_ino)
-        }
+  /// symlinks stay unresolved, as in directory walks.
+  init?(path: String) {
+    var status = Darwin.stat()
+    guard lstat(path, &status) == 0 else {
+      return nil
+    }
+    self.init(status: status)
+  }
+
+  init?(status: Darwin.stat) {
+    guard status.st_size >= 0, status.st_mode & S_IFMT == S_IFREG else {
+      return nil
+    }
+    identity = Identity(status)
+    size = UInt64(status.st_size)
+    modificationDate = Date(
+      timeIntervalSince1970: TimeInterval(status.st_mtimespec.tv_sec)
+        + TimeInterval(status.st_mtimespec.tv_nsec) / 1_000_000_000
+    )
+  }
+
+  struct Identity: Equatable, Sendable {
+    init(_ status: Darwin.stat) {
+      device = UInt64(status.st_dev)
+      inode = UInt64(status.st_ino)
     }
 
-    let identity: Identity
-    let size: UInt64
-    let modificationDate: Date
+    let device: UInt64
+    let inode: UInt64
+  }
 
-    init?(fileDescriptor: Int32) {
-        var status = Darwin.stat()
-        guard Darwin.fstat(fileDescriptor, &status) == 0 else {
-            return nil
-        }
-        self.init(status: status)
-    }
-
-    /// symlinks stay unresolved, as in directory walks.
-    init?(path: String) {
-        var status = Darwin.stat()
-        guard lstat(path, &status) == 0 else {
-            return nil
-        }
-        self.init(status: status)
-    }
-
-    init?(status: Darwin.stat) {
-        guard status.st_size >= 0, status.st_mode & S_IFMT == S_IFREG else {
-            return nil
-        }
-        identity = Identity(status)
-        size = UInt64(status.st_size)
-        modificationDate = Date(
-            timeIntervalSince1970: TimeInterval(status.st_mtimespec.tv_sec)
-                + TimeInterval(status.st_mtimespec.tv_nsec) / 1_000_000_000
-        )
-    }
+  let identity: Identity
+  let size: UInt64
+  let modificationDate: Date
 }

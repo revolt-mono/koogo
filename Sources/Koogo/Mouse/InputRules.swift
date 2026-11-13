@@ -1,112 +1,114 @@
 import Synchronization
 
 struct InputRules: Equatable {
-    enum NotchMode: UInt32, CaseIterable {
-        case standard
-        case optionPrecision
-        case lineByLine
-    }
+  enum NotchMode: UInt32, CaseIterable {
+    case standard
+    case optionPrecision
+    case lineByLine
+  }
 
-    var wheelStep: WheelStep
-    var direction: ScrollDirection
-    var notchMode: NotchMode
-    var isLookUpEnabled: Bool
+  var wheelStep: WheelStep
+  var direction: ScrollDirection
+  var notchMode: NotchMode
+  var isLookUpEnabled: Bool
 
-    func step(for notch: WheelNotch, isOptionHeld: Bool) -> ScrollStep {
-        let (lines, stripsOption): (Int32, Bool) =
-            switch (notchMode, isOptionHeld) {
-            case (.standard, _), (.optionPrecision, false): (wheelStep.lines, false)
-            case (.optionPrecision, true): (1, true)
-            case (.lineByLine, false): (1, false)
-            case (.lineByLine, true): (wheelStep.lines, true)
-            }
-        let sign: Int32 =
-            switch direction {
-            case .standard: -1
-            case .natural: 1
-            }
-        return ScrollStep(axis: notch.axis, lines: sign * notch.direction.rawValue * lines, stripsOption: stripsOption)
-    }
+  func step(for notch: WheelNotch, isOptionHeld: Bool) -> ScrollStep {
+    let (lines, stripsOption): (Int32, Bool) =
+      switch (notchMode, isOptionHeld) {
+      case (.standard, _),
+           (.optionPrecision, false): (wheelStep.lines, false)
+      case (.optionPrecision, true): (1, true)
+      case (.lineByLine, false): (1, false)
+      case (.lineByLine, true): (wheelStep.lines, true)
+      }
+    let sign: Int32 =
+      switch direction {
+      case .standard: -1
+      case .natural: 1
+      }
+    return ScrollStep(axis: notch.axis, lines: sign * notch.direction.rawValue * lines, stripsOption: stripsOption)
+  }
 }
 
 extension InputRules {
-    /// macos targets the window under the pointer; using the frontmost app avoids a lookup on every notch.
-    init(_ settings: MouseSettings, frontmostApp: String?) {
-        let notchMode: NotchMode =
-            if let frontmostApp, settings.lineByLineApps.contains(frontmostApp) {
-                .lineByLine
-            } else if settings.isOptionPrecisionEnabled {
-                .optionPrecision
-            } else {
-                .standard
-            }
-        self.init(
-            wheelStep: settings.wheelStep,
-            direction: settings.direction,
-            notchMode: notchMode,
-            isLookUpEnabled: settings.isLookUpEnabled
-        )
-    }
+  /// macos targets the window under the pointer; using the frontmost app avoids a lookup on every notch.
+  init(_ settings: MouseSettings, frontmostApp: String?) {
+    let notchMode: NotchMode =
+      if let frontmostApp, settings.lineByLineApps.contains(frontmostApp) {
+        .lineByLine
+      } else if settings.isOptionPrecisionEnabled {
+        .optionPrecision
+      } else {
+        .standard
+      }
+    self.init(
+      wheelStep: settings.wheelStep,
+      direction: settings.direction,
+      notchMode: notchMode,
+      isLookUpEnabled: settings.isLookUpEnabled,
+    )
+  }
 }
 
 struct WheelNotch: Equatable {
-    enum Axis {
-        case vertical
-        case horizontal
-    }
+  enum Axis {
+    case vertical
+    case horizontal
+  }
 
-    enum Direction: Int32 {
-        case negative = -1
-        case positive = 1
-    }
+  enum Direction: Int32 {
+    case negative = -1
+    case positive = 1
+  }
 
-    let axis: Axis
-    let direction: Direction
+  let axis: Axis
+  let direction: Direction
 }
 
 extension WheelNotch {
-    init?(verticalDelta: Int64, horizontalDelta: Int64) {
-        switch (verticalDelta.signum(), horizontalDelta.signum()) {
-        case (-1, 0): self.init(axis: .vertical, direction: .negative)
-        case (1, 0): self.init(axis: .vertical, direction: .positive)
-        case (0, -1): self.init(axis: .horizontal, direction: .negative)
-        case (0, 1): self.init(axis: .horizontal, direction: .positive)
-        default: return nil
-        }
+  init?(verticalDelta: Int64, horizontalDelta: Int64) {
+    switch (verticalDelta.signum(), horizontalDelta.signum()) {
+    case (-1, 0): self.init(axis: .vertical, direction: .negative)
+    case (1, 0): self.init(axis: .vertical, direction: .positive)
+    case (0, -1): self.init(axis: .horizontal, direction: .negative)
+    case (0, 1): self.init(axis: .horizontal, direction: .positive)
+    default: return nil
     }
+  }
 }
 
 struct ScrollStep: Equatable {
-    let axis: WheelNotch.Axis
-    let lines: Int32
-    let stripsOption: Bool
+  let axis: WheelNotch.Axis
+  let lines: Int32
+  let stripsOption: Bool
 }
 
 extension InputRules: AtomicRepresentable {
-    typealias AtomicRepresentation = UInt32.AtomicRepresentation
+  typealias AtomicRepresentation = UInt32.AtomicRepresentation
 
-    static func encodeAtomicRepresentation(_ value: consuming InputRules) -> AtomicRepresentation {
-        let bits =
-            value.wheelStep.rawValue
-            | value.direction.rawValue << 4
-            | value.notchMode.rawValue << 8
-            | (value.isLookUpEnabled ? 1 : 0) << 12
-        return UInt32.encodeAtomicRepresentation(bits)
-    }
+  static func encodeAtomicRepresentation(_ value: consuming InputRules) -> AtomicRepresentation {
+    let bits =
+      value.wheelStep.rawValue
+        | value.direction.rawValue << 4
+        | value.notchMode.rawValue << 8
+        | (value.isLookUpEnabled ? 1 : 0) << 12
+    return UInt32.encodeAtomicRepresentation(bits)
+  }
 
-    static func decodeAtomicRepresentation(_ storage: consuming AtomicRepresentation) -> InputRules {
-        let bits = UInt32.decodeAtomicRepresentation(storage)
-        guard let wheelStep = WheelStep(rawValue: bits & 0xF),
-            let direction = ScrollDirection(rawValue: bits >> 4 & 0xF),
-            let notchMode = NotchMode(rawValue: bits >> 8 & 0xF)
-        else {
-            preconditionFailure("only encodeAtomicRepresentation writes the word")
-        }
-        return InputRules(
-            wheelStep: wheelStep,
-            direction: direction,
-            notchMode: notchMode,
-            isLookUpEnabled: bits >> 12 & 1 == 1
-        )
+  static func decodeAtomicRepresentation(_ storage: consuming AtomicRepresentation) -> InputRules {
+    let bits = UInt32.decodeAtomicRepresentation(storage)
+    guard
+      let wheelStep = WheelStep(rawValue: bits & 0xF),
+      let direction = ScrollDirection(rawValue: bits >> 4 & 0xF),
+      let notchMode = NotchMode(rawValue: bits >> 8 & 0xF)
+    else {
+      preconditionFailure("only encodeAtomicRepresentation writes the word")
     }
+    return InputRules(
+      wheelStep: wheelStep,
+      direction: direction,
+      notchMode: notchMode,
+      isLookUpEnabled: bits >> 12 & 1 == 1,
+    )
+  }
 }

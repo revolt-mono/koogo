@@ -1,108 +1,114 @@
 import Foundation
 
 enum BreakReminderInterval: Int, CaseIterable, Codable {
-    case oneHour = 60
-    case ninetyMinutes = 90
-    case twoHours = 120
+  case oneHour = 60
+  case ninetyMinutes = 90
+  case twoHours = 120
 
-    var duration: TimeInterval {
-        TimeInterval(rawValue * 60)
-    }
+  var duration: TimeInterval {
+    TimeInterval(rawValue * 60)
+  }
 }
 
 enum BreakReminderStatus: Equatable {
-    case running(remaining: TimeInterval)
-    case paused(remaining: TimeInterval)
-    case expired
+  case running(remaining: TimeInterval)
+  case paused(remaining: TimeInterval)
+  case expired
 
-    var timeText: String {
-        let remaining: TimeInterval =
-            switch self {
-            case .running(let value), .paused(let value): value
-            case .expired: 0
-            }
+  var timeText: String {
+    let remaining: TimeInterval =
+      switch self {
+      case .running(let value),
+           .paused(let value): value
+      case .expired: 0
+      }
 
-        let whole = Duration.seconds(ceil(remaining))
-        let pattern: Duration.TimeFormatStyle.Pattern =
-            whole >= .seconds(3_600) ? .hourMinuteSecond : .minuteSecond(padMinuteToLength: 2)
-        return whole.formatted(Duration.TimeFormatStyle(pattern: pattern).locale(.display))
-    }
+    let whole = Duration.seconds(ceil(remaining))
+    let pattern: Duration.TimeFormatStyle.Pattern =
+      whole >= .seconds(3_600) ? .hourMinuteSecond : .minuteSecond(padMinuteToLength: 2)
+    return whole.formatted(Duration.TimeFormatStyle(pattern: pattern).locale(.display))
+  }
 }
 
 enum BreakReminderIssue: Error {
-    case notificationsDeclined
-    /// refused earlier; macos prompts only once, so only system settings can allow notifications now.
-    case notificationsBlocked
-    case schedulingFailed
+  case notificationsDeclined
+  /// refused earlier; macos prompts only once, so only system settings can allow notifications now.
+  case notificationsBlocked
+  case schedulingFailed
 
-    var explanation: String {
-        switch self {
-        case .notificationsDeclined, .notificationsBlocked:
-            "Notifications are off. Allow them in System Settings, then resume the reminder."
-        case .schedulingFailed:
-            "Koogo couldn't schedule the notification. Resume the reminder to try again."
-        }
+  var explanation: String {
+    switch self {
+    case .notificationsDeclined,
+         .notificationsBlocked:
+      "Notifications are off. Allow them in System Settings, then resume the reminder."
+    case .schedulingFailed:
+      "Koogo couldn't schedule the notification. Resume the reminder to try again."
     }
+  }
 }
 
 enum BreakReminderCountdown: Codable, Equatable {
-    case scheduled(interval: BreakReminderInterval, deadline: Date)
-    case paused(interval: BreakReminderInterval, remaining: TimeInterval)
+  case scheduled(interval: BreakReminderInterval, deadline: Date)
+  case paused(interval: BreakReminderInterval, remaining: TimeInterval)
 
-    enum Action {
-        case toggle
-        case restart
-        case setInterval(BreakReminderInterval)
+  enum Action {
+    case toggle
+    case restart
+    case setInterval(BreakReminderInterval)
+  }
+
+  enum Change: Equatable {
+    case run(BreakReminderInterval, for: TimeInterval)
+    case pause(BreakReminderInterval, remaining: TimeInterval)
+  }
+
+  static let initial = Self.paused(interval: .oneHour, remaining: BreakReminderInterval.oneHour.duration)
+
+  var interval: BreakReminderInterval {
+    switch self {
+    case .scheduled(let interval, _),
+         .paused(let interval, _):
+      interval
     }
+  }
 
-    enum Change: Equatable {
-        case run(BreakReminderInterval, for: TimeInterval)
-        case pause(BreakReminderInterval, remaining: TimeInterval)
+  func isValid(at date: Date) -> Bool {
+    switch self {
+    case .scheduled(let interval, let deadline):
+      deadline.timeIntervalSince(date) <= interval.duration
+    case .paused(let interval, let remaining):
+      remaining > 0 && remaining <= interval.duration
     }
+  }
 
-    static let initial = Self.paused(interval: .oneHour, remaining: BreakReminderInterval.oneHour.duration)
+  func status(at date: Date) -> BreakReminderStatus {
+    switch self {
+    case .scheduled(_, let deadline):
+      deadline > date
+        ? .running(remaining: deadline.timeIntervalSince(date))
+        : .expired
 
-    var interval: BreakReminderInterval {
-        switch self {
-        case .scheduled(let interval, _), .paused(let interval, _):
-            interval
-        }
+    case .paused(_, let remaining):
+      .paused(remaining: remaining)
     }
+  }
 
-    func isValid(at date: Date) -> Bool {
-        switch self {
-        case .scheduled(let interval, let deadline):
-            deadline.timeIntervalSince(date) <= interval.duration
-        case .paused(let interval, let remaining):
-            remaining > 0 && remaining <= interval.duration
-        }
+  func change(for action: Action, at date: Date) -> Change? {
+    switch (action, status(at: date)) {
+    case (.toggle, .running(let remaining)):
+      .pause(interval, remaining: remaining)
+    case (.toggle, .paused(let remaining)):
+      .run(interval, for: remaining)
+    case (.toggle, .expired),
+         (.restart, _):
+      .run(interval, for: interval.duration)
+    case (.setInterval(let newInterval), _) where newInterval == interval:
+      nil
+    case (.setInterval(let newInterval), .running):
+      .run(newInterval, for: newInterval.duration)
+    case (.setInterval(let newInterval), .paused),
+         (.setInterval(let newInterval), .expired):
+      .pause(newInterval, remaining: newInterval.duration)
     }
-
-    func status(at date: Date) -> BreakReminderStatus {
-        switch self {
-        case .scheduled(_, let deadline):
-            deadline > date
-                ? .running(remaining: deadline.timeIntervalSince(date))
-                : .expired
-        case .paused(_, let remaining):
-            .paused(remaining: remaining)
-        }
-    }
-
-    func change(for action: Action, at date: Date) -> Change? {
-        switch (action, status(at: date)) {
-        case (.toggle, .running(let remaining)):
-            .pause(interval, remaining: remaining)
-        case (.toggle, .paused(let remaining)):
-            .run(interval, for: remaining)
-        case (.toggle, .expired), (.restart, _):
-            .run(interval, for: interval.duration)
-        case (.setInterval(let newInterval), _) where newInterval == interval:
-            nil
-        case (.setInterval(let newInterval), .running):
-            .run(newInterval, for: newInterval.duration)
-        case (.setInterval(let newInterval), .paused), (.setInterval(let newInterval), .expired):
-            .pause(newInterval, remaining: newInterval.duration)
-        }
-    }
+  }
 }

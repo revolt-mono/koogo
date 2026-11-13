@@ -5,115 +5,116 @@ import Synchronization
 
 /// filesystem events arrive asynchronously; syncs before delivery see changes on the next pass.
 final class LogDirectoryWatcher {
-    enum Changes {
-        /// changed directories use the root paths supplied to the watcher.
-        case directories(Set<String>)
-        case everything
+  init?(roots: [String]) {
+    inbox = Inbox(roots: roots.map { (Self.resolvingSymlinks($0), $0) })
+    var context = FSEventStreamContext(
+      version: 0,
+      info: Unmanaged.passUnretained(inbox).toOpaque(),
+      retain: nil,
+      release: nil,
+      copyDescription: nil,
+    )
+    let callback: FSEventStreamCallback = { _, info, count, paths, flags, _ in
+      guard let info, let paths = unsafeBitCast(paths, to: NSArray.self) as? [String] else {
+        return
+      }
+      let inbox = Unmanaged<Inbox>.fromOpaque(info).takeUnretainedValue()
+      for index in 0..<count {
+        inbox.record(paths[index], flags: flags[index])
+      }
+    }
+    // zero latency hands each change to the next sync without a coalescing delay.
+    guard
+      let stream = FSEventStreamCreate(
+        nil,
+        callback,
+        &context,
+        inbox.roots.map(\.resolved) as CFArray,
+        FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+        0,
+        FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagWatchRoot),
+      )
+    else {
+      return nil
+    }
+    self.stream = stream
+    FSEventStreamSetDispatchQueue(stream, queue)
+    guard FSEventStreamStart(stream) else {
+      return nil
+    }
+  }
+
+  deinit {
+    // stop on the callback queue so no callback can outlive the inbox.
+    queue.sync {
+      FSEventStreamStop(stream)
+      FSEventStreamInvalidate(stream)
+    }
+    FSEventStreamRelease(stream)
+  }
+
+  enum Changes {
+    /// changed directories use the root paths supplied to the watcher.
+    case directories(Set<String>)
+    case everything
+  }
+
+  /// retargeted symlinks can change resolved roots without a filesystem event.
+  func watches(_ roots: [String]) -> Bool {
+    inbox.roots.map(\.given) == roots && inbox.roots.allSatisfy { Self.resolvingSymlinks($0.given) == $0.resolved }
+  }
+
+  func takeChanges() -> Changes {
+    inbox.take()
+  }
+
+  private final class Inbox: Sendable {
+    init(roots: [(resolved: String, given: String)]) {
+      self.roots = roots
     }
 
-    private final class Inbox: Sendable {
-        private static let everythingFlags = FSEventStreamEventFlags(
-            kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped
-                | kFSEventStreamEventFlagEventIdsWrapped | kFSEventStreamEventFlagRootChanged
-                | kFSEventStreamEventFlagMount | kFSEventStreamEventFlagUnmount
-        )
+    let roots: [(resolved: String, given: String)]
 
-        let roots: [(resolved: String, given: String)]
-        /// nil once a change needs a full walk.
-        private let pending = Mutex<Set<String>?>([])
-
-        init(roots: [(resolved: String, given: String)]) {
-            self.roots = roots
+    func record(_ path: String, flags: FSEventStreamEventFlags) {
+      let directory = path.hasSuffix("/") ? String(path.dropLast()) : path
+      let given = roots.lazy.compactMap { root in
+        directory.isPath(within: root.resolved) ? root.given + directory.dropFirst(root.resolved.count) : nil
+      }.first
+      pending.withLock { pending in
+        if flags & Self.everythingFlags == 0, let given {
+          pending?.insert(given)
+        } else {
+          pending = nil
         }
-
-        func record(_ path: String, flags: FSEventStreamEventFlags) {
-            let directory = path.hasSuffix("/") ? String(path.dropLast()) : path
-            let given = roots.lazy.compactMap { root in
-                directory.isPath(within: root.resolved) ? root.given + directory.dropFirst(root.resolved.count) : nil
-            }.first
-            pending.withLock { pending in
-                if flags & Self.everythingFlags == 0, let given {
-                    pending?.insert(given)
-                } else {
-                    pending = nil
-                }
-            }
-        }
-
-        func take() -> Changes {
-            pending.withLock { pending in
-                defer { pending = [] }
-                return pending.map(Changes.directories) ?? .everything
-            }
-        }
+      }
     }
 
-    private let stream: FSEventStreamRef
-    private let queue = DispatchQueue(label: "com.revolt.koogo.log-directories", qos: .utility)
-    private let inbox: Inbox
-
-    init?(roots: [String]) {
-        inbox = Inbox(roots: roots.map { (Self.resolvingSymlinks($0), $0) })
-        var context = FSEventStreamContext(
-            version: 0,
-            info: Unmanaged.passUnretained(inbox).toOpaque(),
-            retain: nil,
-            release: nil,
-            copyDescription: nil
-        )
-        let callback: FSEventStreamCallback = { _, info, count, paths, flags, _ in
-            guard let info, let paths = unsafeBitCast(paths, to: NSArray.self) as? [String] else {
-                return
-            }
-            let inbox = Unmanaged<Inbox>.fromOpaque(info).takeUnretainedValue()
-            for index in 0..<count {
-                inbox.record(paths[index], flags: flags[index])
-            }
-        }
-        // zero latency hands each change to the next sync without a coalescing delay.
-        guard
-            let stream = FSEventStreamCreate(
-                nil,
-                callback,
-                &context,
-                inbox.roots.map(\.resolved) as CFArray,
-                FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-                0,
-                FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagWatchRoot)
-            )
-        else {
-            return nil
-        }
-        self.stream = stream
-        FSEventStreamSetDispatchQueue(stream, queue)
-        guard FSEventStreamStart(stream) else {
-            return nil
-        }
+    func take() -> Changes {
+      pending.withLock { pending in
+        defer { pending = [] }
+        return pending.map(Changes.directories) ?? .everything
+      }
     }
 
-    deinit {
-        // stop on the callback queue so no callback can outlive the inbox.
-        queue.sync {
-            FSEventStreamStop(stream)
-            FSEventStreamInvalidate(stream)
-        }
-        FSEventStreamRelease(stream)
-    }
+    private static let everythingFlags = FSEventStreamEventFlags(
+      kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped
+        | kFSEventStreamEventFlagEventIdsWrapped | kFSEventStreamEventFlagRootChanged
+        | kFSEventStreamEventFlagMount | kFSEventStreamEventFlagUnmount
+    )
 
-    /// retargeted symlinks can change resolved roots without a filesystem event.
-    func watches(_ roots: [String]) -> Bool {
-        inbox.roots.map(\.given) == roots && inbox.roots.allSatisfy { Self.resolvingSymlinks($0.given) == $0.resolved }
-    }
+    /// nil once a change needs a full walk.
+    private let pending = Mutex<Set<String>?>([])
+  }
 
-    func takeChanges() -> Changes {
-        inbox.take()
-    }
+  private let stream: FSEventStreamRef
+  private let queue = DispatchQueue(label: "com.revolt.koogo.log-directories", qos: .utility)
+  private let inbox: Inbox
 
-    private static func resolvingSymlinks(_ path: String) -> String {
-        guard let resolved = realpath(path, nil) else {
-            return path
-        }
-        defer { free(resolved) }
-        return String(cString: resolved)
+  private static func resolvingSymlinks(_ path: String) -> String {
+    guard let resolved = realpath(path, nil) else {
+      return path
     }
+    defer { free(resolved) }
+    return String(cString: resolved)
+  }
 }

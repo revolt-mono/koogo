@@ -1,140 +1,140 @@
 import SwiftUI
 
 struct ActivityPage: View {
-    @Environment(ActivityModel.self) private var activityModel
+  let isShown: Bool
 
-    let isShown: Bool
+  var body: some View {
+    PanelPageContent(activityModel.latest, loading: "Sampling…") { sample in
+      ScrollView {
+        VStack(alignment: .leading, spacing: PanelLayout.gap) {
+          HStack(alignment: .top, spacing: PanelLayout.gap) {
+            CPUSection(load: sample.cpu, cores: sample.cores, trend: activityModel.cpuTrend)
 
-    var body: some View {
-        PanelPageContent(activityModel.latest, loading: "Sampling…") { sample in
-            ScrollView {
-                VStack(alignment: .leading, spacing: PanelLayout.gap) {
-                    HStack(alignment: .top, spacing: PanelLayout.gap) {
-                        CPUSection(load: sample.cpu, cores: sample.cores, trend: activityModel.cpuTrend)
-
-                        if let gpu = sample.gpu {
-                            GPUSection(load: gpu, trend: activityModel.gpuTrend)
-                        }
-                    }
-
-                    MemorySection(usage: sample.memory)
-
-                    if let battery = sample.battery {
-                        BatterySection(state: battery, drawTrend: activityModel.drawTrend)
-                    }
-
-                    AppProcessList(groups: sample.processes, sampledAt: sample.taken)
-                }
+            if let gpu = sample.gpu {
+              GPUSection(load: gpu, trend: activityModel.gpuTrend)
             }
-            .panelPageScroll()
+          }
+
+          MemorySection(usage: sample.memory)
+
+          if let battery = sample.battery {
+            BatterySection(state: battery, drawTrend: activityModel.drawTrend)
+          }
+
+          AppProcessList(groups: sample.processes, sampledAt: sample.taken)
         }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .task(id: isShown) {
-            guard isShown else { return }
-            await activityModel.monitor()
-        }
+      }
+      .panelPageScroll()
     }
+    .frame(maxHeight: .infinity, alignment: .top)
+    .task(id: isShown) {
+      guard isShown else { return }
+      await activityModel.monitor()
+    }
+  }
+
+  @Environment(ActivityModel.self) private var activityModel
 }
 
 private struct CPUSection: View {
-    let load: CPULoad
-    let cores: CPUCores
-    let trend: [Double]
+  let load: CPULoad
+  let cores: CPUCores
+  let trend: [Double]
 
-    var body: some View {
-        let subtitle =
-            switch cores {
-            case .uniform(let count): "\(count) cores"
-            case .hybrid(let performance, let efficiency): "\(performance)P · \(efficiency)E"
-            }
-        ActivityLoadTile(
-            title: "CPU",
-            subtitle: subtitle,
-            headline: Measure(fraction: load.total),
-            details: [
-                "User": Measure(fraction: load.user).text,
-                "System": Measure(fraction: load.system).text,
-            ],
-            trend: trend
-        )
-    }
+  var body: some View {
+    let subtitle =
+      switch cores {
+      case .uniform(let count): "\(count) cores"
+      case .hybrid(let performance, let efficiency): "\(performance)P · \(efficiency)E"
+      }
+    ActivityLoadTile(
+      title: "CPU",
+      subtitle: subtitle,
+      headline: Measure(fraction: load.total),
+      details: [
+        "User": Measure(fraction: load.user).text,
+        "System": Measure(fraction: load.system).text,
+      ],
+      trend: trend,
+    )
+  }
 }
 
 private struct GPUSection: View {
-    let load: GPULoad
-    let trend: [Double]
+  let load: GPULoad
+  let trend: [Double]
 
-    var body: some View {
-        ActivityLoadTile(
-            title: "GPU",
-            subtitle: load.name,
-            headline: Measure(fraction: load.utilization),
-            details: [
-                "Render": Measure(fraction: load.renderer).text,
-                "Tile": Measure(fraction: load.tiler).text,
-            ],
-            trend: trend
-        )
-    }
+  var body: some View {
+    ActivityLoadTile(
+      title: "GPU",
+      subtitle: load.name,
+      headline: Measure(fraction: load.utilization),
+      details: [
+        "Render": Measure(fraction: load.renderer).text,
+        "Tile": Measure(fraction: load.tiler).text,
+      ],
+      trend: trend,
+    )
+  }
 }
 
 private struct MemorySection: View {
-    let usage: MemoryUsage
+  let usage: MemoryUsage
 
-    var body: some View {
-        PanelSection(
-            "Memory",
-            subtitle: "\(Measure(bytes: usage.used).text) of \(Measure(bytes: usage.total).text)"
-        ) {
-            VStack(spacing: 12) {
-                ActivityDetails(details: [
-                    "App": Measure(bytes: usage.app).text,
-                    "Wired": Measure(bytes: usage.wired).text,
-                    "Compressed": Measure(bytes: usage.compressed).text,
-                ])
+  var body: some View {
+    PanelSection(
+      "Memory",
+      subtitle: "\(Measure(bytes: usage.used).text) of \(Measure(bytes: usage.total).text)",
+    ) {
+      VStack(spacing: 12) {
+        ActivityDetails(details: [
+          "App": Measure(bytes: usage.app).text,
+          "Wired": Measure(bytes: usage.wired).text,
+          "Compressed": Measure(bytes: usage.compressed).text,
+        ])
 
-                let share = Double(usage.used) / Double(usage.total)
-                ProgressView(value: share)
-                    .progressViewStyle(.panel)
-                    .accessibilityLabel("Memory in use")
-                    .accessibilityValue(Measure(fraction: share).text)
-            }
-        }
+        let share = Double(usage.used) / Double(usage.total)
+        ProgressView(value: share)
+          .progressViewStyle(.panel)
+          .accessibilityLabel("Memory in use")
+          .accessibilityValue(Measure(fraction: share).text)
+      }
     }
+  }
 }
 
 private struct BatterySection: View {
-    let state: BatteryState
-    let drawTrend: [Double]
+  let state: BatteryState
+  let drawTrend: [Double]
 
-    var body: some View {
-        PanelSection("Battery", subtitle: supply) {
-            VStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    ActivityHeadline(measure: Measure(fraction: state.charge))
+  var body: some View {
+    PanelSection("Battery", subtitle: supply) {
+      VStack(spacing: 12) {
+        HStack(spacing: 12) {
+          ActivityHeadline(measure: Measure(fraction: state.charge))
 
-                    ActivityDetails(details: [
-                        "Draw": state.draw.map { Measure(watts: $0).text } ?? "–",
-                        "Health": Measure(fraction: state.health).text,
-                        "Cycles": "\(state.cycles)",
-                    ])
-                }
-
-                if !drawTrend.isEmpty {
-                    ActivityTrendChart(trend: drawTrend)
-                }
-            }
+          ActivityDetails(details: [
+            "Draw": state.draw.map { Measure(watts: $0).text } ?? "–",
+            "Health": Measure(fraction: state.health).text,
+            "Cycles": "\(state.cycles)",
+          ])
         }
-    }
 
-    private var supply: String {
-        let estimate = { (time: Duration) in time.formatted(.displayUnits(allowed: [.hours, .minutes])) }
-        return switch state.supply {
-        case .charging(let timeToFull?): "charging · \(estimate(timeToFull)) to full"
-        case .charging(nil): "charging"
-        case .external: "on power"
-        case .discharging(let timeToEmpty?): "\(estimate(timeToEmpty)) left"
-        case .discharging(nil): "on battery"
+        if !drawTrend.isEmpty {
+          ActivityTrendChart(trend: drawTrend)
         }
+      }
     }
+  }
+
+  private var supply: String {
+    let estimate = { (time: Duration) in time.formatted(.displayUnits(allowed: [.hours, .minutes])) }
+    return switch state.supply {
+    case .charging(let timeToFull?): "charging · \(estimate(timeToFull)) to full"
+    case .charging(nil): "charging"
+    case .external: "on power"
+    case .discharging(let timeToEmpty?): "\(estimate(timeToEmpty)) left"
+    case .discharging(nil): "on battery"
+    }
+  }
 }

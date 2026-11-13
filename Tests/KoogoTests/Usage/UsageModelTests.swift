@@ -4,51 +4,51 @@ import XCTest
 
 @MainActor
 final class UsageModelTests: UsageWorkspaceTestCase {
-    func testQueuedRefreshUsesTheInjectedDate() async throws {
-        try workspace.write(
-            codexLog(input: 100, output: 20),
-            to: workspace.codexSessions.appending(path: "session.jsonl")
-        )
-        var date = usageTestTimestamp
-        let model = UsageModel(pipeline: makePipeline()) { date }
+  func testQueuedRefreshUsesTheInjectedDate() async throws {
+    try workspace.write(
+      CodexLog.session(input: 100, output: 20),
+      to: workspace.codexSessions.appending(path: "session.jsonl"),
+    )
+    var date = UsageFixture.timestamp
+    let model = UsageModel(pipeline: makePipeline()) { date }
 
-        XCTAssertNil(model.snapshot)
-        model.refresh(providers: Provider.allCases)
-        date.addTimeInterval(86_400)
-        model.refresh(providers: Provider.allCases)
+    XCTAssertNil(model.snapshot)
+    model.refresh(providers: Provider.allCases)
+    date.addTimeInterval(86_400)
+    model.refresh(providers: Provider.allCases)
 
-        try await waitUntil { model.snapshot?.todayTokens(.codex) == 0 }
-        XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.periods[.last30Days].total.processedTokens, 120)
-    }
+    try await Poll.until { model.snapshot?.todayTokens(.codex) == 0 }
+    XCTAssertEqual(try XCTUnwrap(model.snapshot).providers[.codex]?.periods[.last30Days].total.processedTokens, 120)
+  }
 
-    func testAQueuedRefreshUsesItsOwnProviderSet() async throws {
-        try workspace.write(
-            codexLog(input: 100, output: 20),
-            to: workspace.codexSessions.appending(path: "session.jsonl")
-        )
-        let model = UsageModel(pipeline: makePipeline(), now: { usageTestTimestamp })
+  func testAQueuedRefreshUsesItsOwnProviderSet() async throws {
+    try workspace.write(
+      CodexLog.session(input: 100, output: 20),
+      to: workspace.codexSessions.appending(path: "session.jsonl"),
+    )
+    let model = UsageModel(pipeline: makePipeline(), now: { UsageFixture.timestamp })
 
-        model.refresh(providers: Provider.allCases)
-        model.refresh(providers: [.claude, .piAgent, .grok])
-        try await waitUntil { model.snapshot != nil && model.snapshot?.providers[.codex] == nil }
+    model.refresh(providers: Provider.allCases)
+    model.refresh(providers: [.claude, .piAgent, .grok])
+    try await Poll.until { model.snapshot != nil && model.snapshot?.providers[.codex] == nil }
 
-        let snapshot = try XCTUnwrap(model.snapshot)
-        XCTAssertEqual(Set(snapshot.providers.keys), [.claude, .piAgent, .grok])
-        XCTAssertEqual(snapshot.summary.today.current.processedTokens, 0)
-    }
+    let snapshot = try XCTUnwrap(model.snapshot)
+    XCTAssertEqual(Set(snapshot.providers.keys), [.claude, .piAgent, .grok])
+    XCTAssertEqual(snapshot.summary.today.current.processedTokens, 0)
+  }
 
-    func testRefreshSkipsProvidersWithoutHomeUntilTheyAppear() async throws {
-        let grokHome = workspace.home(of: .grok)
-        try FileManager.default.removeItem(at: grokHome)
-        let model = UsageModel(pipeline: makePipeline(), now: { usageTestTimestamp })
+  func testRefreshSkipsProvidersWithoutHomeUntilTheyAppear() async throws {
+    let grokHome = workspace.home(of: .grok)
+    try FileManager.default.removeItem(at: grokHome)
+    let model = UsageModel(pipeline: makePipeline(), now: { UsageFixture.timestamp })
 
-        model.refresh(providers: Provider.allCases)
-        try await waitUntil { model.snapshot != nil }
-        XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), [.codex, .claude, .piAgent])
+    model.refresh(providers: Provider.allCases)
+    try await Poll.until { model.snapshot != nil }
+    XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), [.codex, .claude, .piAgent])
 
-        try FileManager.default.createDirectory(at: grokHome, withIntermediateDirectories: true)
-        model.refresh(providers: Provider.allCases)
-        try await waitUntil { model.snapshot?.providers[.grok] != nil }
-        XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), Set(Provider.allCases))
-    }
+    try FileManager.default.createDirectory(at: grokHome, withIntermediateDirectories: true)
+    model.refresh(providers: Provider.allCases)
+    try await Poll.until { model.snapshot?.providers[.grok] != nil }
+    XCTAssertEqual(Set(try XCTUnwrap(model.snapshot).providers.keys), Set(Provider.allCases))
+  }
 }

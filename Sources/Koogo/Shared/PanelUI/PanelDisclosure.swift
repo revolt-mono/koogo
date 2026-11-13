@@ -2,62 +2,62 @@ import AppKit
 import SwiftUI
 
 extension NSEvent {
-    /// each press toggles the popover, including presses within a native multi-click.
-    @MainActor
-    func independentClick(in view: NSView) -> NSEvent {
-        guard clickCount > 1, isInside(view) else { return self }
-        return NSEvent.mouseEvent(
-            with: type,
-            location: locationInWindow,
-            modifierFlags: modifierFlags,
-            timestamp: timestamp,
-            windowNumber: windowNumber,
-            context: nil,
-            eventNumber: eventNumber,
-            clickCount: 1,
-            pressure: pressure
-        ) ?? self
-    }
+  /// each press toggles the popover, including presses within a native multi-click.
+  @MainActor
+  func independentClick(in view: NSView) -> NSEvent {
+    guard clickCount > 1, isInside(view) else { return self }
+    return NSEvent.mouseEvent(
+      with: type,
+      location: locationInWindow,
+      modifierFlags: modifierFlags,
+      timestamp: timestamp,
+      windowNumber: windowNumber,
+      context: nil,
+      eventNumber: eventNumber,
+      clickCount: 1,
+      pressure: pressure,
+    ) ?? self
+  }
 }
 
 struct PanelDisclosure<Label: View, Content: View>: View {
-    @State private var isPresented = false
+  @ContentBuilder let label: (_ isPresented: Bool) -> Label
+  @ContentBuilder let content: () -> Content
 
-    @ViewBuilder let label: (_ isPresented: Bool) -> Label
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        Button {
-            isPresented.toggle()
-        } label: {
-            label(isPresented)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
-        .onLocalEvent([.leftMouseDown, .leftMouseUp]) { event, view in
-            event.independentClick(in: view)
-        }
-        .popover(isPresented: $isPresented, arrowEdge: .trailing) {
-            content()
-                .font(.system(size: 11, weight: .medium))
-                .frame(width: 264, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(16)
-        }
-        .onScrollVisibilityChange(threshold: 0.1) { isVisible in
-            if !isVisible {
-                isPresented = false
-            }
-        }
-        .onDisappear {
-            isPresented = false
-        }
+  var body: some View {
+    Button {
+      isPresented.toggle()
+    } label: {
+      label(isPresented)
+        .contentShape(.rect)
     }
+    .buttonStyle(.plain)
+    .accessibilityValue(isPresented ? "Expanded" : "Collapsed")
+    .onLocalEvent([.leftMouseDown, .leftMouseUp]) { event, view in
+      event.independentClick(in: view)
+    }
+    .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+      content()
+        .font(.system(size: 11, weight: .medium))
+        .frame(width: 264, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(16)
+    }
+    .onScrollVisibilityChange(threshold: 0.1) { isVisible in
+      if !isVisible {
+        isPresented = false
+      }
+    }
+    .onDisappear {
+      isPresented = false
+    }
+  }
+
+  @State private var isPresented = false
 }
 
 extension PanelDisclosure {
-    init(@ViewBuilder label: @escaping () -> Label, @ViewBuilder content: @escaping () -> Content) {
-        self.init(label: { _ in label() }, content: content)
-    }
+  init(@ContentBuilder label: @escaping () -> Label, @ContentBuilder content: @escaping () -> Content) {
+    self.init(label: { _ in label() }, content: content)
+  }
 }

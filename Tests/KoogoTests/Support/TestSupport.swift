@@ -5,81 +5,89 @@ import XCTest
 @testable import Koogo
 
 extension EnumMap: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (Key, Value)...) {
-        let values = Dictionary(uniqueKeysWithValues: elements)
-        precondition(values.count == Key.allCases.count, "a literal must cover every case")
-        self.init { values[$0]! }
-    }
+  public init(dictionaryLiteral elements: (Key, Value)...) {
+    let values = Dictionary(uniqueKeysWithValues: elements)
+    precondition(values.count == Key.allCases.count, "a literal must cover every case")
+    self.init { values[$0]! }
+  }
 }
 
 extension XCTestCase {
-    func makeTemporaryDirectory() throws -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        addTeardownBlock {
-            try? FileManager.default.removeItem(at: directory)
-        }
-        return directory
+  func makeTemporaryDirectory() throws -> URL {
+    let directory = FileManager.default.temporaryDirectory
+      .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    addTeardownBlock {
+      try? FileManager.default.removeItem(at: directory)
     }
+    return directory
+  }
 
-    func makeIsolatedDefaults() throws -> UserDefaults {
-        let suiteName = "KoogoTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        addTeardownBlock {
-            UserDefaults.standard.removePersistentDomain(forName: suiteName)
-        }
-        return defaults
+  func makeIsolatedDefaults() throws -> UserDefaults {
+    let suiteName = "KoogoTests.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    addTeardownBlock {
+      UserDefaults.standard.removePersistentDomain(forName: suiteName)
     }
+    return defaults
+  }
 }
 
-/// memory measurements need a quiet process, so they run separately on request.
-func skipUnlessMeasuringMemory() throws {
+enum Poll {
+  static func until(
+    isolation _: isolated (any Actor)? = #isolation,
+    timeout: Duration = .seconds(5),
+    file: StaticString = #filePath,
+    line: UInt = #line,
+    _ condition: () -> Bool,
+  ) async throws {
+    let deadline = ContinuousClock.now + timeout
+    var met = condition()
+    while !met, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(10))
+      met = condition()
+    }
+    XCTAssertTrue(met, "condition not met within timeout", file: file, line: line)
+  }
+}
+
+enum MemoryMeasurement {
+  /// memory measurements need a quiet process, so they run separately on request.
+  static func skipUnlessRequested() throws {
     try XCTSkipUnless(
-        ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1",
-        "Run separately with KOOGO_MEMORY_TESTS=1."
+      ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1",
+      "Run separately with KOOGO_MEMORY_TESTS=1.",
     )
+  }
+
+  static func allocatedHeapBytes() -> Int {
+    var statistics = malloc_statistics_t()
+    malloc_zone_statistics(malloc_default_zone(), &statistics)
+    return statistics.size_in_use
+  }
 }
 
-func makeTestExecutable(in directory: URL, script: String) throws -> URL {
+enum TestExecutable {
+  static func make(in directory: URL, script: String) throws -> URL {
     let executable = directory.appending(path: UUID().uuidString)
     try script.write(to: executable, atomically: true, encoding: .utf8)
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
     return executable
-}
-
-func waitUntil(
-    isolation: isolated (any Actor)? = #isolation,
-    timeout: Duration = .seconds(5),
-    file: StaticString = #filePath,
-    line: UInt = #line,
-    _ condition: () -> Bool
-) async throws {
-    let deadline = ContinuousClock.now + timeout
-    var met = condition()
-    while !met, ContinuousClock.now < deadline {
-        try await Task.sleep(for: .milliseconds(10))
-        met = condition()
-    }
-    XCTAssertTrue(met, "condition not met within timeout", file: file, line: line)
-}
-
-func allocatedHeapBytes() -> Int {
-    var statistics = malloc_statistics_t()
-    malloc_zone_statistics(malloc_default_zone(), &statistics)
-    return statistics.size_in_use
+  }
 }
 
 final class Counter: Sendable {
-    private let count = Mutex(0)
+  var value: Int {
+    count.withLock { $0 }
+  }
 
-    var value: Int { count.withLock { $0 } }
-
-    @discardableResult
-    func increment() -> Int {
-        count.withLock {
-            $0 += 1
-            return $0
-        }
+  @discardableResult
+  func increment() -> Int {
+    count.withLock {
+      $0 += 1
+      return $0
     }
+  }
+
+  private let count = Mutex(0)
 }

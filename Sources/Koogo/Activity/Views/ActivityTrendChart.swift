@@ -1,39 +1,39 @@
 import SwiftUI
 
 struct ActivityTrendChart: View {
-    /// samples run oldest first, as fractions of chart height.
-    let trend: [Double]
+  /// samples run oldest first, as fractions of chart height.
+  let trend: [Double]
 
-    @Environment(\.displayScale) private var displayScale
+  var body: some View {
+    TrendBars(values: trend, displayScale: displayScale)
+      .fill(.panelLabel)
+      .frame(height: 32)
+      .accessibilityHidden(true)
+  }
 
-    var body: some View {
-        TrendBars(values: trend, displayScale: displayScale)
-            .fill(.panelLabel)
-            .frame(height: 32)
-            .accessibilityHidden(true)
-    }
+  @Environment(\.displayScale) private var displayScale
 }
 
 private struct TrendBars: Shape {
-    private static let slotWidth: CGFloat = 4
-    private static let gap: CGFloat = 1
+  var values: [Double]
+  let displayScale: CGFloat
 
-    var values: [Double]
-    let displayScale: CGFloat
+  var animatableData: AnimatableValues {
+    get { AnimatableValues(values) }
+    set { values = newValue.values }
+  }
 
-    var animatableData: AnimatableValues {
-        get { AnimatableValues(values) }
-        set { values = newValue.values }
+  func path(in rect: CGRect) -> Path {
+    var path = Path()
+    for (index, value) in values.suffix(Int(rect.width / Self.slotWidth)).enumerated() where value > 0 {
+      let left = (Self.slotWidth * CGFloat(index) + Self.gap / 2).pixelSnapped(scale: displayScale)
+      let right = (Self.slotWidth * CGFloat(index + 1) - Self.gap / 2).pixelSnapped(scale: displayScale)
+      let height = rect.height * value
+      path.addRect(CGRect(x: rect.minX + left, y: rect.maxY - height, width: right - left, height: height))
     }
+    return path
+  }
 
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        for (index, value) in values.suffix(Int(rect.width / Self.slotWidth)).enumerated() where value > 0 {
-            let left = (Self.slotWidth * CGFloat(index) + Self.gap / 2).pixelSnapped(scale: displayScale)
-            let right = (Self.slotWidth * CGFloat(index + 1) - Self.gap / 2).pixelSnapped(scale: displayScale)
-            let height = rect.height * value
-            path.addRect(CGRect(x: rect.minX + left, y: rect.maxY - height, width: right - left, height: height))
-        }
-        return path
-    }
+  private static let slotWidth: CGFloat = 4
+  private static let gap: CGFloat = 1
 }

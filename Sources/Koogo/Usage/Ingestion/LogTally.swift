@@ -1,22 +1,23 @@
 import Foundation
 
 struct LogTally: Sendable {
-    private(set) var malformedLines = 0
-    private var unpricedModels: [ModelID: Date] = [:]
+  private(set) var malformedLines = 0
 
-    var unpricedModelIDs: some Collection<ModelID> {
-        unpricedModels.keys
-    }
+  var unpricedModelIDs: some Collection<ModelID> {
+    unpricedModels.keys
+  }
 
-    mutating func noteMalformedLine() {
-        malformedLines += 1
-    }
+  mutating func noteMalformedLine() {
+    malformedLines += 1
+  }
 
-    mutating func noteUnpricedModel(_ id: ModelID, at timestamp: Date) {
-        unpricedModels[id] = max(unpricedModels[id] ?? .distantPast, timestamp)
-    }
+  mutating func noteUnpricedModel(_ id: ModelID, at timestamp: Date) {
+    unpricedModels[id] = max(unpricedModels[id] ?? .distantPast, timestamp)
+  }
 
-    mutating func discard(before windowStart: Date) {
-        unpricedModels = unpricedModels.filter { $0.value >= windowStart }
-    }
+  mutating func discard(before windowStart: Date) {
+    unpricedModels = unpricedModels.filter { $0.value >= windowStart }
+  }
+
+  private var unpricedModels = [ModelID: Date]()
 }

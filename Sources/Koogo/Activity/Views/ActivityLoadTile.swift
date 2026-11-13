@@ -1,65 +1,65 @@
 import SwiftUI
 
 struct ActivityLoadTile: View {
-    let title: String
-    let subtitle: String
-    let headline: Measure
-    let details: KeyValuePairs<String, String>
-    let trend: [Double]
+  let title: String
+  let subtitle: String
+  let headline: Measure
+  let details: KeyValuePairs<String, String>
+  let trend: [Double]
 
-    var body: some View {
-        PanelSection {
-            VStack(alignment: .leading, spacing: 4) {
-                PanelSectionTitle(title: title, subtitle: subtitle)
+  var body: some View {
+    PanelSection {
+      VStack(alignment: .leading, spacing: 4) {
+        PanelSectionTitle(title: title, subtitle: subtitle)
 
-                ActivityHeadline(measure: headline)
-            }
-        } content: {
-            VStack(spacing: 12) {
-                ActivityDetails(details: details)
+        ActivityHeadline(measure: headline)
+      }
+    } content: {
+      VStack(spacing: 12) {
+        ActivityDetails(details: details)
 
-                ActivityTrendChart(trend: trend)
-            }
-        }
-        .frame(maxWidth: .infinity)
+        ActivityTrendChart(trend: trend)
+      }
     }
+    .frame(maxWidth: .infinity)
+  }
 }
 
 struct ActivityHeadline: View {
-    let measure: Measure
+  let measure: Measure
 
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(measure.value)
-                .font(.system(size: 18, weight: .bold))
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 4) {
+      Text(measure.value)
+        .font(.system(size: 18, weight: .bold))
 
-            Text(measure.unit)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .monospacedDigit()
-        .accessibilityElement(children: .combine)
+      Text(measure.unit)
+        .font(.system(size: 10, weight: .medium))
+        .foregroundStyle(.secondary)
     }
+    .monospacedDigit()
+    .accessibilityElement(children: .combine)
+  }
 }
 
 struct ActivityDetails: View {
-    let details: KeyValuePairs<String, String>
+  let details: KeyValuePairs<String, String>
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            ForEach(details, id: \.key) { detail in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(detail.key)
-                        .foregroundStyle(.secondary)
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      ForEach(details, id: \.key) { detail in
+        VStack(alignment: .leading, spacing: 2) {
+          Text(detail.key)
+            .foregroundStyle(.secondary)
 
-                    Text(detail.value)
-                        .fontWeight(.semibold)
-                        .monospacedDigit()
-                }
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+          Text(detail.value)
+            .fontWeight(.semibold)
+            .monospacedDigit()
         }
-        .font(.system(size: 9, weight: .medium))
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
     }
+    .font(.system(size: 9, weight: .medium))
+  }
 }

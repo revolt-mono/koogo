@@ -1,76 +1,85 @@
 import SwiftUI
 
 enum PanelLayout {
-    static let inset: CGFloat = 20
-    static let gap: CGFloat = 12
-    static let pageIndicatorInset: CGFloat = 32
+  static let inset: CGFloat = 20
+  static let gap: CGFloat = 12
+  static let pageIndicatorInset: CGFloat = 32
 }
 
 struct PanelSection<Header: View, Content: View>: View {
-    @ViewBuilder let header: Header
-    @ViewBuilder let content: Content
+  @ContentBuilder let header: Header
+  @ContentBuilder let content: Content
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            header
-                .padding(.horizontal, 6)
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      header
+        .padding(.horizontal, 6)
 
-            content
-                .panelCard()
-        }
+      content
+        .panelCard()
     }
+  }
 }
 
 extension PanelSection where Header == PanelSectionTitle {
-    init(_ title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content) {
-        self.init(header: { PanelSectionTitle(title: title, subtitle: subtitle) }, content: content)
-    }
+  init(_ title: String, subtitle: String? = nil, @ContentBuilder content: () -> Content) {
+    self.init(header: { PanelSectionTitle(title: title, subtitle: subtitle) }, content: content)
+  }
 }
 
 extension View {
-    func panelCard() -> some View {
-        padding(12).background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
+  func panelCard() -> some View {
+    padding(12).background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+  }
 }
 
 struct PanelSectionTitle: View {
-    let title: String
-    var subtitle: String?
+  let title: String
+  var subtitle: String?
 
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(title)
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Text(title)
 
-            if let subtitle {
-                Spacer(minLength: 0)
+      if let subtitle {
+        Spacer(minLength: 0)
 
-                Text(subtitle)
-                    .lineLimit(1)
-            }
-        }
-        .font(.system(size: 10, weight: .semibold))
-        .foregroundStyle(.secondary)
+        Text(subtitle)
+          .lineLimit(1)
+      }
     }
+    .font(.system(size: 10, weight: .semibold))
+    .foregroundStyle(.secondary)
+  }
 }
 
 struct PanelProgressViewStyle: ProgressViewStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Color.panelLabel
-            .scaleEffect(x: configuration.fractionCompleted ?? 0, anchor: .leading)
-            .frame(height: 5)
-            .background(Color.panelLabel.opacity(0.10))
-            .clipShape(Capsule())
-    }
+  func makeBody(configuration: Configuration) -> some View {
+    Color.panelLabel
+      .scaleEffect(x: configuration.fractionCompleted ?? 0, anchor: .leading)
+      .frame(height: 5)
+      .background(Color.panelLabel.opacity(0.10))
+      .clipShape(Capsule())
+  }
 }
 
 extension ProgressViewStyle where Self == PanelProgressViewStyle {
-    static var panel: PanelProgressViewStyle { PanelProgressViewStyle() }
+  static var panel: PanelProgressViewStyle {
+    PanelProgressViewStyle()
+  }
 }
 
 extension ShapeStyle where Self == Color {
-    static var panelRaised: Color { .white.opacity(0.06) }
-    static var panelCard: Color { .white.opacity(0.024) }
+  static var panelRaised: Color {
+    .white.opacity(0.06)
+  }
 
-    /// the primary swiftui color turns gray under glass vibrancy; a gradient text style drops page slides to 60 hz because the window server redraws every glyph mask each frame.
-    static var panelLabel: Color { Color(white: 0xFC / 255) }
+  static var panelCard: Color {
+    .white.opacity(0.024)
+  }
+
+  /// the primary swiftui color turns gray under glass vibrancy; a gradient text style drops page slides to 60 hz because the window server redraws every glyph mask each frame.
+  static var panelLabel: Color {
+    Color(white: 0xFC / 255)
+  }
 }

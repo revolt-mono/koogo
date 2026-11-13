@@ -1,49 +1,49 @@
 import Foundation
 
 struct QuotaWindow: Equatable, Sendable, Encodable {
-    let title: String
-    let usedPercent: Int
-    let resetsAt: Date?
+  init(title: String, usedPercent: Double, resetsAt: Date?) {
+    self.title = title
+    self.usedPercent = Int(min(max(usedPercent, 0), 100))
+    self.resetsAt = resetsAt
+  }
 
-    init(title: String, usedPercent: Double, resetsAt: Date?) {
-        self.title = title
-        self.usedPercent = Int(min(max(usedPercent, 0), 100))
-        self.resetsAt = resetsAt
-    }
+  let title: String
+  let usedPercent: Int
+  let resetsAt: Date?
 }
 
 struct QuotaSnapshot: Equatable, Sendable, Encodable {
-    enum Credits: Equatable, Sendable, Encodable {
-        case balance(amount: Double)
-        case available
-        case unlimited
+  init?(plan: String? = nil, windows: [QuotaWindow], credits: Credits? = nil, resetCredits: ResetCredits? = nil) {
+    guard !windows.isEmpty || credits != nil || resetCredits != nil else { return nil }
+    self.plan = plan?.trimmingCharacters(in: .whitespaces).nonEmpty
+    self.windows = windows
+    self.credits = credits
+    self.resetCredits = resetCredits
+  }
+
+  enum Credits: Equatable, Sendable, Encodable {
+    case balance(amount: Double)
+    case available
+    case unlimited
+  }
+
+  struct ResetCredits: Equatable, Sendable, Encodable {
+    let availableCount: UInt64
+    let credits: [ResetCredit]?
+  }
+
+  struct ResetCredit: Equatable, Identifiable, Sendable, Encodable {
+    let id: String
+    let title: String
+    let expiresAt: Date?
+
+    func canUse(at date: Date) -> Bool {
+      expiresAt.map { $0 > date } ?? true
     }
+  }
 
-    struct ResetCredits: Equatable, Sendable, Encodable {
-        let availableCount: UInt64
-        let credits: [ResetCredit]?
-    }
-
-    struct ResetCredit: Equatable, Identifiable, Sendable, Encodable {
-        let id: String
-        let title: String
-        let expiresAt: Date?
-
-        func canUse(at date: Date) -> Bool {
-            expiresAt.map { $0 > date } ?? true
-        }
-    }
-
-    let plan: String?
-    let windows: [QuotaWindow]
-    let credits: Credits?
-    let resetCredits: ResetCredits?
-
-    init?(plan: String? = nil, windows: [QuotaWindow], credits: Credits? = nil, resetCredits: ResetCredits? = nil) {
-        guard !windows.isEmpty || credits != nil || resetCredits != nil else { return nil }
-        self.plan = plan?.trimmingCharacters(in: .whitespaces).nonEmpty
-        self.windows = windows
-        self.credits = credits
-        self.resetCredits = resetCredits
-    }
+  let plan: String?
+  let windows: [QuotaWindow]
+  let credits: Credits?
+  let resetCredits: ResetCredits?
 }

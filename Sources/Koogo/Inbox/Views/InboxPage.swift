@@ -1,137 +1,138 @@
 import SwiftUI
 
 struct InboxPage: View {
-    @Environment(InboxModel.self) private var inboxModel
-    @State private var editingID: Todo.ID?
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      VStack(alignment: .leading, spacing: PanelLayout.gap) {
+        TodoEditor { inboxModel.add($0, priority: $1) }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: PanelLayout.gap) {
-                TodoEditor { inboxModel.add($0, priority: $1) }
+        HStack(spacing: 8) {
+          Text(inboxModel.openSummary)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack(spacing: 8) {
-                    Text(inboxModel.openSummary)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button("Clear done", systemImage: "trash") {
-                        inboxModel.clearCompleted()
-                    }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(inboxModel.hasCompleted ? Color.red : Color.secondary)
-                    .disabled(!inboxModel.hasCompleted)
-                }
-                .font(.system(size: 10, weight: .medium))
-            }
-            .padding(.horizontal, PanelLayout.inset)
-
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(inboxModel.todos) { todo in
-                        if todo.id != inboxModel.todos.first?.id {
-                            DashedLine()
-                                .stroke(.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                                .frame(height: 1)
-                        }
-                        TodoRow(todo: todo, editingID: $editingID)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .top)
-            }
-            .panelPageScroll()
+          Button("Clear done", systemImage: "trash") {
+            inboxModel.clearCompleted()
+          }
+          .labelStyle(.iconOnly)
+          .buttonStyle(.borderless)
+          .foregroundStyle(inboxModel.hasCompleted ? Color.red : Color.secondary)
+          .disabled(!inboxModel.hasCompleted)
         }
-        .frame(maxHeight: .infinity, alignment: .top)
+        .font(.system(size: 10, weight: .medium))
+      }
+      .padding(.horizontal, PanelLayout.inset)
+
+      ScrollView {
+        LazyVStack(spacing: 0) {
+          ForEach(inboxModel.todos) { todo in
+            if todo.id != inboxModel.todos.first?.id {
+              DashedLine()
+                .stroke(.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                .frame(height: 1)
+            }
+            TodoRow(todo: todo, editingID: $editingID)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+      }
+      .panelPageScroll()
     }
+    .frame(maxHeight: .infinity, alignment: .top)
+  }
+
+  @Environment(InboxModel.self) private var inboxModel
+  @State private var editingID: Todo.ID?
 }
 
 private struct DashedLine: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path { path in
-            path.move(to: CGPoint(x: rect.minX, y: rect.midY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        }
+  func path(in rect: CGRect) -> Path {
+    Path { path in
+      path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+      path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
     }
+  }
 }
 
 private struct TodoRow: View {
-    let todo: Todo
-    @Binding var editingID: Todo.ID?
+  let todo: Todo
 
-    @Environment(InboxModel.self) private var inboxModel
+  @Binding var editingID: Todo.ID?
 
-    var body: some View {
-        let isEditing = editingID == todo.id
-        HStack(spacing: 8) {
-            Button {
-                inboxModel.toggleCompleted(todo.id)
-            } label: {
-                Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 18, height: 18)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(todo.isCompleted ? Color.accentColor : Color.secondary)
-            .accessibilityLabel(todo.isCompleted ? "Mark incomplete" : "Mark complete")
+  var body: some View {
+    let isEditing = editingID == todo.id
+    HStack(spacing: 8) {
+      Button {
+        inboxModel.toggleCompleted(todo.id)
+      } label: {
+        Image(systemName: todo.isCompleted ? "checkmark.circle.fill" : "circle")
+          .font(.system(size: 12, weight: .medium))
+          .frame(width: 18, height: 18)
+          .contentShape(.rect)
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(todo.isCompleted ? Color.accentColor : Color.secondary)
+      .accessibilityLabel(todo.isCompleted ? "Mark incomplete" : "Mark complete")
 
-            Image(systemName: todo.priority.symbolName)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(todo.priority.color)
-                .frame(width: 14, height: 18)
-                .accessibilityLabel("\(todo.priority.title) priority")
+      Image(systemName: todo.priority.symbolName)
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(todo.priority.color)
+        .frame(width: 14, height: 18)
+        .accessibilityLabel("\(todo.priority.title) priority")
 
-            if isEditing {
-                TodoInlineEditor(text: todo.text, onFinish: finishEditing)
-            } else {
-                Text(todo.text.value)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(todo.isCompleted ? .secondary : .primary)
-                    .strikethrough(todo.isCompleted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(.rect)
-                    .onTapGesture(count: 2) {
-                        editingID = todo.id
-                    }
-            }
-        }
-        .padding(8)
-        .background(
-            Color.accentColor.opacity(isEditing ? 0.16 : 0),
-            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-        )
-        .padding(.vertical, 2)
-        .padding(.horizontal, -8)
-        .contextMenu {
-            Button("Edit") {
-                editingID = todo.id
-            }
-
-            Picker(
-                "Priority",
-                selection: Binding(
-                    get: { todo.priority },
-                    set: { inboxModel.setPriority($0, of: todo.id) }
-                )
-            ) {
-                ForEach(TodoPriority.allCases, id: \.self) { priority in
-                    Text(priority.title)
-                        .tag(priority)
-                }
-            }
-            .pickerStyle(.menu)
-
-            Button("Delete", role: .destructive) {
-                inboxModel.delete(todo.id)
-            }
-        }
+      if isEditing {
+        TodoInlineEditor(text: todo.text, onFinish: finishEditing)
+      } else {
+        Text(todo.text.value)
+          .font(.system(size: 10, weight: .medium))
+          .foregroundStyle(todo.isCompleted ? .secondary : .primary)
+          .strikethrough(todo.isCompleted)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(.rect)
+          .onTapGesture(count: 2) {
+            editingID = todo.id
+          }
+      }
     }
+    .padding(8)
+    .background(
+      Color.accentColor.opacity(isEditing ? 0.16 : 0),
+      in: RoundedRectangle(cornerRadius: 7, style: .continuous),
+    )
+    .padding(.vertical, 2)
+    .padding(.horizontal, -8)
+    .contextMenu {
+      Button("Edit") {
+        editingID = todo.id
+      }
 
-    private func finishEditing(_ text: TodoText?) {
-        if let text {
-            inboxModel.setText(text, of: todo.id)
+      Picker(
+        "Priority",
+        selection: Binding(
+          get: { todo.priority },
+          set: { inboxModel.setPriority($0, of: todo.id) },
+        ),
+      ) {
+        ForEach(TodoPriority.allCases, id: \.self) { priority in
+          Text(priority.title)
+            .tag(priority)
         }
-        editingID = nil
+      }
+      .pickerStyle(.menu)
+
+      Button("Delete", role: .destructive) {
+        inboxModel.delete(todo.id)
+      }
     }
+  }
+
+  @Environment(InboxModel.self) private var inboxModel
+
+  private func finishEditing(_ text: TodoText?) {
+    if let text {
+      inboxModel.setText(text, of: todo.id)
+    }
+    editingID = nil
+  }
 }

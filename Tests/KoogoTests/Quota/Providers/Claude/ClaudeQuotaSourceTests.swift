@@ -3,142 +3,157 @@ import XCTest
 @testable import Koogo
 
 final class ClaudeQuotaSourceTests: XCTestCase {
-    func testFetchSendsOneIsolatedUsageRequestAndReadsThePlanWindows() async throws {
-        let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let executable = try workspace.makeCLI()
-        let snapshot = try await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
+  func testFetchSendsOneIsolatedUsageRequestAndReadsThePlanWindows() async throws {
+    let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let executable = try workspace.makeCLI()
+    let snapshot = try await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
-        XCTAssertEqual(snapshot.plan, "Max")
-        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 12)
-        XCTAssertEqual(snapshot.windows["Session"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800.125))
-        XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 29)
-        XCTAssertEqual(snapshot.windows["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_788_393_600))
-        XCTAssertEqual(snapshot.windows.map(\.title), ["Session", "Weekly", "Fable"])
-        XCTAssertEqual(snapshot.windows["Fable"]?.usedPercent, 63)
-        XCTAssertEqual(snapshot.windows["Fable"]?.resetsAt, Date(timeIntervalSince1970: 1_788_307_200))
-        let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8)
-        XCTAssertEqual(
-            arguments.components(separatedBy: "\n"),
-            [
-                "--setting-sources", "", "--settings", #"{"disableAllHooks":true,"remoteControlAtStartup":false}"#,
-                "--strict-mcp-config", "--tools", "", "--no-session-persistence",
-                "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "",
-            ]
-        )
-        let requests = try jsonObjects(in: workspace.requestsFile)
-        XCTAssertEqual(requests.count, 1)
-        let request = requests[0]
-        XCTAssertEqual(request["type"] as? String, "control_request")
-        XCTAssertEqual(request["request_id"] as? String, "1")
-        XCTAssertEqual(request["request"] as? NSDictionary, ["subtype": "get_usage", "skip_behaviors": true])
+    XCTAssertEqual(snapshot.plan, "Max")
+    XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 12)
+    XCTAssertEqual(snapshot.windows["Session"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800.125))
+    XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 29)
+    XCTAssertEqual(snapshot.windows["Weekly"]?.resetsAt, Date(timeIntervalSince1970: 1_788_393_600))
+    XCTAssertEqual(snapshot.windows.map(\.title), ["Session", "Weekly", "Fable"])
+    XCTAssertEqual(snapshot.windows["Fable"]?.usedPercent, 63)
+    XCTAssertEqual(snapshot.windows["Fable"]?.resetsAt, Date(timeIntervalSince1970: 1_788_307_200))
+    let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8)
+    XCTAssertEqual(
+      arguments.components(separatedBy: "\n"),
+      [
+        "--setting-sources",
+        "",
+        "--settings",
+        #"{"disableAllHooks":true,"remoteControlAtStartup":false}"#,
+        "--strict-mcp-config",
+        "--tools",
+        "",
+        "--no-session-persistence",
+        "-p",
+        "--input-format",
+        "stream-json",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "",
+      ],
+    )
+    let requests = try JSONSerialization.jsonObjects(inLinesOf: workspace.requestsFile)
+    XCTAssertEqual(requests.count, 1)
+    let request = requests[0]
+    XCTAssertEqual(request["type"] as? String, "control_request")
+    XCTAssertEqual(request["request_id"] as? String, "1")
+    XCTAssertEqual(request["request"] as? NSDictionary, ["subtype": "get_usage", "skip_behaviors": true])
+  }
+
+  func testEmptyLimitsAreDistinctFromNoPlanAndFromInvalidOrUnansweredOutput() async throws {
+    let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    for limits in ["null", ClaudeQuotaTestWorkspace.limits] {
+      let executable = try workspace.makeCLI(
+        output: ClaudeQuotaTestWorkspace.response(rateLimits: limits, available: false)
+      )
+      let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
+      XCTAssertEqual(result, .unavailable(.noPlan), limits)
     }
-
-    func testEmptyLimitsAreDistinctFromNoPlanAndFromInvalidOrUnansweredOutput() async throws {
-        let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        for limits in ["null", ClaudeQuotaTestWorkspace.limits] {
-            let executable = try workspace.makeCLI(
-                output: ClaudeQuotaTestWorkspace.response(rateLimits: limits, available: false)
-            )
-            let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-            XCTAssertEqual(result, .unavailable(.noPlan), limits)
-        }
-        for limits in [
-            "null", "{}",
-            #"{"five_hour":{"utilization":null,"resets_at":null},"seven_day":null,"model_scoped":[]}"#,
-        ] {
-            let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
-            let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-            XCTAssertEqual(result, .unavailable(.emptyLimits), limits)
-        }
-        let outputs: [(String, QuotaUnavailability)] = [
-            ("not json", .invalidMessage),
-            (#"{"type":"system","subtype":"init"}"#, .sessionFailed),
-            (
-                #"{"type":"control_response","response":{"subtype":"error","request_id":"1","error":"nope"}}"#,
-                .invalidMessage
-            ),
-            (
-                ClaudeQuotaTestWorkspace.response(rateLimits: "null").replacingOccurrences(
-                    of: #""rate_limits_available":true,"#,
-                    with: ""
-                ),
-                .invalidMessage
-            ),
-            (
-                ClaudeQuotaTestWorkspace.response(
-                    rateLimits: #"{"five_hour":{"utilization":5,"resets_at":"not a date"}}"#
-                ),
-                .invalidMessage
-            ),
-        ]
-        for (output, reason) in outputs {
-            let executable = try workspace.makeCLI(output: output)
-            let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-            XCTAssertEqual(result, .unavailable(reason), output)
-        }
-        let executable = try workspace.makeCLI(beforeOutput: "exit 1")
-        let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-        XCTAssertEqual(result, .unavailable(.sessionFailed))
+    for limits in [
+      "null",
+      "{}",
+      #"{"five_hour":{"utilization":null,"resets_at":null},"seven_day":null,"model_scoped":[]}"#,
+    ] {
+      let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
+      let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
+      XCTAssertEqual(result, .unavailable(.emptyLimits), limits)
     }
-
-    func testWindowsClampPercentAndUnstartedOrUnnamedWindowsAreSkipped() async throws {
-        let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let limits = """
-            {"five_hour":{"utilization":-8,"resets_at":null},"seven_day":{"utilization":130},\
-            "model_scoped":[\
-            {"display_name":"Other","utilization":3.9,"resets_at":null},\
-            {"display_name":" ","utilization":1,"resets_at":null},\
-            {"display_name":"Unstarted","utilization":null,"resets_at":null}]}
-            """
-        let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
-        let snapshot = try await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
-
-        XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 0)
-        XCTAssertNil(snapshot.windows["Session"]?.resetsAt)
-        XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 100)
-        XCTAssertEqual(snapshot.windows.map(\.title), ["Session", "Weekly", "Other"])
-        XCTAssertEqual(snapshot.windows["Other"]?.usedPercent, 3)
+    let outputs: [(String, QuotaUnavailability)] = [
+      ("not json", .invalidMessage),
+      (#"{"type":"system","subtype":"init"}"#, .sessionFailed),
+      (
+        #"{"type":"control_response","response":{"subtype":"error","request_id":"1","error":"nope"}}"#,
+        .invalidMessage,
+      ),
+      (
+        ClaudeQuotaTestWorkspace.response(rateLimits: "null").replacing(
+          #""rate_limits_available":true,"#,
+          with: "",
+        ),
+        .invalidMessage,
+      ),
+      (
+        ClaudeQuotaTestWorkspace.response(
+          rateLimits: #"{"five_hour":{"utilization":5,"resets_at":"not a date"}}"#
+        ),
+        .invalidMessage,
+      ),
+    ]
+    for (output, reason) in outputs {
+      let executable = try workspace.makeCLI(output: output)
+      let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
+      XCTAssertEqual(result, .unavailable(reason), output)
     }
+    let executable = try workspace.makeCLI(beforeOutput: "exit 1")
+    let result = await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
+    XCTAssertEqual(result, .unavailable(.sessionFailed))
+  }
 
-    func testFetchReportsMissingExecutable() async throws {
-        let root = try makeTemporaryDirectory()
-        let notExecutable = root.appending(path: "claude")
-        try Data().write(to: notExecutable)
-        let result = await ClaudeQuotaSource(
-            tool: CommandLineTool(candidates: [root.appending(path: "missing"), notExecutable])
+  func testWindowsClampPercentAndUnstartedOrUnnamedWindowsAreSkipped() async throws {
+    let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let limits = """
+      {"five_hour":{"utilization":-8,"resets_at":null},"seven_day":{"utilization":130},\
+      "model_scoped":[\
+      {"display_name":"Other","utilization":3.9,"resets_at":null},\
+      {"display_name":" ","utilization":1,"resets_at":null},\
+      {"display_name":"Unstarted","utilization":null,"resets_at":null}]}
+      """
+    let executable = try workspace.makeCLI(output: ClaudeQuotaTestWorkspace.response(rateLimits: limits))
+    let snapshot = try await ClaudeQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
+
+    XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 0)
+    XCTAssertNil(snapshot.windows["Session"]?.resetsAt)
+    XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 100)
+    XCTAssertEqual(snapshot.windows.map(\.title), ["Session", "Weekly", "Other"])
+    XCTAssertEqual(snapshot.windows["Other"]?.usedPercent, 3)
+  }
+
+  func testFetchReportsMissingExecutable() async throws {
+    let root = try makeTemporaryDirectory()
+    let notExecutable = root.appending(path: "claude")
+    try Data().write(to: notExecutable)
+    let result = await ClaudeQuotaSource(
+      tool: CommandLineTool(candidates: [root.appending(path: "missing"), notExecutable])
+    )
+    .load()
+    XCTAssertEqual(result, .unavailable(.binaryNotFound))
+  }
+
+  func testTimeoutAndCancellationStopCLIAndDescendants() async throws {
+    let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let parentMarker = workspace.root.appending(path: "parent")
+    let childMarker = workspace.root.appending(path: "child")
+    for cancel in [false, true] {
+      let executable = try workspace.makeCLI(
+        beforeOutput: """
+          trap '' TERM
+          printf '%s' "$$" > '\(parentMarker.path)'
+          /bin/sleep 30 &
+          printf '%s' "$!" > '\(childMarker.path)'
+          wait
+          """
+      )
+      let fetch = Task {
+        await ClaudeQuotaSource(
+          tool: CommandLineTool(candidates: [executable], timeout: cancel ? .seconds(15) : .seconds(1))
         )
         .load()
-        XCTAssertEqual(result, .unavailable(.binaryNotFound))
+      }
+      try await Poll.until { FileManager.default.fileExists(atPath: childMarker.path) }
+      if cancel {
+        fetch.cancel()
+      }
+      let result = await fetch.value
+      XCTAssertEqual(result, .unavailable(cancel ? .sessionFailed : .timedOut))
+      for marker in [parentMarker, childMarker] {
+        try await Poll.untilExit(pidIn: marker)
+        try FileManager.default.removeItem(at: marker)
+      }
     }
-
-    func testTimeoutAndCancellationStopCLIAndDescendants() async throws {
-        let workspace = ClaudeQuotaTestWorkspace(root: try makeTemporaryDirectory())
-        let parentMarker = workspace.root.appending(path: "parent")
-        let childMarker = workspace.root.appending(path: "child")
-        for cancel in [false, true] {
-            let executable = try workspace.makeCLI(
-                beforeOutput: """
-                    trap '' TERM
-                    printf '%s' "$$" > '\(parentMarker.path)'
-                    /bin/sleep 30 &
-                    printf '%s' "$!" > '\(childMarker.path)'
-                    wait
-                    """
-            )
-            let fetch = Task {
-                await ClaudeQuotaSource(
-                    tool: CommandLineTool(candidates: [executable], timeout: cancel ? .seconds(15) : .seconds(1))
-                )
-                .load()
-            }
-            try await waitUntil { FileManager.default.fileExists(atPath: childMarker.path) }
-            if cancel { fetch.cancel() }
-            let result = await fetch.value
-            XCTAssertEqual(result, .unavailable(cancel ? .sessionFailed : .timedOut))
-            for marker in [parentMarker, childMarker] {
-                try await waitForExit(pidIn: marker)
-                try FileManager.default.removeItem(at: marker)
-            }
-        }
-    }
+  }
 }
