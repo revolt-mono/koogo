@@ -117,6 +117,8 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     for (model, expectedUSD) in [
       ("gpt-5.6-sol", "0.0010925"),
       ("gpt-6.1-sol", "0.000396"),
+      ("gpt-6.2-astra", "0.001584"),
+      ("gpt-6.2-sol", "0.000396"),
     ] {
       var parser = try parserInTurn(model: model)
       let request = CodexLog.usage(input: 100, output: 20, cached: 10, cacheWrite: 30)
@@ -174,6 +176,8 @@ final class CodexUsageTests: UsageWorkspaceTestCase {
     let longWithoutWrites = CodexTokenUsage.stub(uncached: 172_001, cached: 100_000, output: 10_000)
 
     for (model, tokens, expectedUSD) in [
+      ("gpt-6.2-astra", long, "3.632016"),
+      ("gpt-6.2-sol", long, "0.908004"),
       ("gpt-6.1-sol", short, "0.435"),
       ("gpt-6.1-sol", long, "0.908004"),
       ("gpt-5.5", shortWithoutWrites, "1.1"),

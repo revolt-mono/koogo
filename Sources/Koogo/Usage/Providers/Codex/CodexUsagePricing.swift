@@ -69,12 +69,20 @@ enum CodexUsagePricing {
 
   private static let longContextThreshold: UInt64 = 272_000
 
+  private static let gpt61SolRates = ContextRates.tiered(
+    Rates(input: 2_000, cachedInput: 100, output: 10_000, supportsCacheWrite: true)
+  )
+
   /// pricing checked 2026-08-26: https://developers.openai.com/api/docs/pricing and https://openai.com/index/gpt-5-6
   private static let prices: [ModelID: ModelPrice] = [
-    "gpt-6.1-sol": ModelPrice(
-      displayName: "GPT 6.1 Sol",
-      rates: .tiered(Rates(input: 2_000, cachedInput: 100, output: 10_000, supportsCacheWrite: true)),
+    // https://developers.openai.com/api/docs/models/gpt-6.2-astra
+    "gpt-6.2-astra": ModelPrice(
+      displayName: "GPT 6.2 Astra",
+      rates: .tiered(Rates(input: 8_000, cachedInput: 400, output: 40_000, supportsCacheWrite: true)),
     ),
+    // https://developers.openai.com/api/docs/models/gpt-6.2-sol
+    "gpt-6.2-sol": ModelPrice(displayName: "GPT 6.2 Sol", rates: gpt61SolRates),
+    "gpt-6.1-sol": ModelPrice(displayName: "GPT 6.1 Sol", rates: gpt61SolRates),
     // https://developers.openai.com/api/docs/models/gpt-6.1-terra
     "gpt-6.1-terra": ModelPrice(
       displayName: "GPT 6.1 Terra",
