@@ -1,12 +1,15 @@
 import ApplicationServices
-import Carbon.HIToolbox
 import Foundation
 import Observation
 import os
 import Synchronization
 
-/// the main actor publishes atomic rules; the tap thread handles events without locks, lookups, or allocation,
-/// and only a tap that macOS disabled hops back to the main actor.
+enum EventDisposition {
+  case deliver
+  case drop
+}
+
+/// the tap thread must handle events without locks, lookups, or allocation.
 @MainActor
 @Observable
 final class EventTap {
@@ -14,14 +17,18 @@ final class EventTap {
     guard let userInfo else {
       return Unmanaged.passUnretained(event)
     }
-    return Unmanaged<EventTap>.fromOpaque(userInfo).takeUnretainedValue().handle(type, event, proxy: proxy)
+    let tap = Unmanaged<EventTap>.fromOpaque(userInfo).takeUnretainedValue()
+    return switch tap.handle(type, event, proxy: proxy) {
+    case .deliver: Unmanaged.passUnretained(event)
+    case .drop: nil
+    }
   }
 
   var isStopped: Bool {
     state == .stopped
   }
 
-  /// installs initially and after a stopped tap; accessibility trust is required.
+  /// installing the tap requires accessibility trust.
   func run(_ rules: InputRules) {
     self.rules.store(rules, ordering: .relaxed)
     let port: CFMachPort? =
@@ -66,7 +73,7 @@ final class EventTap {
 
   private let rules = Atomic(InputRules(MouseSettings(), frontmostApp: nil))
   private nonisolated(unsafe) let rewriter = ScrollRewriter()
-  private nonisolated(unsafe) let lookUp = LookUpShortcut()
+  private nonisolated(unsafe) let lookUp = LookUpButton()
 
   private func install() -> CFMachPort? {
     let mask =
@@ -92,13 +99,7 @@ final class EventTap {
       CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
       CFRunLoopRun()
       Task { @MainActor in
-        Logger.mouse.warning("event tap stopped")
-        state =
-          if case .running = state {
-            .stopped
-          } else {
-            .idle
-          }
+        runLoopDidExit()
       }
     }
     thread.name = "Koogo Event Tap"
@@ -107,7 +108,17 @@ final class EventTap {
     return port
   }
 
-  private func resume() {
+  private func runLoopDidExit() {
+    Logger.mouse.warning("event tap stopped")
+    state =
+      if case .running = state {
+        .stopped
+      } else {
+        .idle
+      }
+  }
+
+  private func systemDidDisableTap() {
     guard case .running(let port) = state else {
       return
     }
@@ -119,71 +130,28 @@ final class EventTap {
     _ type: CGEventType,
     _ event: CGEvent,
     proxy: CGEventTapProxy,
-  ) -> Unmanaged<CGEvent>? {
-    let pass = Unmanaged.passUnretained(event)
+  ) -> EventDisposition {
+    let rules = rules.load(ordering: .relaxed)
     switch type {
     case .scrollWheel:
-      switch rewriter.rewrite(event, rules: rules.load(ordering: .relaxed), post: { $0.post(via: proxy) }) {
-      case .deliver:
-        return pass
-      case .drop:
-        return nil
-      }
+      return rewriter.rewrite(event, rules: rules) { $0.post(via: proxy) }
 
     case .otherMouseDown,
          .otherMouseUp:
-      guard
-        let lookUp,
-        rules.load(ordering: .relaxed).isLookUpEnabled,
-        event.getIntegerValueField(.mouseEventButtonNumber) == LookUpShortcut.buttonNumber
-      else {
-        return pass
+      guard rules.isLookUpEnabled, let lookUp else {
+        return .deliver
       }
-      if type == .otherMouseDown {
-        lookUp.post(timestamp: event.timestamp)
-      }
-      return nil
+      return lookUp.remap(event)
 
     case .tapDisabledByTimeout,
          .tapDisabledByUserInput:
       Task { @MainActor in
-        resume()
+        systemDidDisableTap()
       }
-      return pass
+      return .deliver
 
     default:
-      return pass
+      return .deliver
     }
   }
-}
-
-private struct LookUpShortcut {
-  init?() {
-    guard
-      let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: Self.keyCode, keyDown: true),
-      let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: Self.keyCode, keyDown: false)
-    else {
-      Logger.mouse.error("couldn't build the look up key events; button 4 passes through")
-      return nil
-    }
-    keyDown.flags = [.maskCommand, .maskControl]
-    keyUp.flags = [.maskCommand, .maskControl]
-    self.keyDown = keyDown
-    self.keyUp = keyUp
-  }
-
-  /// core graphics numbers mouse button 4 as 3.
-  static let buttonNumber: Int64 = 3
-
-  func post(timestamp: CGEventTimestamp) {
-    keyDown.timestamp = timestamp
-    keyUp.timestamp = timestamp
-    keyDown.post(tap: .cgSessionEventTap)
-    keyUp.post(tap: .cgSessionEventTap)
-  }
-
-  private static let keyCode = CGKeyCode(kVK_ANSI_D)
-
-  private let keyDown: CGEvent
-  private let keyUp: CGEvent
 }

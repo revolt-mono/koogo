@@ -23,11 +23,10 @@ struct MouseSettings: Codable, Equatable {
   private(set) var lineByLineApps: [String]
   var isLookUpEnabled = true
 
-  mutating func addLineByLineApp(_ bundleID: String) {
-    guard !lineByLineApps.contains(bundleID) else {
-      return
+  mutating func addLineByLineApps(_ bundleIDs: some Sequence<String>) {
+    for bundleID in bundleIDs where !lineByLineApps.contains(bundleID) {
+      lineByLineApps.append(bundleID)
     }
-    lineByLineApps.append(bundleID)
   }
 
   mutating func removeLineByLineApp(_ bundleID: String) {
@@ -49,6 +48,5 @@ enum WheelStep: UInt32, Codable, CaseIterable {
 
 enum ScrollDirection: UInt32, Codable, CaseIterable {
   case standard
-  /// content follows the fingers, as on a trackpad.
   case natural
 }

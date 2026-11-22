@@ -17,23 +17,15 @@ struct LineByLineAppList: View {
     .onDeleteCommand(perform: removeSelection)
 
     HStack(spacing: 4) {
-      Button {
+      AppListEditButton(title: "Add App", systemImage: "plus") {
         isChoosingApps = true
-      } label: {
-        Label("Add App", systemImage: "plus")
-          .frame(width: 20, height: 20)
-          .contentShape(.rect)
       }
 
       Divider()
         .frame(height: 12)
 
-      Button(action: removeSelection) {
-        Label("Remove App", systemImage: "minus")
-          .frame(width: 20, height: 20)
-          .contentShape(.rect)
-      }
-      .disabled(selection == nil)
+      AppListEditButton(title: "Remove App", systemImage: "minus", action: removeSelection)
+        .disabled(selection == nil)
 
       Spacer()
     }
@@ -43,17 +35,9 @@ struct LineByLineAppList: View {
       isPresented: $isChoosingApps,
       allowedContentTypes: [.application],
       allowsMultipleSelection: true,
-    ) {
-      guard case .success(let apps) = $0 else {
-        return
-      }
-      var settings = mouse.settings
-      for bundleID in apps.compactMap({ Bundle(url: $0)?.bundleIdentifier }) {
-        settings.addLineByLineApp(bundleID)
-      }
-      mouse.settings = settings
-    }
-    .fileDialogDefaultDirectory(URL(filePath: "/Applications", directoryHint: .isDirectory))
+      onCompletion: didChooseApps,
+    )
+    .fileDialogDefaultDirectory(.applicationDirectory)
   }
 
   private static let rowHeight: CGFloat = 32
@@ -68,6 +52,27 @@ struct LineByLineAppList: View {
     }
     mouse.settings.removeLineByLineApp(selection)
     self.selection = nil
+  }
+
+  private func didChooseApps(_ result: Result<[URL], any Error>) {
+    guard case .success(let apps) = result else {
+      return
+    }
+    mouse.settings.addLineByLineApps(apps.compactMap { Bundle(url: $0)?.bundleIdentifier })
+  }
+}
+
+private struct AppListEditButton: View {
+  let title: LocalizedStringKey
+  let systemImage: String
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Label(title, systemImage: systemImage)
+        .frame(width: 20, height: 20)
+        .contentShape(.rect)
+    }
   }
 }
 

@@ -15,7 +15,7 @@ final class MouseModel {
   enum AccessibilityAccess {
     case untrusted
     case granted
-    /// trusted, yet the requested tap isn't running; the stale grant usually needs renewing.
+    /// the grant usually needs renewing.
     case stale
   }
 

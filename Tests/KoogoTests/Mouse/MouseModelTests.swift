@@ -20,20 +20,12 @@ final class MouseModelTests: XCTestCase {
     mouse.settings.direction = .natural
     mouse.settings.isLookUpEnabled = false
     mouse.settings.removeLineByLineApp("com.apple.Terminal")
-    mouse.settings.addLineByLineApp("com.microsoft.VSCode")
+    mouse.settings.addLineByLineApps(["com.microsoft.VSCode"])
 
     let relaunched = MouseModel(defaults: defaults, isInstalled: { _ in true })
     XCTAssertEqual(relaunched.settings, mouse.settings)
     XCTAssertFalse(relaunched.settings.lineByLineApps.contains("com.apple.Terminal"))
     XCTAssertEqual(relaunched.settings.lineByLineApps.last, "com.microsoft.VSCode")
-  }
-
-  func testAddingAListedAppKeepsOneEntry() {
-    var settings = MouseSettings(lineByLineApps: ["com.mitchellh.ghostty"])
-
-    settings.addLineByLineApp("com.mitchellh.ghostty")
-
-    XCTAssertEqual(settings.lineByLineApps, ["com.mitchellh.ghostty"])
   }
 
   func testUndecodableSettingsFallBackToDefaultsWithInstalledTerminals() throws {

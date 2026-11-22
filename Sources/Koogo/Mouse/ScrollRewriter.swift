@@ -2,12 +2,6 @@ import ApplicationServices
 import Carbon.HIToolbox
 import os
 
-enum ScrollRewrite {
-  case deliver
-  case drop
-}
-
-/// posting adapters borrow the reusable event only for the synchronous call.
 struct PostedScrollEvent: ~Copyable {
   fileprivate init(_ event: CGEvent) {
     self.event = event
@@ -40,15 +34,9 @@ struct PostedScrollEvent: ~Copyable {
   private let event: CGEvent
 }
 
-/// single-threaded wheel-notch rewriting with reusable posted events and no per-call allocation.
+/// call from a single thread; rewriting must not allocate.
 final class ScrollRewriter {
-  init() {
-    let source = CGEventSource(stateID: .hidSystemState)
-    source?.pixelsPerLine = Double(Self.pixelsPerLine)
-    optionStrip = OptionStrip(source: source)
-  }
-
-  func rewrite(_ event: CGEvent, rules: InputRules, post: (borrowing PostedScrollEvent) -> Void) -> ScrollRewrite {
+  func rewrite(_ event: CGEvent, rules: InputRules, post: (borrowing PostedScrollEvent) -> Void) -> EventDisposition {
     guard Self.isWheelNotchEvent(event) else {
       return .deliver
     }
@@ -70,6 +58,8 @@ final class ScrollRewriter {
     return .drop
   }
 
+  fileprivate static let pixelsPerLine: Int64 = 16
+
   fileprivate static func write(_ step: ScrollStep, to event: CGEvent) {
     let linesY: Int64 = step.axis == .vertical ? Int64(step.lines) : 0
     let linesX: Int64 = step.axis == .horizontal ? Int64(step.lines) : 0
@@ -85,9 +75,7 @@ final class ScrollRewriter {
     event.setIntegerValueField(.scrollWheelEventScrollCount, value: 1)
   }
 
-  private static let pixelsPerLine: Int64 = 16
-
-  private let optionStrip: OptionStrip?
+  private let optionStrip = OptionStrip()
 
   /// trackpads and magic mouse scrolling carry continuous or phased events; wheel notches carry neither.
   private static func isWheelNotchEvent(_ event: CGEvent) -> Bool {
@@ -100,7 +88,9 @@ final class ScrollRewriter {
 }
 
 private struct OptionStrip {
-  init?(source: CGEventSource?) {
+  init?() {
+    let source = CGEventSource(stateID: .hidSystemState)
+    source?.pixelsPerLine = Double(ScrollRewriter.pixelsPerLine)
     guard
       let vertical = CGEvent(
         scrollWheelEvent2Source: source,
