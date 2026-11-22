@@ -52,7 +52,7 @@ enum Poll {
 }
 
 enum MemoryMeasurement {
-  /// memory measurements need a quiet process, so they run separately on request.
+  /// memory measurements need a quiet process.
   static func skipUnlessRequested() throws {
     try XCTSkipUnless(
       ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1",

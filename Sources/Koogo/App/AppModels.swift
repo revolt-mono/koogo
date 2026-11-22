@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// construction has no launch effects; the app starts each model.
 @MainActor
 struct AppModels {
   init(

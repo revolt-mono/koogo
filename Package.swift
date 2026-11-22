@@ -11,7 +11,7 @@ let package = Package(
     .executable(name: "Koogo", targets: ["Koogo"])
   ],
   dependencies: [
-    // style guide tooling (`swift package format`); tags lag the guide, so the reviewed commit is pinned.
+    // upstream tags lag the style guide.
     .package(url: "https://github.com/airbnb/swift", revision: "341e15448fce4c28aa8d36af171f39ab98b2913b"),
     .package(url: "https://github.com/markiv/SwiftUI-Shimmer.git", from: "1.5.1"),
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.6"),

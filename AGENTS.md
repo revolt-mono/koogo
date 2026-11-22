@@ -38,7 +38,7 @@
 - verify pipeline behavior with `report` rather than screenshots; its json covers log roots, ingestion counts, the usage snapshot, and typed quota outcomes.
 - measure pipeline changes with `benchmark` on the same logs and day: compare retired instructions, which stay stable across runs, and memory across repeated release runs without allocation tracing. the digest stays fixed unless the snapshot is meant to change.
 - measure app footprint on the bundle opened through launch services: its `LSEnvironment` selects the space-efficient allocator, which a directly run binary (`swift run`, `swift test`, `lldb`) lacks.
-- dropped input stays out of the ui: known-kind lines with unusable fields count in `malformedLines`, events with an unpriced model or billed option list their model in `unpricedModels`, and both log telemetry warnings.
+- dropped input stays out of the ui: known-kind lines count in `malformedLines` when a field their parser reads is unusable, events with an unpriced model or billed option list their model in `unpricedModels`, and both log telemetry warnings.
 - stream telemetry (subsystem `com.revolt.koogo`, categories `app`, `usage`, `quota`, `activity`, `mouse`) with `script/build_and_run.sh telemetry`.
 
 ## repo structure
@@ -53,9 +53,9 @@
 │   ├── Panel              menu bar panel shell, paging, and the pages that compose several slices
 │   ├── Settings           settings window
 │   ├── Usage              token usage from local logs
-│   │   ├── Events         event identity and dedup
-│   │   ├── Ingestion      log discovery and reads
-│   │   ├── Providers      per-provider parsers and pricing
+│   │   ├── Events         event records, identity, timestamps, and the parser contract
+│   │   ├── Ingestion      log discovery, reads, and dedup
+│   │   ├── Providers      per-provider log roots, parsers, pricing, and model names
 │   │   ├── Aggregation    snapshot building
 │   │   └── Views
 │   ├── Quota              provider quota reads
@@ -76,11 +76,11 @@
 
 ## slices and owners
 
-- slices depend only on `Shared` and on other slices' models through the environment; a page composing several slices lives in `Panel`.
+- slices depend only on `Shared` and on other slices' models through the environment; a page composing several slices lives in `Panel`, and `Settings` lays out the controls each slice provides.
 - model construction has no launch effects; `KoogoApp` starts models, and each model's doc comment states its lifetime and starter.
 - outcomes that must outlive the view that started them are model state, not return values.
 - the scene locale does not reach styles that render to a `String`; those carry `Locale.display` themselves.
-- a provider needs a `Provider` case and a `Usage/Providers` adapter; quota adds a `QuotaProvider` case, a `QuotaSources` field, and a `Quota/Providers` adapter.
+- a provider needs a `Provider` case and, in `Usage/Providers`, a parser plus its cases in `Provider.logRoots(under:)`, `UsageModelNames`, and `Provider.splitsUsageByModel`; quota adds a `QuotaProvider` case, a `QuotaSources` field, and a `Quota/Providers` adapter.
 
 ## components and ui
 

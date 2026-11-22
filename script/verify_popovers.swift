@@ -64,7 +64,7 @@ for name in triggers {
   else { fail("Open the menu panel and wait for \(name)") }
   var origin = CGPoint.zero
   var dimensions = CGSize.zero
-  // core foundation type ids are checked above; swift cannot express that refinement.
+  // swift cannot refine a core foundation type from its type id.
   guard
     AXValueGetValue(position as! AXValue, .cgPoint, &origin),
     AXValueGetValue(size as! AXValue, .cgSize, &dimensions)
