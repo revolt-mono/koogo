@@ -1,13 +1,6 @@
 import Foundation
 import Observation
 
-@MainActor
-protocol BreakReminderNotifications {
-  func schedule(after duration: TimeInterval) async throws(BreakReminderIssue)
-  func hasPendingReminder() async -> Bool
-  func cancel()
-}
-
 /// app-scoped; reconciled by the app at launch and by the panel control on each opening.
 @MainActor
 @Observable
@@ -31,14 +24,12 @@ final class BreakReminderModel {
 
   private(set) var isBusy = false
 
-  /// retains the last scheduling failure until scheduling succeeds, including across panel openings.
   private(set) var issue: BreakReminderIssue?
 
   private(set) var countdown: BreakReminderCountdown {
     didSet { storage.save(countdown) }
   }
 
-  /// a dropped or unchanged action returns nil, even while an earlier issue stands.
   @discardableResult
   func perform(_ action: BreakReminderCountdown.Action) async -> BreakReminderIssue? {
     var raised: BreakReminderIssue?
@@ -50,7 +41,7 @@ final class BreakReminderModel {
     return raised
   }
 
-  /// syncs the system notification with the countdown; an expired countdown keeps its reminder, whose trigger can lag the deadline after sleep or a clock change.
+  /// the notification trigger can lag the countdown deadline after sleep or a clock change.
   func reconcile() async {
     await unlessBusy {
       switch countdown.status(at: now()) {
@@ -60,7 +51,7 @@ final class BreakReminderModel {
         break
       case .running:
         guard
-          !(await notifications.hasPendingReminder()),
+          await !notifications.hasPendingReminder(),
           case .running(let remaining) = countdown.status(at: now())
         else {
           return
@@ -97,7 +88,7 @@ final class BreakReminderModel {
         issue = error
         return error
       }
-      // start counting after scheduling returns so an authorization prompt cannot shorten the countdown.
+      // an authorization prompt must not shorten the countdown.
       countdown = .scheduled(interval: interval, deadline: now().addingTimeInterval(duration))
       issue = nil
 

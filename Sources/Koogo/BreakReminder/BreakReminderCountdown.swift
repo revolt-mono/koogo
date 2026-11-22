@@ -25,25 +25,12 @@ enum BreakReminderStatus: Equatable {
 
     let whole = Duration.seconds(ceil(remaining))
     let pattern: Duration.TimeFormatStyle.Pattern =
-      whole >= .seconds(3_600) ? .hourMinuteSecond : .minuteSecond(padMinuteToLength: 2)
+      if whole >= .seconds(3_600) {
+        .hourMinuteSecond
+      } else {
+        .minuteSecond(padMinuteToLength: 2)
+      }
     return whole.formatted(Duration.TimeFormatStyle(pattern: pattern).locale(.display))
-  }
-}
-
-enum BreakReminderIssue: Error {
-  case notificationsDeclined
-  /// refused earlier; macos prompts only once, so only system settings can allow notifications now.
-  case notificationsBlocked
-  case schedulingFailed
-
-  var explanation: String {
-    switch self {
-    case .notificationsDeclined,
-         .notificationsBlocked:
-      "Notifications are off. Allow them in System Settings, then resume the reminder."
-    case .schedulingFailed:
-      "Koogo couldn't schedule the notification. Resume the reminder to try again."
-    }
   }
 }
 
@@ -84,9 +71,11 @@ enum BreakReminderCountdown: Codable, Equatable {
   func status(at date: Date) -> BreakReminderStatus {
     switch self {
     case .scheduled(_, let deadline):
-      deadline > date
-        ? .running(remaining: deadline.timeIntervalSince(date))
-        : .expired
+      if deadline > date {
+        .running(remaining: deadline.timeIntervalSince(date))
+      } else {
+        .expired
+      }
 
     case .paused(_, let remaining):
       .paused(remaining: remaining)

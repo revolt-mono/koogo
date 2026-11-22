@@ -20,6 +20,25 @@ final class BreakReminderModelTests: XCTestCase {
     }
   }
 
+  func testCountdownsKeepTheirStoredShape() throws {
+    let clock = TestClock()
+    let deadline = clock.now.addingTimeInterval(600)
+    let saved: [(propertyList: [String: Any], countdown: BreakReminderCountdown)] = [
+      (["paused": ["interval": 90, "remaining": 1_200.0]], .paused(interval: .ninetyMinutes, remaining: 1_200)),
+      (["scheduled": ["interval": 120, "deadline": deadline]], .scheduled(interval: .twoHours, deadline: deadline)),
+    ]
+
+    for (propertyList, countdown) in saved {
+      let defaults = try makeIsolatedDefaults()
+      let data = try PropertyListSerialization.data(fromPropertyList: propertyList, format: .binary, options: 0)
+      defaults.set(data, forKey: "break-reminder-state")
+
+      XCTAssertEqual(makeModel(defaults: defaults, clock: clock).countdown, countdown)
+      let encoded = try PropertyListSerialization.propertyList(from: PropertyListEncoder().encode(countdown), format: nil)
+      XCTAssertEqual(encoded as? NSDictionary, propertyList as NSDictionary)
+    }
+  }
+
   func testNotificationMirrorsTheCountdown() async throws {
     let clock = TestClock()
     let notifications = BreakReminderTestNotifications()

@@ -32,11 +32,13 @@ struct BreakReminderControl: View {
   @State private var isOnScreen = false
 
   private func button(status: BreakReminderStatus) -> some View {
-    BreakReminderButton(status: status, issue: reminderModel.issue, isBusy: reminderModel.isBusy) { action in
-      Task {
-        if await reminderModel.perform(action) == .notificationsBlocked {
-          openURL(Self.notificationsPane)
-        }
+    BreakReminderButton(status: status, issue: reminderModel.issue, isBusy: reminderModel.isBusy, perform: perform)
+  }
+
+  private func perform(_ action: BreakReminderCountdown.Action) {
+    Task {
+      if await reminderModel.perform(action) == .notificationsBlocked {
+        openURL(Self.notificationsPane)
       }
     }
   }
@@ -50,6 +52,7 @@ private struct BreakReminderButton: View {
 
   var body: some View {
     let appearance = appearance
+    let timeText = status.timeText
 
     Button {
       perform(.toggle)
@@ -59,7 +62,7 @@ private struct BreakReminderButton: View {
           .font(.system(size: 7, weight: .semibold))
           .frame(width: 6)
 
-        Text(status.timeText)
+        Text(timeText)
           .font(.system(size: 9, weight: .medium))
           .monospacedDigit()
           .frame(width: 40, alignment: .leading)
@@ -72,8 +75,7 @@ private struct BreakReminderButton: View {
     .disabled(isBusy)
     .tooltip(appearance.help)
     .accessibilityLabel(appearance.label)
-    .accessibilityValue(status.timeText)
-    .accessibilityHint(appearance.help)
+    .accessibilityValue(timeText)
     .accessibilityAction(named: "Restart Timer") {
       perform(.restart)
     }
