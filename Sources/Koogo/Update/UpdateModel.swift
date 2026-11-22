@@ -12,7 +12,7 @@ final class UpdateModel: NSObject {
   }
 
   func checkForUpdates() {
-    updaterController.checkForUpdates(nil)
+    updaterController.updater.checkForUpdates()
   }
 
   @ObservationIgnored private lazy var updaterController = SPUStandardUpdaterController(
