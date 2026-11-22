@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-enum PanelPage: Int, CaseIterable {
+private enum PanelPage: Int, CaseIterable {
   case usage
   case activity
   case inbox
@@ -54,22 +54,7 @@ struct PanelPager: View {
       PanelPageIndicator(shown: shown, onSelect: show)
         .padding(.bottom, 6)
     }
-    .onLocalEvent(.scrollWheel) { event, view in
-      guard let window = view.window, event.window === window else { return event }
-      switch WheelPaging(event) {
-      case .step(let step):
-        if let page = PanelPage(rawValue: shown.rawValue + step) {
-          show(page)
-        }
-        return nil
-
-      case .drop:
-        return nil
-
-      case .pass:
-        return event
-      }
-    }
+    .onLocalEvent(.scrollWheel, perform: didScrollWheel)
   }
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -78,15 +63,29 @@ struct PanelPager: View {
   @State private var usageHeight: CGFloat = 0
   @State private var slide = PageSlide()
 
-  /// disable swiftui scrolling animation while the render-server slide runs to avoid duplicate frame work.
   private func show(_ page: PanelPage) {
-    var jump = Transaction()
-    jump.disablesAnimations = true
-    withTransaction(jump) {
+    withTransaction(\.disablesAnimations, true) {
       shown = page
     }
     if !reduceMotion {
       slide.run(to: page)
+    }
+  }
+
+  private func didScrollWheel(_ event: NSEvent, in view: NSView) -> NSEvent? {
+    guard event.isInWindow(of: view) else { return event }
+    switch WheelPaging(event) {
+    case .step(let step):
+      if let page = PanelPage(rawValue: shown.rawValue + step) {
+        show(page)
+      }
+      return nil
+
+    case .drop:
+      return nil
+
+    case .pass:
+      return event
     }
   }
 }
@@ -151,6 +150,6 @@ private struct PanelPageIndicator: View {
       }
     }
     .padding(.horizontal, 4)
-    .glassEffect(.regular, in: Capsule())
+    .glassEffect(.regular, in: .capsule)
   }
 }

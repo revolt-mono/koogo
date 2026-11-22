@@ -6,6 +6,6 @@ extension View {
       .foregroundStyle(.panelLabel)
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
-      .background(fill, in: Capsule())
+      .background(fill, in: .capsule)
   }
 }

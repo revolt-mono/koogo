@@ -2,10 +2,8 @@ import SwiftUI
 
 extension View {
   func panelPageScroll() -> some View {
-    contentMargins(.top, PanelLayout.gap, for: .scrollContent)
-      .contentMargins(.leading, PanelLayout.inset, for: .scrollContent)
-      .contentMargins(.bottom, PanelLayout.pageIndicatorInset, for: .scrollContent)
-      .panelScroll(scrollerInset: PanelLayout.inset)
+    contentMargins([.top, .leading, .bottom], PanelLayout.pageScrollMargins, for: .scrollContent)
+      .panelScroll(scrollerInset: PanelLayout.pageScrollMargins.trailing)
   }
 
   func panelScroll(scrollerInset: CGFloat) -> some View {

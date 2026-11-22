@@ -3,7 +3,9 @@ import SwiftUI
 enum PanelLayout {
   static let inset: CGFloat = 20
   static let gap: CGFloat = 12
-  static let pageIndicatorInset: CGFloat = 32
+  static let pageScrollMargins = EdgeInsets(top: gap, leading: inset, bottom: pageIndicatorInset, trailing: inset)
+
+  private static let pageIndicatorInset: CGFloat = 32
 }
 
 struct PanelSection<Header: View, Content: View>: View {
@@ -29,7 +31,7 @@ extension PanelSection where Header == PanelSectionTitle {
 
 extension View {
   func panelCard() -> some View {
-    padding(12).background(.panelCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    padding(12).background(.panelCard, in: .rect(cornerRadius: 8))
   }
 }
 
@@ -59,7 +61,7 @@ struct PanelProgressViewStyle: ProgressViewStyle {
       .scaleEffect(x: configuration.fractionCompleted ?? 0, anchor: .leading)
       .frame(height: 5)
       .background(Color.panelLabel.opacity(0.10))
-      .clipShape(Capsule())
+      .clipShape(.capsule)
   }
 }
 

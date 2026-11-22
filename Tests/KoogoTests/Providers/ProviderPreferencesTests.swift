@@ -29,20 +29,20 @@ final class ProviderPreferencesTests: XCTestCase {
     let defaults = try makeIsolatedDefaults()
     let preferences = ProviderPreferences(defaults: defaults)
 
-    preferences[usage: .codex] = false
+    preferences[isUsageEnabled: .codex] = false
 
     XCTAssertEqual(preferences.usageProviders, [.claude, .piAgent, .grok])
     XCTAssertEqual(preferences.quotaProviders, [.claude, .grok], "a provider hidden from usage fetches no quota")
 
     let relaunched = ProviderPreferences(defaults: defaults)
     XCTAssertEqual(relaunched.usageProviders, [.claude, .piAgent, .grok])
-    relaunched[usage: .codex] = true
+    relaunched[isUsageEnabled: .codex] = true
     XCTAssertEqual(ProviderPreferences(defaults: defaults).usageProviders, Provider.allCases)
   }
 
   func testUndecodableStorageFallsBackToDefaults() throws {
     let defaults = try makeIsolatedDefaults()
-    ProviderPreferences(defaults: defaults)[usage: .codex] = false
+    ProviderPreferences(defaults: defaults)[isUsageEnabled: .codex] = false
     defaults.set(Data("junk".utf8), forKey: "provider-preferences")
 
     let preferences = ProviderPreferences(defaults: defaults)

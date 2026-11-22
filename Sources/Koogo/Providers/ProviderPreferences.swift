@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// app-scoped; loads stored preferences at construction, has nothing to start, and saves every change.
+/// app-scoped; has nothing to start.
 @MainActor
 @Observable
 final class ProviderPreferences {
@@ -20,14 +20,14 @@ final class ProviderPreferences {
   }
 
   var usageProviders: [Provider] {
-    order.filter { self[usage: $0] }
+    order.filter { self[isUsageEnabled: $0] }
   }
 
   var quotaProviders: [QuotaProvider] {
     usageProviders.compactMap(\.quota)
   }
 
-  subscript(usage provider: Provider) -> Bool {
+  subscript(isUsageEnabled provider: Provider) -> Bool {
     get { !stored.usageDisabled.contains(provider) }
     set {
       if newValue {

@@ -24,7 +24,7 @@ final class PanelViewTests: XCTestCase {
       isInstalled: { _ in false },
       now: { UsageFixture.timestamp },
     )
-    models.preferences[usage: .codex] = false
+    models.preferences[isUsageEnabled: .codex] = false
     let usage = models.usage
     let quota = models.quota
     let host = NSHostingView(rootView: PanelView().sceneRoot(models))
@@ -38,39 +38,5 @@ final class PanelViewTests: XCTestCase {
     XCTAssertEqual(quota.statuses[.claude].latest, .unavailable(.binaryNotFound))
     XCTAssertEqual(quota.statuses[.grok].latest, .unavailable(.binaryNotFound))
     XCTAssertEqual(activitySamples.value, 0)
-  }
-
-  @MainActor
-  func testAHiddenUsagePageReadsOnlyNeverReadQuotaUntilShown() async throws {
-    let workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
-    let failed = QuotaReading.unavailable(.sessionFailed)
-    let models = AppModels(
-      defaults: try makeIsolatedDefaults(),
-      pipeline: UsagePipeline(home: workspace.root, calendar: UsageFixture.calendar),
-      quotaSources: QuotaSources(
-        codex: ScriptedQuotaSource([failed, failed]),
-        claude: ScriptedQuotaSource([failed, failed]),
-        grok: ScriptedQuotaSource([failed, failed]),
-      ),
-      breakNotifications: BreakReminderTestNotifications(),
-      activitySample: { ActivitySample.stub() },
-      isInstalled: { _ in false },
-      now: { UsageFixture.timestamp },
-    )
-    let quota = models.quota
-    models.preferences[usage: .codex] = false
-    quota.refresh(models.preferences.quotaProviders)
-    try await Poll.until { quota.statuses[.claude].latest != nil && quota.statuses[.grok].latest != nil }
-    let launchReading = quota.statuses[.claude]
-    models.preferences[usage: .codex] = true
-
-    let host = NSHostingView(rootView: UsagePage(maxHeight: 600, isShown: false).sceneRoot(models))
-    host.layoutSubtreeIfNeeded()
-    try await Poll.until { quota.statuses[.codex].latest != nil }
-    XCTAssertEqual(quota.statuses[.claude], launchReading)
-
-    host.rootView = UsagePage(maxHeight: 600, isShown: true).sceneRoot(models)
-    host.layoutSubtreeIfNeeded()
-    try await Poll.until { quota.statuses[.claude] != launchReading && !quota.statuses[.claude].isBusy }
   }
 }

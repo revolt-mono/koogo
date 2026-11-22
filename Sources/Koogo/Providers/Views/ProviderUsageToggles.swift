@@ -11,18 +11,10 @@ struct ProviderUsageToggles: View {
           .foregroundStyle(.tertiary)
           .accessibilityHidden(true)
 
-        Toggle(provider.title, isOn: $preferences[usage: provider])
+        Toggle(provider.title, isOn: $preferences[isUsageEnabled: provider])
       }
       .contentShape(.rect)
-      .onDrag {
-        dragged = provider
-        let item = NSItemProvider()
-        item.registerDataRepresentation(for: Self.dragType, visibility: .ownProcess) { completion in
-          completion(Data(provider.rawValue.utf8), nil)
-          return nil
-        }
-        return item
-      }
+      .onDrag { beginDragging(provider) }
       .onDrop(
         of: [Self.dragType],
         delegate: ProviderReorderDrop(provider: provider, dragged: $dragged, preferences: preferences),
@@ -36,6 +28,16 @@ struct ProviderUsageToggles: View {
 
   @Environment(ProviderPreferences.self) private var preferences
   @State private var dragged: Provider?
+
+  private func beginDragging(_ provider: Provider) -> NSItemProvider {
+    dragged = provider
+    let item = NSItemProvider()
+    item.registerDataRepresentation(for: Self.dragType, visibility: .ownProcess) { completion in
+      completion(Data(provider.rawValue.utf8), nil)
+      return nil
+    }
+    return item
+  }
 }
 
 private struct ProviderReorderDrop: DropDelegate {

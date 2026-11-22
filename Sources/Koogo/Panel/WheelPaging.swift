@@ -11,10 +11,11 @@ enum WheelPaging: Equatable {
       self = .pass
       return
     }
-    switch (event.scrollingDeltaX, event.scrollingDeltaY) {
-    case (0, _): self = .pass
-    case (let deltaX, 0): self = .step(deltaX < 0 ? 1 : -1)
-    default: self = .drop
-    }
+    self =
+      switch (event.scrollingDeltaX, event.scrollingDeltaY) {
+      case (0, _): .pass
+      case (let deltaX, 0): .step(deltaX < 0 ? 1 : -1)
+      default: .drop
+      }
   }
 }

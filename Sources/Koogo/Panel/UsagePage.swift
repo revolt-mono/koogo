@@ -22,7 +22,7 @@ struct UsagePage: View {
           cards: preferences.order.compactMap { provider in
             snapshot.providers[provider].map { (provider: provider, usage: $0) }
           },
-          heightLimit: max(maxHeight - headerHeight - Self.cardsGapExcludingScrollMargin, 0),
+          maxHeight: max(maxHeight - headerHeight - Self.cardsGapExcludingScrollMargin, 0),
         )
       }
     }
@@ -35,7 +35,7 @@ struct UsagePage: View {
   }
 
   private static let headerGap: CGFloat = 20
-  private static let cardsGapExcludingScrollMargin = headerGap - PanelLayout.gap
+  private static let cardsGapExcludingScrollMargin = headerGap - PanelLayout.pageScrollMargins.top
 
   @Environment(ProviderPreferences.self) private var preferences
   @Environment(UsageModel.self) private var usageModel
@@ -45,13 +45,13 @@ struct UsagePage: View {
 
 private struct ProviderCards: View {
   let cards: [(provider: Provider, usage: ProviderUsageSnapshot)]
-  let heightLimit: CGFloat
+  let maxHeight: CGFloat
 
   var body: some View {
-    let leading = cards.prefix(Self.visibleCards)
-    let visibleHeight =
-      leading.reduce(0) { $0 + cardHeights[$1.provider] }
-        + PanelLayout.gap * CGFloat(max(leading.count, 1)) + PanelLayout.pageIndicatorInset
+    let leading = cards.prefix(Self.visibleCardCount)
+    let margins = PanelLayout.pageScrollMargins
+    let gapsAboveCards = margins.top + PanelLayout.gap * CGFloat(max(leading.count - 1, 0))
+    let visibleHeight = leading.reduce(0) { $0 + cardHeights[$1.provider] } + gapsAboveCards + margins.bottom
 
     ScrollView {
       VStack(spacing: PanelLayout.gap) {
@@ -60,7 +60,7 @@ private struct ProviderCards: View {
           ProviderUsageCard(
             provider: card.provider,
             usage: card.usage,
-            plan: quota.flatMap { quotaModel.statuses[$0].latest?.snapshot?.plan },
+            plan: quota.flatMap { quotaModel.snapshot(of: $0)?.plan },
           ) {
             if let quota {
               QuotaSection(provider: quota)
@@ -72,10 +72,10 @@ private struct ProviderCards: View {
       .motionAnimation(.smooth(duration: 0.25), value: quotaModel.statuses)
     }
     .panelPageScroll()
-    .frame(height: min(visibleHeight.rounded(.up), heightLimit))
+    .frame(height: min(visibleHeight.rounded(.up), maxHeight))
   }
 
-  private static let visibleCards = 3
+  private static let visibleCardCount = 3
 
   @Environment(QuotaModel.self) private var quotaModel
   @State private var cardHeights = EnumMap<Provider, CGFloat> { _ in 0 }
