@@ -5,7 +5,6 @@ import Testing
 
 struct ActivitySamplerTests {
   // desktop macs have no battery, and a charging battery reports no draw.
-  // swiftformat:disable:next noGuardInTests
   @Test
   func `the sampler reads this machine`() async throws {
     let sampler = ActivitySampler()
@@ -26,10 +25,12 @@ struct ActivitySamplerTests {
         #expect((0...1).contains(stage))
       }
     }
-    let battery = try #require(second.battery)
-    #expect((0...1).contains(battery.charge))
-    #expect((0...1).contains(battery.health))
-    let draw = try #require(battery.draw)
-    #expect(draw > 0)
+    if let battery = second.battery {
+      #expect((0...1).contains(battery.charge))
+      #expect((0...1).contains(battery.health))
+      if let draw = battery.draw {
+        #expect(draw > 0)
+      }
+    }
   }
 }
