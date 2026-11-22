@@ -1,22 +1,26 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class UsageFormattingTests: XCTestCase {
-  func testCostsRoundToCents() throws {
-    XCTAssertEqual((0.005 as Decimal).formatted(.usd), "$0.01")
-    XCTAssertEqual((0.01 as Decimal).formatted(.usd), "$0.01")
-    XCTAssertEqual(try XCTUnwrap(Decimal(string: "0.025")).formatted(.usd), "$0.03")
+struct UsageFormattingTests {
+  @Test
+  func `costs round to cents`() {
+    #expect((0.005 as Decimal).formatted(.usd) == "$0.01")
+    #expect((0.01 as Decimal).formatted(.usd) == "$0.01")
+    #expect(Decimal(string: "0.025")?.formatted(.usd) == "$0.03")
   }
 
-  func testTokensUseCompactNotation() {
-    XCTAssertEqual((999 as UInt64).formatted(.compactTokens), "999")
-    XCTAssertEqual((1_500 as UInt64).formatted(.compactTokens), "1.5K")
+  @Test
+  func `tokens use compact notation`() {
+    #expect((999 as UInt64).formatted(.compactTokens) == "999")
+    #expect((1_500 as UInt64).formatted(.compactTokens) == "1.5K")
   }
 
-  func testPercentagesRoundToOneDecimalPlace() throws {
-    XCTAssertEqual((1 as Decimal).formatted(.usagePercent), "100%")
-    XCTAssertEqual((0 as Decimal).formatted(.usagePercent), "0%")
-    XCTAssertEqual(try XCTUnwrap(Decimal(string: "0.1225")).formatted(.usagePercent), "12.3%")
+  @Test
+  func `percentages round to one decimal place`() {
+    #expect((1 as Decimal).formatted(.usagePercent) == "100%")
+    #expect((0 as Decimal).formatted(.usagePercent) == "0%")
+    #expect(Decimal(string: "0.1225")?.formatted(.usagePercent) == "12.3%")
   }
 }

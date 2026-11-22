@@ -1,11 +1,12 @@
 import AppKit
-import XCTest
+import Testing
 
 @testable import Koogo
 
 @MainActor
-final class PanelDisclosureTests: XCTestCase {
-  func testEachTriggerPressIsIndependentAndPreservesEventMetadata() throws {
+struct PanelDisclosureTests {
+  @Test
+  func `each trigger press is independent and preserves event metadata`() throws {
     let fixture = Fixture()
     defer { fixture.window.close() }
     for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
@@ -13,33 +14,36 @@ final class PanelDisclosureTests: XCTestCase {
         let original = try fixture.event(type: type, count: count)
         let result = original.independentClick(in: fixture.anchor)
 
-        XCTAssertEqual(result.clickCount, 1)
-        XCTAssertEqual(result.type, original.type)
-        XCTAssertEqual(result.locationInWindow, original.locationInWindow)
-        XCTAssertEqual(result.windowNumber, original.windowNumber)
-        XCTAssertEqual(result.eventNumber, original.eventNumber)
-        XCTAssertEqual(result.timestamp, original.timestamp)
-        XCTAssertEqual(result.modifierFlags, original.modifierFlags)
-        XCTAssertEqual(result.pressure, original.pressure)
+        #expect(result.clickCount == 1)
+        #expect(result.type == original.type)
+        #expect(result.locationInWindow == original.locationInWindow)
+        #expect(result.windowNumber == original.windowNumber)
+        #expect(result.eventNumber == original.eventNumber)
+        #expect(result.timestamp == original.timestamp)
+        #expect(result.modifierFlags == original.modifierFlags)
+        #expect(result.pressure == original.pressure)
       }
     }
   }
 
-  func testSingleClicksPassThroughUnchanged() throws {
+  @Test
+  func `single clicks pass through unchanged`() throws {
     let fixture = Fixture()
     defer { fixture.window.close() }
     let original = try fixture.event(count: 1)
-    XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
+    #expect(original.independentClick(in: fixture.anchor) === original)
   }
 
-  func testDoubleClicksOutsideTheTriggerAreUntouched() throws {
+  @Test
+  func `double clicks outside the trigger are untouched`() throws {
     let fixture = Fixture()
     defer { fixture.window.close() }
     let original = try fixture.event(location: NSPoint(x: 250, y: 150))
-    XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
+    #expect(original.independentClick(in: fixture.anchor) === original)
   }
 
-  func testAnotherWindowsClicksAreUntouchedEvenAtTheSameCoordinates() throws {
+  @Test
+  func `another windows clicks are untouched even at the same coordinates`() throws {
     let fixture = Fixture()
     let other = Fixture()
     defer {
@@ -47,18 +51,19 @@ final class PanelDisclosureTests: XCTestCase {
       other.window.close()
     }
     let original = try other.event()
-    XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
+    #expect(original.independentClick(in: fixture.anchor) === original)
   }
 
-  func testHiddenAndDetachedTriggersCannotChangeEvents() throws {
+  @Test
+  func `hidden and detached triggers cannot change events`() throws {
     let fixture = Fixture()
     defer { fixture.window.close() }
     let original = try fixture.event()
     fixture.anchor.isHidden = true
-    XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
+    #expect(original.independentClick(in: fixture.anchor) === original)
     fixture.anchor.isHidden = false
     fixture.anchor.removeFromSuperview()
-    XCTAssertIdentical(original.independentClick(in: fixture.anchor), original)
+    #expect(original.independentClick(in: fixture.anchor) === original)
   }
 }
 
@@ -87,7 +92,7 @@ private struct Fixture {
     count: Int = 2,
     location: NSPoint = NSPoint(x: 70, y: 40),
   ) throws -> NSEvent {
-    try XCTUnwrap(
+    try #require(
       NSEvent.mouseEvent(
         with: type,
         location: location,

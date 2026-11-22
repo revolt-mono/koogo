@@ -2,137 +2,150 @@ import ApplicationServices
 import Carbon.HIToolbox
 import Darwin
 import Synchronization
-import XCTest
+import Testing
 
 @testable import Koogo
 
-final class ScrollRewriterTests: XCTestCase {
-  func testNotchesRewriteInPlaceToTheStepOnTheirOwnAxis() throws {
-    let vertical = try scrollEvent(verticalDelta: 3)
-    let horizontal = try scrollEvent(horizontalDelta: -1)
+struct ScrollRewriterTests {
+  @Test
+  func `notches rewrite in place to the step on their own axis`() throws {
+    let vertical = try CGEvent.wheel(verticalDelta: 3)
+    let horizontal = try CGEvent.wheel(horizontalDelta: -1)
 
-    XCTAssertEqual(rewriter.rewrite(vertical, rules: rules, post: unexpectedReplacement), .deliver)
-    XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis1), -3)
-    XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis2), 0)
-    XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventFixedPtDeltaAxis1), -3 * 65_536)
-    XCTAssertEqual(vertical.getIntegerValueField(.scrollWheelEventPointDeltaAxis1), -48)
+    #expect(rewriter.rewrite(vertical, rules: .defaults, post: unexpectedReplacement) == .deliver)
+    #expect(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis1) == -3)
+    #expect(vertical.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 0)
+    #expect(vertical.getIntegerValueField(.scrollWheelEventFixedPtDeltaAxis1) == -3 * 65_536)
+    #expect(vertical.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == -48)
 
-    XCTAssertEqual(rewriter.rewrite(horizontal, rules: rules, post: unexpectedReplacement), .deliver)
-    XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis1), 0)
-    XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis2), 3)
-    XCTAssertEqual(horizontal.getIntegerValueField(.scrollWheelEventPointDeltaAxis2), 48)
+    #expect(rewriter.rewrite(horizontal, rules: .defaults, post: unexpectedReplacement) == .deliver)
+    #expect(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 0)
+    #expect(horizontal.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 3)
+    #expect(horizontal.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == 48)
   }
 
-  func testContinuousAndPhasedScrollingPassesThroughUntouched() throws {
+  @Test
+  func `continuous and phased scrolling passes through untouched`() throws {
     let fields: [CGEventField] = [
       .scrollWheelEventIsContinuous,
       .scrollWheelEventScrollPhase,
       .scrollWheelEventMomentumPhase,
     ]
     for field in fields {
-      let event = try scrollEvent(verticalDelta: 1)
+      let event = try CGEvent.wheel(verticalDelta: 1)
       event.setIntegerValueField(field, value: 1)
 
-      XCTAssertEqual(rewriter.rewrite(event, rules: rules, post: unexpectedReplacement), .deliver)
-      XCTAssertEqual(event.getIntegerValueField(.scrollWheelEventDeltaAxis1), 1)
+      #expect(rewriter.rewrite(event, rules: .defaults, post: unexpectedReplacement) == .deliver)
+      #expect(event.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 1)
     }
   }
 
-  func testDiagonalAndZeroWheelEventsDrop() throws {
-    for event in [try scrollEvent(verticalDelta: 1, horizontalDelta: 1), try scrollEvent()] {
-      XCTAssertEqual(rewriter.rewrite(event, rules: rules, post: unexpectedReplacement), .drop)
+  @Test
+  func `diagonal and zero wheel events drop`() throws {
+    for event in [try CGEvent.wheel(verticalDelta: 1, horizontalDelta: 1), try CGEvent.wheel()] {
+      #expect(rewriter.rewrite(event, rules: .defaults, post: unexpectedReplacement) == .drop)
     }
   }
 
-  func testOptionPrecisionPostsAOneLineNotchBetweenOptionReleaseAndRestore() throws {
-    let event = try scrollEvent(verticalDelta: 1)
+  @Test
+  func `option precision posts a one line notch between option release and restore`() throws {
+    let event = try CGEvent.wheel(verticalDelta: 1)
     event.flags = [.maskAlternate, .maskShift, CGEventFlags(rawValue: UInt64(NX_DEVICERALTKEYMASK))]
     event.timestamp = 1234
     event.location = CGPoint(x: 40, y: 60)
 
     var posted = [PostedEvent]()
-    XCTAssertEqual(rewriter.rewrite(event, rules: precision) { posted.append(PostedEvent($0)) }, .drop)
-    XCTAssertEqual(posted.map(\.type), [.flagsChanged, .scrollWheel, .flagsChanged])
-    let released = try XCTUnwrap(posted.first)
-    let notch = try XCTUnwrap(posted.dropFirst().first)
-    let restored = try XCTUnwrap(posted.last)
+    #expect(rewriter.rewrite(event, rules: .optionPrecision) { posted.append(PostedEvent($0)) } == .drop)
+    #expect(posted.map(\.type) == [.flagsChanged, .scrollWheel, .flagsChanged])
+    let released = try #require(posted.first)
+    let notch = try #require(posted.dropFirst().first)
+    let restored = try #require(posted.last)
 
-    XCTAssertEqual(notch.verticalLines, -1)
-    XCTAssertEqual(notch.flags, [.maskShift])
-    XCTAssertEqual(notch.timestamp, 1234)
-    XCTAssertEqual(notch.location, CGPoint(x: 40, y: 60))
-    XCTAssertEqual(released.flags, [.maskShift])
-    XCTAssertEqual(released.keyCode, Int64(kVK_RightOption))
-    XCTAssertEqual(restored.flags, event.flags)
-    XCTAssertEqual(restored.timestamp, 1234)
-    XCTAssertEqual(
-      event.getIntegerValueField(.scrollWheelEventDeltaAxis1),
-      1,
+    #expect(notch.verticalLines == -1)
+    #expect(notch.flags == [.maskShift])
+    #expect(notch.timestamp == 1234)
+    #expect(notch.location == CGPoint(x: 40, y: 60))
+    #expect(released.flags == [.maskShift])
+    #expect(released.keyCode == Int64(kVK_RightOption))
+    #expect(restored.flags == event.flags)
+    #expect(restored.timestamp == 1234)
+    #expect(
+      event.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 1,
       "the original is dropped, not edited",
     )
   }
 
-  func testHorizontalStripKeepsItsAxisAndReleasesLeftOptionByDefault() throws {
-    let event = try scrollEvent(horizontalDelta: 1)
+  @Test
+  func `horizontal strip keeps its axis and releases left option by default`() throws {
+    let event = try CGEvent.wheel(horizontalDelta: 1)
     event.flags = [.maskAlternate]
 
     var posted = [PostedEvent]()
-    XCTAssertEqual(rewriter.rewrite(event, rules: precision) { posted.append(PostedEvent($0)) }, .drop)
-    XCTAssertEqual(posted.map(\.type), [.flagsChanged, .scrollWheel, .flagsChanged])
-    let notch = try XCTUnwrap(posted.dropFirst().first)
+    #expect(rewriter.rewrite(event, rules: .optionPrecision) { posted.append(PostedEvent($0)) } == .drop)
+    #expect(posted.map(\.type) == [.flagsChanged, .scrollWheel, .flagsChanged])
+    let notch = try #require(posted.dropFirst().first)
 
-    XCTAssertEqual(notch.verticalLines, 0)
-    XCTAssertEqual(notch.horizontalLines, -1)
-    XCTAssertFalse(notch.flags.contains(.maskAlternate))
-    XCTAssertEqual(posted.first?.keyCode, Int64(kVK_Option))
-    XCTAssertEqual(posted.last?.flags, [.maskAlternate])
+    #expect(notch.verticalLines == 0)
+    #expect(notch.horizontalLines == -1)
+    #expect(!notch.flags.contains(.maskAlternate))
+    #expect(posted.first?.keyCode == Int64(kVK_Option))
+    #expect(posted.last?.flags == [.maskAlternate])
   }
 
   /// macos disables event taps that respond late to system-wide scrolling.
-  func testRewritingNeverAllocates() throws {
-    let notch = try scrollEvent(verticalDelta: 1)
-    let optionNotch = try scrollEvent(verticalDelta: 1)
-    optionNotch.flags = [.maskAlternate]
-    let diagonal = try scrollEvent(verticalDelta: 1, horizontalDelta: 1)
-    let continuous = try scrollEvent(verticalDelta: 1)
-    continuous.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
-    let atomic = Atomic(precision)
-    _ = rewriter.rewrite(optionNotch, rules: precision, post: { _ in })
+  @Test
+  func `rewriting never allocates`() async {
+    await #expect(processExitsWith: .success) {
+      let rewriter = ScrollRewriter()
+      let notch = try CGEvent.wheel(verticalDelta: 1)
+      let optionNotch = try CGEvent.wheel(verticalDelta: 1)
+      optionNotch.flags = [.maskAlternate]
+      let diagonal = try CGEvent.wheel(verticalDelta: 1, horizontalDelta: 1)
+      let continuous = try CGEvent.wheel(verticalDelta: 1)
+      continuous.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+      let atomic = Atomic(InputRules.optionPrecision)
+      _ = rewriter.rewrite(optionNotch, rules: .optionPrecision, post: { _ in })
 
-    var remaining = 1_000
-    var posted = 0
-    // range-based for loops allocate per step in unoptimized builds.
-    let count = AllocationCounter.count {
-      while remaining > 0 {
-        remaining -= 1
-        let rules = atomic.load(ordering: .relaxed)
-        notch.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: 1)
-        _ = rewriter.rewrite(notch, rules: rules) { _ in posted += 1 }
-        _ = rewriter.rewrite(optionNotch, rules: rules) { _ in posted += 1 }
-        _ = rewriter.rewrite(diagonal, rules: rules) { _ in posted += 1 }
-        _ = rewriter.rewrite(continuous, rules: rules) { _ in posted += 1 }
+      var remaining = 1_000
+      var posted = 0
+      // range-based for loops allocate per step in unoptimized builds.
+      let count = AllocationCounter.count {
+        while remaining > 0 {
+          remaining -= 1
+          let rules = atomic.load(ordering: .relaxed)
+          notch.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: 1)
+          _ = rewriter.rewrite(notch, rules: rules) { _ in posted += 1 }
+          _ = rewriter.rewrite(optionNotch, rules: rules) { _ in posted += 1 }
+          _ = rewriter.rewrite(diagonal, rules: rules) { _ in posted += 1 }
+          _ = rewriter.rewrite(continuous, rules: rules) { _ in posted += 1 }
+        }
       }
-    }
 
-    XCTAssertEqual(count, 0)
-    XCTAssertEqual(posted, 3_000)
+      #expect(count == 0)
+      #expect(posted == 3_000)
+    }
   }
 
   private let rewriter = ScrollRewriter()
-  private let rules = InputRules(MouseSettings(), frontmostApp: nil)
-
-  private var precision: InputRules {
-    var precision = rules
-    precision.notchMode = .optionPrecision
-    return precision
-  }
 
   private func unexpectedReplacement(_: borrowing PostedScrollEvent) {
-    XCTFail("unexpected replacement")
+    Issue.record("unexpected replacement")
   }
+}
 
-  private func scrollEvent(verticalDelta: Int32 = 0, horizontalDelta: Int32 = 0) throws -> CGEvent {
-    try XCTUnwrap(
+extension InputRules {
+  fileprivate static let defaults = InputRules(MouseSettings(), frontmostApp: nil)
+
+  fileprivate static var optionPrecision: InputRules {
+    var rules = defaults
+    rules.notchMode = .optionPrecision
+    return rules
+  }
+}
+
+extension CGEvent {
+  fileprivate static func wheel(verticalDelta: Int32 = 0, horizontalDelta: Int32 = 0) throws -> CGEvent {
+    try #require(
       CGEvent(
         scrollWheelEvent2Source: nil,
         units: .line,

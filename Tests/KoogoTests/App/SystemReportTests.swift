@@ -1,10 +1,16 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class SystemReportTests: UsageWorkspaceTestCase {
-  func testReportDescribesUsagePipelineAndQuotaOutcome() async throws {
-    let quotaWorkspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+struct SystemReportTests {
+  init() throws {
+    workspace = try UsageTestWorkspace()
+  }
+
+  @Test
+  func `report describes usage pipeline and quota outcome`() async throws {
+    let quotaWorkspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
 
     try workspace.write(
       CodexLog.session(input: 100, output: 20),
@@ -13,7 +19,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
 
     let missingExecutables = QuotaSources.missingExecutables
     let data = try await SystemReport.generate(
-      pipeline: makePipeline(),
+      pipeline: workspace.makePipeline(),
       quotaSources: QuotaSources(
         codex: CodexQuotaSource(tool: CommandLineTool(candidates: [try quotaWorkspace.makeAppServer()])),
         claude: missingExecutables.claude,
@@ -21,34 +27,32 @@ final class SystemReportTests: UsageWorkspaceTestCase {
       ),
       at: UsageFixture.timestamp,
     )
-    let report = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let report = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-    XCTAssertEqual(report["generatedAt"] as? String, "2026-08-25T18:00:00Z")
-    let usage = try XCTUnwrap(report["usage"] as? [String: Any])
-    let ingestion = try XCTUnwrap(usage["ingestion"] as? [String: Any])
-    XCTAssertEqual(
-      ingestion["trackedFiles"] as? [String: Int],
-      ["codex": 1, "claude": 0, "piAgent": 0, "grok": 0],
-    )
-    XCTAssertEqual(ingestion["events"] as? [String: Int], ["codex": 1, "claude": 0, "piAgent": 0, "grok": 0])
-    XCTAssertEqual(ingestion["unpricedModels"] as? [String], [])
-    let logRoots = try XCTUnwrap(ingestion["logRoots"] as? [[String: Any]])
-    XCTAssertEqual(logRoots.count, 5)
-    XCTAssertTrue(logRoots.allSatisfy { $0["exists"] as? Bool == true })
+    #expect(report["generatedAt"] as? String == "2026-08-25T18:00:00Z")
+    let usage = try #require(report["usage"] as? [String: Any])
+    let ingestion = try #require(usage["ingestion"] as? [String: Any])
+    #expect(ingestion["trackedFiles"] as? [String: Int] == ["codex": 1, "claude": 0, "piAgent": 0, "grok": 0])
+    #expect(ingestion["events"] as? [String: Int] == ["codex": 1, "claude": 0, "piAgent": 0, "grok": 0])
+    #expect(ingestion["unpricedModels"] as? [String] == [])
+    let logRoots = try #require(ingestion["logRoots"] as? [[String: Any]])
+    #expect(logRoots.count == 5)
+    #expect(logRoots.allSatisfy { $0["exists"] as? Bool == true })
 
-    let quota = try XCTUnwrap(report["quota"] as? [String: Any])
-    let codex = try XCTUnwrap(quota["codex"] as? [String: Any])
-    XCTAssertEqual(codex["state"] as? String, "available")
+    let quota = try #require(report["quota"] as? [String: Any])
+    let codex = try #require(quota["codex"] as? [String: Any])
+    #expect(codex["state"] as? String == "available")
     for provider in ["claude", "grok"] {
-      let status = try XCTUnwrap(quota[provider] as? [String: Any], provider)
-      XCTAssertEqual(status["state"] as? String, "unavailable", provider)
-      XCTAssertEqual(status["reason"] as? String, "binaryNotFound", provider)
-      XCTAssertNil(status["snapshot"], provider)
+      let status = try #require(quota[provider] as? [String: Any], "\(provider)")
+      #expect(status["state"] as? String == "unavailable", "\(provider)")
+      #expect(status["reason"] as? String == "binaryNotFound", "\(provider)")
+      #expect(status["snapshot"] == nil, "\(provider)")
     }
   }
 
-  func testReportKeyPathsAreStable() async throws {
-    let quotaWorkspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `report key paths are stable`() async throws {
+    let quotaWorkspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
 
     try workspace.write(
       CodexLog.session(input: 100, output: 20),
@@ -65,11 +69,11 @@ final class SystemReportTests: UsageWorkspaceTestCase {
     try workspace.write(GrokLog.turn(eventID: "s-1") + "\n", to: grokSession.appending(path: "updates.jsonl"))
 
     let codexExecutable = try quotaWorkspace.makeAppServer(quotaResponse: Self.codexQuotaResponse)
-    let claudeExecutable = try ClaudeQuotaTestWorkspace(root: makeTemporaryDirectory()).makeCLI()
-    let grokExecutable = try GrokQuotaTestWorkspace(root: makeTemporaryDirectory()).makeAgent()
+    let claudeExecutable = try ClaudeQuotaTestWorkspace(root: scratch.makeTemporaryDirectory()).makeCLI()
+    let grokExecutable = try GrokQuotaTestWorkspace(root: scratch.makeTemporaryDirectory()).makeAgent()
 
     let data = try await SystemReport.generate(
-      pipeline: makePipeline(),
+      pipeline: workspace.makePipeline(),
       quotaSources: QuotaSources(
         codex: CodexQuotaSource(tool: CommandLineTool(candidates: [codexExecutable])),
         claude: ClaudeQuotaSource(tool: CommandLineTool(candidates: [claudeExecutable])),
@@ -78,7 +82,7 @@ final class SystemReportTests: UsageWorkspaceTestCase {
       at: UsageFixture.timestamp,
     )
 
-    XCTAssertEqual(keyPaths(of: try JSONSerialization.jsonObject(with: data)).sorted(), Self.reportKeyPaths.sorted())
+    try #expect(keyPaths(of: JSONSerialization.jsonObject(with: data)).sorted() == Self.reportKeyPaths.sorted())
   }
 
   private static let reportKeyPaths =
@@ -157,6 +161,10 @@ final class SystemReportTests: UsageWorkspaceTestCase {
     "resetsAt":1787698800}}},"rateLimitResetCredits":{"availableCount":1,\
     "credits":[\(CodexQuotaTestWorkspace.resetCredit)]}}}
     """
+
+  private let workspace: UsageTestWorkspace
+
+  private let scratch = Scratch()
 
   private func keyPaths(of value: Any, prefix: String = "") -> Set<String> {
     switch value {

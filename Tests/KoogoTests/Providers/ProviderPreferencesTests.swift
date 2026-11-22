@@ -1,58 +1,64 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
 @MainActor
-final class ProviderPreferencesTests: XCTestCase {
-  func testDefaultsShowEveryProviderAndFetchEveryQuotaInDeclarationOrder() throws {
-    let preferences = ProviderPreferences(defaults: try makeIsolatedDefaults())
+struct ProviderPreferencesTests {
+  @Test
+  func `defaults show every provider and fetch every quota in declaration order`() throws {
+    let preferences = ProviderPreferences(defaults: try scratch.makeIsolatedDefaults())
 
-    XCTAssertEqual(preferences.usageProviders, Provider.allCases)
-    XCTAssertEqual(preferences.quotaProviders, [.codex, .claude, .grok])
+    #expect(preferences.usageProviders == Provider.allCases)
+    #expect(preferences.quotaProviders == [.codex, .claude, .grok])
   }
 
-  func testMovedProviderTakesTheTargetSlotAndOrdersQuotaProvidersToo() throws {
-    let defaults = try makeIsolatedDefaults()
+  @Test
+  func `moved provider takes the target slot and orders quota providers too`() throws {
+    let defaults = try scratch.makeIsolatedDefaults()
     let preferences = ProviderPreferences(defaults: defaults)
 
     preferences.move(.grok, to: .codex)
-    XCTAssertEqual(preferences.order, [.grok, .codex, .claude, .piAgent])
+    #expect(preferences.order == [.grok, .codex, .claude, .piAgent])
     preferences.move(.piAgent, to: .codex)
-    XCTAssertEqual(preferences.order, [.grok, .piAgent, .codex, .claude])
+    #expect(preferences.order == [.grok, .piAgent, .codex, .claude])
     preferences.move(.grok, to: .grok)
-    XCTAssertEqual(preferences.quotaProviders, [.grok, .codex, .claude])
+    #expect(preferences.quotaProviders == [.grok, .codex, .claude])
 
-    XCTAssertEqual(ProviderPreferences(defaults: defaults).order, [.grok, .piAgent, .codex, .claude])
+    #expect(ProviderPreferences(defaults: defaults).order == [.grok, .piAgent, .codex, .claude])
   }
 
-  func testHidingAProviderPersistsAndDropsItsQuota() throws {
-    let defaults = try makeIsolatedDefaults()
+  @Test
+  func `hiding a provider persists and drops its quota`() throws {
+    let defaults = try scratch.makeIsolatedDefaults()
     let preferences = ProviderPreferences(defaults: defaults)
 
     preferences[isUsageEnabled: .codex] = false
 
-    XCTAssertEqual(preferences.usageProviders, [.claude, .piAgent, .grok])
-    XCTAssertEqual(preferences.quotaProviders, [.claude, .grok], "a provider hidden from usage fetches no quota")
+    #expect(preferences.usageProviders == [.claude, .piAgent, .grok])
+    #expect(preferences.quotaProviders == [.claude, .grok], "a provider hidden from usage fetches no quota")
 
     let relaunched = ProviderPreferences(defaults: defaults)
-    XCTAssertEqual(relaunched.usageProviders, [.claude, .piAgent, .grok])
+    #expect(relaunched.usageProviders == [.claude, .piAgent, .grok])
     relaunched[isUsageEnabled: .codex] = true
-    XCTAssertEqual(ProviderPreferences(defaults: defaults).usageProviders, Provider.allCases)
+    #expect(ProviderPreferences(defaults: defaults).usageProviders == Provider.allCases)
   }
 
-  func testUndecodableStorageFallsBackToDefaults() throws {
-    let defaults = try makeIsolatedDefaults()
+  @Test
+  func `undecodable storage falls back to defaults`() throws {
+    let defaults = try scratch.makeIsolatedDefaults()
     ProviderPreferences(defaults: defaults)[isUsageEnabled: .codex] = false
     defaults.set(Data("junk".utf8), forKey: "provider-preferences")
 
     let preferences = ProviderPreferences(defaults: defaults)
 
-    XCTAssertEqual(preferences.order, Provider.allCases)
-    XCTAssertEqual(preferences.usageProviders, Provider.allCases)
+    #expect(preferences.order == Provider.allCases)
+    #expect(preferences.usageProviders == Provider.allCases)
   }
 
-  func testRepeatedStoredProvidersKeepTheirFirstSlot() throws {
-    let defaults = try makeIsolatedDefaults()
+  @Test
+  func `repeated stored providers keep their first slot`() throws {
+    let defaults = try scratch.makeIsolatedDefaults()
     let stored: [String: Any] = ["order": ["grok", "codex", "grok"], "usageDisabled": [String]()]
     defaults.set(
       try PropertyListSerialization.data(fromPropertyList: stored, format: .binary, options: 0),
@@ -61,7 +67,9 @@ final class ProviderPreferencesTests: XCTestCase {
 
     let preferences = ProviderPreferences(defaults: defaults)
 
-    XCTAssertEqual(preferences.order, [.grok, .codex, .claude, .piAgent])
-    XCTAssertEqual(preferences.quotaProviders, [.grok, .codex, .claude])
+    #expect(preferences.order == [.grok, .codex, .claude, .piAgent])
+    #expect(preferences.quotaProviders == [.grok, .codex, .claude])
   }
+
+  private let scratch = Scratch()
 }

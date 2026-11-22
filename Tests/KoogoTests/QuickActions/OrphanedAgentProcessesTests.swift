@@ -1,34 +1,38 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class OrphanedAgentProcessesTests: XCTestCase {
-  func testOrphanedAgentProcessRecognizesAgentExecutablesWithoutATerminal() {
+struct OrphanedAgentProcessesTests {
+  @Test
+  func `orphaned agent process recognizes agent executables without a terminal`() {
     let orphans = [
       claudePath,
       "/Users/me/.codex/packages/standalone/releases/0.158.0-aarch64-apple-darwin/bin/codex",
       "/Users/me/.grok/downloads/grok-1.0.45-macos-aarch64",
     ].map { orphan(parentPID: 1, executablePath: $0)?.provider }
 
-    XCTAssertEqual(orphans, [.claude, .codex, .grok])
-    XCTAssertNotNil(orphan(parentPID: 900, executablePath: claudePath), "daemon children count without launchd")
-    XCTAssertNil(orphan(parentPID: 1, executablePath: "/opt/tool/versions/2.1.284"))
-    XCTAssertNil(orphan(parentPID: 1, executablePath: "/Users/me/.local/share/claude/node"))
+    #expect(orphans == [.claude, .codex, .grok])
+    #expect(orphan(parentPID: 900, executablePath: claudePath) != nil, "daemon children count without launchd")
+    #expect(orphan(parentPID: 1, executablePath: "/opt/tool/versions/2.1.284") == nil)
+    #expect(orphan(parentPID: 1, executablePath: "/Users/me/.local/share/claude/node") == nil)
   }
 
-  func testOrphanedAgentProcessSkipsTerminalSessionsAndOwnQuotaReads() {
-    XCTAssertNil(orphan(parentPID: 1, hasTerminal: true, executablePath: claudePath))
-    XCTAssertNil(orphan(parentPID: ProcessInfo.processInfo.processIdentifier, executablePath: claudePath))
+  @Test
+  func `orphaned agent process skips terminal sessions and own quota reads`() {
+    #expect(orphan(parentPID: 1, hasTerminal: true, executablePath: claudePath) == nil)
+    #expect(orphan(parentPID: ProcessInfo.processInfo.processIdentifier, executablePath: claudePath) == nil)
   }
 
-  func testOrphanedAgentProcessesSummarizesCountsPerProviderInOrder() throws {
+  @Test
+  func `orphaned agent processes summarizes counts per provider in order`() throws {
     let processes = OrphanedAgentProcesses([
-      try XCTUnwrap(orphan(parentPID: 1, executablePath: "/Users/me/.codex/bin/codex")),
-      try XCTUnwrap(orphan(parentPID: 1, executablePath: claudePath)),
-      try XCTUnwrap(orphan(parentPID: 1, executablePath: "/Users/me/.codex/bin/codex")),
+      try #require(orphan(parentPID: 1, executablePath: "/Users/me/.codex/bin/codex")),
+      try #require(orphan(parentPID: 1, executablePath: claudePath)),
+      try #require(orphan(parentPID: 1, executablePath: "/Users/me/.codex/bin/codex")),
     ])
 
-    XCTAssertEqual(processes?.summary, "2 codex, 1 claude")
+    #expect(processes?.summary == "2 codex, 1 claude")
   }
 
   private let identity = ProcessIdentity(pid: 42, startTicks: 0)

@@ -1,67 +1,57 @@
 import Synchronization
-import XCTest
+import Testing
 
 @testable import Koogo
 
-final class InputRulesTests: XCTestCase {
-  func testOnlyOneAxisDeltasParseAsNotches() {
-    XCTAssertEqual(
-      WheelNotch(verticalDelta: 42, horizontalDelta: 0),
-      WheelNotch(axis: .vertical, direction: .positive),
-    )
-    XCTAssertEqual(
-      WheelNotch(verticalDelta: 0, horizontalDelta: -9),
-      WheelNotch(axis: .horizontal, direction: .negative),
-    )
-    XCTAssertNil(WheelNotch(verticalDelta: 1, horizontalDelta: 1))
-    XCTAssertNil(WheelNotch(verticalDelta: 0, horizontalDelta: 0))
+struct InputRulesTests {
+  @Test
+  func `only one axis deltas parse as notches`() {
+    #expect(WheelNotch(verticalDelta: 42, horizontalDelta: 0) == WheelNotch(axis: .vertical, direction: .positive))
+    #expect(WheelNotch(verticalDelta: 0, horizontalDelta: -9) == WheelNotch(axis: .horizontal, direction: .negative))
+    #expect(WheelNotch(verticalDelta: 1, horizontalDelta: 1) == nil)
+    #expect(WheelNotch(verticalDelta: 0, horizontalDelta: 0) == nil)
   }
 
-  func testLineByLineAppliesOnlyWhileAListedAppIsFrontmostAndOutranksPrecision() {
+  @Test
+  func `line by line applies only while a listed app is frontmost and outranks precision`() {
     var settings = MouseSettings(lineByLineApps: ["com.mitchellh.ghostty"])
     settings.isOptionPrecisionEnabled = true
 
-    XCTAssertEqual(InputRules(settings, frontmostApp: "com.mitchellh.ghostty").notchMode, .lineByLine)
-    XCTAssertEqual(InputRules(settings, frontmostApp: "com.apple.Safari").notchMode, .optionPrecision)
-    XCTAssertEqual(InputRules(settings, frontmostApp: nil).notchMode, .optionPrecision)
-    XCTAssertEqual(InputRules(MouseSettings(), frontmostApp: "com.mitchellh.ghostty").notchMode, .standard)
+    #expect(InputRules(settings, frontmostApp: "com.mitchellh.ghostty").notchMode == .lineByLine)
+    #expect(InputRules(settings, frontmostApp: "com.apple.Safari").notchMode == .optionPrecision)
+    #expect(InputRules(settings, frontmostApp: nil).notchMode == .optionPrecision)
+    #expect(InputRules(MouseSettings(), frontmostApp: "com.mitchellh.ghostty").notchMode == .standard)
   }
 
-  func testNotchesScrollTheWheelStepSignedByDirection() {
+  @Test
+  func `notches scroll the wheel step signed by direction`() {
     let upward = WheelNotch(axis: .vertical, direction: .positive)
     let left = WheelNotch(axis: .horizontal, direction: .negative)
 
-    XCTAssertEqual(rules(.slow, .natural).step(for: upward, isOptionHeld: false), step(.vertical, 2))
-    XCTAssertEqual(rules(.default, .natural).step(for: left, isOptionHeld: false), step(.horizontal, -3))
-    XCTAssertEqual(rules(.slow, .standard).step(for: upward, isOptionHeld: false), step(.vertical, -2))
+    #expect(rules(.slow, .natural).step(for: upward, isOptionHeld: false) == step(.vertical, 2))
+    #expect(rules(.default, .natural).step(for: left, isOptionHeld: false) == step(.horizontal, -3))
+    #expect(rules(.slow, .standard).step(for: upward, isOptionHeld: false) == step(.vertical, -2))
   }
 
-  func testOptionSwapsBetweenOneLineAndTheWheelStepAndHidesOptionOnlyWhenItDid() {
+  @Test
+  func `option swaps between one line and the wheel step and hides option only when it did`() {
     let down = WheelNotch(axis: .vertical, direction: .negative)
 
-    XCTAssertEqual(
-      rules(.default, .natural, .standard).step(for: down, isOptionHeld: true),
-      step(.vertical, -3),
+    #expect(rules(.default, .natural, .standard).step(for: down, isOptionHeld: true) == step(.vertical, -3))
+    #expect(rules(.default, .natural, .optionPrecision).step(for: down, isOptionHeld: false) == step(.vertical, -3))
+    #expect(
+      rules(.default, .natural, .optionPrecision).step(for: down, isOptionHeld: true)
+        == step(.vertical, -1, stripsOption: true)
     )
-    XCTAssertEqual(
-      rules(.default, .natural, .optionPrecision).step(for: down, isOptionHeld: false),
-      step(.vertical, -3),
-    )
-    XCTAssertEqual(
-      rules(.default, .natural, .optionPrecision).step(for: down, isOptionHeld: true),
-      step(.vertical, -1, stripsOption: true),
-    )
-    XCTAssertEqual(
-      rules(.default, .natural, .lineByLine).step(for: down, isOptionHeld: false),
-      step(.vertical, -1),
-    )
-    XCTAssertEqual(
-      rules(.default, .natural, .lineByLine).step(for: down, isOptionHeld: true),
-      step(.vertical, -3, stripsOption: true),
+    #expect(rules(.default, .natural, .lineByLine).step(for: down, isOptionHeld: false) == step(.vertical, -1))
+    #expect(
+      rules(.default, .natural, .lineByLine).step(for: down, isOptionHeld: true)
+        == step(.vertical, -3, stripsOption: true)
     )
   }
 
-  func testEveryRuleSetCrossesTheAtomicIntact() {
+  @Test
+  func `every rule set crosses the atomic intact`() {
     let atomic = Atomic(InputRules(MouseSettings(), frontmostApp: nil))
     for wheelStep in WheelStep.allCases {
       for direction in ScrollDirection.allCases {
@@ -74,7 +64,7 @@ final class InputRulesTests: XCTestCase {
               isLookUpEnabled: isLookUpEnabled,
             )
             atomic.store(rules, ordering: .relaxed)
-            XCTAssertEqual(atomic.load(ordering: .relaxed), rules)
+            #expect(atomic.load(ordering: .relaxed) == rules)
           }
         }
       }

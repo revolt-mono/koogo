@@ -1,26 +1,29 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
 @MainActor
-final class BreakReminderModelTests: XCTestCase {
-  func testMissingOrInvalidPersistedStateFallsBackToPausedHour() async throws {
+struct BreakReminderModelTests {
+  @Test
+  func `missing or invalid persisted state falls back to paused hour`() async throws {
     let outOfRangePause = try PropertyListEncoder().encode(
       BreakReminderCountdown.paused(interval: .oneHour, remaining: 9_999)
     )
 
     for payload in [nil, Data("garbage".utf8), outOfRangePause] {
-      let defaults = try makeIsolatedDefaults()
+      let defaults = try scratch.makeIsolatedDefaults()
       await makeModel(defaults: defaults).perform(.setInterval(.twoHours))
       defaults.set(payload, forKey: "break-reminder-state")
 
       let model = makeModel(defaults: defaults)
 
-      XCTAssertEqual(model.countdown, .paused(interval: .oneHour, remaining: 3_600))
+      #expect(model.countdown == .paused(interval: .oneHour, remaining: 3_600))
     }
   }
 
-  func testCountdownsKeepTheirStoredShape() throws {
+  @Test
+  func `countdowns keep their stored shape`() throws {
     let clock = TestClock()
     let deadline = clock.now.addingTimeInterval(600)
     let saved: [(propertyList: [String: Any], countdown: BreakReminderCountdown)] = [
@@ -29,78 +32,82 @@ final class BreakReminderModelTests: XCTestCase {
     ]
 
     for (propertyList, countdown) in saved {
-      let defaults = try makeIsolatedDefaults()
+      let defaults = try scratch.makeIsolatedDefaults()
       let data = try PropertyListSerialization.data(fromPropertyList: propertyList, format: .binary, options: 0)
       defaults.set(data, forKey: "break-reminder-state")
 
-      XCTAssertEqual(makeModel(defaults: defaults, clock: clock).countdown, countdown)
+      #expect(makeModel(defaults: defaults, clock: clock).countdown == countdown)
       let encoded = try PropertyListSerialization.propertyList(from: PropertyListEncoder().encode(countdown), format: nil)
-      XCTAssertEqual(encoded as? NSDictionary, propertyList as NSDictionary)
+      #expect(encoded as? NSDictionary == propertyList as NSDictionary)
     }
   }
 
-  func testNotificationMirrorsTheCountdown() async throws {
+  @Test
+  func `notification mirrors the countdown`() async throws {
     let clock = TestClock()
     let notifications = BreakReminderTestNotifications()
-    let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
+    let model = makeModel(defaults: try scratch.makeIsolatedDefaults(), clock: clock, notifications: notifications)
 
     await model.perform(.toggle)
-    XCTAssertEqual(notifications.scheduledDurations, [3_600])
-    XCTAssertEqual(model.countdown.status(at: clock.now), .running(remaining: 3_600))
+    #expect(notifications.scheduledDurations == [3_600])
+    #expect(model.countdown.status(at: clock.now) == .running(remaining: 3_600))
 
     clock.now.addTimeInterval(900)
     await model.perform(.toggle)
-    XCTAssertEqual(notifications.cancellationCount, 1)
-    XCTAssertFalse(notifications.isReminderPending)
-    XCTAssertEqual(model.countdown, .paused(interval: .oneHour, remaining: 2_700))
+    #expect(notifications.cancellationCount == 1)
+    #expect(!notifications.isReminderPending)
+    #expect(model.countdown == .paused(interval: .oneHour, remaining: 2_700))
 
     await model.perform(.setInterval(.oneHour))
-    XCTAssertEqual(notifications.cancellationCount, 1)
+    #expect(notifications.cancellationCount == 1)
 
     await model.perform(.setInterval(.twoHours))
     await model.perform(.toggle)
-    XCTAssertEqual(notifications.scheduledDurations, [3_600, 7_200])
-    XCTAssertEqual(notifications.cancellationCount, 2)
+    #expect(notifications.scheduledDurations == [3_600, 7_200])
+    #expect(notifications.cancellationCount == 2)
   }
 
-  func testDeadlineStartsWhenSchedulingReturns() async throws {
+  @Test
+  func `deadline starts when scheduling returns`() async throws {
     let clock = TestClock()
     let notifications = BreakReminderTestNotifications()
     notifications.beforeOperation = { clock.now.addTimeInterval(30) }
-    let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
+    let model = makeModel(defaults: try scratch.makeIsolatedDefaults(), clock: clock, notifications: notifications)
 
     await model.perform(.toggle)
 
-    XCTAssertEqual(model.countdown.status(at: clock.now), .running(remaining: 3_600))
+    #expect(model.countdown.status(at: clock.now) == .running(remaining: 3_600))
   }
 
-  func testSchedulingIssuesKeepReminderPausedAndShowUntilAScheduleSucceeds() async throws {
+  @Test
+  func `scheduling issues keep reminder paused and show until a schedule succeeds`() async throws {
     let notifications = BreakReminderTestNotifications()
-    let model = makeModel(defaults: try makeIsolatedDefaults(), notifications: notifications)
+    let model = makeModel(defaults: try scratch.makeIsolatedDefaults(), notifications: notifications)
 
     for issue in [BreakReminderIssue.notificationsDeclined, .notificationsBlocked, .schedulingFailed] {
       notifications.schedulingIssue = issue
 
       let raised = await model.perform(.toggle)
 
-      XCTAssertEqual(raised, issue)
-      XCTAssertEqual(model.issue, issue)
-      XCTAssertEqual(model.countdown, .paused(interval: .oneHour, remaining: 3_600))
+      #expect(raised == issue)
+      #expect(model.issue == issue)
+      #expect(model.countdown == .paused(interval: .oneHour, remaining: 3_600))
     }
-    XCTAssertTrue(notifications.scheduledDurations.isEmpty)
-    XCTAssertEqual(notifications.cancellationCount, 3)
+    #expect(notifications.scheduledDurations.isEmpty)
+    #expect(notifications.cancellationCount == 3)
 
     await model.perform(.setInterval(.twoHours))
-    XCTAssertEqual(model.issue, .schedulingFailed)
+    #expect(model.issue == .schedulingFailed)
 
     notifications.schedulingIssue = nil
     await model.perform(.toggle)
-    XCTAssertNil(model.issue)
-    XCTAssertEqual(notifications.scheduledDurations, [7_200])
+    #expect(model.issue == nil)
+    #expect(notifications.scheduledDurations == [7_200])
   }
 
-  func testStatePersistsAcrossModelInstances() async throws {
-    let defaults = try makeIsolatedDefaults()
+  @Test
+  func `state persists across model instances`() async throws {
+    let defaults = try scratch.makeIsolatedDefaults()
     let clock = TestClock()
     let model = makeModel(defaults: defaults, clock: clock)
     await model.perform(.setInterval(.twoHours))
@@ -109,40 +116,39 @@ final class BreakReminderModelTests: XCTestCase {
 
     let restoredModel = makeModel(defaults: defaults, clock: clock)
 
-    XCTAssertEqual(restoredModel.countdown, model.countdown)
-    XCTAssertEqual(restoredModel.countdown.status(at: clock.now), .running(remaining: 6_300))
+    #expect(restoredModel.countdown == model.countdown)
+    #expect(restoredModel.countdown.status(at: clock.now) == .running(remaining: 6_300))
 
     await restoredModel.perform(.toggle)
 
-    XCTAssertEqual(
-      makeModel(defaults: defaults, clock: clock).countdown,
-      .paused(interval: .twoHours, remaining: 6_300),
-    )
+    #expect(makeModel(defaults: defaults, clock: clock).countdown == .paused(interval: .twoHours, remaining: 6_300))
   }
 
-  func testReconciliationKeepsExistingAndRestoresMissingSystemNotification() async throws {
-    let defaults = try makeIsolatedDefaults()
+  @Test
+  func `reconciliation keeps existing and restores missing system notification`() async throws {
+    let defaults = try scratch.makeIsolatedDefaults()
     let clock = TestClock()
     let notifications = BreakReminderTestNotifications()
     await makeModel(defaults: defaults, clock: clock, notifications: notifications).perform(.toggle)
 
     let restoredModel = makeModel(defaults: defaults, clock: clock, notifications: notifications)
     await restoredModel.reconcile()
-    XCTAssertEqual(notifications.scheduledDurations, [3_600])
+    #expect(notifications.scheduledDurations == [3_600])
 
     clock.now.addTimeInterval(900)
     notifications.isReminderPending = false
     await restoredModel.reconcile()
 
-    XCTAssertTrue(notifications.isReminderPending)
-    XCTAssertEqual(notifications.scheduledDurations, [3_600, 2_700])
-    XCTAssertEqual(restoredModel.countdown.status(at: clock.now), .running(remaining: 2_700))
+    #expect(notifications.isReminderPending)
+    #expect(notifications.scheduledDurations == [3_600, 2_700])
+    #expect(restoredModel.countdown.status(at: clock.now) == .running(remaining: 2_700))
   }
 
-  func testReconciliationLeavesPausedAndExpiredCountdownsAlone() async throws {
+  @Test
+  func `reconciliation leaves paused and expired countdowns alone`() async throws {
     let clock = TestClock()
     let notifications = BreakReminderTestNotifications()
-    let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
+    let model = makeModel(defaults: try scratch.makeIsolatedDefaults(), clock: clock, notifications: notifications)
 
     await model.reconcile()
 
@@ -151,39 +157,42 @@ final class BreakReminderModelTests: XCTestCase {
     notifications.isReminderPending = false
     await model.reconcile()
 
-    XCTAssertEqual(notifications.scheduledDurations, [3_600])
-    XCTAssertEqual(model.countdown.status(at: clock.now), .expired)
+    #expect(notifications.scheduledDurations == [3_600])
+    #expect(model.countdown.status(at: clock.now) == .expired)
   }
 
-  func testReconciliationKeepsTheReminderOfAnExpiredCountdown() async throws {
+  @Test
+  func `reconciliation keeps the reminder of an expired countdown`() async throws {
     let clock = TestClock()
     let notifications = BreakReminderTestNotifications()
-    let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
+    let model = makeModel(defaults: try scratch.makeIsolatedDefaults(), clock: clock, notifications: notifications)
     await model.perform(.toggle)
 
     clock.now.addTimeInterval(3_601)
     await model.reconcile()
 
-    XCTAssertTrue(notifications.isReminderPending)
+    #expect(notifications.isReminderPending)
   }
 
-  func testReconciliationCancelsTheReminderOfADiscardedCountdown() async throws {
-    let defaults = try makeIsolatedDefaults()
+  @Test
+  func `reconciliation cancels the reminder of a discarded countdown`() async throws {
+    let defaults = try scratch.makeIsolatedDefaults()
     let clock = TestClock()
     let notifications = BreakReminderTestNotifications()
     await makeModel(defaults: defaults, clock: clock, notifications: notifications).perform(.toggle)
 
     clock.now.addTimeInterval(-3_600)
     let restoredModel = makeModel(defaults: defaults, clock: clock, notifications: notifications)
-    XCTAssertEqual(restoredModel.countdown, .initial)
+    #expect(restoredModel.countdown == .initial)
     await restoredModel.reconcile()
 
-    XCTAssertFalse(notifications.isReminderPending)
-    XCTAssertEqual(notifications.scheduledDurations, [3_600])
+    #expect(!notifications.isReminderPending)
+    #expect(notifications.scheduledDurations == [3_600])
   }
 
-  func testReconciliationPausesWhenNotificationsAreDisabled() async throws {
-    let defaults = try makeIsolatedDefaults()
+  @Test
+  func `reconciliation pauses when notifications are disabled`() async throws {
+    let defaults = try scratch.makeIsolatedDefaults()
     let clock = TestClock()
     let notifications = BreakReminderTestNotifications()
     await makeModel(defaults: defaults, clock: clock, notifications: notifications).perform(.toggle)
@@ -195,20 +204,21 @@ final class BreakReminderModelTests: XCTestCase {
 
     await restoredModel.reconcile()
 
-    XCTAssertEqual(restoredModel.issue, .notificationsBlocked)
-    XCTAssertEqual(restoredModel.countdown, .paused(interval: .oneHour, remaining: 2_700))
-    XCTAssertFalse(notifications.isReminderPending)
+    #expect(restoredModel.issue == .notificationsBlocked)
+    #expect(restoredModel.countdown == .paused(interval: .oneHour, remaining: 2_700))
+    #expect(!notifications.isReminderPending)
 
     notifications.schedulingIssue = nil
     await restoredModel.reconcile()
-    XCTAssertEqual(restoredModel.issue, .notificationsBlocked)
-    XCTAssertEqual(restoredModel.countdown, .paused(interval: .oneHour, remaining: 2_700))
+    #expect(restoredModel.issue == .notificationsBlocked)
+    #expect(restoredModel.countdown == .paused(interval: .oneHour, remaining: 2_700))
   }
 
-  func testIntentsAreDroppedWhileANotificationChangeIsInFlight() async throws {
+  @Test
+  func `intents are dropped while a notification change is in flight`() async throws {
     let clock = TestClock()
     let notifications = BreakReminderTestNotifications()
-    let model = makeModel(defaults: try makeIsolatedDefaults(), clock: clock, notifications: notifications)
+    let model = makeModel(defaults: try scratch.makeIsolatedDefaults(), clock: clock, notifications: notifications)
     await model.perform(.toggle)
     notifications.isReminderPending = false
 
@@ -225,32 +235,34 @@ final class BreakReminderModelTests: XCTestCase {
     for await _ in entered.stream {
       break
     }
-    let resume = try XCTUnwrap(continuation)
-    XCTAssertTrue(model.isBusy)
+    let resume = try #require(continuation)
+    #expect(model.isBusy)
 
     notifications.schedulingIssue = .notificationsBlocked
     for action: BreakReminderCountdown.Action in [.toggle, .restart, .setInterval(.twoHours)] {
       let raised = await model.perform(action)
-      XCTAssertNil(raised)
+      #expect(raised == nil)
     }
     notifications.schedulingIssue = nil
     await model.reconcile()
-    XCTAssertTrue(model.isBusy)
-    XCTAssertEqual(model.countdown.interval, .oneHour)
-    XCTAssertEqual(notifications.scheduledDurations, [3_600])
-    XCTAssertEqual(notifications.cancellationCount, 0)
+    #expect(model.isBusy)
+    #expect(model.countdown.interval == .oneHour)
+    #expect(notifications.scheduledDurations == [3_600])
+    #expect(notifications.cancellationCount == 0)
 
     resume.resume()
     await reconciliation.value
-    XCTAssertNil(model.issue)
-    XCTAssertFalse(model.isBusy)
-    XCTAssertEqual(model.countdown.status(at: clock.now), .running(remaining: 3_600))
-    XCTAssertEqual(notifications.scheduledDurations, [3_600, 3_600])
+    #expect(model.issue == nil)
+    #expect(!model.isBusy)
+    #expect(model.countdown.status(at: clock.now) == .running(remaining: 3_600))
+    #expect(notifications.scheduledDurations == [3_600, 3_600])
   }
 
   private final class TestClock {
     var now = Date(timeIntervalSince1970: 1_000)
   }
+
+  private let scratch = Scratch()
 
   private func makeModel(
     defaults: UserDefaults,

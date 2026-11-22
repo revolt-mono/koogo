@@ -1,36 +1,40 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
 @MainActor
-final class CodexQuotaResetFlowTests: XCTestCase {
-  func testConfirmationAndCancellationNeverSendAConsume() async throws {
+struct CodexQuotaResetFlowTests {
+  @Test
+  func `confirmation and cancellation never send a consume`() async throws {
     let source = ScriptedQuotaSource([.available(snapshot())])
     let model = try await loadModel(source)
     model.beginCodexReset(creditID: "credit-a")
-    let attempt = try XCTUnwrap(model.codexReset.confirmingAttempt)
+    let attempt = try #require(model.codexReset.confirmingAttempt)
     model.beginCodexReset(creditID: "credit-a")
-    XCTAssertEqual(model.codexReset, .confirming(attempt))
+    #expect(model.codexReset == .confirming(attempt))
     model.cancelCodexReset()
     model.submitCodexReset()
-    XCTAssertEqual(model.codexReset, .idle)
-    XCTAssertEqual(source.consumed.withLock { $0 }, [])
+    #expect(model.codexReset == .idle)
+    #expect(source.consumed.withLock { $0 } == [])
   }
 
-  func testConfirmationForACreditThatExpiresBeforeSubmitIsRefused() async throws {
+  @Test
+  func `confirmation for a credit that expires before submit is refused`() async throws {
     var now = Date.distantPast
     let source = ScriptedQuotaSource([.available(snapshot())])
     let model = try await loadModel(source, now: { now })
     model.beginCodexReset(creditID: "credit-a")
-    let attempt = try XCTUnwrap(model.codexReset.confirmingAttempt)
+    let attempt = try #require(model.codexReset.confirmingAttempt)
 
-    now = try XCTUnwrap(attempt.credit.expiresAt)
+    now = try #require(attempt.credit.expiresAt)
     model.submitCodexReset()
-    XCTAssertEqual(model.codexReset, .idle)
-    XCTAssertEqual(source.consumed.withLock { $0 }, [])
+    #expect(model.codexReset == .idle)
+    #expect(source.consumed.withLock { $0 } == [])
   }
 
-  func testConsumeIsSingleFlightAndForcesAuthoritativeRefreshInsideCooldown() async throws {
+  @Test
+  func `consume is single flight and forces authoritative refresh inside cooldown`() async throws {
     let source = ScriptedQuotaSource(
       [.available(snapshot()), .available(snapshot(usedPercent: 17, credits: []))],
       consumes: [.success(.reset)],
@@ -41,18 +45,19 @@ final class CodexQuotaResetFlowTests: XCTestCase {
     model.submitCodexReset()
     model.beginCodexReset(creditID: "credit-a")
     model.reload([.codex])
-    XCTAssertEqual(model.codexReset, .submitting)
+    #expect(model.codexReset == .submitting)
     try await Poll.until { !model.statuses[.codex].isBusy }
 
-    XCTAssertEqual(model.codexReset, .completed(.reset))
-    let shown = try XCTUnwrap(model.statuses[.codex].latest?.snapshot)
-    XCTAssertEqual(shown.windows["Session"]?.usedPercent, 17)
-    XCTAssertEqual(shown.resetCredits?.availableCount, 0)
-    XCTAssertEqual(source.consumed.withLock { $0.count }, 1)
-    XCTAssertEqual(source.loads.withLock { $0 }, 2)
+    #expect(model.codexReset == .completed(.reset))
+    let shown = try #require(model.statuses[.codex].latest?.snapshot)
+    #expect(shown.windows["Session"]?.usedPercent == 17)
+    #expect(shown.resetCredits?.availableCount == 0)
+    #expect(source.consumed.withLock { $0.count } == 1)
+    #expect(source.loads.withLock { $0 } == 2)
   }
 
-  func testSuccessfulConsumeAndFailedRefreshRemainSeparateAndRefreshCanRecover() async throws {
+  @Test
+  func `successful consume and failed refresh remain separate and refresh can recover`() async throws {
     let source = ScriptedQuotaSource(
       [.available(snapshot()), .unavailable(.sessionFailed), .available(snapshot(credits: []))],
       consumes: [.success(.reset)],
@@ -62,17 +67,18 @@ final class CodexQuotaResetFlowTests: XCTestCase {
     model.submitCodexReset()
     try await Poll.until { !model.statuses[.codex].isBusy }
 
-    XCTAssertEqual(model.codexReset, .completed(.reset))
-    XCTAssertEqual(model.statuses[.codex].latest, .unavailable(.sessionFailed))
+    #expect(model.codexReset == .completed(.reset))
+    #expect(model.statuses[.codex].latest == .unavailable(.sessionFailed))
 
     model.reload([.codex])
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(model.codexResetCredits?.availableCount, 0)
-    XCTAssertEqual(model.codexReset, .completed(.reset))
-    XCTAssertEqual(source.consumed.withLock { $0.count }, 1)
+    #expect(model.codexResetCredits?.availableCount == 0)
+    #expect(model.codexReset == .completed(.reset))
+    #expect(source.consumed.withLock { $0.count } == 1)
   }
 
-  func testLostResponseKeepsIntentAcrossRefreshAndRetriesIdenticalRequest() async throws {
+  @Test
+  func `lost response keeps intent across refresh and retries identical request`() async throws {
     let afterConsume = QuotaReading.available(snapshot(credits: []))
     let source = ScriptedQuotaSource(
       [.available(snapshot()), afterConsume, afterConsume, afterConsume],
@@ -80,79 +86,83 @@ final class CodexQuotaResetFlowTests: XCTestCase {
     )
     let model = try await loadModel(source)
     model.beginCodexReset(creditID: "credit-a")
-    let attempt = try XCTUnwrap(model.codexReset.confirmingAttempt)
+    let attempt = try #require(model.codexReset.confirmingAttempt)
     model.submitCodexReset()
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(model.codexReset, .unconfirmed(attempt, .closed))
-    XCTAssertEqual(model.codexResetCredits?.availableCount, 0)
+    #expect(model.codexReset == .unconfirmed(attempt, .closed))
+    #expect(model.codexResetCredits?.availableCount == 0)
 
     model.cancelCodexReset()
     model.beginCodexReset(creditID: "credit-b")
     model.reload([.codex])
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(model.codexReset, .unconfirmed(attempt, .closed))
+    #expect(model.codexReset == .unconfirmed(attempt, .closed))
     model.beginCodexReset(creditID: "credit-a")
-    XCTAssertEqual(model.codexReset, .unconfirmed(attempt, .closed))
-    XCTAssertEqual(source.consumed.withLock { $0 }, [attempt])
+    #expect(model.codexReset == .unconfirmed(attempt, .closed))
+    #expect(source.consumed.withLock { $0 } == [attempt])
 
     model.submitCodexReset()
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(model.codexReset, .completed(.alreadyRedeemed))
-    XCTAssertEqual(source.consumed.withLock { $0 }, [attempt, attempt])
+    #expect(model.codexReset == .completed(.alreadyRedeemed))
+    #expect(source.consumed.withLock { $0 } == [attempt, attempt])
   }
 
-  func testTimeoutDoesNotAutomaticallyRetryOrDiscardIntent() async throws {
+  @Test
+  func `timeout does not automatically retry or discard intent`() async throws {
     let source = ScriptedQuotaSource(
       [.available(snapshot()), .available(snapshot())],
       consumes: [.failure(.unconfirmed(.timedOut))],
     )
     let model = try await loadModel(source)
     model.beginCodexReset(creditID: "credit-a")
-    let attempt = try XCTUnwrap(model.codexReset.confirmingAttempt)
+    let attempt = try #require(model.codexReset.confirmingAttempt)
     model.submitCodexReset()
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(model.codexReset, .unconfirmed(attempt, .timedOut))
-    XCTAssertEqual(source.consumed.withLock { $0.count }, 1)
-    XCTAssertEqual(model.codexResetCredits?.availableCount, 1)
+    #expect(model.codexReset == .unconfirmed(attempt, .timedOut))
+    #expect(source.consumed.withLock { $0.count } == 1)
+    #expect(model.codexResetCredits?.availableCount == 1)
   }
 
-  func testFailureBeforeTheWriteDropsTheConfirmationWithItsSnapshot() async throws {
+  @Test
+  func `failure before the write drops the confirmation with its snapshot`() async throws {
     let source = ScriptedQuotaSource(
       [.available(snapshot()), .unavailable(.timedOut), .available(snapshot())],
       consumes: [.failure(.rejected(.timedOut))],
     )
     let model = try await loadModel(source)
     model.beginCodexReset(creditID: "credit-a")
-    XCTAssertNotNil(model.codexReset.confirmingAttempt)
+    #expect(model.codexReset.confirmingAttempt != nil)
     model.submitCodexReset()
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(model.statuses[.codex].latest, .unavailable(.timedOut))
-    XCTAssertEqual(model.codexReset, .idle)
+    #expect(model.statuses[.codex].latest == .unavailable(.timedOut))
+    #expect(model.codexReset == .idle)
     model.beginCodexReset(creditID: "credit-a")
-    XCTAssertEqual(model.codexReset, .idle, "a failed reread leaves no credit to choose")
+    #expect(model.codexReset == .idle, "a failed reread leaves no credit to choose")
 
     model.reload([.codex])
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(model.codexResetCredits?.availableCount, 1)
-    XCTAssertEqual(model.codexReset, .idle, "a read that restores the credit doesn't revive the confirmation")
+    #expect(model.codexResetCredits?.availableCount == 1)
+    #expect(model.codexReset == .idle, "a read that restores the credit doesn't revive the confirmation")
   }
 
-  func testRejectedConsumeKeepsTheConfirmationWhileItsCreditSurvives() async throws {
+  @Test
+  func `rejected consume keeps the confirmation while its credit survives`() async throws {
     let source = ScriptedQuotaSource(
       [.available(snapshot()), .available(snapshot())],
       consumes: [.failure(.rejected(.rpc(code: -32601)))],
     )
     let model = try await loadModel(source)
     model.beginCodexReset(creditID: "credit-a")
-    let attempt = try XCTUnwrap(model.codexReset.confirmingAttempt)
+    let attempt = try #require(model.codexReset.confirmingAttempt)
     model.submitCodexReset()
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(model.codexReset, .confirming(attempt, rejection: .rpc(code: -32601)))
+    #expect(model.codexReset == .confirming(attempt, rejection: .rpc(code: -32601)))
     model.beginCodexReset(creditID: "credit-a")
-    XCTAssertEqual(model.codexReset, .confirming(attempt, rejection: .rpc(code: -32601)))
+    #expect(model.codexReset == .confirming(attempt, rejection: .rpc(code: -32601)))
   }
 
-  func testRejectedConsumeDropsConfirmationWhenReadRemovesCredit() async throws {
+  @Test
+  func `rejected consume drops confirmation when read removes credit`() async throws {
     let source = ScriptedQuotaSource(
       [.available(snapshot()), .available(snapshot(credits: []))],
       consumes: [.failure(.rejected(.closed))],
@@ -162,11 +172,12 @@ final class CodexQuotaResetFlowTests: XCTestCase {
     model.submitCodexReset()
     try await Poll.until { !model.statuses[.codex].isBusy }
 
-    XCTAssertEqual(model.codexReset, .idle)
-    XCTAssertEqual(model.codexResetCredits?.availableCount, 0)
+    #expect(model.codexReset == .idle)
+    #expect(model.codexResetCredits?.availableCount == 0)
   }
 
-  func testRefreshInvalidatesConfirmationWhenCreditDisappears() async throws {
+  @Test
+  func `refresh invalidates confirmation when credit disappears`() async throws {
     for credits in [[], nil] as [[QuotaSnapshot.ResetCredit]?] {
       let source = ScriptedQuotaSource(
         [.available(snapshot()), .available(snapshot(credits: credits))]
@@ -175,30 +186,31 @@ final class CodexQuotaResetFlowTests: XCTestCase {
       model.beginCodexReset(creditID: "credit-a")
       model.reload([.codex])
       try await Poll.until { !model.statuses[.codex].isBusy }
-      XCTAssertEqual(model.codexReset, .idle)
+      #expect(model.codexReset == .idle)
       model.submitCodexReset()
-      XCTAssertEqual(source.consumed.withLock { $0 }, [])
+      #expect(source.consumed.withLock { $0 } == [])
     }
   }
 
-  func testPendingReadMustFinishBeforeConsumeCanStart() async throws {
+  @Test
+  func `pending read must finish before consume can start`() async throws {
     let source = ScriptedQuotaSource(
       [.available(snapshot()), .available(snapshot()), .available(snapshot())],
       consumes: [.success(.reset)],
     )
     let model = try await loadModel(source)
     model.beginCodexReset(creditID: "credit-a")
-    let attempt = try XCTUnwrap(model.codexReset.confirmingAttempt)
+    let attempt = try #require(model.codexReset.confirmingAttempt)
     model.reload([.codex])
     model.submitCodexReset()
-    XCTAssertTrue(model.statuses[.codex].isBusy)
-    XCTAssertEqual(model.codexReset, .confirming(attempt))
+    #expect(model.statuses[.codex].isBusy)
+    #expect(model.codexReset == .confirming(attempt))
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(source.consumed.withLock { $0 }, [])
+    #expect(source.consumed.withLock { $0 } == [])
     model.submitCodexReset()
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertEqual(model.codexReset, .completed(.reset))
-    XCTAssertEqual(source.consumed.withLock { $0 }, [attempt])
+    #expect(model.codexReset == .completed(.reset))
+    #expect(source.consumed.withLock { $0 } == [attempt])
   }
 
   private func loadModel(
@@ -208,7 +220,7 @@ final class CodexQuotaResetFlowTests: XCTestCase {
     let model = QuotaModel(sources: .scripted(codex: source), now: now)
     model.reload([.codex])
     try await Poll.until { !model.statuses[.codex].isBusy }
-    XCTAssertNotNil(model.codexResetCredits)
+    #expect(model.codexResetCredits != nil)
     return model
   }
 

@@ -1,12 +1,12 @@
 import AppKit
 import SwiftUI
-import XCTest
+import Testing
 
 @testable import Koogo
 
-final class LocalEventMonitorTests: XCTestCase {
-  @MainActor
-  func testDismantledMonitorReleasesItsHandler() async throws {
+struct LocalEventMonitorTests {
+  @Test @MainActor
+  func `dismantled monitor releases its handler`() async throws {
     weak var owner: Owner?
     do {
       let captured = Owner()
@@ -17,7 +17,7 @@ final class LocalEventMonitorTests: XCTestCase {
         }
       )
       host.layoutSubtreeIfNeeded()
-      XCTAssertFalse(host.subviews.isEmpty, "expected the monitor view to be mounted")
+      #expect(!host.subviews.isEmpty, "expected the monitor view to be mounted")
     }
     try await Poll.until { owner == nil }
   }

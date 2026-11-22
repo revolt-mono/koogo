@@ -1,41 +1,45 @@
 import IOKit.pwr_mgt
-import XCTest
+import Testing
 
 @testable import Koogo
 
 @MainActor
-final class KeepAwakeModelTests: XCTestCase {
-  func testTogglingOwnsExactlyOneDisplaySleepAssertion() throws {
-    let model = KeepAwakeModel(defaults: try makeIsolatedDefaults())
-    XCTAssertFalse(model.isEnabled)
-    XCTAssertEqual(try ownedAssertionCount(), 0)
+struct KeepAwakeModelTests {
+  @Test
+  func `toggling owns exactly one display sleep assertion`() throws {
+    let model = KeepAwakeModel(defaults: try scratch.makeIsolatedDefaults())
+    #expect(!model.isEnabled)
+    try #expect(ownedAssertionCount() == 0)
 
     model.isEnabled = true
-    XCTAssertEqual(try ownedAssertionCount(), 1)
+    try #expect(ownedAssertionCount() == 1)
 
     model.isEnabled = true
-    XCTAssertEqual(try ownedAssertionCount(), 1)
+    try #expect(ownedAssertionCount() == 1)
 
     model.isEnabled = false
-    XCTAssertEqual(try ownedAssertionCount(), 0)
+    try #expect(ownedAssertionCount() == 0)
   }
 
-  func testEnabledStateSurvivesRelaunch() throws {
-    let defaults = try makeIsolatedDefaults()
+  @Test
+  func `enabled state survives relaunch`() throws {
+    let defaults = try scratch.makeIsolatedDefaults()
     KeepAwakeModel(defaults: defaults).isEnabled = true
-    XCTAssertEqual(try ownedAssertionCount(), 0, "a released model releases its assertion")
+    try #expect(ownedAssertionCount() == 0, "a released model releases its assertion")
 
     let relaunched = KeepAwakeModel(defaults: defaults)
-    XCTAssertEqual(try ownedAssertionCount(), 0, "construction has no launch effects")
+    try #expect(ownedAssertionCount() == 0, "construction has no launch effects")
     relaunched.start()
-    XCTAssertTrue(relaunched.isEnabled)
-    XCTAssertEqual(try ownedAssertionCount(), 1)
+    #expect(relaunched.isEnabled)
+    try #expect(ownedAssertionCount() == 1)
   }
+
+  private let scratch = Scratch()
 
   private func ownedAssertionCount() throws -> Int {
     var byProcess: Unmanaged<CFDictionary>?
-    XCTAssertEqual(IOPMCopyAssertionsByProcess(&byProcess), kIOReturnSuccess)
-    let assertions = try XCTUnwrap(byProcess?.takeRetainedValue() as? [Int: [[String: Any]]])
+    #expect(IOPMCopyAssertionsByProcess(&byProcess) == kIOReturnSuccess)
+    let assertions = try #require(byProcess?.takeRetainedValue() as? [Int: [[String: Any]]])
     return (assertions[Int(getpid())] ?? []).count {
       $0[kIOPMAssertionTypeKey as String] as? String == kIOPMAssertionTypePreventUserIdleDisplaySleep as String
     }

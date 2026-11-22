@@ -1,9 +1,10 @@
-import XCTest
+import Testing
 
 @testable import Koogo
 
-final class UsageEventIDTests: XCTestCase {
-  func testIdsDifferWheneverTheProviderOrAnyLoggedFieldDiffers() {
+struct UsageEventIDTests {
+  @Test
+  func `ids differ whenever the provider or any logged field differs`() {
     func id(_ provider: Provider, _ fields: String...) -> UsageEventID {
       UsageEventID(provider) { hasher in
         for field in fields {
@@ -21,8 +22,8 @@ final class UsageEventIDTests: XCTestCase {
       id(.grok, "ab", "c"),
     ]
 
-    XCTAssertEqual(Set(ids).count, ids.count)
-    XCTAssertEqual(ids.map(\.provider), [.claude, .claude, .claude, .claude, .codex, .piAgent, .grok])
-    XCTAssertEqual(id(.claude, "ab", "c"), id(.claude, "ab", "c"))
+    #expect(Set(ids).count == ids.count)
+    #expect(ids.map(\.provider) == [.claude, .claude, .claude, .claude, .codex, .piAgent, .grok])
+    #expect(id(.claude, "ab", "c") == id(.claude, "ab", "c"))
   }
 }

@@ -1,10 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class GrokQuotaSourceTests: XCTestCase {
-  func testFetchInitializesACPAndReadsBillingWithoutAuthenticatingOrCreatingASession() async throws {
-    let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
+struct GrokQuotaSourceTests {
+  @Test
+  func `fetch initializes acp and reads billing without authenticating or creating a session`() async throws {
+    let workspace = GrokQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try workspace.makeAgent(
       billingResponse: GrokQuotaTestWorkspace.response(
         config: """
@@ -21,22 +23,20 @@ final class GrokQuotaSourceTests: XCTestCase {
 
     let snapshot = try await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
-    XCTAssertEqual(snapshot.plan, "SuperGrok Heavy")
-    XCTAssertEqual(snapshot.windows.map(\.title), ["Weekly"])
-    XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 3)
-    XCTAssertEqual(
-      try XCTUnwrap(snapshot.windows["Weekly"]?.resetsAt).timeIntervalSince1970,
-      1_790_533_996.478,
-      accuracy: 0.001,
-    )
+    #expect(snapshot.plan == "SuperGrok Heavy")
+    #expect(snapshot.windows.map(\.title) == ["Weekly"])
+    #expect(snapshot.windows["Weekly"]?.usedPercent == 3)
+    let resetsAt = try #require(snapshot.windows["Weekly"]?.resetsAt)
+    #expect(abs(resetsAt.timeIntervalSince1970 - 1_790_533_996.478) < 0.001)
     let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8).split(separator: "\n")
-    XCTAssertEqual(arguments, ["--no-auto-update", "agent", "--no-leader", "stdio"])
+    #expect(arguments == ["--no-auto-update", "agent", "--no-leader", "stdio"])
     let requests = try JSONSerialization.jsonObjects(inLinesOf: workspace.requestsFile)
-    XCTAssertEqual(requests.map { $0["method"] as? String }, ["initialize", "_x.ai/billing"])
+    #expect(requests.map { $0["method"] as? String } == ["initialize", "_x.ai/billing"])
   }
 
-  func testUntouchedQuotaIsFullAndMonthlyPeriodsAreKept() async throws {
-    let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `untouched quota is full and monthly periods are kept`() async throws {
+    let workspace = GrokQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try workspace.makeAgent(
       billingResponse: GrokQuotaTestWorkspace.response(
         config: #"{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_MONTHLY"}}"#
@@ -45,11 +45,12 @@ final class GrokQuotaSourceTests: XCTestCase {
 
     let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
 
-    XCTAssertEqual(try result.get().windows, [QuotaWindow(title: "Monthly limit", usedPercent: 0, resetsAt: nil)])
+    try #expect(result.get().windows == [QuotaWindow(title: "Monthly limit", usedPercent: 0, resetsAt: nil)])
   }
 
-  func testUnknownPeriodsKeepTheAllowanceAndResetDate() async throws {
-    let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `unknown periods keep the allowance and reset date`() async throws {
+    let workspace = GrokQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try workspace.makeAgent(
       billingResponse: GrokQuotaTestWorkspace.response(
         config:
@@ -59,12 +60,13 @@ final class GrokQuotaSourceTests: XCTestCase {
 
     let snapshot = try await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
-    XCTAssertEqual(snapshot.windows.map(\.title), ["Usage limit"])
-    XCTAssertEqual(snapshot.windows["Usage limit"]?.usedPercent, 100)
-    XCTAssertEqual(snapshot.windows["Usage limit"]?.resetsAt, Date(timeIntervalSince1970: 1_788_220_800))
+    #expect(snapshot.windows.map(\.title) == ["Usage limit"])
+    #expect(snapshot.windows["Usage limit"]?.usedPercent == 100)
+    #expect(snapshot.windows["Usage limit"]?.resetsAt == Date(timeIntervalSince1970: 1_788_220_800))
   }
 
-  func testMissingConfigIsUnavailableButAnEmptyConfigIsAnUntouchedAllowance() async throws {
+  @Test
+  func `missing config is unavailable but an empty config is an untouched allowance`() async throws {
     let untouched = { (plan: String?) in
       QuotaSnapshot(plan: plan, windows: [QuotaWindow(title: "Usage limit", usedPercent: 0, resetsAt: nil)])!
     }
@@ -76,19 +78,20 @@ final class GrokQuotaSourceTests: XCTestCase {
       (GrokQuotaTestWorkspace.response(config: "{}", tier: "null"), .available(untouched(nil))),
     ]
     for (response, expected) in cases {
-      let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
+      let workspace = GrokQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
       let executable = try workspace.makeAgent(billingResponse: response)
       let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-      XCTAssertEqual(result, expected)
+      #expect(result == expected)
     }
   }
 
-  func testARefusedBillingReadMeansNoPlanWhileOtherErrorsAndUnusableFieldsFailTheSession() async throws {
+  @Test
+  func `a refused billing read means no plan while other errors and unusable fields fail the session`() async throws {
     let refused = #"{"id":2,"error":{"code":-32000,"message":"Authentication required"}}"#
-    let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
+    let workspace = GrokQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try workspace.makeAgent(billingResponse: refused)
     let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-    XCTAssertEqual(result, .unavailable(.noPlan))
+    #expect(result == .unavailable(.noPlan))
 
     let responses: [(String, QuotaUnavailability)] = [
       (#"{"id":2,"error":{"code":-32603,"message":"Internal error"}}"#, .sessionFailed),
@@ -96,14 +99,15 @@ final class GrokQuotaSourceTests: XCTestCase {
       (GrokQuotaTestWorkspace.response(config: #"{"currentPeriod":{"end":"invalid"}}"#), .invalidMessage),
     ]
     for (response, reason) in responses {
-      let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
+      let workspace = GrokQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
       let executable = try workspace.makeAgent(billingResponse: response)
       let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-      XCTAssertEqual(result, .unavailable(reason), response)
+      #expect(result == .unavailable(reason), "\(response)")
     }
   }
 
-  func testInitializationMustSucceedBeforeBilling() async throws {
+  @Test
+  func `initialization must succeed before billing`() async throws {
     let responses: [(String, QuotaUnavailability)] = [
       (#"{"id":1,"error":{"code":-32603}}"#, .sessionFailed),
       (#"{"id":1,"error":{"code":-32000,"message":"Authentication refresh failed"}}"#, .sessionFailed),
@@ -111,11 +115,13 @@ final class GrokQuotaSourceTests: XCTestCase {
       (#"{"id":1,"result":{}}"#, .invalidMessage),
     ]
     for (response, reason) in responses {
-      let workspace = GrokQuotaTestWorkspace(root: try makeTemporaryDirectory())
+      let workspace = GrokQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
       let executable = try workspace.makeAgent(initializeResponse: response)
       let result = await GrokQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-      XCTAssertEqual(result, .unavailable(reason), response)
-      XCTAssertEqual(try JSONSerialization.jsonObjects(inLinesOf: workspace.requestsFile).count, 1)
+      #expect(result == .unavailable(reason), "\(response)")
+      try #expect(JSONSerialization.jsonObjects(inLinesOf: workspace.requestsFile).count == 1)
     }
   }
+
+  private let scratch = Scratch()
 }

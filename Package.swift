@@ -34,6 +34,7 @@ let package = Package(
     .testTarget(
       name: "KoogoTests",
       dependencies: ["Koogo"],
+      exclude: ["Support/launcher"],
     ),
   ],
 )

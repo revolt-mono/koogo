@@ -1,35 +1,35 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class ActivitySamplerTests: XCTestCase {
+struct ActivitySamplerTests {
   // desktop macs have no battery, and a charging battery reports no draw.
   // swiftformat:disable:next noGuardInTests
-  func testTheSamplerReadsThisMachine() async throws {
+  @Test
+  func `the sampler reads this machine`() async throws {
     let sampler = ActivitySampler()
 
     let first = try await sampler.sample()
     let second = try await sampler.sample()
 
     for sample in [first, second] {
-      XCTAssertTrue((0...1).contains(sample.cpu.total), "\(sample.cpu)")
-      XCTAssertEqual(sample.memory.total, ProcessInfo.processInfo.physicalMemory)
-      XCTAssertLessThanOrEqual(sample.memory.used, sample.memory.total)
-      XCTAssertGreaterThan(sample.memory.wired, 0)
-      XCTAssertFalse(sample.processes.isEmpty)
+      #expect((0...1).contains(sample.cpu.total), "\(sample.cpu)")
+      #expect(sample.memory.total == ProcessInfo.processInfo.physicalMemory)
+      #expect(sample.memory.used <= sample.memory.total)
+      #expect(sample.memory.wired > 0)
+      #expect(!sample.processes.isEmpty)
     }
     if let gpu = second.gpu {
-      XCTAssertFalse(gpu.name.isEmpty)
+      #expect(!gpu.name.isEmpty)
       for stage in [gpu.utilization, gpu.renderer, gpu.tiler] {
-        XCTAssertTrue((0...1).contains(stage))
+        #expect((0...1).contains(stage))
       }
     }
-    if let battery = second.battery {
-      XCTAssertTrue((0...1).contains(battery.charge))
-      XCTAssertTrue((0...1).contains(battery.health))
-      if let draw = battery.draw {
-        XCTAssertGreaterThan(draw, 0)
-      }
-    }
+    let battery = try #require(second.battery)
+    #expect((0...1).contains(battery.charge))
+    #expect((0...1).contains(battery.health))
+    let draw = try #require(battery.draw)
+    #expect(draw > 0)
   }
 }

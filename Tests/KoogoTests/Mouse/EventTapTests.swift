@@ -1,16 +1,17 @@
 import ApplicationServices
-import XCTest
+import Testing
 
 @testable import Koogo
 
 @MainActor
-final class EventTapTests: XCTestCase {
+struct EventTapTests {
   /// macos calls back on the tap's thread, outside the main actor.
-  func testCallbackRewritesNotchesOffTheMainActor() async throws {
+  @Test
+  func `callback rewrites notches off the main actor`() async throws {
     let tap = EventTap()
-    nonisolated(unsafe) let proxy = try XCTUnwrap(OpaquePointer(bitPattern: 1))
+    nonisolated(unsafe) let proxy = try #require(OpaquePointer(bitPattern: 1))
     nonisolated(unsafe) let userInfo = Unmanaged.passUnretained(tap).toOpaque()
-    nonisolated(unsafe) let event = try XCTUnwrap(
+    nonisolated(unsafe) let event = try #require(
       CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: 1, wheel2: 0, wheel3: 0)
     )
 
@@ -20,6 +21,6 @@ final class EventTapTests: XCTestCase {
         .getIntegerValueField(.scrollWheelEventDeltaAxis1)
     }.value
 
-    XCTAssertEqual(delivered, -3)
+    #expect(delivered == -3)
   }
 }

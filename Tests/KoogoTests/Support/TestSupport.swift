@@ -1,6 +1,7 @@
 import Darwin
+import Foundation
 import Synchronization
-import XCTest
+import Testing
 
 @testable import Koogo
 
@@ -12,33 +13,40 @@ extension EnumMap: ExpressibleByDictionaryLiteral {
   }
 }
 
-extension XCTestCase {
+final class Scratch {
+  deinit {
+    for directory in directories {
+      try? FileManager.default.removeItem(at: directory)
+    }
+    for suiteName in defaultsSuiteNames {
+      UserDefaults.standard.removePersistentDomain(forName: suiteName)
+    }
+  }
+
   func makeTemporaryDirectory() throws -> URL {
     let directory = FileManager.default.temporaryDirectory
       .appending(path: UUID().uuidString, directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    addTeardownBlock {
-      try? FileManager.default.removeItem(at: directory)
-    }
+    directories.append(directory)
     return directory
   }
 
   func makeIsolatedDefaults() throws -> UserDefaults {
     let suiteName = "KoogoTests.\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    addTeardownBlock {
-      UserDefaults.standard.removePersistentDomain(forName: suiteName)
-    }
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defaultsSuiteNames.append(suiteName)
     return defaults
   }
+
+  private var directories = [URL]()
+  private var defaultsSuiteNames = [String]()
 }
 
 enum Poll {
   static func until(
     isolation _: isolated (any Actor)? = #isolation,
     timeout: Duration = .seconds(5),
-    file: StaticString = #filePath,
-    line: UInt = #line,
+    sourceLocation: SourceLocation = #_sourceLocation,
     _ condition: () -> Bool,
   ) async throws {
     let deadline = ContinuousClock.now + timeout
@@ -47,19 +55,18 @@ enum Poll {
       try await Task.sleep(for: .milliseconds(10))
       met = condition()
     }
-    XCTAssertTrue(met, "condition not met within timeout", file: file, line: line)
+    #expect(met, "condition not met within timeout", sourceLocation: sourceLocation)
   }
 }
 
-enum MemoryMeasurement {
-  /// memory measurements need a quiet process.
-  static func skipUnlessRequested() throws {
-    try XCTSkipUnless(
-      ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1",
-      "Run separately with KOOGO_MEMORY_TESTS=1.",
-    )
-  }
-
+@Suite(
+  .serialized,
+  .enabled(
+    if: ProcessInfo.processInfo.environment["KOOGO_MEMORY_TESTS"] == "1",
+    "Run separately with KOOGO_MEMORY_TESTS=1.",
+  ),
+)
+struct MemoryMeasurement {
   static func allocatedHeapBytes() -> Int {
     var statistics = malloc_statistics_t()
     malloc_zone_statistics(malloc_default_zone(), &statistics)
@@ -70,10 +77,14 @@ enum MemoryMeasurement {
 enum TestExecutable {
   static func make(in directory: URL, script: String) throws -> URL {
     let executable = directory.appending(path: UUID().uuidString)
-    try script.write(to: executable, atomically: true, encoding: .utf8)
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+    try script.write(to: executable.appendingPathExtension("sh"), atomically: true, encoding: .utf8)
+    try FileManager.default.createSymbolicLink(at: executable, withDestinationURL: launcher)
     return executable
   }
+
+  /// macos vets each new executable file at its first launch, one file at a time, so scripts launched together
+  /// queue past the deadlines tests assert. every script is sourced through a link to this one launcher instead.
+  private static let launcher = URL(filePath: #filePath).deletingLastPathComponent().appending(path: "launcher")
 }
 
 final class Counter: Sendable {

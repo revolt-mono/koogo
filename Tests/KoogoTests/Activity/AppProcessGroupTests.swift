@@ -1,9 +1,11 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class AppProcessGroupTests: XCTestCase {
-  func testGroupsByResponsibleProcessHeaviestFirstUnderItsAppsIdentity() {
+struct AppProcessGroupTests {
+  @Test
+  func `groups by responsible process heaviest first under its apps identity`() {
     let chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     let helper = "/Applications/Google Chrome.app/Contents/Frameworks/Helper.app/Contents/MacOS/Helper"
     let slack = "/Applications/Slack.app/Contents/MacOS/Slack"
@@ -31,26 +33,21 @@ final class AppProcessGroupTests: XCTestCase {
       $0.pid == 100 ? AppIdentity(executablePath: "/Applications/Chromium.app/Contents/MacOS/Chromium") : nil
     }
 
-    XCTAssertEqual(groups.map(\.id), [200, 100, 300])
-    XCTAssertEqual(groups.map(\.name), ["Slack", "Chromium", "zsh"])
-    XCTAssertEqual(groups.map { $0.members.map(\.pid) }, [[200], [100, 101, 102], [300]])
-    XCTAssertEqual(
-      groups.map { $0.members.map(\.name) },
-      [["Slack"], ["Google Chrome", "Helper", "Helper"], ["zsh"]],
-    )
-    XCTAssertEqual(groups.map { $0.members.map(\.depth) }, [[0], [0, 1, 1], [0]])
-    XCTAssertEqual(groups.map { $0.members.map(\.cpu) }, [[0], [0.2, 0.3, 0], [0]])
-    XCTAssertEqual(groups.map { $0.members.map(\.gpu) }, [[0.2], [0, 0, 0], [0]])
-    XCTAssertEqual(groups.map(\.footprint), [100, 90, 5])
-    XCTAssertEqual(groups.map(\.cpu), [0, 0.5, 0])
-    XCTAssertEqual(groups.map(\.gpu), [0.2, 0, 0])
-    XCTAssertEqual(
-      groups.map(\.iconPath),
-      ["/Applications/Slack.app", "/Applications/Chromium.app", "/bin/zsh"],
-    )
+    #expect(groups.map(\.id) == [200, 100, 300])
+    #expect(groups.map(\.name) == ["Slack", "Chromium", "zsh"])
+    #expect(groups.map { $0.members.map(\.pid) } == [[200], [100, 101, 102], [300]])
+    #expect(groups.map { $0.members.map(\.name) } == [["Slack"], ["Google Chrome", "Helper", "Helper"], ["zsh"]])
+    #expect(groups.map { $0.members.map(\.depth) } == [[0], [0, 1, 1], [0]])
+    #expect(groups.map { $0.members.map(\.cpu) } == [[0], [0.2, 0.3, 0], [0]])
+    #expect(groups.map { $0.members.map(\.gpu) } == [[0.2], [0, 0, 0], [0]])
+    #expect(groups.map(\.footprint) == [100, 90, 5])
+    #expect(groups.map(\.cpu) == [0, 0.5, 0])
+    #expect(groups.map(\.gpu) == [0.2, 0, 0])
+    #expect(groups.map(\.iconPath) == ["/Applications/Slack.app", "/Applications/Chromium.app", "/bin/zsh"])
   }
 
-  func testMembersNestUnderTheirParentsHeaviestFirstAtEveryLevel() throws {
+  @Test
+  func `members nest under their parents heaviest first at every level`() throws {
     let scan = ProcessScan(
       records: [
         record(pid: 104, parentPID: 7, responsiblePID: 100, path: "/usr/bin/git", footprint: 1),
@@ -68,14 +65,15 @@ final class AppProcessGroupTests: XCTestCase {
       taken: start,
     )
 
-    let members = try XCTUnwrap(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first).members
+    let members = try #require(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first).members
 
-    XCTAssertEqual(members.map(\.pid), [100, 102, 103, 101, 104])
-    XCTAssertEqual(members.map(\.depth), [0, 1, 2, 1, 0])
-    XCTAssertEqual(members.map(\.name), ["ghostty", "bash", "ssh", "zsh", "git"])
+    #expect(members.map(\.pid) == [100, 102, 103, 101, 104])
+    #expect(members.map(\.depth) == [0, 1, 2, 1, 0])
+    #expect(members.map(\.name) == ["ghostty", "bash", "ssh", "zsh", "git"])
   }
 
-  func testOldestMemberNamesAGroupWhoseResponsibleProcessIsUnseen() {
+  @Test
+  func `oldest member names a group whose responsible process is unseen`() {
     let scan = ProcessScan(
       records: [
         record(pid: 51, responsiblePID: 9, path: "/usr/bin/python3", footprint: 1),
@@ -92,12 +90,13 @@ final class AppProcessGroupTests: XCTestCase {
 
     let groups = AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }
 
-    XCTAssertEqual(groups.map(\.name), ["node"])
-    XCTAssertEqual(groups.map(\.iconPath), ["/usr/local/bin/node"])
-    XCTAssertEqual(groups.map(\.members.count), [2])
+    #expect(groups.map(\.name) == ["node"])
+    #expect(groups.map(\.iconPath) == ["/usr/local/bin/node"])
+    #expect(groups.map(\.members.count) == [2])
   }
 
-  func testGPUTimeThatFellWithAClosedClientHasNoLoad() {
+  @Test
+  func `gpu time that fell with a closed client has no load`() {
     let earlier = ProcessScan(
       records: [record(pid: 7, responsiblePID: 7, path: "/bin/zsh", footprint: 1, gpuTime: .seconds(9))],
       taken: start,
@@ -107,10 +106,11 @@ final class AppProcessGroupTests: XCTestCase {
       taken: start + .seconds(10),
     )
 
-    XCTAssertEqual(AppProcessGroup.heaviest(in: now, since: earlier) { _ in nil }.map(\.gpu), [0])
+    #expect(AppProcessGroup.heaviest(in: now, since: earlier) { _ in nil }.map(\.gpu) == [0])
   }
 
-  func testAProcessLaunchedSinceTheEarlierScanCountsAllItsTime() {
+  @Test
+  func `a process launched since the earlier scan counts all its time`() {
     let earlier = ProcessScan(
       records: [record(pid: 7, responsiblePID: 7, path: "/bin/zsh", footprint: 2, cpuTime: .seconds(9))],
       taken: start,
@@ -141,29 +141,31 @@ final class AppProcessGroupTests: XCTestCase {
 
     let groups = AppProcessGroup.heaviest(in: now, since: earlier) { _ in nil }
 
-    XCTAssertEqual(groups.map(\.cpu), [1, 0.2])
-    XCTAssertEqual(groups.map(\.gpu), [0, 0.1])
+    #expect(groups.map(\.cpu) == [1, 0.2])
+    #expect(groups.map(\.gpu) == [0, 0.1])
   }
 
-  func testTheRunningMachineRanksTheHeaviestGroups() throws {
+  @Test
+  func `the running machine ranks the heaviest groups`() throws {
     let before = try ProcessScan.read(after: nil)
     let after = try ProcessScan.read(after: before)
 
     let groups = AppProcessGroup.heaviest(in: after, since: before) { AppIdentity.running($0.pid) }
 
-    XCTAssertFalse(groups.isEmpty)
-    XCTAssertLessThanOrEqual(groups.count, 20)
-    XCTAssertEqual(groups.map(\.footprint), groups.map(\.footprint).sorted(by: >))
-    XCTAssertTrue(groups.allSatisfy { $0.cpu >= 0 && $0.gpu >= 0 }, "\(groups.map { ($0.cpu, $0.gpu) })")
+    #expect(!groups.isEmpty)
+    #expect(groups.count <= 20)
+    #expect(groups.map(\.footprint) == groups.map(\.footprint).sorted(by: >))
+    #expect(groups.allSatisfy { $0.cpu >= 0 && $0.gpu >= 0 }, "\(groups.map { ($0.cpu, $0.gpu) })")
   }
 
-  func testForceTerminatingAGroupKillsEveryMemberAndSurvivesOneAlreadyGone() async throws {
+  @Test
+  func `force terminating a group kills every member and survives one already gone`() async throws {
     let child = Process()
     child.executableURL = URL(filePath: "/bin/sleep")
     child.arguments = ["10"]
     try child.run()
-    addTeardownBlock { child.terminate() }
-    let identity = try XCTUnwrap(LibProc.identity(of: child.processIdentifier))
+    defer { child.terminate() }
+    let identity = try #require(LibProc.identity(of: child.processIdentifier))
     let scan = ProcessScan(
       records: [
         record(pid: 2_147_483_000, responsiblePID: 1, path: "/bin/sleep", footprint: 1),
@@ -171,32 +173,33 @@ final class AppProcessGroupTests: XCTestCase {
       ],
       taken: start,
     )
-    let group = try XCTUnwrap(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first)
+    let group = try #require(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first)
 
     group.forceTerminate()
 
     try await Poll.until { !child.isRunning }
-    XCTAssertEqual(child.terminationReason, .uncaughtSignal)
+    #expect(child.terminationReason == .uncaughtSignal)
   }
 
-  func testForceTerminatingSparesAProcessThatTookOverAScannedPID() async throws {
+  @Test
+  func `force terminating spares a process that took over a scanned pid`() async throws {
     let child = Process()
     child.executableURL = URL(filePath: "/bin/sleep")
     child.arguments = ["10"]
     try child.run()
-    addTeardownBlock { child.terminate() }
-    let identity = try XCTUnwrap(LibProc.identity(of: child.processIdentifier))
+    defer { child.terminate() }
+    let identity = try #require(LibProc.identity(of: child.processIdentifier))
     let earlierOwner = ProcessIdentity(pid: identity.pid, startTicks: identity.startTicks - 1)
     let scan = ProcessScan(
       records: [record(identity: earlierOwner, responsiblePID: 1, path: "/bin/sleep", footprint: 1)],
       taken: start,
     )
-    let group = try XCTUnwrap(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first)
+    let group = try #require(AppProcessGroup.heaviest(in: scan, since: scan) { _ in nil }.first)
 
     group.forceTerminate()
 
     try await Task.sleep(for: .milliseconds(200))
-    XCTAssertTrue(child.isRunning)
+    #expect(child.isRunning)
   }
 
   private static let launchdPID: pid_t = 1

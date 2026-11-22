@@ -1,13 +1,19 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class GrokUsageTests: UsageWorkspaceTestCase {
-  func testParserPricesEveryModelInOneTurn() throws {
+struct GrokUsageTests {
+  init() throws {
+    workspace = try UsageTestWorkspace()
+  }
+
+  @Test
+  func `parser prices every model in one turn`() throws {
     var parser = GrokUsageLogParser()
 
-    let event = try XCTUnwrap(
-      try parser.parse(
+    let event = try #require(
+      parser.parse(
         GrokLog.turn(
           eventID: "session-1",
           models: ["grok-4.6-build": GrokModelRow(), "grok-4.7-build-fast": GrokModelRow()],
@@ -15,12 +21,13 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
       )?.event
     )
 
-    XCTAssertEqual(event.record.timestamp.date, UsageFixture.timestamp)
-    XCTAssertEqual(event.record.processedTokens, 2_200_000)
-    XCTAssertEqual(event.record.cost.usd, 6)
+    #expect(event.record.timestamp.date == UsageFixture.timestamp)
+    #expect(event.record.processedTokens == 2_200_000)
+    #expect(event.record.cost.usd == 6)
   }
 
-  func testParserIgnoresUpdatesWithoutUsage() {
+  @Test
+  func `parser ignores updates without usage`() throws {
     var parser = GrokUsageLogParser()
     let lines = [
       """
@@ -35,11 +42,12 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
     ]
 
     for line in lines {
-      XCTAssertNil(try parser.parse(line))
+      try #expect(parser.parse(line) == nil)
     }
   }
 
-  func testTurnWithAnUnpricedModelIsReportedWhole() async throws {
+  @Test
+  func `turn with an unpriced model is reported whole`() async throws {
     try writeSession(
       "session",
       updates: [
@@ -50,13 +58,14 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
       ],
     )
 
-    let report = await makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases)
+    let report = await workspace.makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases)
 
-    XCTAssertEqual(report.ingestion.events[.grok], 0)
-    XCTAssertEqual(report.ingestion.unpricedModels, ["grok-9-build"])
+    #expect(report.ingestion.events[.grok] == 0)
+    #expect(report.ingestion.unpricedModels == ["grok-9-build"])
   }
 
-  func testPipelineCountsEachTopLevelTurnOnce() async throws {
+  @Test
+  func `pipeline counts each top level turn once`() async throws {
     let turn = GrokLog.turn(eventID: "parent-1")
     try writeSession("parent", updates: [turn])
     try writeSession("fork", kind: "fork", updates: [turn, GrokLog.turn(eventID: "fork-1")])
@@ -73,46 +82,50 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
       to: workspace.grokSessions.appending(path: "project/orphan/updates.jsonl"),
     )
 
-    let report = await makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases)
+    let report = await workspace.makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases)
 
-    XCTAssertEqual(report.ingestion.trackedFiles[.grok], 3)
-    XCTAssertEqual(report.ingestion.events[.grok], 4)
-    let grok = try XCTUnwrap(report.snapshot.providers[.grok])
-    XCTAssertEqual(grok.periods[.today].total.processedTokens, 4_400_000)
-    XCTAssertEqual(grok.periods[.today].total.cost.usd, 8)
+    #expect(report.ingestion.trackedFiles[.grok] == 3)
+    #expect(report.ingestion.events[.grok] == 4)
+    let grok = try #require(report.snapshot.providers[.grok])
+    #expect(grok.periods[.today].total.processedTokens == 4_400_000)
+    #expect(grok.periods[.today].total.cost.usd == 8)
   }
 
-  func testSessionIsCountedOnceItsSummaryAppears() async throws {
+  @Test
+  func `session is counted once its summary appears`() async throws {
     let session = workspace.grokSessions.appending(path: "project/late", directoryHint: .isDirectory)
     try workspace.write(GrokLog.turn(eventID: "late-1") + "\n", to: session.appending(path: "updates.jsonl"))
-    let pipeline = makePipeline()
+    let pipeline = workspace.makePipeline()
 
     let before = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases)
-    XCTAssertEqual(before.ingestion.events[.grok], 0)
+    #expect(before.ingestion.events[.grok] == 0)
 
     try workspace.write(
       "{\"info\":{\"id\":\"late\",\"cwd\":\"/project\"}}",
       to: session.appending(path: "summary.json"),
     )
-    let after = try await refresh(pipeline) { $0.ingestion.events[.grok] != 0 }
-    XCTAssertEqual(after.ingestion.events[.grok], 1)
+    let after = try await workspace.refresh(pipeline) { $0.ingestion.events[.grok] != 0 }
+    #expect(after.ingestion.events[.grok] == 1)
   }
 
-  func testBuildModelsUseFlatStandardRatesAndFastDoublesThem() throws {
-    let tokens = try XCTUnwrap(
+  @Test
+  func `build models use flat standard rates and fast doubles them`() throws {
+    let tokens = try #require(
       GrokTokenUsage(input: 1_000_000, cachedInput: 400_000, output: 100_000)
     )
     func usd(_ model: ModelID) -> Decimal? {
       GrokUsagePricing.cost(of: tokens, model: model)?.usd
     }
 
-    XCTAssertEqual(usd("grok-4.6-build"), 2)
-    XCTAssertEqual(usd("grok-4.6"), 2)
-    XCTAssertEqual(usd("grok-4.7-build-fast"), 4)
-    XCTAssertEqual(usd("grok-4.5-build"), Decimal(string: "1.92"))
-    XCTAssertNil(usd("grok-9-build"))
-    XCTAssertNil(usd("grok-4.6-fast"))
+    #expect(usd("grok-4.6-build") == 2)
+    #expect(usd("grok-4.6") == 2)
+    #expect(usd("grok-4.7-build-fast") == 4)
+    #expect(usd("grok-4.5-build") == Decimal(string: "1.92"))
+    #expect(usd("grok-9-build") == nil)
+    #expect(usd("grok-4.6-fast") == nil)
   }
+
+  private let workspace: UsageTestWorkspace
 }
 
 extension GrokUsageTests {

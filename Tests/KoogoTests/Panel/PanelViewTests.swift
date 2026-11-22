@@ -1,20 +1,20 @@
 import AppKit
 import SwiftUI
-import XCTest
+import Testing
 
 @testable import Koogo
 
-final class PanelViewTests: XCTestCase {
-  @MainActor
-  func testOpeningThePanelRefreshesUsageAndQuotaForEveryShownProviderAndSamplesNoActivity() async throws {
-    let workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
+struct PanelViewTests {
+  @Test @MainActor
+  func `opening the panel refreshes usage and quota for every shown provider and samples no activity`() async throws {
+    let workspace = try UsageTestWorkspace()
     try workspace.write(CodexLog.session(input: 700, output: 300), to: workspace.codexSessions.appending(path: "log.jsonl"))
-    let defaults = try makeIsolatedDefaults()
+    let defaults = try scratch.makeIsolatedDefaults()
     let activitySamples = Counter()
 
     let models = AppModels(
       defaults: defaults,
-      pipeline: UsagePipeline(home: workspace.root, calendar: UsageFixture.calendar),
+      pipeline: workspace.makePipeline(),
       quotaSources: .missingExecutables,
       breakNotifications: BreakReminderTestNotifications(),
       activitySample: {
@@ -30,13 +30,15 @@ final class PanelViewTests: XCTestCase {
     let host = NSHostingView(rootView: PanelView().sceneRoot(models))
     host.layoutSubtreeIfNeeded()
     try await Poll.until { usage.snapshot != nil }
-    XCTAssertNil(usage.snapshot?.providers[.codex])
-    XCTAssertEqual(usage.snapshot?.todayTokens(.claude), 0)
+    #expect(usage.snapshot?.providers[.codex] == nil)
+    #expect(usage.snapshot?.todayTokens(.claude) == 0)
 
     try await Poll.until { QuotaProvider.allCases.allSatisfy { !quota.statuses[$0].isBusy } }
-    XCTAssertEqual(quota.statuses[.codex], .unread)
-    XCTAssertEqual(quota.statuses[.claude].latest, .unavailable(.binaryNotFound))
-    XCTAssertEqual(quota.statuses[.grok].latest, .unavailable(.binaryNotFound))
-    XCTAssertEqual(activitySamples.value, 0)
+    #expect(quota.statuses[.codex] == .unread)
+    #expect(quota.statuses[.claude].latest == .unavailable(.binaryNotFound))
+    #expect(quota.statuses[.grok].latest == .unavailable(.binaryNotFound))
+    #expect(activitySamples.value == 0)
   }
+
+  private let scratch = Scratch()
 }

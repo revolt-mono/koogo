@@ -1,10 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class JSONRPCConnectionTests: XCTestCase {
-  func testRequestsOwnTheirIDsAndNotificationsHaveNoID() async throws {
-    let root = try makeTemporaryDirectory()
+struct JSONRPCConnectionTests {
+  @Test
+  func `requests own their ids and notifications have no id`() async throws {
+    let root = try scratch.makeTemporaryDirectory()
     let transcript = root.appending(path: "requests")
     let executable = try TestExecutable.make(
       in: root,
@@ -32,15 +34,16 @@ final class JSONRPCConnectionTests: XCTestCase {
       return [first.value, second.value]
     }
 
-    XCTAssertEqual(values, [10, 20])
+    #expect(values == [10, 20])
     let requests = try JSONSerialization.jsonObjects(inLinesOf: transcript)
-    XCTAssertEqual(requests.map { $0["method"] as? String }, ["first", "ready", "second"])
-    XCTAssertEqual(requests.map { $0["id"] as? Int }, [1, nil, 2])
-    XCTAssertNil(requests.first?["params"])
-    XCTAssertEqual(requests.last?["params"] as? [String: String], [:])
+    #expect(requests.map { $0["method"] as? String } == ["first", "ready", "second"])
+    #expect(requests.map { $0["id"] as? Int } == [1, nil, 2])
+    #expect(requests.first?["params"] == nil)
+    #expect(requests.last?["params"] as? [String: String] == [:])
   }
 
-  func testMalformedOrAmbiguousMessagesCannotBecomeSuccess() async throws {
+  @Test
+  func `malformed or ambiguous messages cannot become success`() async {
     let replies = [
       #"{"id":1,"result":{"value":10},"error":{"code":-32603}}"#,
       #"{"id":1}"#,
@@ -52,34 +55,26 @@ final class JSONRPCConnectionTests: XCTestCase {
       "invalid json",
     ]
     for reply in replies {
-      do {
-        try await request(reply: reply)
-        XCTFail("invalid message accepted: \(reply)")
-      } catch ToolFailure.invalidMessage {
-      } catch {
-        XCTFail("\(reply) failed with \(error) instead of an invalid message")
-      }
+      await #expect(throws: ToolFailure.invalidMessage, "\(reply)") { try await request(reply: reply) }
     }
   }
 
-  func testRPCErrorRetainsItsCode() async throws {
-    do {
+  @Test
+  func `rpc error retains its code`() async {
+    await #expect(throws: ToolFailure.rpc(code: -32601)) {
       try await request(reply: #"{"id":1,"error":{"code":-32601,"message":"Method not found"}}"#)
-      XCTFail("rpc error accepted")
-    } catch ToolFailure.rpc(let code) {
-      XCTAssertEqual(code, -32601)
     }
   }
 
-  func testClosedOutputFailsWithoutWaitingForTimeout() async throws {
-    do {
-      try await request(reply: nil)
-      XCTFail("eof accepted")
-    } catch ToolFailure.closed { }
+  @Test
+  func `closed output fails without waiting for timeout`() async {
+    await #expect(throws: ToolFailure.closed) { try await request(reply: nil) }
   }
+
+  private let scratch = Scratch()
 
   private func request(reply: String?) async throws {
-    let root = try makeTemporaryDirectory()
+    let root = try scratch.makeTemporaryDirectory()
     let response = root.appending(path: "response")
     try (reply ?? "").write(to: response, atomically: true, encoding: .utf8)
     let executable = try TestExecutable.make(

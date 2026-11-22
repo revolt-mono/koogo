@@ -1,23 +1,26 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class TodoTests: XCTestCase {
-  func testTodoTextTrimsNonemptyInputAndRejectsWhitespace() throws {
-    XCTAssertNil(TodoText(" \n\t "))
+struct TodoTests {
+  @Test
+  func `todo text trims nonempty input and rejects whitespace`() throws {
+    #expect(TodoText(" \n\t ") == nil)
 
-    let text = try XCTUnwrap(TodoText("  write tests\n"))
-    XCTAssertEqual(text.value, "write tests")
+    let text = try #require(TodoText("  write tests\n"))
+    #expect(text.value == "write tests")
   }
 
-  func testTodoPropertyListKeepsTheFlatSchema() throws {
-    let todo = Todo(text: try XCTUnwrap(TodoText("ship it")), priority: .urgent)
+  @Test
+  func `todo property list keeps the flat schema`() throws {
+    let todo = Todo(text: try #require(TodoText("ship it")), priority: .urgent)
     let data = try PropertyListEncoder().encode([todo])
-    let propertyList = try XCTUnwrap(
+    let propertyList = try #require(
       PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [[String: Any]]
     )
 
-    XCTAssertEqual(propertyList[0]["text"] as? String, "ship it")
-    XCTAssertEqual(propertyList[0]["priority"] as? String, "urgent")
+    #expect(propertyList[0]["text"] as? String == "ship it")
+    #expect(propertyList[0]["priority"] as? String == "urgent")
   }
 }

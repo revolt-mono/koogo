@@ -1,10 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class CommandLineToolTests: XCTestCase {
-  func testToolsRunInAnEmptyDirectoryWithAFixedEnvironmentInsteadOfTheAppsOwn() async throws {
-    let root = try makeTemporaryDirectory()
+struct CommandLineToolTests {
+  @Test
+  func `tools run in an empty directory with a fixed environment instead of the apps own`() async throws {
+    let root = try scratch.makeTemporaryDirectory()
     let executable = try TestExecutable.make(
       in: root,
       script: """
@@ -20,21 +22,22 @@ final class CommandLineToolTests: XCTestCase {
         var streams = streams
         return try await streams.first { $0 }
       }
-    let fields = try XCTUnwrap(String(bytes: output, encoding: .utf8)).split(
+    let fields = try #require(String(bytes: output, encoding: .utf8)).split(
       separator: "|",
       omittingEmptySubsequences: false,
     )
 
-    XCTAssertEqual(fields.count, 4)
-    XCTAssertEqual(fields[0], "")
-    XCTAssertEqual(String(fields[1]), NSUserName())
-    XCTAssertTrue(fields[2].hasPrefix("\(root.path):"))
-    XCTAssertTrue(fields[2].contains(":/opt/homebrew/bin:"))
-    XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: String(fields[3])), [])
+    #expect(fields.count == 4)
+    #expect(fields[0] == "")
+    #expect(String(fields[1]) == NSUserName())
+    #expect(fields[2].hasPrefix("\(root.path):"))
+    #expect(fields[2].contains(":/opt/homebrew/bin:"))
+    try #expect(FileManager.default.contentsOfDirectory(atPath: String(fields[3])) == [])
   }
 
-  func testReplyNearTheDeadlineSurvivesASlowExit() async throws {
-    let root = try makeTemporaryDirectory()
+  @Test
+  func `reply near the deadline survives a slow exit`() async throws {
+    let root = try scratch.makeTemporaryDirectory()
     let executable = try TestExecutable.make(
       in: root,
       script: """
@@ -52,6 +55,8 @@ final class CommandLineToolTests: XCTestCase {
         return try await streams.first { $0 }
       }
 
-    XCTAssertEqual(reply, Data("reply".utf8))
+    #expect(reply == Data("reply".utf8))
   }
+
+  private let scratch = Scratch()
 }

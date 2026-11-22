@@ -1,17 +1,17 @@
 import AppKit
 import SwiftUI
-import XCTest
+import Testing
 
 @testable import Koogo
 
-final class UsagePageTests: XCTestCase {
-  @MainActor
-  func testAHiddenUsagePageReadsOnlyNeverReadQuotaUntilShown() async throws {
-    let workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
+struct UsagePageTests {
+  @Test @MainActor
+  func `a hidden usage page reads only never read quota until shown`() async throws {
+    let workspace = try UsageTestWorkspace()
     let failed = QuotaReading.unavailable(.sessionFailed)
     let models = AppModels(
-      defaults: try makeIsolatedDefaults(),
-      pipeline: UsagePipeline(home: workspace.root, calendar: UsageFixture.calendar),
+      defaults: try scratch.makeIsolatedDefaults(),
+      pipeline: workspace.makePipeline(),
       quotaSources: QuotaSources(
         codex: ScriptedQuotaSource([failed, failed]),
         claude: ScriptedQuotaSource([failed, failed]),
@@ -32,10 +32,12 @@ final class UsagePageTests: XCTestCase {
     let host = NSHostingView(rootView: UsagePage(maxHeight: 600, isShown: false).sceneRoot(models))
     host.layoutSubtreeIfNeeded()
     try await Poll.until { quota.statuses[.codex].latest != nil }
-    XCTAssertEqual(quota.statuses[.claude], launchReading)
+    #expect(quota.statuses[.claude] == launchReading)
 
     host.rootView = UsagePage(maxHeight: 600, isShown: true).sceneRoot(models)
     host.layoutSubtreeIfNeeded()
     try await Poll.until { quota.statuses[.claude] != launchReading && !quota.statuses[.claude].isBusy }
   }
+
+  private let scratch = Scratch()
 }

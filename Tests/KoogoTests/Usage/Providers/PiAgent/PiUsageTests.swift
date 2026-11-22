@@ -1,15 +1,21 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class PiUsageTests: UsageWorkspaceTestCase {
-  func testParserUsesLoggedUsageAndNamesTheModel() throws {
+struct PiUsageTests {
+  init() throws {
+    workspace = try UsageTestWorkspace()
+  }
+
+  @Test
+  func `parser uses logged usage and names the model`() throws {
     var parser = PiUsageLogParser()
     for record in [PiLog.sessionHeader, PiLog.thinking(id: "high", parentID: nil, level: "high"), PiLog.user] {
-      XCTAssertNil(try parser.parse(record))
+      try #expect(parser.parse(record) == nil)
     }
-    let event = try XCTUnwrap(
-      try parser.parse(
+    let event = try #require(
+      parser.parse(
         PiLog.assistant(
           id: "first",
           parentID: "user",
@@ -19,18 +25,16 @@ final class PiUsageTests: UsageWorkspaceTestCase {
       )?.event
     )
 
-    XCTAssertEqual(event.record.timestamp.date, UsageFixture.timestamp)
-    XCTAssertEqual(event.record.processedTokens, 100)
-    XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.125"))
-    XCTAssertEqual(event.record.model, "provider/model-a")
-    XCTAssertNil(
-      try parser.parse(
-        PiLog.assistant(id: "free", parentID: "first", model: "model-a", usage: PiLog.usage(input: 0, cost: "0"))
-      )
-    )
+    #expect(event.record.timestamp.date == UsageFixture.timestamp)
+    #expect(event.record.processedTokens == 100)
+    #expect(event.record.cost.usd == Decimal(string: "0.125"))
+    #expect(event.record.model == "provider/model-a")
+    let free = PiLog.assistant(id: "free", parentID: "first", model: "model-a", usage: PiLog.usage(input: 0, cost: "0"))
+    try #expect(parser.parse(free) == nil)
   }
 
-  func testParserIncludesAuxiliaryUsageWithoutAModel() throws {
+  @Test
+  func `parser includes auxiliary usage without a model`() throws {
     var parser = PiUsageLogParser()
     _ = try parser.parse(PiLog.sessionHeader)
     let records = [
@@ -44,35 +48,38 @@ final class PiUsageTests: UsageWorkspaceTestCase {
       {"type":"branch_summary","id":"summary","parentId":"compaction","timestamp":"2026-08-25T12:00:00.000Z","usage":\(PiLog.usage(input: 30, cost: "0.03"))}
       """,
     ]
-    let events = try records.map { try XCTUnwrap(parser.parse($0)?.event) }
+    let events = try records.map { try #require(parser.parse($0)?.event) }
 
-    XCTAssertEqual(events.map(\.record.processedTokens), [10, 20, 30])
-    XCTAssertTrue(events.allSatisfy { $0.record.model == nil })
-    XCTAssertEqual(events.map(\.record.cost.usd).reduce(0, +), Decimal(string: "0.06"))
+    #expect(events.map(\.record.processedTokens) == [10, 20, 30])
+    #expect(events.allSatisfy { $0.record.model == nil })
+    #expect(events.map(\.record.cost.usd).reduce(0, +) == Decimal(string: "0.06"))
   }
 
-  func testParserBillsUsageEntriesUnderTheirModel() throws {
+  @Test
+  func `parser bills usage entries under their model`() throws {
     var parser = PiUsageLogParser()
     let warm = """
       {"type":"usage","id":"warm","parentId":"first","timestamp":"2026-08-25T12:00:00.000Z","kind":"cache_warm","provider":"provider","model":"model-b","usage":\(PiLog.usage(input: 1, cacheRead: 90, cost: "0.009"))}
       """
-    let event = try XCTUnwrap(parser.parse(warm)?.event)
+    let event = try #require(parser.parse(warm)?.event)
 
-    XCTAssertEqual(event.record.processedTokens, 91)
-    XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.009"))
-    XCTAssertEqual(event.record.model, "provider/model-b")
+    #expect(event.record.processedTokens == 91)
+    #expect(event.record.cost.usd == Decimal(string: "0.009"))
+    #expect(event.record.model == "provider/model-b")
   }
 
-  func testParserUsesProviderTotalTokens() throws {
+  @Test
+  func `parser uses provider total tokens`() throws {
     var parser = PiUsageLogParser()
     let log = """
       {"type":"compaction","id":"compaction","parentId":null,"timestamp":"2026-08-25T12:00:00.000Z","usage":{"input":10,"output":20,"cacheRead":30,"cacheWrite":40,"totalTokens":125,"cost":{"total":1}}}
       """
 
-    XCTAssertEqual(try XCTUnwrap(parser.parse(log)?.event).record.processedTokens, 125)
+    try #expect(parser.parse(log)?.event?.record.processedTokens == 125)
   }
 
-  func testCatalogPrefersCustomNamesAndOverridesOverStoredNames() throws {
+  @Test
+  func `catalog prefers custom names and overrides over stored names`() throws {
     try writeModelCatalog()
 
     var catalog = PiModelCatalog()
@@ -81,32 +88,28 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     let names = ["model-a", "model-b", "unnamed", "unknown"].map {
       catalog.name(of: PiModelCatalog.modelID(provider: "provider", model: $0))
     }
-    XCTAssertEqual(names, ["Readable Model A", "Preferred Model B", "unnamed", "unknown"])
+    #expect(names == ["Readable Model A", "Preferred Model B", "unnamed", "unknown"])
   }
 
-  func testPipelineUsesLoggedCostsAndModelNames() async throws {
+  @Test
+  func `pipeline uses logged costs and model names`() async throws {
     try writeModelCatalog()
     let contents = PiLog.session
     try workspace.write(contents, to: workspace.piSessions.appending(path: "project/session.jsonl"))
     try workspace.write(contents, to: workspace.piSessions.appending(path: "copy/session.jsonl"))
-    let snapshot = await makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
+    let snapshot = await workspace.makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
 
-    XCTAssertEqual(snapshot.todayTokens(.piAgent), 210)
-    XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd, Decimal(string: "0.21"))
-    let models = try XCTUnwrap(snapshot.providers[.piAgent]?.periods[.today].models)
-    XCTAssertEqual(
-      models.map(\.id),
-      [nil, "provider/model-a", "provider/model-b"],
-    )
-    XCTAssertEqual(models.map(\.modelName), ["Unattributed", "Readable Model A", "Preferred Model B"])
-    XCTAssertEqual(models.map(\.usage.processedTokens), [150, 30, 30])
-    XCTAssertEqual(
-      models.map(\.usage.cost.usd),
-      [Decimal(string: "0.15"), Decimal(string: "0.03"), Decimal(string: "0.03")],
-    )
+    #expect(snapshot.todayTokens(.piAgent) == 210)
+    #expect(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd == Decimal(string: "0.21"))
+    let models = try #require(snapshot.providers[.piAgent]?.periods[.today].models)
+    #expect(models.map(\.id) == [nil, "provider/model-a", "provider/model-b"])
+    #expect(models.map(\.modelName) == ["Unattributed", "Readable Model A", "Preferred Model B"])
+    #expect(models.map(\.usage.processedTokens) == [150, 30, 30])
+    #expect(models.map(\.usage.cost.usd) == [Decimal(string: "0.15"), Decimal(string: "0.03"), Decimal(string: "0.03")])
   }
 
-  func testPipelineRefreshesModelNamesWhenTheCatalogChanges() async throws {
+  @Test
+  func `pipeline refreshes model names when the catalog changes`() async throws {
     try workspace.write(
       PiLog.session,
       to: workspace.piSessions.appending(path: "session.jsonl"),
@@ -117,9 +120,9 @@ final class PiUsageTests: UsageWorkspaceTestCase {
       """,
       to: workspace.home(of: .piAgent).appending(path: "models-store.json"),
     )
-    let pipeline = makePipeline()
+    let pipeline = workspace.makePipeline()
     let initial = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
-    XCTAssertEqual(initial.providers[.piAgent]?.periods[.today].models?[1].modelName, "Initial Name")
+    #expect(initial.providers[.piAgent]?.periods[.today].models?[1].modelName == "Initial Name")
 
     try workspace.write(
       """
@@ -129,39 +132,41 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     )
     let updated = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
 
-    XCTAssertEqual(updated.providers[.piAgent]?.periods[.today].models?[1].modelName, "Updated Name")
+    #expect(updated.providers[.piAgent]?.periods[.today].models?[1].modelName == "Updated Name")
   }
 
-  func testCachedCatalogReflectsMalformedDeletedAndRecreatedFiles() async throws {
+  @Test
+  func `cached catalog reflects malformed deleted and recreated files`() async throws {
     try writeModelCatalog()
     try workspace.write(PiLog.session, to: workspace.piSessions.appending(path: "session.jsonl"))
     let home = workspace.home(of: .piAgent)
     let custom = home.appending(path: "models.json")
     let store = home.appending(path: "models-store.json")
-    let pipeline = makePipeline()
+    let pipeline = workspace.makePipeline()
     let initial = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
-    XCTAssertEqual(initial.providers[.piAgent]?.periods[.today].models?[1].modelName, "Readable Model A")
+    #expect(initial.providers[.piAgent]?.periods[.today].models?[1].modelName == "Readable Model A")
 
     try workspace.write("{invalid", to: custom)
     let malformed = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
-    XCTAssertEqual(malformed.providers[.piAgent]?.periods[.today].models?[1].modelName, "Cached Model A")
+    #expect(malformed.providers[.piAgent]?.periods[.today].models?[1].modelName == "Cached Model A")
 
     try FileManager.default.removeItem(at: custom)
     try FileManager.default.removeItem(at: store)
     let deleted = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
-    XCTAssertEqual(deleted.providers[.piAgent]?.periods[.today].models?[1].modelName, "model-a")
+    #expect(deleted.providers[.piAgent]?.periods[.today].models?[1].modelName == "model-a")
 
     try writeModelCatalog()
     let restored = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
-    XCTAssertEqual(restored, initial)
+    #expect(restored == initial)
   }
 
-  func testPipelineDeduplicatesForkHistoryDuringColdAndIncrementalScans() async throws {
+  @Test
+  func `pipeline deduplicates fork history during cold and incremental scans`() async throws {
     try workspace.write(PiLog.session, to: workspace.piSessions.appending(path: "original.jsonl"))
-    let pipeline = makePipeline()
+    let pipeline = workspace.makePipeline()
 
     let original = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
-    XCTAssertEqual(original.todayTokens(.piAgent), 210)
+    #expect(original.todayTokens(.piAgent) == 210)
 
     let forkHeader = PiLog.sessionHeader.replacing(
       "\"id\":\"session\"",
@@ -178,15 +183,16 @@ final class PiUsageTests: UsageWorkspaceTestCase {
         + "\n"
     try workspace.write(fork, to: workspace.piSessions.appending(path: "fork.jsonl"))
 
-    let incremental = try await refresh(pipeline) { $0.ingestion.trackedFiles[.piAgent] == 2 }.snapshot
-    let cold = await makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
+    let incremental = try await workspace.refresh(pipeline) { $0.ingestion.trackedFiles[.piAgent] == 2 }.snapshot
+    let cold = await workspace.makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
     for snapshot in [incremental, cold] {
-      XCTAssertEqual(snapshot.todayTokens(.piAgent), 280)
-      XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd, Decimal(string: "0.28"))
+      #expect(snapshot.todayTokens(.piAgent) == 280)
+      #expect(snapshot.providers[.piAgent]?.periods[.today].total.cost.usd == Decimal(string: "0.28"))
     }
   }
 
-  func testPipelineKeepsUnrelatedSessionsThatReuseAnEntryID() async throws {
+  @Test
+  func `pipeline keeps unrelated sessions that reuse an entry id`() async throws {
     let usage = PiLog.usage(input: 10, cost: "0.01")
     try workspace.write(
       PiLog.assistant(id: "shared", parentID: nil, model: "model-a", usage: usage) + "\n",
@@ -203,12 +209,13 @@ final class PiUsageTests: UsageWorkspaceTestCase {
       to: workspace.piSessions.appending(path: "second.jsonl"),
     )
 
-    let snapshot = await makePipeline().run(at: UsageFixture.timestamp, providers: [.piAgent]).snapshot
+    let snapshot = await workspace.makePipeline().run(at: UsageFixture.timestamp, providers: [.piAgent]).snapshot
 
-    XCTAssertEqual(snapshot.todayTokens(.piAgent), 20)
+    #expect(snapshot.todayTokens(.piAgent) == 20)
   }
 
-  func testPiRecordsInAnyLayoutPassThroughUntilABilledReply() throws {
+  @Test
+  func `pi records in any layout pass through until a billed reply`() throws {
     var parser = PiUsageLogParser()
     let records = [
       #"{"type":"session","version":3,"id":"session","timestamp":"2026-08-25T11:00:00.000Z"}"#,
@@ -223,27 +230,30 @@ final class PiUsageTests: UsageWorkspaceTestCase {
       """,
     ]
     for record in records {
-      XCTAssertNil(try parser.parse(record))
+      try #expect(parser.parse(record) == nil)
     }
 
-    let event = try XCTUnwrap(
-      try parser.parse(
+    let event = try #require(
+      parser.parse(
         PiLog.assistant(id: "reply", parentID: "tool", model: "model-a", usage: PiLog.usage(input: 10, cost: "0.01"))
       )?.event
     )
 
-    XCTAssertEqual(event.record.model, "provider/model-a")
+    #expect(event.record.model == "provider/model-a")
   }
 
-  func testPiSkipsUnbilledEntriesWithoutReadingTheirTimestamps() throws {
+  @Test
+  func `pi skips unbilled entries without reading their timestamps`() throws {
     var parser = PiUsageLogParser()
     for line in [
       #"{"type":"thinking_level_change","id":"high","parentId":null,"timestamp":1,"thinkingLevel":"high"}"#,
       #"{"type":"compaction","id":"compaction","parentId":"high","timestamp":1,"summary":""}"#,
     ] {
-      XCTAssertNil(try parser.parse(line), line)
+      try #expect(parser.parse(line) == nil, "\(line)")
     }
   }
+
+  private let workspace: UsageTestWorkspace
 
   private func writeModelCatalog() throws {
     let piHome = workspace.home(of: .piAgent)

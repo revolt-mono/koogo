@@ -1,9 +1,11 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class DroppedInputTests: XCTestCase {
-  func testUnpricedModelsKeepTheirLatestUseInsideTheWindow() {
+struct DroppedInputTests {
+  @Test
+  func `unpriced models keep their latest use inside the window`() {
     func time(_ offset: TimeInterval) -> UsageTimestamp {
       UsageTimestamp(UsageFixture.timestamp.addingTimeInterval(offset))
     }
@@ -16,7 +18,7 @@ final class DroppedInputTests: XCTestCase {
 
     dropped.discard(before: time(1))
 
-    XCTAssertEqual(Array(dropped.unpricedModels), ["kept"])
-    XCTAssertEqual(dropped.malformedLines, 1)
+    #expect(Array(dropped.unpricedModels) == ["kept"])
+    #expect(dropped.malformedLines == 1)
   }
 }

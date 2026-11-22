@@ -27,6 +27,11 @@
 - rendered memory regression (run alone): `KOOGO_MEMORY_TESTS=1 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test --filter UsageSummaryMemoryTests`
 - retained heap regression: `KOOGO_MEMORY_TESTS=1 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test --filter 'LogStoreMemoryTests|UsageEventIndexMemoryTests'`
 
+## tests
+
+- tests use swift testing and run in parallel inside one process. a body that reads process-wide state, such as cpu time or allocation counts, runs in an exit test; memory suites nest under `MemoryMeasurement`, which serializes them and gates them on `KOOGO_MEMORY_TESTS`.
+- `Scratch` owns the temporary directories and defaults a suite makes, and `TestExecutable` makes the scripts that stand in for provider tools.
+
 ## mouse input
 
 - keep the event tap callback free of allocation, locks, lookups, logging, and async work; `ScrollRewriterTests` counts allocations on that path.

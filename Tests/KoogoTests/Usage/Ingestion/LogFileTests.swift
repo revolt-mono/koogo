@@ -1,14 +1,20 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class LogFileTests: UsageWorkspaceTestCase {
-  func testAppendThatCannotBeReadIsReadOnceItCanBe() throws {
+struct LogFileTests {
+  init() throws {
+    workspace = try UsageTestWorkspace()
+  }
+
+  @Test
+  func `append that cannot be read is read once it can be`() throws {
     let log = workspace.codexSessions.appending(path: "session.jsonl")
     try workspace.write(CodexLog.session(input: 100, output: 20), to: log)
-    var parsed = try XCTUnwrap(
+    var parsed = try #require(
       ParsedLog<CodexUsageLogParser>(
-        AppendOnlyFile(log.path, observed: try metadata(of: log)),
+        AppendOnlyFile(log.path, observed: metadata(of: log)),
         since: UsageTimestamp(.distantPast),
       )
     )
@@ -23,61 +29,66 @@ final class LogFileTests: UsageWorkspaceTestCase {
 
     try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: log.path)
     parsed.sync(observed: try metadata(of: log), since: UsageTimestamp(.distantPast))
-    XCTAssertEqual(parsed.events.count, 1)
+    #expect(parsed.events.count == 1)
 
     try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: log.path)
     parsed.sync(observed: try metadata(of: log), since: UsageTimestamp(.distantPast))
-    XCTAssertEqual(parsed.events.count, 2)
+    #expect(parsed.events.count == 2)
   }
 
-  func testCompressedRolloutsAreReadLikePlainLogs() async throws {
+  @Test
+  func `compressed rollouts are read like plain logs`() async throws {
     try workspace.write(CodexLog.compressedSession, to: workspace.codexSessions.appending(path: "session.jsonl.zst"))
     try workspace.write(
       Data("not a zstd frame".utf8),
       to: workspace.codexArchivedSessions.appending(path: "broken.jsonl.zst"),
     )
 
-    let report = await makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases)
+    let report = await workspace.makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases)
 
-    XCTAssertEqual(report.ingestion.trackedFiles[.codex], 2)
-    XCTAssertEqual(report.ingestion.events[.codex], 1)
-    XCTAssertEqual(report.snapshot.todayTokens(.codex), 120)
+    #expect(report.ingestion.trackedFiles[.codex] == 2)
+    #expect(report.ingestion.events[.codex] == 1)
+    #expect(report.snapshot.todayTokens(.codex) == 120)
   }
 
-  func testCompressionReplacingAPlainRolloutKeepsItsEventsOnce() async throws {
+  @Test
+  func `compression replacing a plain rollout keeps its events once`() async throws {
     let plain = workspace.codexSessions.appending(path: "session.jsonl")
     try workspace.write(CodexLog.session(input: 100, output: 20), to: plain)
-    let pipeline = makePipeline()
+    let pipeline = workspace.makePipeline()
     _ = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases)
 
     try workspace.write(CodexLog.compressedSession, to: workspace.codexSessions.appending(path: "session.jsonl.zst"))
-    let both = try await refresh(pipeline) { $0.ingestion.trackedFiles[.codex] == 2 }
-    XCTAssertEqual(both.snapshot.todayTokens(.codex), 120)
+    let both = try await workspace.refresh(pipeline) { $0.ingestion.trackedFiles[.codex] == 2 }
+    #expect(both.snapshot.todayTokens(.codex) == 120)
 
     try FileManager.default.removeItem(at: plain)
-    let compressed = try await refresh(pipeline) { $0.ingestion.trackedFiles[.codex] == 1 }
-    XCTAssertEqual(compressed.snapshot.todayTokens(.codex), 120)
+    let compressed = try await workspace.refresh(pipeline) { $0.ingestion.trackedFiles[.codex] == 1 }
+    #expect(compressed.snapshot.todayTokens(.codex) == 120)
   }
 
-  func testLinesSpanningDecodedChunksAreDeliveredWhole() throws {
+  @Test
+  func `lines spanning decoded chunks are delivered whole`() throws {
     let padding = String(repeating: "x", count: 1 << 20)
     let text = "{\"type\":\"ignored\",\"padding\":\"\(padding)\"}\n" + CodexLog.session(input: 100, output: 20)
     let url = workspace.codexSessions.appending(path: "padded.jsonl.zst")
     try workspace.write(Data.zstdFrame(of: text), to: url)
 
-    let log = try XCTUnwrap(
+    let log = try #require(
       ParsedLog<CodexUsageLogParser>(
-        CompressedFile(url.path, observed: try metadata(of: url)),
+        CompressedFile(url.path, observed: metadata(of: url)),
         since: UsageTimestamp(.distantPast),
       )
     )
 
-    XCTAssertEqual(log.events.count, 1)
-    XCTAssertEqual(log.droppedInput.malformedLines, 0)
+    #expect(log.events.count == 1)
+    #expect(log.droppedInput.malformedLines == 0)
   }
 
+  private let workspace: UsageTestWorkspace
+
   private func metadata(of url: URL) throws -> UsageFileMetadata {
-    try XCTUnwrap(UsageFileMetadata(path: url.path))
+    try #require(UsageFileMetadata(path: url.path))
   }
 }
 

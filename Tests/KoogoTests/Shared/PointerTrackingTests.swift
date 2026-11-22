@@ -1,20 +1,21 @@
 import AppKit
 import SwiftUI
-import XCTest
+import Testing
 
 @testable import Koogo
 
 @MainActor
-final class PointerTrackingTests: XCTestCase {
-  func testReportsMovesInTopLeftLocalSpaceAndCrossesOnce() throws {
+struct PointerTrackingTests {
+  @Test
+  func `reports moves in top left local space and crosses once`() throws {
     var phases = [HoverPhase]()
     let window = hostingWindow(Color.clear.onContinuousPointerHover { phases.append($0) })
-    let tracker = try XCTUnwrap(window.contentView.map(innermostView))
+    let tracker = try #require(window.contentView.map(innermostView))
 
     tracker.mouseEntered(with: try crossing(.mouseEntered, at: CGPoint(x: 10, y: 40), in: window))
     tracker.mouseEntered(with: try crossing(.mouseEntered, at: CGPoint(x: 20, y: 40), in: window))
     tracker.mouseMoved(
-      with: try XCTUnwrap(
+      with: try #require(
         NSEvent.mouseEvent(
           with: .mouseMoved,
           location: CGPoint(x: 30, y: 20),
@@ -31,14 +32,15 @@ final class PointerTrackingTests: XCTestCase {
     tracker.mouseExited(with: try crossing(.mouseExited, at: CGPoint(x: 30, y: 60), in: window))
     tracker.mouseExited(with: try crossing(.mouseExited, at: CGPoint(x: 30, y: 60), in: window))
 
-    XCTAssertEqual(phases, [.active(CGPoint(x: 10, y: 10)), .active(CGPoint(x: 30, y: 30)), .ended])
+    #expect(phases == [.active(CGPoint(x: 10, y: 10)), .active(CGPoint(x: 30, y: 30)), .ended])
   }
 
-  func testTracksNoFurtherThanTheViewInsideALargerHost() throws {
+  @Test
+  func `tracks no further than the view inside a larger host`() throws {
     let window = hostingWindow(Color.clear.frame(width: 20, height: 10).onPointerHover { _ in })
-    let tracker = try XCTUnwrap(window.contentView.map(innermostView))
+    let tracker = try #require(window.contentView.map(innermostView))
 
-    XCTAssertEqual(tracker.visibleRect.size, CGSize(width: 20, height: 10))
+    #expect(tracker.visibleRect.size == CGSize(width: 20, height: 10))
   }
 
   /// the window sits off every screen so the real cursor cannot enter the tracker during layout.
@@ -55,7 +57,7 @@ final class PointerTrackingTests: XCTestCase {
   }
 
   private func crossing(_ type: NSEvent.EventType, at point: CGPoint, in window: NSWindow) throws -> NSEvent {
-    try XCTUnwrap(
+    try #require(
       NSEvent.enterExitEvent(
         with: type,
         location: point,

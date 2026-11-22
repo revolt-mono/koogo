@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
@@ -17,8 +18,8 @@ enum UsageFixture {
 }
 
 struct UsageTestWorkspace {
-  init(root: URL) throws {
-    self.root = root
+  init() throws {
+    root = try scratch.makeTemporaryDirectory()
     for logRoot in Provider.allCases.flatMap({ $0.logRoots(under: root) }) {
       try FileManager.default.createDirectory(atPath: logRoot.path, withIntermediateDirectories: true)
     }
@@ -88,29 +89,14 @@ struct UsageTestWorkspace {
     try FileManager.default.setAttributes([.modificationDate: UsageFixture.timestamp], ofItemAtPath: url.path)
   }
 
-  private func logDirectory(_ provider: Provider, _ directory: String) -> URL {
-    home(of: provider).appending(path: directory, directoryHint: .isDirectory)
-  }
-}
-
-/// base class for suites that read provider logs from a temporary home.
-class UsageWorkspaceTestCase: XCTestCase {
-  // swiftlint:disable:next implicitly_unwrapped_optional
-  private(set) var workspace: UsageTestWorkspace!
-
-  override func setUpWithError() throws {
-    workspace = try UsageTestWorkspace(root: makeTemporaryDirectory())
-  }
-
   func makePipeline() -> UsagePipeline {
-    UsagePipeline(home: workspace.root, calendar: UsageFixture.calendar)
+    UsagePipeline(home: root, calendar: UsageFixture.calendar)
   }
 
   func refresh(
     _ pipeline: UsagePipeline,
     until isCurrent: (UsageReport) -> Bool,
-    file: StaticString = #filePath,
-    line: UInt = #line,
+    sourceLocation: SourceLocation = #_sourceLocation,
   ) async throws -> UsageReport {
     let deadline = ContinuousClock.now + .seconds(5)
     while true {
@@ -119,11 +105,17 @@ class UsageWorkspaceTestCase: XCTestCase {
         return report
       }
       guard ContinuousClock.now < deadline else {
-        XCTFail("the pipeline never reported the change", file: file, line: line)
+        Issue.record("the pipeline never reported the change", sourceLocation: sourceLocation)
         return report
       }
       try await Task.sleep(for: .milliseconds(10))
     }
+  }
+
+  private let scratch = Scratch()
+
+  private func logDirectory(_ provider: Provider, _ directory: String) -> URL {
+    home(of: provider).appending(path: directory, directoryHint: .isDirectory)
   }
 }
 

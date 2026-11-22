@@ -1,34 +1,38 @@
 import AppKit
 import SwiftUI
-import XCTest
+import Testing
 
 @testable import Koogo
 
 @MainActor
-final class TodoPrioritySelectorTests: XCTestCase {
-  func testClickingADotSelectsItsPriority() throws {
+struct TodoPrioritySelectorTests {
+  @Test
+  func `clicking a dot selects its priority`() throws {
     let selection = SelectionBox(.urgent)
     let window = hostingWindow(selection)
+    defer { window.orderOut(nil) }
 
     try send(.leftMouseDown, at: CGPoint(x: 11, y: 11), in: window)
     try send(.leftMouseUp, at: CGPoint(x: 11, y: 11), in: window)
 
-    XCTAssertEqual(selection.value, .backlog)
+    #expect(selection.value == .backlog)
   }
 
-  func testDraggingSelectsTheOptionUnderThePointer() throws {
+  @Test
+  func `dragging selects the option under the pointer`() throws {
     let selection = SelectionBox(.urgent)
     let window = hostingWindow(selection)
+    defer { window.orderOut(nil) }
 
     try send(.leftMouseDown, at: CGPoint(x: 110, y: 11), in: window)
     try send(.leftMouseDragged, at: CGPoint(x: 63, y: 11), in: window)
-    XCTAssertEqual(selection.value, .urgent)
+    #expect(selection.value == .urgent)
     try send(.leftMouseDragged, at: CGPoint(x: 41, y: 11), in: window)
-    XCTAssertEqual(selection.value, .normal)
+    #expect(selection.value == .normal)
     try send(.leftMouseDragged, at: CGPoint(x: 190, y: 11), in: window)
     try send(.leftMouseUp, at: CGPoint(x: 190, y: 11), in: window)
 
-    XCTAssertEqual(selection.value, .urgent)
+    #expect(selection.value == .urgent)
   }
 
   private func hostingWindow(_ selection: SelectionBox) -> NSWindow {
@@ -51,14 +55,13 @@ final class TodoPrioritySelectorTests: XCTestCase {
     window.contentView?.layoutSubtreeIfNeeded()
     // swiftui ignores mouse events in a window that was never ordered in.
     window.orderFrontRegardless()
-    addTeardownBlock { window.orderOut(nil) }
     return window
   }
 
   private func send(_ type: NSEvent.EventType, at point: CGPoint, in window: NSWindow) throws {
-    let height = try XCTUnwrap(window.contentView).bounds.height
+    let height = try #require(window.contentView).bounds.height
     window.sendEvent(
-      try XCTUnwrap(
+      try #require(
         NSEvent.mouseEvent(
           with: type,
           location: CGPoint(x: point.x, y: height - point.y),

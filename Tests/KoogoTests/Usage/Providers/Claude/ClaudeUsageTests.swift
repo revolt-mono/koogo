@@ -1,9 +1,15 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class ClaudeUsageTests: UsageWorkspaceTestCase {
-  func testClaudeParsesCacheDurationsSpeedGeoAndSearch() throws {
+struct ClaudeUsageTests {
+  init() throws {
+    workspace = try UsageTestWorkspace()
+  }
+
+  @Test
+  func `claude parses cache durations speed geo and search`() throws {
     var parser = ClaudeUsageLogParser()
     let line = ClaudeLog.assistant(
       model: "claude-opus-5",
@@ -12,28 +18,30 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         """,
     )
 
-    let event = try XCTUnwrap(parser.parse(line)?.event)
+    let event = try #require(parser.parse(line)?.event)
 
-    XCTAssertEqual(event.provider, .claude)
-    XCTAssertEqual(event.record.processedTokens, 140)
-    XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.0236245"))
-    XCTAssertEqual(event.record.model, "claude-opus-5")
+    #expect(event.provider == .claude)
+    #expect(event.record.processedTokens == 140)
+    #expect(event.record.cost.usd == Decimal(string: "0.0236245"))
+    #expect(event.record.model == "claude-opus-5")
   }
 
-  func testClaudePreservesAggregateCacheCreationWithoutInventingDuration() throws {
+  @Test
+  func `claude preserves aggregate cache creation without inventing duration`() throws {
     var parser = ClaudeUsageLogParser()
     let line = ClaudeLog.assistant(
       model: "claude-opus-5",
       usage: #""input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40"#,
     )
 
-    let event = try XCTUnwrap(parser.parse(line)?.event)
+    let event = try #require(parser.parse(line)?.event)
 
-    XCTAssertEqual(event.record.processedTokens, 120)
-    XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.0014875"))
+    #expect(event.record.processedTokens == 120)
+    #expect(event.record.cost.usd == Decimal(string: "0.0014875"))
   }
 
-  func testClaudeRejectsInconsistentCacheSplit() {
+  @Test
+  func `claude rejects inconsistent cache split`() {
     var parser = ClaudeUsageLogParser()
     let line = ClaudeLog.assistant(
       model: "claude-opus-5",
@@ -42,19 +50,21 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         """,
     )
 
-    XCTAssertThrowsError(try parser.parse(line))
+    #expect(throws: (any Error).self) { try parser.parse(line) }
   }
 
-  func testClaudeRejectsRecordsWithoutBothStableIDs() {
+  @Test
+  func `claude rejects records without both stable ids`() {
     var parser = ClaudeUsageLogParser()
     let line = """
       {"type":"assistant","timestamp":"2026-08-25T12:00:00.000Z","message":{"id":"message","model":"claude-opus-5","usage":{"input_tokens":10,"output_tokens":40}}}
       """
 
-    XCTAssertThrowsError(try parser.parse(line))
+    #expect(throws: (any Error).self) { try parser.parse(line) }
   }
 
-  func testClaudeIdentityCombinesTheMessageAndRequestIDs() throws {
+  @Test
+  func `claude identity combines the message and request ids`() throws {
     var parser = ClaudeUsageLogParser()
     let line = ClaudeLog.assistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":40"#)
     let lines = [
@@ -63,13 +73,14 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
       line.replacing(#""id":"message""#, with: #""id":"other""#),
     ]
 
-    let ids = try lines.map { try XCTUnwrap(parser.parse($0)?.event).id }
+    let ids = try lines.map { try #require(parser.parse($0)?.event).id }
 
-    XCTAssertEqual(Set(ids).count, lines.count)
-    XCTAssertEqual(try XCTUnwrap(parser.parse(line)?.event).id, ids[0])
+    #expect(Set(ids).count == lines.count)
+    try #expect(parser.parse(line)?.event?.id == ids[0])
   }
 
-  func testClaudeSkipsZeroUsageSyntheticReplies() throws {
+  @Test
+  func `claude skips zero usage synthetic replies`() throws {
     var parser = ClaudeUsageLogParser()
     let reply = ClaudeLog.assistant(
       model: "<synthetic>",
@@ -77,11 +88,12 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     )
 
     for line in [reply, reply.replacing(#""requestId":"request","#, with: "")] {
-      XCTAssertNil(try parser.parse(line), line)
+      try #expect(parser.parse(line) == nil, "\(line)")
     }
   }
 
-  func testClaudeSkipsLinesThatBillNothingWithoutReadingTheirOtherFields() throws {
+  @Test
+  func `claude skips lines that bill nothing without reading their other fields`() throws {
     var parser = ClaudeUsageLogParser()
     let zeroUsage = ClaudeLog.assistant(model: "claude-opus-5", usage: #""input_tokens":0,"output_tokens":0"#)
     for line in [
@@ -90,11 +102,12 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
       zeroUsage.replacing(#""id":"message""#, with: #""id":3"#),
       zeroUsage.replacing(#""model":"claude-opus-5""#, with: #""model":4"#),
     ] {
-      XCTAssertNil(try parser.parse(line), line)
+      try #expect(parser.parse(line) == nil, "\(line)")
     }
   }
 
-  func testClaudeRejectsOverflowingTokenFields() {
+  @Test
+  func `claude rejects overflowing token fields`() {
     var parser = ClaudeUsageLogParser()
     let line = ClaudeLog.assistant(
       model: "claude-opus-5",
@@ -103,10 +116,11 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
         """,
     )
 
-    XCTAssertThrowsError(try parser.parse(line))
+    #expect(throws: (any Error).self) { try parser.parse(line) }
   }
 
-  func testClaudeReportsUnpricedModelsAndBilledOptions() throws {
+  @Test
+  func `claude reports unpriced models and billed options`() throws {
     for (model, usage) in [
       ("unknown-model", #""input_tokens":10,"output_tokens":40"#),
       ("claude-sonnet-4-6", #""input_tokens":10,"output_tokens":40,"speed":"fast""#),
@@ -116,11 +130,12 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
       var parser = ClaudeUsageLogParser()
       let outcome = try parser.parse(ClaudeLog.assistant(model: model, usage: usage))
 
-      XCTAssertEqual(outcome?.unpricedModel, ModelID(rawValue: model))
+      #expect(outcome?.unpricedModel == ModelID(rawValue: model))
     }
   }
 
-  func testClaudeCopyWithMoreExplicitMetadataWinsAtEqualOutput() throws {
+  @Test
+  func `claude copy with more explicit metadata wins at equal output`() throws {
     let tokens = #""input_tokens":10,"cache_creation_input_tokens":70,"output_tokens":40"#
     let bare = ClaudeLog.assistant(
       model: "claude-opus-5",
@@ -135,8 +150,8 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
       ),
     ] {
       var parser = ClaudeUsageLogParser()
-      let bareCopy = try XCTUnwrap(parser.parse(bare)?.event)
-      let detailedCopy = try XCTUnwrap(parser.parse(detailed)?.event)
+      let bareCopy = try #require(parser.parse(bare)?.event)
+      let detailedCopy = try #require(parser.parse(detailed)?.event)
 
       for copies in [[bareCopy, detailedCopy], [detailedCopy, bareCopy]] {
         var index = UsageEventIndex()
@@ -145,24 +160,26 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
             batch.insert(copy)
           }
         }
-        XCTAssertEqual(index.events.map(\.record.processedTokens), [120], detailed)
+        #expect(index.events.map(\.record.processedTokens) == [120], "\(detailed)")
       }
     }
   }
 
-  func testColdScanDeduplicatesClaudePartialsAndCopies() async throws {
+  @Test
+  func `cold scan deduplicates claude partials and copies`() async throws {
     try workspace.write(ClaudeLog.session(output: 2), to: workspace.claudeProjects.appending(path: "project/main.jsonl"))
     try workspace.write(
       ClaudeLog.session(output: 40),
       to: workspace.claudeProjects.appending(path: "project/agent/copy.jsonl"),
     )
 
-    let snapshot = await makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
+    let snapshot = await workspace.makePipeline().run(at: UsageFixture.timestamp, providers: Provider.allCases).snapshot
 
-    XCTAssertEqual(snapshot.todayTokens(.claude), 50)
+    #expect(snapshot.todayTokens(.claude) == 50)
   }
 
-  func testClaudeQuotesMatchPublishedRates() throws {
+  @Test
+  func `claude quotes match published rates`() throws {
     let usage = { (options: ClaudeBillableUsage.Options) in
       ClaudeBillableUsage.stub(
         uncachedInput: 100_000,
@@ -188,35 +205,37 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
       ("claude-haiku-5-5", standard, "0.2425"),
       ("claude-haiku-5-5", usInference, "0.26675"),
     ] {
-      let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: ModelID(rawValue: model), usage: usage), model)
-      XCTAssertEqual(quote.model, ModelID(rawValue: model))
-      XCTAssertEqual(quote.cost.usd, Decimal(string: expectedUSD), model)
+      let quote = try #require(ClaudeUsagePricing.quote(model: ModelID(rawValue: model), usage: usage), "\(model)")
+      #expect(quote.model == ModelID(rawValue: model))
+      #expect(quote.cost.usd == Decimal(string: expectedUSD), "\(model)")
     }
   }
 
-  func testAbsurdTokenCountsSaturateTheCostInsteadOfTrapping() throws {
+  @Test
+  func `absurd token counts saturate the cost instead of trapping`() throws {
     let usage = ClaudeBillableUsage.stub(uncachedInput: .max / 2, output: 1, options: [.fastMode, .usInference])
-    let quote = try XCTUnwrap(ClaudeUsagePricing.quote(model: "claude-opus-5", usage: usage))
+    let quote = try #require(ClaudeUsagePricing.quote(model: "claude-opus-5", usage: usage))
 
-    XCTAssertEqual(quote.cost, Picodollars(.max))
+    #expect(quote.cost == Picodollars(.max))
   }
 
-  func testClaudeSnapshotIDsAndAliasesStartAt45() throws {
+  @Test
+  func `claude snapshot ids and aliases start at 45`() throws {
     let usage = ClaudeBillableUsage.stub(uncachedInput: 100, output: 10)
-    let snapshot = try XCTUnwrap(
+    let snapshot = try #require(
       ClaudeUsagePricing.quote(
         model: "claude-sonnet-4-5-20250929",
         usage: usage,
       )
     )
-    let alias = try XCTUnwrap(
+    let alias = try #require(
       ClaudeUsagePricing.quote(model: "claude-sonnet-4-5", usage: usage)
     )
 
-    XCTAssertEqual(snapshot.cost.usd, Decimal(string: "0.00045"))
-    XCTAssertEqual(snapshot.cost.usd, alias.cost.usd)
-    XCTAssertEqual(alias.model, "claude-sonnet-4-5-20250929")
-    XCTAssertNotNil(ClaudeUsagePricing.quote(model: "claude-opus-4-5", usage: usage))
+    #expect(snapshot.cost.usd == Decimal(string: "0.00045"))
+    #expect(snapshot.cost.usd == alias.cost.usd)
+    #expect(alias.model == "claude-sonnet-4-5-20250929")
+    #expect(ClaudeUsagePricing.quote(model: "claude-opus-4-5", usage: usage) != nil)
     for model in [
       "claude-opus-4-1-20250805",
       "claude-opus-4-1",
@@ -229,14 +248,17 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
       "claude-3-5-haiku-20241022",
       "claude-3-5-haiku-latest",
     ] {
-      XCTAssertNil(
+      #expect(
         ClaudeUsagePricing.quote(
           model: ModelID(rawValue: model),
           usage: ClaudeBillableUsage.stub(uncachedInput: 1),
         )
+          == nil
       )
     }
   }
+
+  private let workspace: UsageTestWorkspace
 }
 
 extension ClaudeBillableUsage {

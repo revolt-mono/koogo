@@ -1,9 +1,11 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class QuotaFormattingTests: XCTestCase {
-  func testTimeRemainingIncludesTheNextSmallerUnit() {
+struct QuotaFormattingTests {
+  @Test
+  func `time remaining includes the next smaller unit`() {
     let now = Date(timeIntervalSince1970: 1_700_000_000)
     let cases: [(TimeInterval, String)] = [
       (2 * 86_400 + 6 * 3_600 + 59 * 60, "in 2d 6h"),
@@ -13,7 +15,7 @@ final class QuotaFormattingTests: XCTestCase {
     ]
 
     for (interval, expected) in cases {
-      XCTAssertEqual(now.addingTimeInterval(interval).formatted(.timeRemaining(from: now)), expected)
+      #expect(now.addingTimeInterval(interval).formatted(.timeRemaining(from: now)) == expected)
     }
   }
 }

@@ -1,10 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
-final class CodexQuotaSourceTests: XCTestCase {
-  func testFetchUsesAccountAndNamedWindowsAndClassifiesSwappedWindows() async throws {
-    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+struct CodexQuotaSourceTests {
+  @Test
+  func `fetch uses account and named windows and classifies swapped windows`() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try workspace.makeAppServer(
       quotaResponse: """
         {"id":2,"result":{"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":15,"windowDurationMins":10584,"resetsAt":1800000000},"secondary":{"usedPercent":45,"windowDurationMins":285,"resetsAt":1700000000}},"rateLimitsByLimitId":{"codex_bengalfox":{"limitName":"GPT-5.3-Codex-Spark","primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1900000000},"secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":2000000000}},"codex":{"limitName":null,"primary":{"usedPercent":99,"windowDurationMins":300,"resetsAt":1600000000},"secondary":null}},"rateLimitResetCredits":null}}
@@ -13,43 +15,36 @@ final class CodexQuotaSourceTests: XCTestCase {
 
     let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
-    XCTAssertEqual(
-      snapshot.windows.map(\.title),
-      ["Session", "Weekly", "GPT-5.3-Codex-Spark Session", "GPT-5.3-Codex-Spark Weekly"],
+    #expect(
+      snapshot.windows.map(\.title)
+        == ["Session", "Weekly", "GPT-5.3-Codex-Spark Session", "GPT-5.3-Codex-Spark Weekly"]
     )
-    XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 45)
-    XCTAssertEqual(
-      snapshot.windows["Session"]?.resetsAt,
-      Date(timeIntervalSince1970: 1_700_000_000),
-    )
-    XCTAssertEqual(snapshot.windows["Weekly"]?.usedPercent, 15)
-    XCTAssertEqual(
-      snapshot.windows["Weekly"]?.resetsAt,
-      Date(timeIntervalSince1970: 1_800_000_000),
-    )
-    XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Session"]?.usedPercent, 10)
-    XCTAssertEqual(snapshot.windows["GPT-5.3-Codex-Spark Weekly"]?.usedPercent, 20)
-    XCTAssertNil(snapshot.plan)
+    #expect(snapshot.windows["Session"]?.usedPercent == 45)
+    #expect(snapshot.windows["Session"]?.resetsAt == Date(timeIntervalSince1970: 1_700_000_000))
+    #expect(snapshot.windows["Weekly"]?.usedPercent == 15)
+    #expect(snapshot.windows["Weekly"]?.resetsAt == Date(timeIntervalSince1970: 1_800_000_000))
+    #expect(snapshot.windows["GPT-5.3-Codex-Spark Session"]?.usedPercent == 10)
+    #expect(snapshot.windows["GPT-5.3-Codex-Spark Weekly"]?.usedPercent == 20)
+    #expect(snapshot.plan == nil)
     let arguments = try String(contentsOf: workspace.argumentsFile, encoding: .utf8).split(separator: "\n")
-    XCTAssertEqual(arguments, ["app-server", "--stdio"])
+    #expect(arguments == ["app-server", "--stdio"])
     let requests = try JSONSerialization.jsonObjects(inLinesOf: workspace.requestsFile)
-    XCTAssertEqual(
-      requests.map { $0["method"] as? String },
-      ["initialize", "initialized", "account/rateLimits/read"],
-    )
+    #expect(requests.map { $0["method"] as? String } == ["initialize", "initialized", "account/rateLimits/read"])
   }
 
-  func testPlanNamesFollowTheCodexTUIAndOtherCodesShowCapitalized() throws {
+  @Test
+  func `plan names follow the codex tui and other codes show capitalized`() throws {
     for (planType, expected) in [("team", "Business"), ("mystery", "Mystery")] {
       let snapshot = try decodeSnapshot(
         #"{"rateLimits":{"planType":"\#(planType)","primary":{"usedPercent":25,"windowDurationMins":300}}}"#
       )
-      XCTAssertEqual(snapshot.plan, expected, planType)
+      #expect(snapshot.plan == expected, "\(planType)")
     }
   }
 
-  func testFetchDropsEmptyIDsAndTitlesUnnamedWindowsByID() async throws {
-    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `fetch drops empty ids and titles unnamed windows by id`() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let window = #"{"usedPercent":10,"windowDurationMins":300}"#
     let executable = try workspace.makeAppServer(
       quotaResponse: """
@@ -59,11 +54,12 @@ final class CodexQuotaSourceTests: XCTestCase {
 
     let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
-    XCTAssertEqual(snapshot.windows.map(\.title), ["id_x", "id_y"])
+    #expect(snapshot.windows.map(\.title) == ["id_x", "id_y"])
   }
 
-  func testFetchOmitsUnknownWindowsAndPreservesKnownZeroResets() async throws {
-    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `fetch omits unknown windows and preserves known zero resets`() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try workspace.makeAppServer(
       quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(
         usedPercent: 20,
@@ -75,25 +71,27 @@ final class CodexQuotaSourceTests: XCTestCase {
 
     let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
-    XCTAssertEqual(snapshot.windows, [])
-    XCTAssertEqual(snapshot.plan, "Pro 100")
-    XCTAssertEqual(snapshot.resetCredits?.availableCount, 0)
-    XCTAssertEqual(snapshot.resetCredits?.credits, [])
+    #expect(snapshot.windows == [])
+    #expect(snapshot.plan == "Pro 100")
+    #expect(snapshot.resetCredits?.availableCount == 0)
+    #expect(snapshot.resetCredits?.credits == [])
   }
 
-  func testFetchKeepsLimitsWhenResetCreditsAreInvalid() async throws {
-    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `fetch keeps limits when reset credits are invalid`() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try workspace.makeAppServer(
       quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(resetCount: -1, credits: "[]")
     )
 
     let snapshot = try await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load().get()
 
-    XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
-    XCTAssertNil(snapshot.resetCredits)
+    #expect(snapshot.windows["Session"]?.usedPercent == 25)
+    #expect(snapshot.resetCredits == nil)
   }
 
-  func testCreditsAvailabilityAndHiddenBalance() throws {
+  @Test
+  func `credits availability and hidden balance`() throws {
     let cases: [(String, QuotaSnapshot.Credits?)] = [
       (#"{"hasCredits":true,"unlimited":false,"balance":" 42.25 "}"#, .balance(amount: 42.25)),
       (#"{"hasCredits":true,"unlimited":false,"balance":"0"}"#, .balance(amount: 0)),
@@ -109,46 +107,50 @@ final class CodexQuotaSourceTests: XCTestCase {
         #"{"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300},"credits":\#(credits)}}"#
       )
 
-      XCTAssertEqual(snapshot.credits, expected, credits)
-      XCTAssertEqual(snapshot.windows["Session"]?.usedPercent, 25)
+      #expect(snapshot.credits == expected, "\(credits)")
+      #expect(snapshot.windows["Session"]?.usedPercent == 25)
     }
   }
 
-  func testCreditsWithoutWindowsOrBankedResets() throws {
+  @Test
+  func `credits without windows or banked resets`() throws {
     let snapshot = try decodeSnapshot(
       #"{"rateLimits":{"credits":{"hasCredits":true,"unlimited":false,"balance":"50"}}}"#
     )
 
-    XCTAssertEqual(snapshot.credits, .balance(amount: 50))
-    XCTAssertEqual(snapshot.windows, [])
-    XCTAssertNil(snapshot.resetCredits)
+    #expect(snapshot.credits == .balance(amount: 50))
+    #expect(snapshot.windows == [])
+    #expect(snapshot.resetCredits == nil)
   }
 
-  func testFetchReportsEmptyLimitsWhenNoWindowOrCreditSurvives() async throws {
-    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `fetch reports empty limits when no window or credit survives`() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try workspace.makeAppServer(
       quotaResponse: CodexQuotaTestWorkspace.rateLimitsResponse(usedPercent: 20, windowMinutes: 1_440)
     )
 
     let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
 
-    XCTAssertEqual(result, .unavailable(.emptyLimits))
+    #expect(result == .unavailable(.emptyLimits))
   }
 
-  func testARefusedReadMeansNoPlanWhileOtherErrorsFailTheSession() async throws {
+  @Test
+  func `a refused read means no plan while other errors fail the session`() async throws {
     let cases: [(Int, QuotaReading)] = [(-32600, .unavailable(.noPlan)), (-32603, .unavailable(.sessionFailed))]
     for (code, expected) in cases {
-      let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+      let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
       let executable = try workspace.makeAppServer(
         quotaResponse: #"{"id":2,"error":{"code":\#(code),"message":"chatgpt authentication required"}}"#
       )
       let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
-      XCTAssertEqual(result, expected, "\(code)")
+      #expect(result == expected, "\(code)")
     }
   }
 
-  func testARefusedHandshakeFailsTheSession() async throws {
-    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `a refused handshake fails the session`() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try TestExecutable.make(
       in: workspace.root,
       script: "#!/bin/sh\nIFS= read -r initialize\nprintf '%s\\n' '{\"id\":1,\"error\":{\"code\":-32600}}'\n",
@@ -156,11 +158,12 @@ final class CodexQuotaSourceTests: XCTestCase {
 
     let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
 
-    XCTAssertEqual(result, .unavailable(.sessionFailed))
+    #expect(result == .unavailable(.sessionFailed))
   }
 
-  func testFetchHidesQuotaWhenLauncherClosesInputBeforeHandshake() async throws {
-    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `fetch hides quota when launcher closes input before handshake`() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let executable = try TestExecutable.make(
       in: workspace.root,
       script:
@@ -169,11 +172,12 @@ final class CodexQuotaSourceTests: XCTestCase {
 
     let result = await CodexQuotaSource(tool: CommandLineTool(candidates: [executable])).load()
 
-    XCTAssertEqual(result, .unavailable(.sessionFailed))
+    #expect(result == .unavailable(.sessionFailed))
   }
 
-  func testCancellationKillsDescendantsSpawnedDuringTerminationGrace() async throws {
-    let workspace = CodexQuotaTestWorkspace(root: try makeTemporaryDirectory())
+  @Test
+  func `cancellation kills descendants spawned during termination grace`() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let readyMarker = workspace.root.appending(path: "ready")
     let childMarker = workspace.root.appending(path: "child")
     let executable = try TestExecutable.make(
@@ -204,14 +208,16 @@ final class CodexQuotaSourceTests: XCTestCase {
     fetch.cancel()
     let result = await fetch.value
 
-    XCTAssertThrowsError(try result.get())
-    XCTAssertLessThan(ContinuousClock.now - cancellationStarted, .seconds(3))
+    #expect(throws: (any Error).self) { try result.get() }
+    #expect(ContinuousClock.now - cancellationStarted < .seconds(3))
     try await Poll.untilExit(pidIn: childMarker)
   }
+
+  private let scratch = Scratch()
 
   private func decodeSnapshot(_ result: String) throws -> QuotaSnapshot {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .secondsSince1970
-    return try XCTUnwrap(decoder.decode(CodexQuotaResponse.self, from: Data(result.utf8)).snapshot)
+    return try #require(decoder.decode(CodexQuotaResponse.self, from: Data(result.utf8)).snapshot)
   }
 }

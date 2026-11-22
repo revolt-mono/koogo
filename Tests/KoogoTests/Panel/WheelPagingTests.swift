@@ -1,20 +1,22 @@
 import AppKit
-import XCTest
+import Testing
 
 @testable import Koogo
 
-final class WheelPagingTests: XCTestCase {
-  func testWheelClicksStepWhenSidewaysPassWhenVerticalAndDropWhenTilted() throws {
-    XCTAssertEqual(WheelPaging(try scrollEvent(horizontal: -3)), .step(1))
-    XCTAssertEqual(WheelPaging(try scrollEvent(horizontal: 3)), .step(-1))
-    XCTAssertEqual(WheelPaging(try scrollEvent()), .pass)
-    XCTAssertEqual(WheelPaging(try scrollEvent(vertical: 3)), .pass)
-    XCTAssertEqual(WheelPaging(try scrollEvent(horizontal: 3, vertical: 3)), .drop)
+struct WheelPagingTests {
+  @Test
+  func `wheel clicks step when sideways pass when vertical and drop when tilted`() throws {
+    try #expect(WheelPaging(scrollEvent(horizontal: -3)) == .step(1))
+    try #expect(WheelPaging(scrollEvent(horizontal: 3)) == .step(-1))
+    try #expect(WheelPaging(scrollEvent()) == .pass)
+    try #expect(WheelPaging(scrollEvent(vertical: 3)) == .pass)
+    try #expect(WheelPaging(scrollEvent(horizontal: 3, vertical: 3)) == .drop)
   }
 
-  func testContinuousAndPhasedScrollingPassesThrough() throws {
-    XCTAssertEqual(WheelPaging(try scrollEvent(horizontal: -30, phase: .changed)), .pass)
-    XCTAssertEqual(WheelPaging(try scrollEvent(horizontal: -30, units: .pixel)), .pass)
+  @Test
+  func `continuous and phased scrolling passes through`() throws {
+    try #expect(WheelPaging(scrollEvent(horizontal: -30, phase: .changed)) == .pass)
+    try #expect(WheelPaging(scrollEvent(horizontal: -30, units: .pixel)) == .pass)
   }
 
   private func scrollEvent(
@@ -23,7 +25,7 @@ final class WheelPagingTests: XCTestCase {
     phase: NSEvent.Phase = [],
     units: CGScrollEventUnit = .line,
   ) throws -> NSEvent {
-    let event = try XCTUnwrap(
+    let event = try #require(
       CGEvent(
         scrollWheelEvent2Source: nil,
         units: units,
@@ -34,6 +36,6 @@ final class WheelPagingTests: XCTestCase {
       )
     )
     event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
-    return try XCTUnwrap(NSEvent(cgEvent: event))
+    return try #require(NSEvent(cgEvent: event))
   }
 }

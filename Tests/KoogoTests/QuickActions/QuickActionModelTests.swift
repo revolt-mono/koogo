@@ -1,21 +1,24 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Koogo
 
 @MainActor
-final class QuickActionModelTests: XCTestCase {
-  func testScanLeavesTargetsReadyOrEmpty() async throws {
+struct QuickActionModelTests {
+  @Test
+  func `scan leaves targets ready or empty`() async throws {
     let ready = QuickActionModel(scan: { ["a", "b"] }, perform: { _ in })
     let empty = QuickActionModel<[String]>(scan: { nil }, perform: { _ in })
 
-    XCTAssertEqual(ready.phase, .unscanned)
+    #expect(ready.phase == .unscanned)
     ready.refresh()
     empty.refresh()
 
     try await Poll.until { ready.phase == .ready(["a", "b"]) && empty.phase == .empty }
   }
 
-  func testScanFailureCarriesTheMessageAndActivatingRescans() async throws {
+  @Test
+  func `scan failure carries the message and activating rescans`() async throws {
     let scans = Counter()
     let model = QuickActionModel<Int>(
       scan: {
@@ -34,13 +37,14 @@ final class QuickActionModelTests: XCTestCase {
     try await Poll.until { model.phase == .ready(3) }
   }
 
-  func testPerformRunsTheActionThenRescans() async throws {
+  @Test
+  func `perform runs the action then rescans`() async throws {
     let scans = Counter()
     let performed = Counter()
     let model = QuickActionModel(
       scan: { scans.increment() == 1 ? 7 : nil },
       perform: { targets in
-        XCTAssertEqual(targets, 7)
+        #expect(targets == 7)
         performed.increment()
       },
     )
@@ -50,10 +54,11 @@ final class QuickActionModelTests: XCTestCase {
     model.perform()
 
     try await Poll.until { model.phase == .empty }
-    XCTAssertEqual(performed.value, 1)
+    #expect(performed.value == 1)
   }
 
-  func testPerformFailureCarriesTheMessageAndRefreshRescans() async throws {
+  @Test
+  func `perform failure carries the message and refresh rescans`() async throws {
     let model = QuickActionModel(scan: { 1 }, perform: { _ in throw TestFailure() })
     model.refresh()
     try await Poll.until { model.phase == .ready(1) }
@@ -65,22 +70,24 @@ final class QuickActionModelTests: XCTestCase {
     try await Poll.until { model.phase == .ready(1) }
   }
 
-  func testRefreshIsIgnoredWhileTheActionRuns() async throws {
+  @Test
+  func `refresh is ignored while the action runs`() async throws {
     let gate = Gate()
     let model = QuickActionModel(scan: { 1 }, perform: { _ in await gate.wait() })
     model.refresh()
     try await Poll.until { model.phase == .ready(1) }
 
     model.perform()
-    XCTAssertEqual(model.phase, .performing(1))
+    #expect(model.phase == .performing(1))
     model.refresh()
-    XCTAssertEqual(model.phase, .performing(1))
+    #expect(model.phase == .performing(1))
 
     await gate.open()
     try await Poll.until { model.phase == .ready(1) }
   }
 
-  func testPerformIsIgnoredUnlessReady() async throws {
+  @Test
+  func `perform is ignored unless ready`() async throws {
     let performed = Counter()
     let model = QuickActionModel<Int>(scan: { nil }, perform: { _ in performed.increment() })
     model.refresh()
@@ -88,11 +95,12 @@ final class QuickActionModelTests: XCTestCase {
 
     model.perform()
 
-    XCTAssertEqual(model.phase, .empty)
-    XCTAssertEqual(performed.value, 0)
+    #expect(model.phase == .empty)
+    #expect(performed.value == 0)
   }
 
-  func testRefreshReplacesTheScanInFlight() async throws {
+  @Test
+  func `refresh replaces the scan in flight`() async throws {
     let gate = Gate()
     let scans = Counter()
     let model = QuickActionModel(
@@ -114,10 +122,11 @@ final class QuickActionModelTests: XCTestCase {
     await gate.open()
 
     try await Task.sleep(for: .milliseconds(50))
-    XCTAssertEqual(model.phase, .ready(2))
+    #expect(model.phase == .ready(2))
   }
 
-  func testCancelDropsTheScanButNotTheAction() async throws {
+  @Test
+  func `cancel drops the scan but not the action`() async throws {
     let gate = Gate()
     let scans = Counter()
     let scanning = QuickActionModel(
@@ -140,18 +149,19 @@ final class QuickActionModelTests: XCTestCase {
     await gate.open()
 
     try await Poll.until { performing.phase == .ready(1) }
-    XCTAssertEqual(scanning.phase, .unscanned)
+    #expect(scanning.phase == .unscanned)
   }
 
-  func testScanlessActionIsReadyBeforeAndAfterPerforming() async throws {
+  @Test
+  func `scanless action is ready before and after performing`() async throws {
     let performed = Counter()
     let model = QuickActionModel(perform: { performed.increment() })
 
-    XCTAssertTrue(model.phase.isReady)
+    #expect(model.phase.isReady)
     model.perform()
 
     try await Poll.until { model.phase.isReady }
-    XCTAssertEqual(performed.value, 1)
+    #expect(performed.value == 1)
   }
 }
 

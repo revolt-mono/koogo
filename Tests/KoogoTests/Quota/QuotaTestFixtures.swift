@@ -1,6 +1,7 @@
 import Darwin
+import Foundation
 import Synchronization
-import XCTest
+import Testing
 
 @testable import Koogo
 
@@ -81,12 +82,11 @@ extension QuotaSources {
 extension Poll {
   static func untilExit(
     pidIn marker: URL,
-    file: StaticString = #filePath,
-    line: UInt = #line,
+    sourceLocation: SourceLocation = #_sourceLocation,
   ) async throws {
     let text = try String(contentsOf: marker, encoding: .utf8).trimmingCharacters(in: .newlines)
-    let pid = try XCTUnwrap(pid_t(text), file: file, line: line)
-    try await until(timeout: .seconds(3), file: file, line: line) { kill(pid, 0) == -1 && errno == ESRCH }
+    let pid = try #require(pid_t(text), sourceLocation: sourceLocation)
+    try await until(timeout: .seconds(3), sourceLocation: sourceLocation) { kill(pid, 0) == -1 && errno == ESRCH }
   }
 }
 
@@ -114,7 +114,7 @@ extension ScriptedToolWorkspace {
 extension JSONSerialization {
   static func jsonObjects(inLinesOf file: URL) throws -> [[String: Any]] {
     try String(contentsOf: file, encoding: .utf8).split(separator: "\n").map { line in
-      try XCTUnwrap(jsonObject(with: Data(line.utf8)) as? [String: Any])
+      try #require(jsonObject(with: Data(line.utf8)) as? [String: Any])
     }
   }
 }

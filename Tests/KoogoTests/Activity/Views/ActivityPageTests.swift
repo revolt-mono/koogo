@@ -1,12 +1,12 @@
 import AppKit
 import SwiftUI
-import XCTest
+import Testing
 
 @testable import Koogo
 
-final class ActivityPageTests: XCTestCase {
-  @MainActor
-  func testSamplingRunsWhileThePageIsShownAndStopsOnceItLeaves() async throws {
+struct ActivityPageTests {
+  @Test @MainActor
+  func `sampling runs while the page is shown and stops once it leaves`() async throws {
     let calls = Counter()
     let model = ActivityModel(interval: .milliseconds(1)) {
       calls.increment()
@@ -22,6 +22,6 @@ final class ActivityPageTests: XCTestCase {
     try await Task.sleep(for: .milliseconds(20))
     let settled = calls.value
     try await Task.sleep(for: .milliseconds(30))
-    XCTAssertEqual(calls.value, settled)
+    #expect(calls.value == settled)
   }
 }
