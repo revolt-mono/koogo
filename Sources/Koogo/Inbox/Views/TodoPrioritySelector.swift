@@ -49,13 +49,15 @@ struct TodoPrioritySelector: View {
       .updating($isScrubbing) { _, isScrubbing, _ in
         isScrubbing = true
       }
-      .onChanged { drag in
-        // the option under the pointer wins, so the pressed button firing on release agrees with the scrub.
-        let distance = { (frame: CGRect) in max(frame.minX - drag.location.x, drag.location.x - frame.maxX) }
-        if let nearest = optionFrames.entries.min(by: { distance($0.value) < distance($1.value) }) {
-          selection = nearest.key
-        }
-      }
+      .onChanged(didScrub)
+  }
+
+  /// the option under the pointer wins, so the pressed button firing on release agrees with the scrub.
+  private func didScrub(_ drag: DragGesture.Value) {
+    let distance = { (frame: CGRect) in max(frame.minX - drag.location.x, drag.location.x - frame.maxX) }
+    if let nearest = optionFrames.entries.min(by: { distance($0.value) < distance($1.value) }) {
+      selection = nearest.key
+    }
   }
 
   private func didPressKey(_ keyPress: KeyPress) -> KeyPress.Result {
@@ -126,15 +128,6 @@ private struct TodoPriorityOption: View, Animatable {
 
   var body: some View {
     let iconOpacity = TodoPriorityMorph.smoothStep((progress - 0.2) / 0.4)
-    // a scrub pins hover and press to the option it started on, so feedback waits for the scrub to end.
-    let showsFeedback = !isSelected && !isScrubbing
-    let isPressed = showsFeedback && configuration.isPressed
-    let isHighlighted = showsFeedback && (isHovered || configuration.isPressed)
-    let fade = Animation.timingCurve(0.25, 0.1, 0.25, 1, duration: isHighlighted ? 0.12 : 0.16)
-    let scale =
-      isHighlighted
-        ? Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.12)
-        : .timingCurve(0.34, 1.36, 0.64, 1, duration: 0.16)
 
     TodoPriorityMorphLayout(progress: progress) {
       Capsule()
@@ -181,6 +174,31 @@ private struct TodoPriorityOption: View, Animatable {
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovered = false
+
+  /// a scrub pins hover and press to the option it started on.
+  private var showsFeedback: Bool {
+    !isSelected && !isScrubbing
+  }
+
+  private var isPressed: Bool {
+    showsFeedback && configuration.isPressed
+  }
+
+  private var isHighlighted: Bool {
+    showsFeedback && (isHovered || configuration.isPressed)
+  }
+
+  private var fade: Animation {
+    .timingCurve(0.25, 0.1, 0.25, 1, duration: isHighlighted ? 0.12 : 0.16)
+  }
+
+  private var scale: Animation {
+    if isHighlighted {
+      .timingCurve(0.23, 1, 0.32, 1, duration: 0.12)
+    } else {
+      .timingCurve(0.34, 1.36, 0.64, 1, duration: 0.16)
+    }
+  }
 }
 
 private struct TodoPriorityMorphLayout: Layout {

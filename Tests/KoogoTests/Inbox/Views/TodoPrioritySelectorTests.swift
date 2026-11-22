@@ -49,7 +49,7 @@ final class TodoPrioritySelectorTests: XCTestCase {
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     )
     window.contentView?.layoutSubtreeIfNeeded()
-    // swiftui ignores mouse events in a window that was never ordered in; this one stays off every screen.
+    // swiftui ignores mouse events in a window that was never ordered in.
     window.orderFrontRegardless()
     addTeardownBlock { window.orderOut(nil) }
     return window

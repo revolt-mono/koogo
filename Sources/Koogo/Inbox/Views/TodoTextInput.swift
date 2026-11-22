@@ -92,7 +92,7 @@ struct TodoTextInput: NSViewRepresentable {
     textView.onCancel = onCancel
     if textView.string != text {
       textView.string = text
-      textView.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
+      textView.setSelectedRange(NSRange(location: text.utf16.count, length: 0))
     }
   }
 

@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// app-scoped; loads saved todos at construction, has nothing to start, and saves every change.
+/// app-scoped; has nothing to start.
 @MainActor
 @Observable
 final class InboxModel {

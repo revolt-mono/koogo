@@ -19,7 +19,7 @@ struct TodoText: Codable, Equatable {
     self.value = value
   }
 
-  init(from decoder: Decoder) throws {
+  init(from decoder: any Decoder) throws {
     let container = try decoder.singleValueContainer()
     guard let text = Self(try container.decode(String.self)) else {
       throw DecodingError.dataCorruptedError(
@@ -32,7 +32,7 @@ struct TodoText: Codable, Equatable {
 
   let value: String
 
-  func encode(to encoder: Encoder) throws {
+  func encode(to encoder: any Encoder) throws {
     var container = encoder.singleValueContainer()
     try container.encode(value)
   }
