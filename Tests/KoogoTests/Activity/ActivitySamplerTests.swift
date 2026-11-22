@@ -4,8 +4,9 @@ import Testing
 @testable import Koogo
 
 struct ActivitySamplerTests {
-  // desktop macs have no battery, and a charging battery reports no draw.
   @Test
+  // desktop macs have no battery, and a charging battery reports no draw.
+  // swiftformat:disable:next noGuardInTests
   func `the sampler reads this machine`() async throws {
     let sampler = ActivitySampler()
 
