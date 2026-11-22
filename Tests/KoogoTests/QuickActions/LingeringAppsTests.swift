@@ -21,7 +21,9 @@ final class LingeringAppsTests: XCTestCase {
     LingeringApp(
       serialNumber: name as CFString,
       name: name,
-      processes: processes.map { (ProcessIdentity(pid: $0.pid, startTicks: 0), $0.name) },
+      processes: processes.map {
+        LingeringApp.RemainingProcess(identity: ProcessIdentity(pid: $0.pid, startTicks: 0), name: $0.name)
+      },
     )
   }
 }

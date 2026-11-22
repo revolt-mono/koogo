@@ -28,7 +28,7 @@ struct QuickActionRow<Targets: Sendable>: View {
             ProgressView()
               .controlSize(.small)
 
-          case .idle,
+          case .empty,
                .ready,
                .scanFailed,
                .performFailed:
@@ -37,7 +37,7 @@ struct QuickActionRow<Targets: Sendable>: View {
         }
         .frame(width: 22, height: 22)
         .foregroundStyle(.secondary)
-        .background(.panelRaised, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .background(.panelRaised, in: .rect(cornerRadius: 5))
 
         VStack(alignment: .leading, spacing: 2) {
           Text(words.title)
@@ -56,7 +56,7 @@ struct QuickActionRow<Targets: Sendable>: View {
       .contentShape(.rect)
       .background(
         isHovered && isEnabled ? Color.white.opacity(0.1) : .panelCard,
-        in: RoundedRectangle(cornerRadius: 8, style: .continuous),
+        in: .rect(cornerRadius: 8),
       )
     }
     .buttonStyle(.plain)

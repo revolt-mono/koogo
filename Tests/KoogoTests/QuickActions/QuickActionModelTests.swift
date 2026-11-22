@@ -4,15 +4,15 @@ import XCTest
 
 @MainActor
 final class QuickActionModelTests: XCTestCase {
-  func testScanLeavesTargetsReadyOrIdle() async throws {
+  func testScanLeavesTargetsReadyOrEmpty() async throws {
     let ready = QuickActionModel(scan: { ["a", "b"] }, perform: { _ in })
-    let idle = QuickActionModel<[String]>(scan: { nil }, perform: { _ in })
+    let empty = QuickActionModel<[String]>(scan: { nil }, perform: { _ in })
 
     XCTAssertEqual(ready.phase, .unscanned)
     ready.refresh()
-    idle.refresh()
+    empty.refresh()
 
-    try await Poll.until { ready.phase == .ready(["a", "b"]) && idle.phase == .idle }
+    try await Poll.until { ready.phase == .ready(["a", "b"]) && empty.phase == .empty }
   }
 
   func testScanFailureCarriesTheMessageAndActivatingRescans() async throws {
@@ -49,7 +49,7 @@ final class QuickActionModelTests: XCTestCase {
 
     model.perform()
 
-    try await Poll.until { model.phase == .idle }
+    try await Poll.until { model.phase == .empty }
     XCTAssertEqual(performed.value, 1)
   }
 
@@ -84,11 +84,11 @@ final class QuickActionModelTests: XCTestCase {
     let performed = Counter()
     let model = QuickActionModel<Int>(scan: { nil }, perform: { _ in performed.increment() })
     model.refresh()
-    try await Poll.until { model.phase == .idle }
+    try await Poll.until { model.phase == .empty }
 
     model.perform()
 
-    XCTAssertEqual(model.phase, .idle)
+    XCTAssertEqual(model.phase, .empty)
     XCTAssertEqual(performed.value, 0)
   }
 

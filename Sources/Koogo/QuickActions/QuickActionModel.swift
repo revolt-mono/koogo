@@ -1,6 +1,6 @@
 import Observation
 
-/// row-scoped; appearing starts a scan and disappearing cancels it, leaving `.unscanned` until the next appearance. started actions finish and rescan after closure.
+/// row-scoped; appearing starts a scan and disappearing cancels it. started actions finish after closure and rescan on success.
 @MainActor
 @Observable
 final class QuickActionModel<Targets: Sendable> {
@@ -24,7 +24,7 @@ final class QuickActionModel<Targets: Sendable> {
   enum Phase {
     case unscanned
     case scanning(Task<Void, Never>)
-    case idle
+    case empty
     case ready(Targets)
     case performing(Targets)
     case scanFailed(String)
@@ -40,7 +40,7 @@ final class QuickActionModel<Targets: Sendable> {
          .performFailed: refresh
     case .unscanned,
          .scanning,
-         .idle,
+         .empty,
          .performing: nil
     }
   }
@@ -68,11 +68,10 @@ final class QuickActionModel<Targets: Sendable> {
     Task {
       do {
         try await action(targets)
+        startScan()
       } catch {
         phase = .performFailed(error.localizedDescription)
-        return
       }
-      startScan()
     }
   }
 
@@ -98,7 +97,7 @@ final class QuickActionModel<Targets: Sendable> {
           }
           phase =
             switch result {
-            case .success(let targets): targets.map(Phase.ready) ?? .idle
+            case .success(let targets): targets.map(Phase.ready) ?? .empty
             case .failure(let error): .scanFailed(error.localizedDescription)
             }
         }

@@ -41,20 +41,6 @@ struct OrphanedAgentProcesses: Sendable {
     values = processes
   }
 
-  enum Failure: LocalizedError {
-    case scan
-    case termination(OrphanedAgentProcess)
-
-    var errorDescription: String? {
-      switch self {
-      case .scan:
-        "Could not list running processes."
-      case .termination(let process):
-        "Could not stop \(process.provider.title) process \(process.identity.pid)."
-      }
-    }
-  }
-
   let values: [OrphanedAgentProcess]
 
   var summary: String {
@@ -82,6 +68,20 @@ struct OrphanedAgentProcesses: Sendable {
     }
     if let survivor {
       throw Failure.termination(survivor)
+    }
+  }
+
+  private enum Failure: LocalizedError {
+    case scan
+    case termination(OrphanedAgentProcess)
+
+    var errorDescription: String? {
+      switch self {
+      case .scan:
+        "Could not list running processes."
+      case .termination(let process):
+        "Could not stop \(process.provider.title) process \(process.identity.pid)."
+      }
     }
   }
 

@@ -3,8 +3,8 @@ import Foundation
 /// an app that quit while processes it spawned or helper apps it opened keep running; macos 27 keeps such an app in
 /// the dock as running in background.
 struct LingeringApp: Sendable {
-  /// nil without a process left to stop, and for an app koogo runs under, since stopping that app stops koogo.
-  init?(serialNumber: CFTypeRef, name: String, processes: [(identity: ProcessIdentity, name: String)]) {
+  /// stopping an app koogo runs under would stop koogo.
+  init?(serialNumber: CFTypeRef, name: String, processes: [RemainingProcess]) {
     guard
       !processes.isEmpty,
       !processes.contains(where: { $0.identity.pid == ProcessInfo.processInfo.processIdentifier })
@@ -14,11 +14,16 @@ struct LingeringApp: Sendable {
     self.processes = processes
   }
 
+  struct RemainingProcess: Sendable {
+    let identity: ProcessIdentity
+    let name: String
+  }
+
   let name: String
 
   /// launch services serial number, an immutable cf object.
   fileprivate nonisolated(unsafe) let serialNumber: CFTypeRef
-  fileprivate let processes: [(identity: ProcessIdentity, name: String)]
+  fileprivate let processes: [RemainingProcess]
 }
 
 struct LingeringApps: Sendable {
@@ -27,18 +32,6 @@ struct LingeringApps: Sendable {
       return nil
     }
     values = apps
-  }
-
-  enum Failure: LocalizedError {
-    case scan
-    case termination(LingeringApp)
-
-    var errorDescription: String? {
-      switch self {
-      case .scan: "Could not read lingering apps."
-      case .termination(let app): "Could not stop \(app.name)."
-      }
-    }
   }
 
   let values: [LingeringApp]
@@ -53,7 +46,6 @@ struct LingeringApps: Sendable {
   @concurrent
   func forceTerminate() async throws {
     for process in values.flatMap(\.processes) {
-      // a process that survives keeps its app lingering, which the wait below reports.
       try? LibProc.forceKill(process.identity)
     }
     // launch services drops an app a moment after its last process dies.
@@ -61,6 +53,18 @@ struct LingeringApps: Sendable {
     while let survivor = values.first(where: Self.isLingering) {
       guard ContinuousClock.now < deadline else { throw Failure.termination(survivor) }
       try await Task.sleep(for: .milliseconds(20))
+    }
+  }
+
+  private enum Failure: LocalizedError {
+    case scan
+    case termination(LingeringApp)
+
+    var errorDescription: String? {
+      switch self {
+      case .scan: "Could not read lingering apps."
+      case .termination(let app): "Could not stop \(app.name)."
+      }
     }
   }
 }
@@ -87,11 +91,14 @@ extension LingeringApps {
 
   /// private launch services calls also made by `lsappinfo`; the public running application list drops an app once
   /// it exits.
-  private static let copyMatchingApplications = dlsym(dlopen(nil, RTLD_NOW), "_LSCopyMatchingApplications")
-    .map { unsafeBitCast($0, to: CopyMatchingApplications.self) }
-  private static let copyApplicationInformationItem =
-    dlsym(dlopen(nil, RTLD_NOW), "_LSCopyApplicationInformationItem")
-      .map { unsafeBitCast($0, to: CopyApplicationInformationItem.self) }
+  private static let copyMatchingApplications = PrivateSymbol.function(
+    named: "_LSCopyMatchingApplications",
+    as: CopyMatchingApplications.self,
+  )
+  private static let copyApplicationInformationItem = PrivateSymbol.function(
+    named: "_LSCopyApplicationInformationItem",
+    as: CopyApplicationInformationItem.self,
+  )
   private static let currentSession: Int32 = -2
   private static let lingering =
     "LSApplicationExitedButHasRemainingCoalitionPIDsOrNonForegroundChildrenApplicationsKey"
@@ -105,7 +112,7 @@ extension LingeringApps {
         guard let identity = LibProc.identity(of: pid), let path = LibProc.executablePath(of: pid) else {
           return nil
         }
-        return (identity, (path as NSString).lastPathComponent)
+        return LingeringApp.RemainingProcess(identity: identity, name: (path as NSString).lastPathComponent)
       },
     )
   }

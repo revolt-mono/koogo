@@ -33,12 +33,6 @@ struct MountedDiskImages: Sendable {
     }
   }
 
-  struct ScanFailure: LocalizedError {
-    var errorDescription: String? {
-      "Could not read mounted disk images."
-    }
-  }
-
   let values: [MountedDiskImage]
 
   @concurrent
@@ -57,24 +51,19 @@ struct MountedDiskImages: Sendable {
     let diskImages = volumeURLs.compactMap { mountURL -> MountedDiskImage? in
       guard
         let values = try? mountURL.resourceValues(forKeys: volumeKeys),
-        let disk = DADiskCreateFromVolumePath(
-          kCFAllocatorDefault,
-          session,
-          mountURL as CFURL,
-        ),
+        let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, mountURL as CFURL),
         let wholeDisk = DADiskCopyWholeDisk(disk),
         let wholeDiskName = DADiskGetBSDName(wholeDisk)
       else {
         return nil
       }
+      let description = DADiskCopyDescription(wholeDisk) as? [String: Any]
       return MountedDiskImage(
         wholeDiskID: String(cString: wholeDiskName),
         volumeName: values.volumeName,
         mountURL: mountURL,
         isEjectable: values.volumeIsEjectable == true,
-        deviceModel: (DADiskCopyDescription(wholeDisk) as? [String: Any])?[
-          kDADiskDescriptionDeviceModelKey as String
-        ] as? String,
+        deviceModel: description?[kDADiskDescriptionDeviceModelKey as String] as? String,
       )
     }
     return MountedDiskImages(diskImages)
@@ -84,6 +73,12 @@ struct MountedDiskImages: Sendable {
   func eject() async throws {
     for diskImage in values {
       try NSWorkspace.shared.unmountAndEjectDevice(at: diskImage.mountURL)
+    }
+  }
+
+  private struct ScanFailure: LocalizedError {
+    var errorDescription: String? {
+      "Could not read mounted disk images."
     }
   }
 }

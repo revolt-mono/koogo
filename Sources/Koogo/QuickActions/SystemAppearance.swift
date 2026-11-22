@@ -2,10 +2,6 @@ import Foundation
 import Subprocess
 
 enum SystemAppearance {
-  struct Failure: LocalizedError {
-    let errorDescription: String?
-  }
-
   /// osascript keeps blocking apple events off the main actor; in-process apple scripts require the main thread.
   static func toggle() async throws {
     let result = try await run(
@@ -19,7 +15,11 @@ enum SystemAppearance {
     )
     guard result.terminationStatus.isSuccess else {
       let message = result.standardError.trimmingCharacters(in: .whitespacesAndNewlines)
-      throw Failure(errorDescription: message.isEmpty ? "Could not change the system appearance." : message)
+      throw Failure(errorDescription: message.nonEmpty ?? "Could not change the system appearance.")
     }
+  }
+
+  private struct Failure: LocalizedError {
+    let errorDescription: String?
   }
 }

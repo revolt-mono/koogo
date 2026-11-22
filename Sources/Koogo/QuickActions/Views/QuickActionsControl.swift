@@ -18,7 +18,7 @@ struct QuickActionsControl: View {
       .frame(maxWidth: .infinity, minHeight: 32)
       .background(
         isPresented ? Color.panelRaised : .clear,
-        in: RoundedRectangle(cornerRadius: 6, style: .continuous),
+        in: .rect(cornerRadius: 6),
       )
     } content: {
       QuickActionsPopoverContent()
