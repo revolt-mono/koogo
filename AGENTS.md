@@ -1,93 +1,43 @@
-## engineering
+## principles and boundaries
 
-- prefer the simplest end-to-end solution for current requirements. extract shared logic only for real reuse or a shared invariant.
-- preserve runtime behavior during formatting, lint, typing, and test-structure changes.
-
-## style
-
-- follow the airbnb swift style guide (https://github.com/airbnb/swift), including the rules the formatter can't apply, minus `// MARK:` comments. the `airbnb/swift` package plugin pins swiftformat, swiftlint, and both configs; `.swiftformat` and `.swiftlint.yml` layer this repo's deviations over the configs in the plugin checkout.
-
-## boundaries
-
-- treat `refs/` as read-only reference material; do not edit or import from that directory.
-- remove obsolete paths directly; do not add backward-compatibility layers, fallbacks, or migrations.
-- keep public pull requests, commits, generated files, and documentation free of private names, internal context, customer-derived data, and ai attribution.
-
-## toolchain
-
-- use the beta xcode toolchain at `/Applications/Xcode-beta.app` (xcode 27, macos sdk 27, swift 6.4) by pinning `DEVELOPER_DIR`; never default to the stable `Xcode.app`.
+- follow the airbnb swift style guide (https://github.com/airbnb/swift), including rules the formatter cannot enforce, without `// MARK:` comments.
+- treat `refs/` as read-only; never edit or import from that directory.
+- remove obsolete paths directly; add no compatibility layers, fallbacks, or migrations.
+- keep public pull requests, commits, generated files, and docs free of private names, internal context, customer data, and ai attribution.
 
 ## commands
 
-- format: `script/format.sh`
-- lint (checks formatting and runs strict swiftlint without writing): `script/format.sh --lint`
-- test: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test`
-- report: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift run Koogo --report` (or `script/build_and_run.sh report` for the signed bundle)
-- benchmark: `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift run -c release Koogo --benchmark [home]`
-- rendered memory regression (run alone): `KOOGO_MEMORY_TESTS=1 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test --filter UsageSummaryMemoryTests`
-- retained heap regression: `KOOGO_MEMORY_TESTS=1 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer swift test --filter 'LogStoreMemoryTests|UsageEventIndexMemoryTests'`
+pin `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer` for all `swift` commands; never use `Xcode.app`.
+
+- format / lint: `script/format.sh [--lint]`
+- test: `swift test`
+- memory regressions: `KOOGO_MEMORY_TESTS=1 swift test --filter UsageSummaryMemoryTests` (run alone); `KOOGO_MEMORY_TESTS=1 swift test --filter 'LogStoreMemoryTests|UsageEventIndexMemoryTests'`
+- report: `swift run Koogo --report` (signed bundle: `script/build_and_run.sh report`)
+- benchmark: `swift run -c release Koogo --benchmark [home]`
+- telemetry: `script/build_and_run.sh telemetry`
+
+## architecture and ui
+
+- slices under `Sources/Koogo` depend only on `Shared` and other slices' models via environment. multi-slice pages live in `Panel`; `Settings` lays out slice controls.
+- model init has no launch effects; `KoogoApp` starts models. document lifetime and starter on each model.
+- outcomes that must outlive the view that started them are model state, not return values.
+- default to swiftui primitives. use appkit only when swiftui cannot handle the goal cleanly, and do not hand-roll ui components unless asked.
+- use a 4pt grid for structural spacing and padding, 2pt increments only for compact internals, and keep typography independent of the grid.
 
 ## tests
 
-- tests use swift testing and run in parallel inside one process. a body that reads process-wide state, such as cpu time or allocation counts, runs in an exit test; memory suites nest under `MemoryMeasurement`, which serializes them and gates them on `KOOGO_MEMORY_TESTS`.
-- `Scratch` owns the temporary directories and defaults a suite makes, and `TestExecutable` makes the scripts that stand in for provider tools.
+- run tests that read process-wide state (cpu time, allocations) in exit tests; nest memory suites under `MemoryMeasurement`.
+- use `Scratch` for temp directories and defaults, and `TestExecutable` for mock provider scripts.
 
 ## mouse input
 
-- keep the event tap callback free of allocation, locks, lookups, logging, and async work; `ScrollRewriterTests` counts allocations on that path.
-- pass continuous and phased scrolling through untouched and drop diagonal or zero wheel events; only make that drop policy stricter.
-- add no smoothing, momentum, acceleration, or gesture phases. per-app behavior is the user's line-by-line app list, seeded from installed terminals.
+- keep the event tap callback free of allocation, locks, lookups, logging, and async work.
+- pass continuous and phased scrolling through untouched; drop diagonal or zero wheel events (only make drops stricter).
+- add no smoothing, momentum, acceleration, gesture phases, or per-app overrides beyond the user's line-by-line app list.
 
 ## observability
 
-- verify pipeline behavior with `report` rather than screenshots; its json covers log roots, ingestion counts, the usage snapshot, and typed quota outcomes.
-- measure pipeline changes with `benchmark` on the same logs and day: compare retired instructions, which stay stable across runs, and memory across repeated release runs without allocation tracing. the digest stays fixed unless the snapshot is meant to change.
-- measure app footprint on the bundle opened through launch services: its `LSEnvironment` selects the space-efficient allocator, which a directly run binary (`swift run`, `swift test`, `lldb`) lacks.
-- dropped input stays out of the ui: known-kind lines count in `malformedLines` when a field their parser reads is unusable, events with an unpriced model or billed option list their model in `unpricedModels`, and both log telemetry warnings.
-- stream telemetry (subsystem `com.revolt.koogo`, categories `app`, `usage`, `quota`, `activity`, `mouse`) with `script/build_and_run.sh telemetry`.
-
-## repo structure
-
-```
-├── Sources/CZstd          vendored zstd single-file decoder for compressed codex rollouts
-├── Sources/Koogo          menu bar app, one folder per feature slice
-│   ├── App                entry point, shared models, headless report
-│   ├── Shared             leaf primitives and provider identity used across slices
-│   │   └── PanelUI        panel chrome, scroll, disclosure, and page placeholders
-│   ├── Providers          provider order and toggles
-│   ├── Panel              menu bar panel shell, paging, and the pages that compose several slices
-│   ├── Settings           settings window
-│   ├── Usage              token usage from local logs
-│   │   ├── Events         event records, identity, timestamps, and the parser contract
-│   │   ├── Ingestion      log discovery, reads, and dedup
-│   │   ├── Providers      per-provider log roots, parsers, pricing, and model names
-│   │   ├── Aggregation    snapshot building
-│   │   └── Views
-│   ├── Quota              provider quota reads
-│   │   ├── Transport      cli and json-rpc plumbing
-│   │   ├── Providers      per-provider quota sources
-│   │   └── Views
-│   ├── QuickActions       appearance, disk image, orphaned agent, and lingering app actions
-│   ├── Activity           cpu, memory, gpu, and process load
-│   ├── Mouse              wheel step and button remapping through an event tap
-│   ├── BreakReminder      break countdown and notifications
-│   ├── KeepAwake          power assertion that keeps the mac awake
-│   ├── Inbox              todos
-│   ├── Update             sparkle updates
-│   └── Resources          image assets
-├── Tests/KoogoTests       mirrors the source tree; Support holds slice-free helpers
-└── script                 formatting, signing, bundling, launch, verification
-```
-
-## slices and owners
-
-- slices depend only on `Shared` and on other slices' models through the environment; a page composing several slices lives in `Panel`, and `Settings` lays out the controls each slice provides.
-- model construction has no launch effects; `KoogoApp` starts models, and each model's doc comment states its lifetime and starter.
-- outcomes that must outlive the view that started them are model state, not return values.
-- the scene locale does not reach styles that render to a `String`; those carry `Locale.display` themselves.
-- a provider needs a `Provider` case and, in `Usage/Providers`, a parser plus its cases in `Provider.logRoots(under:)`, `UsageModelNames`, and `Provider.splitsUsageByModel`; quota adds a `QuotaProvider` case, a `QuotaSources` field, and a `Quota/Providers` adapter.
-
-## components and ui
-
-- default to swiftui primitives. introduce appkit only when swiftui can't handle the goal cleanly or the glue required outweighs the benefit. don't hand-roll ui components unless explicitly asked.
-- use a 4-point grid for structural spacing and padding. use 2-point increments only for compact component internals; keep typography independent from the spacing grid.
+- verify pipeline behavior with `--report` rather than screenshots.
+- benchmark pipeline changes on the same logs and day using retired instructions and repeated release runs (no allocation tracing). keep the digest fixed unless the snapshot should change.
+- measure app footprint on the bundle opened via launch services, not a direct binary, so `LSEnvironment` enables the space-efficient allocator.
+- keep dropped input out of the ui: count known-kind lines with unusable parsed fields in `malformedLines`, list unpriced models or billed options in `unpricedModels`, and log telemetry warnings for both.
