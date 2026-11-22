@@ -3,10 +3,14 @@ import SwiftUI
 
 extension NSEvent {
   @MainActor
+  func isInWindow(of view: NSView) -> Bool {
+    guard let window = view.window else { return false }
+    return self.window === window
+  }
+
+  @MainActor
   func isInside(_ view: NSView) -> Bool {
-    guard let window = view.window, self.window === window, !view.isHiddenOrHasHiddenAncestor else {
-      return false
-    }
+    guard isInWindow(of: view), !view.isHiddenOrHasHiddenAncestor else { return false }
     return view.bounds.intersection(view.visibleRect).contains(view.convert(locationInWindow, from: nil))
   }
 }

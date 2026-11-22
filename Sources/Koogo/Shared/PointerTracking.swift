@@ -7,7 +7,6 @@ extension View {
     background(PointerTracker(options: []) { action($0 != .ended) }.allowsHitTesting(false))
   }
 
-  /// reports hover points in the view's local coordinates.
   func onContinuousPointerHover(perform action: @escaping (HoverPhase) -> Void) -> some View {
     background(PointerTracker(options: .mouseMoved, action: action).allowsHitTesting(false))
   }
@@ -88,7 +87,7 @@ private struct PointerTracker: NSViewRepresentable {
 }
 
 extension View {
-  /// appkit tooltip rectangles track entry and exit; swiftui help hit-tests the whole window on every mouse move.
+  /// swiftui help hit-tests the whole window on every mouse move.
   func tooltip(_ text: String) -> some View {
     background(ToolTipRect(text: text).allowsHitTesting(false))
       .accessibilityHint(text)

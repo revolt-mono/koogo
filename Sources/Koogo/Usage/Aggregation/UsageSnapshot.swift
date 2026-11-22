@@ -4,6 +4,10 @@ struct UsagePeriodSnapshot: Equatable, Sendable, Encodable {
   private(set) var processedTokens: UInt64 = 0
   private(set) var cost = Picodollars.zero
 
+  var isEmpty: Bool {
+    processedTokens == 0 && cost == .zero
+  }
+
   static func +(lhs: Self, rhs: Self) -> Self {
     UsagePeriodSnapshot(
       processedTokens: lhs.processedTokens.saturatingAdding(rhs.processedTokens),
@@ -11,9 +15,9 @@ struct UsagePeriodSnapshot: Equatable, Sendable, Encodable {
     )
   }
 
-  mutating func add(_ usage: UsageRecord) {
-    processedTokens = processedTokens.saturatingAdding(usage.processedTokens)
-    cost += usage.cost
+  mutating func add(_ record: UsageRecord) {
+    processedTokens = processedTokens.saturatingAdding(record.processedTokens)
+    cost += record.cost
   }
 }
 

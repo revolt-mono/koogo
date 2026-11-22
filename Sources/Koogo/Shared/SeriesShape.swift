@@ -1,8 +1,23 @@
 import SwiftUI
 
-/// interpolates a series whose length can change; values one side lacks animate from zero.
-/// the charts draw shapes over this because swift charts and drawing groups incur large offscreen graphics
+/// the charts draw shapes over a series because swift charts and drawing groups incur large offscreen graphics
 /// allocations inside the glass panel.
+protocol SeriesShape: Shape where AnimatableData == AnimatableValues {
+  var values: [Double] { get set }
+  var displayScale: CGFloat { get }
+}
+
+extension SeriesShape {
+  var animatableData: AnimatableValues {
+    get { AnimatableValues(values) }
+    set { values = newValue.values }
+  }
+
+  func pixelSnapped(_ length: CGFloat) -> CGFloat {
+    (length * displayScale).rounded() / displayScale
+  }
+}
+
 struct AnimatableValues: VectorArithmetic {
   init(_ values: [Double]) {
     self.values = values
@@ -36,11 +51,5 @@ struct AnimatableValues: VectorArithmetic {
       index < side.values.count ? side.values[index] : 0
     }
     return Self((0..<count).map { operation(value(lhs, $0), value(rhs, $0)) })
-  }
-}
-
-extension CGFloat {
-  func pixelSnapped(scale: CGFloat) -> CGFloat {
-    (self * scale).rounded() / scale
   }
 }

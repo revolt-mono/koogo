@@ -5,13 +5,8 @@ struct DailyUsageChart: View {
   let days: [UsageDaySnapshot]
 
   var body: some View {
-    let peakCost = Double(days.map(\.usage.cost).max()?.rawValue ?? 0)
+    let peakCost = Double(days.lazy.map(\.usage.cost).max()?.rawValue ?? 0)
     let heights = days.map { peakCost > 0 ? Double($0.usage.cost.rawValue) / peakCost : 0 }
-    let hovered = hoveredSlot.flatMap { slot in
-      days.indices.contains(slot) && days[slot].usage != UsagePeriodSnapshot()
-        ? (slot: slot, day: days[slot])
-        : nil
-    }
 
     GeometryReader { geometry in
       let slotWidth = geometry.size.width / CGFloat(heights.count)
@@ -30,9 +25,9 @@ struct DailyUsageChart: View {
             }
         }
         .overlay {
-          if let hovered {
-            ChartAnnotationLayout(anchorX: (CGFloat(hovered.slot) + 0.5) * slotWidth) {
-              UsageChartAnnotation(day: hovered.day)
+          if let hoveredSlot, let day = usedDay(at: hoveredSlot) {
+            ChartAnnotationLayout(anchorX: (CGFloat(hoveredSlot) + 0.5) * slotWidth) {
+              UsageChartAnnotation(day: day)
             }
             .allowsHitTesting(false)
           }
@@ -46,16 +41,16 @@ struct DailyUsageChart: View {
   @Environment(\.displayScale) private var displayScale
 
   @State private var hoveredSlot: Int?
+
+  private func usedDay(at slot: Int) -> UsageDaySnapshot? {
+    guard days.indices.contains(slot), !days[slot].usage.isEmpty else { return nil }
+    return days[slot]
+  }
 }
 
-private struct DotMatrixChart: Shape {
+private struct DotMatrixChart: SeriesShape {
   var values: [Double]
   let displayScale: CGFloat
-
-  var animatableData: AnimatableValues {
-    get { AnimatableValues(values) }
-    set { values = newValue.values }
-  }
 
   func path(in rect: CGRect) -> Path {
     let slot = rect.width / CGFloat(values.count)
@@ -64,11 +59,11 @@ private struct DotMatrixChart: Shape {
     let cornerSize = CGSize(width: slot / 4, height: slot / 4)
     var path = Path()
     for (column, value) in values.enumerated() {
-      let left = (slot * CGFloat(column) + Self.gap / 2).pixelSnapped(scale: displayScale)
-      let right = (slot * CGFloat(column + 1) - Self.gap / 2).pixelSnapped(scale: displayScale)
+      let left = pixelSnapped(slot * CGFloat(column) + Self.gap / 2)
+      let right = pixelSnapped(slot * CGFloat(column + 1) - Self.gap / 2)
       for row in 0..<Int((value * Double(rows)).rounded(.up)) {
-        let bottom = (slot * CGFloat(row)).pixelSnapped(scale: displayScale)
-        let top = (slot * CGFloat(row + 1) - Self.gap).pixelSnapped(scale: displayScale)
+        let bottom = pixelSnapped(slot * CGFloat(row))
+        let top = pixelSnapped(slot * CGFloat(row + 1) - Self.gap)
         path.addRoundedRect(
           in: CGRect(x: rect.minX + left, y: rect.maxY - top, width: right - left, height: top - bottom),
           cornerSize: cornerSize,
@@ -134,7 +129,7 @@ private struct UsageChartAnnotation: View {
     .padding(.vertical, 4)
     .background(
       Color(nsColor: .windowBackgroundColor),
-      in: RoundedRectangle(cornerRadius: 6, style: .continuous),
+      in: .rect(cornerRadius: 6),
     )
   }
 }

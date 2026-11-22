@@ -21,7 +21,7 @@ struct RollingText: View {
     removal: .move(edge: .top).combined(with: .opacity),
   )
 
-  /// each digit rolls on its own; other characters keep their kerning as one run.
+  /// grouping non-digits preserves their kerning.
   private static func runs(of text: String) -> [String] {
     text.reduce(into: []) { runs, character in
       if character.isNumber || runs.last?.first?.isNumber != false {

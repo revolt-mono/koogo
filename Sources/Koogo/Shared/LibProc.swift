@@ -1,7 +1,6 @@
 import Darwin
 import System
 
-/// pairs a pid with launch time to distinguish reused process ids.
 struct ProcessIdentity: Hashable, Sendable {
   let pid: pid_t
   let startTicks: UInt64
@@ -14,7 +13,6 @@ enum LibProc {
     let hasTerminal: Bool
   }
 
-  /// a missing or reused pid counts as already gone.
   static func forceKill(_ process: ProcessIdentity) throws(Errno) {
     guard identity(of: process.pid) == process else { return }
     guard Darwin.kill(process.pid, SIGKILL) == 0 || errno == ESRCH else { throw Errno(rawValue: errno) }
@@ -51,12 +49,15 @@ enum LibProc {
   static func bsdInfo(of pid: pid_t) -> BSDInfo? {
     let infoSize = MemoryLayout<proc_bsdinfo>.size
     let size = infoSize + 56
-    return withUnsafeTemporaryAllocation(byteCount: size, alignment: 8) { buffer in
-      guard proc_pidinfo(pid, 18, 0, buffer.baseAddress, Int32(size)) == size else { return nil }
+    let pidVersionOffset = infoSize + MemoryLayout<uuid_t>.size + 2 * MemoryLayout<UInt64>.size
+    return withUnsafeTemporaryAllocation(byteCount: size, alignment: MemoryLayout<proc_bsdinfo>.alignment) { buffer in
+      guard proc_pidinfo(pid, bsdInfoWithUniqueIDFlavor, 0, buffer.baseAddress, Int32(size)) == size else {
+        return nil
+      }
       let info = buffer.load(as: proc_bsdinfo.self)
       return BSDInfo(
         parentPID: pid_t(info.pbi_ppid),
-        pidVersion: buffer.load(fromByteOffset: infoSize + 32, as: Int32.self),
+        pidVersion: buffer.load(fromByteOffset: pidVersionOffset, as: Int32.self),
         // the kernel reports `NODEV` for a process without a controlling terminal.
         hasTerminal: info.e_tdev != UInt32.max,
       )
@@ -72,4 +73,6 @@ enum LibProc {
     }
     return status == 0 ? usage : nil
   }
+
+  private static let bsdInfoWithUniqueIDFlavor: Int32 = 18
 }
