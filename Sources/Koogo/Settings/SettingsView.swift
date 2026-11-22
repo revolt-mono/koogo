@@ -1,5 +1,4 @@
 import AppKit
-import ServiceManagement
 import SwiftUI
 
 private enum SettingsTab: String {
@@ -13,27 +12,7 @@ struct SettingsView: View {
     TabView(selection: $tab) {
       Tab("General", systemImage: "gearshape", value: .general) {
         SettingsForm {
-          Section("Break Reminder") {
-            BreakReminderIntervalPicker()
-          }
-
-          Section("Utility") {
-            @Bindable var keepAwake = keepAwake
-            Toggle(isOn: $keepAwake.isEnabled) {
-              Text("Keep Awake")
-              Text("Keeps the display and Mac from sleeping while idle.")
-            }
-
-            AccessibilityPermissionRow()
-          }
-
-          Section("System") {
-            LaunchAtLoginToggle()
-
-            LabeledContent("Check for Updates") {
-              Button("Check Now", action: updateModel.checkForUpdates)
-            }
-          }
+          GeneralSettingsSections()
         }
       }
 
@@ -61,9 +40,27 @@ struct SettingsView: View {
     }
   }
 
-  @Environment(UpdateModel.self) private var updateModel
-  @Environment(KeepAwakeModel.self) private var keepAwake
   @AppStorage("settings-tab") private var tab = SettingsTab.general
+}
+
+private struct GeneralSettingsSections: View {
+  var body: some View {
+    Section("Break Reminder") {
+      BreakReminderIntervalPicker()
+    }
+
+    Section("Utility") {
+      KeepAwakeToggle()
+
+      AccessibilityPermissionRow()
+    }
+
+    Section("System") {
+      LaunchAtLoginToggle()
+
+      CheckForUpdatesRow()
+    }
+  }
 }
 
 private struct SettingsForm<Content: View>: View {
@@ -93,56 +90,4 @@ private struct SettingsWindowStyle: NSViewRepresentable {
   }
 
   func updateNSView(_: WindowStyleView, context _: Context) { }
-}
-
-private struct LaunchAtLoginToggle: View {
-  var body: some View {
-    Toggle(
-      isOn: Binding(
-        get: { status == .enabled || status == .requiresApproval },
-        set: setLaunchesAtLogin,
-      )
-    ) {
-      Text("Launch at Login")
-      if status == .requiresApproval {
-        Text("Allow Koogo in Login Items to finish.")
-      }
-    }
-    .onAppear {
-      status = SMAppService.mainApp.status
-    }
-    .alert(
-      "Couldn't Change Login Setting",
-      isPresented: Binding {
-        failure != nil
-      } set: {
-        if !$0 {
-          failure = nil
-        }
-      },
-      presenting: failure,
-    ) { _ in
-    } message: { error in
-      Text(error.localizedDescription)
-    }
-  }
-
-  @State private var status = SMAppService.mainApp.status
-  @State private var failure: any Error?
-
-  private func setLaunchesAtLogin(_ launches: Bool) {
-    do {
-      if launches {
-        try SMAppService.mainApp.register()
-      } else {
-        try SMAppService.mainApp.unregister()
-      }
-    } catch {
-      failure = error
-    }
-    status = SMAppService.mainApp.status
-    if status == .requiresApproval {
-      SMAppService.openSystemSettingsLoginItems()
-    }
-  }
 }
