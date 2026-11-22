@@ -1,20 +1,15 @@
 import Darwin
 
-/// scheduler ticks since boot; differences between readings yield load.
+/// scheduler ticks since boot.
 struct CPUTicks: Sendable {
   let user: UInt32
   let system: UInt32
   let idle: UInt32
 
   static func read() throws -> CPUTicks {
-    var info = host_cpu_load_info()
-    var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size / MemoryLayout<integer_t>.size)
-    let status = withUnsafeMutablePointer(to: &info) { pointer in
-      pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-        host_statistics(MachHost.port, HOST_CPU_LOAD_INFO, $0, &count)
-      }
+    guard let info = MachHost.statistics(HOST_CPU_LOAD_INFO, as: host_cpu_load_info(), from: host_statistics) else {
+      throw ActivityReadFailure.cpu
     }
-    guard status == KERN_SUCCESS else { throw ActivityReadFailure.cpu }
     let ticks = info.cpu_ticks
     return CPUTicks(user: ticks.0 &+ ticks.3, system: ticks.1, idle: ticks.2)
   }

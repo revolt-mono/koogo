@@ -7,8 +7,3 @@ enum Sysctl {
     return sysctlbyname(name, &value, &size, nil, 0) == 0 && size == MemoryLayout<Value>.size ? value : nil
   }
 }
-
-enum MachHost {
-  /// each host-port query adds a send right; retain one port for the process lifetime.
-  static let port = mach_host_self()
-}

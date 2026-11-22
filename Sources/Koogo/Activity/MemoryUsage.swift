@@ -11,16 +11,9 @@ struct MemoryUsage: Sendable {
   }
 
   static func read() throws -> MemoryUsage {
-    var statistics = vm_statistics64()
-    var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
-    let status = withUnsafeMutablePointer(to: &statistics) { pointer in
-      pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-        host_statistics64(MachHost.port, HOST_VM_INFO64, $0, &count)
-      }
-    }
     var pageSize: vm_size_t = 0
     guard
-      status == KERN_SUCCESS,
+      let statistics = MachHost.statistics(HOST_VM_INFO64, as: vm_statistics64(), from: host_statistics64),
       host_page_size(MachHost.port, &pageSize) == KERN_SUCCESS,
       let total: UInt64 = Sysctl.value("hw.memsize")
     else { throw ActivityReadFailure.memory }

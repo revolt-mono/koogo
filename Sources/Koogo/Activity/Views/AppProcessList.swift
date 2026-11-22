@@ -83,10 +83,7 @@ private struct AppProcessRow: View {
     .lineLimit(1)
     .opacity(isQuitting ? 0.4 : 1)
     .motionAnimation(.easeOut(duration: 0.2), value: isQuitting)
-    .onChange(of: sampledAt) {
-      guard let quittingProcessCount else { return }
-      self.quittingProcessCount = group.members.count < quittingProcessCount ? group.members.count : nil
-    }
+    .onChange(of: sampledAt) { didSample() }
   }
 
   @State private var quittingProcessCount: Int?
@@ -103,6 +100,11 @@ private struct AppProcessRow: View {
   private func quit() {
     quittingProcessCount = group.members.count
     group.forceTerminate()
+  }
+
+  private func didSample() {
+    guard let quittingProcessCount else { return }
+    self.quittingProcessCount = group.members.count < quittingProcessCount ? group.members.count : nil
   }
 }
 

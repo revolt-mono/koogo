@@ -42,14 +42,9 @@ private struct CPUSection: View {
   let trend: [Double]
 
   var body: some View {
-    let subtitle =
-      switch cores {
-      case .uniform(let count): "\(count) cores"
-      case .hybrid(let performance, let efficiency): "\(performance)P · \(efficiency)E"
-      }
     ActivityLoadTile(
       title: "CPU",
-      subtitle: subtitle,
+      subtitle: cores.summary,
       headline: Measure(fraction: load.total),
       details: [
         "User": Measure(fraction: load.user).text,
@@ -108,7 +103,7 @@ private struct BatterySection: View {
   let drawTrend: [Double]
 
   var body: some View {
-    PanelSection("Battery", subtitle: supply) {
+    PanelSection("Battery", subtitle: state.supply.summary) {
       VStack(spacing: 12) {
         HStack(spacing: 12) {
           ActivityHeadline(measure: Measure(fraction: state.charge))
@@ -124,17 +119,6 @@ private struct BatterySection: View {
           ActivityTrendChart(trend: drawTrend)
         }
       }
-    }
-  }
-
-  private var supply: String {
-    let estimate = { (time: Duration) in time.formatted(.displayUnits(allowed: [.hours, .minutes])) }
-    return switch state.supply {
-    case .charging(let timeToFull?): "charging · \(estimate(timeToFull)) to full"
-    case .charging(nil): "charging"
-    case .external: "on power"
-    case .discharging(let timeToEmpty?): "\(estimate(timeToEmpty)) left"
-    case .discharging(nil): "on battery"
     }
   }
 }

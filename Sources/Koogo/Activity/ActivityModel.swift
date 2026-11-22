@@ -46,7 +46,6 @@ final class ActivityModel {
   private struct Reading {
     let cpu: Double
     let gpu: Double?
-    /// battery draw in watts.
     let draw: Double?
   }
 

@@ -2,7 +2,7 @@ import XCTest
 
 @testable import Koogo
 
-final class ActivitySampleTests: XCTestCase {
+final class ActivitySamplerTests: XCTestCase {
   // desktop macs have no battery, and a charging battery reports no draw.
   // swiftformat:disable:next noGuardInTests
   func testTheSamplerReadsThisMachine() async throws {

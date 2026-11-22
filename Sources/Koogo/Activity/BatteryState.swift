@@ -25,17 +25,18 @@ struct BatteryState: Sendable {
       case (false, _): .discharging(timeToEmpty: estimate)
       }
     let telemetry = properties["PowerTelemetryData"] as? [String: Any]
-    if let milliwatts = telemetry?["SystemLoad"] as? Int {
-      draw = Double(milliwatts) / 1000
-    } else if
-      case .discharging = supply,
-      let milliamps = properties["Amperage"] as? Int,
-      let millivolts = properties["Voltage"] as? Int
-    {
-      draw = Double(abs(milliamps * millivolts)) / 1_000_000
-    } else {
-      draw = nil
-    }
+    draw =
+      if let milliwatts = telemetry?["SystemLoad"] as? Int {
+        Double(milliwatts) / 1000
+      } else if
+        case .discharging = supply,
+        let milliamps = properties["Amperage"] as? Int,
+        let millivolts = properties["Voltage"] as? Int
+      {
+        Double(abs(milliamps * millivolts)) / 1_000_000
+      } else {
+        nil
+      }
     health = min(Double(fullCapacity) / Double(designCapacity), 1)
     self.cycles = cycles
   }
