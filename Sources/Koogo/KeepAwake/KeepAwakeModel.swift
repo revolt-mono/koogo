@@ -3,7 +3,7 @@ import IOKit.pwr_mgt
 import Observation
 import os
 
-/// app-scoped; started by the app at launch to restore the saved choice. blocking idle display sleep also blocks idle system sleep.
+/// app-scoped; started by the app at launch. blocking idle display sleep also blocks idle system sleep.
 @MainActor
 @Observable
 final class KeepAwakeModel {
@@ -11,13 +11,6 @@ final class KeepAwakeModel {
     self.defaults = defaults
   }
 
-  deinit {
-    if let assertion {
-      IOPMAssertionRelease(assertion)
-    }
-  }
-
-  /// writes save the choice even when macos refuses the assertion.
   var isEnabled: Bool {
     get {
       access(keyPath: \.isEnabled)
@@ -33,38 +26,43 @@ final class KeepAwakeModel {
     hold(defaults.bool(forKey: Self.key))
   }
 
-  /// a plain bool, since `PersistedValue` encodes property lists, which reject a top-level scalar.
+  /// `PersistedValue` encodes property lists, which reject a top-level scalar.
   private static let key = "keep-awake"
 
   private let defaults: UserDefaults
-  @ObservationIgnored private var assertion: IOPMAssertionID?
+  @ObservationIgnored private var assertion: DisplaySleepAssertion?
 
   /// notifies on every attempt, since a refused assertion leaves `assertion` unchanged while the toggle shows the request.
   private func hold(_ isHeld: Bool) {
     withMutation(keyPath: \.isEnabled) {
-      switch (isHeld, assertion) {
-      case (true, nil):
-        var id = IOPMAssertionID(0)
-        let status = IOPMAssertionCreateWithName(
-          kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
-          IOPMAssertionLevel(kIOPMAssertionLevelOn),
-          "Koogo keeps the Mac awake" as CFString,
-          &id,
-        )
-        guard status == kIOReturnSuccess else {
-          Logger.app.warning("could not create keep awake assertion: \(status, privacy: .public)")
-          return
-        }
-        assertion = id
-
-      case (false, let id?):
-        IOPMAssertionRelease(id)
+      if !isHeld {
         assertion = nil
-
-      case (true, _?),
-           (false, nil):
-        break
+      } else if assertion == nil {
+        assertion = DisplaySleepAssertion()
       }
     }
   }
+}
+
+private struct DisplaySleepAssertion: ~Copyable {
+  init?() {
+    var id = IOPMAssertionID(0)
+    let status = IOPMAssertionCreateWithName(
+      kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+      IOPMAssertionLevel(kIOPMAssertionLevelOn),
+      "Koogo keeps the Mac awake" as CFString,
+      &id,
+    )
+    guard status == kIOReturnSuccess else {
+      Logger.app.warning("could not create keep awake assertion: \(status, privacy: .public)")
+      return nil
+    }
+    self.id = id
+  }
+
+  deinit {
+    IOPMAssertionRelease(id)
+  }
+
+  private let id: IOPMAssertionID
 }
