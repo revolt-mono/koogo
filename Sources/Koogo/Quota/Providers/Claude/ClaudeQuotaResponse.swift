@@ -19,7 +19,7 @@ struct ClaudeQuotaResponse: Decodable {
     let modelScoped: [Window]?
   }
 
-  /// false for logins outside plan limits; claude determines eligibility locally, including offline.
+  /// claude determines plan eligibility locally, including offline.
   let rateLimitsAvailable: Bool
   /// null while the usage endpoint is unreachable.
   let rateLimits: RateLimits?

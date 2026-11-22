@@ -1,7 +1,6 @@
 enum QuotaUnavailability: String, Encodable, Sendable {
   case binaryNotFound
   case timedOut
-  /// the tool exited, never ran, or refused the request.
   case sessionFailed
   case invalidMessage
   case emptyLimits
@@ -24,7 +23,7 @@ enum QuotaReading: Equatable, Sendable {
 }
 
 extension QuotaReading: Encodable {
-  func encode(to encoder: Encoder) throws {
+  func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     switch self {
     case .available(let snapshot):

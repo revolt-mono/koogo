@@ -31,4 +31,18 @@ struct QuotaSources: Sendable {
     case .grok: grok
     }
   }
+
+  func loadAll() async -> EnumMap<QuotaProvider, QuotaReading> {
+    async let codex = codex.load()
+    async let claude = claude.load()
+    async let grok = grok.load()
+    let readings = await (codex: codex, claude: claude, grok: grok)
+    return EnumMap { provider in
+      switch provider {
+      case .codex: readings.codex
+      case .claude: readings.claude
+      case .grok: readings.grok
+      }
+    }
+  }
 }

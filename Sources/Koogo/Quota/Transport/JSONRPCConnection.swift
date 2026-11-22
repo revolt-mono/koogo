@@ -59,7 +59,7 @@ extension JSONRPCConnection {
     case notification
     case response(Int)
 
-    init(from decoder: Decoder) throws {
+    init(from decoder: any Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       if container.contains(.method) {
         _ = try container.decode(String.self, forKey: .method)
@@ -74,7 +74,7 @@ extension JSONRPCConnection {
   }
 
   private struct Response<Value: Decodable>: Decodable {
-    init(from decoder: Decoder) throws {
+    init(from decoder: any Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       guard container.contains(.result) != container.contains(.error) else {
         throw ToolFailure.invalidMessage

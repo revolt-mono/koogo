@@ -6,10 +6,10 @@ struct ClaudeQuotaSource: QuotaSource {
   }
 
   func load() async -> QuotaReading {
-    do throws(ToolFailure) {
+    do {
       return try await tool.session(Self.arguments) { streams in
         var streams = streams
-        // claude skips network reads after input closes; keep input open until the reply arrives.
+        // claude skips network reads after input closes.
         try await streams.write(Self.request)
         let reply = try await streams.first {
           try Self.decoder.decode(ClaudeControlResponse.self, from: $0).reply

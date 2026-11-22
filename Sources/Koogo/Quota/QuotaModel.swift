@@ -24,8 +24,7 @@ enum QuotaStatus: Equatable, Sendable {
   }
 }
 
-/// app-scoped; refreshed by the app at launch and by the usage page when shown. reads are single-flight per provider;
-/// requests made during a read are dropped. a codex reset holds codex busy through submission and reread.
+/// app-scoped; refreshed by the app at launch and by the usage page when shown.
 @MainActor
 @Observable
 final class QuotaModel {
@@ -44,7 +43,11 @@ final class QuotaModel {
   private(set) var codexReset = CodexQuotaResetFlow.idle
 
   var codexResetCredits: QuotaSnapshot.ResetCredits? {
-    statuses[.codex].latest?.snapshot?.resetCredits
+    snapshot(of: .codex)?.resetCredits
+  }
+
+  func snapshot(of provider: QuotaProvider) -> QuotaSnapshot? {
+    statuses[provider].latest?.snapshot
   }
 
   func refresh(_ providers: [QuotaProvider]) {
@@ -92,7 +95,7 @@ final class QuotaModel {
     read(.codex) {
       let result = await source.consume(submission.attempt)
       let reading = await source.load()
-      self.codexReset = .settled(submission, result)
+      self.codexReset = submission.settled(by: result)
       return reading
     }
   }

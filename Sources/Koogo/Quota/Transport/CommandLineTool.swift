@@ -54,7 +54,6 @@ struct CommandLineTool: Sendable {
   /// its working directory at startup, so the directory is the system's always-empty one.
   private static let workingDirectory = FilePath("/var/empty")
 
-  /// the usage page waits for every quota read, so this also bounds a cold start.
   private static let defaultTimeout = Duration.seconds(10)
 
   private let candidates: [URL]

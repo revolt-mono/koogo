@@ -1,7 +1,19 @@
 import Foundation
 
-extension FormatStyle where Self == Date.FormatStyle {
-  static func display(date: Date.FormatStyle.DateStyle, time: Date.FormatStyle.TimeStyle) -> Self {
-    Date.FormatStyle(date: date, time: time, locale: .display)
+struct TimeRemainingFormatStyle: FormatStyle {
+  let now: Date
+
+  func format(_ deadline: Date) -> String {
+    let remaining = Duration.seconds(deadline.timeIntervalSince(now))
+    guard remaining >= .seconds(60) else {
+      return "soon"
+    }
+    return "in \(remaining.formatted(.displayUnits(allowed: [.days, .hours, .minutes])))"
+  }
+}
+
+extension FormatStyle where Self == TimeRemainingFormatStyle {
+  static func timeRemaining(from now: Date) -> Self {
+    TimeRemainingFormatStyle(now: now)
   }
 }

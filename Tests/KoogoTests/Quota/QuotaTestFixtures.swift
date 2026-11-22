@@ -71,8 +71,8 @@ extension QuotaSources {
 
   static func scripted(
     codex: any CodexQuotaResetSource = ScriptedQuotaSource(),
-    claude: any QuotaSource = ScriptedQuotaSource([]),
-    grok: any QuotaSource = ScriptedQuotaSource([]),
+    claude: any QuotaSource = ScriptedQuotaSource(),
+    grok: any QuotaSource = ScriptedQuotaSource(),
   ) -> Self {
     QuotaSources(codex: codex, claude: claude, grok: grok)
   }

@@ -15,7 +15,7 @@ struct CodexQuotaSource: CodexQuotaResetSource {
   }
 
   func load() async -> QuotaReading {
-    do throws(CodexAppServer.CallError) {
+    do {
       let response: CodexQuotaResponse = try await appServer.call("account/rateLimits/read")
       return QuotaReading(response.snapshot)
     } catch .unconfirmed(.invalidRequest) {

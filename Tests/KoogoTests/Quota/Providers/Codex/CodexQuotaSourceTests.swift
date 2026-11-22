@@ -209,7 +209,6 @@ final class CodexQuotaSourceTests: XCTestCase {
     try await Poll.untilExit(pidIn: childMarker)
   }
 
-  /// decodes like the app server connection, which reads dates as unix seconds.
   private func decodeSnapshot(_ result: String) throws -> QuotaSnapshot {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .secondsSince1970

@@ -123,7 +123,7 @@ final class CodexQuotaResetFlowTests: XCTestCase {
     )
     let model = try await loadModel(source)
     model.beginCodexReset(creditID: "credit-a")
-    guard case .confirming = model.codexReset else { return XCTFail("expected confirmation") }
+    XCTAssertNotNil(model.codexReset.confirmingAttempt)
     model.submitCodexReset()
     try await Poll.until { !model.statuses[.codex].isBusy }
     XCTAssertEqual(model.statuses[.codex].latest, .unavailable(.timedOut))

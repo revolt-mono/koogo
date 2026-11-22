@@ -5,6 +5,12 @@ extension Locale {
   static let display = Locale(identifier: "en_US")
 }
 
+extension FormatStyle where Self == Date.FormatStyle {
+  static func display(date: Date.FormatStyle.DateStyle, time: Date.FormatStyle.TimeStyle) -> Self {
+    Date.FormatStyle(date: date, time: time, locale: .display)
+  }
+}
+
 extension FormatStyle where Self == Duration.UnitsFormatStyle {
   static func displayUnits(allowed: Set<Duration.UnitsFormatStyle.Unit>) -> Self {
     Duration.UnitsFormatStyle(

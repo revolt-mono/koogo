@@ -4,7 +4,7 @@ struct QuotaSection: View {
   let provider: QuotaProvider
 
   var body: some View {
-    let snapshot = quotaModel.statuses[provider].latest?.snapshot
+    let snapshot = quotaModel.snapshot(of: provider)
     let showsReset =
       provider == .codex && (quotaModel.codexResetCredits != nil || quotaModel.codexReset != .idle)
     if snapshot != nil || showsReset {
@@ -84,22 +84,14 @@ private struct QuotaCreditsRow: View {
   }
 }
 
-struct QuotaDeadlineLabel: View {
+private struct QuotaDeadlineLabel: View {
   let deadline: Date
 
   var body: some View {
     TimelineView(.periodic(from: .now, by: 60)) { timeline in
-      Text("resets \(Self.timeRemainingText(until: deadline, now: timeline.date))")
+      Text("resets \(deadline.formatted(.timeRemaining(from: timeline.date)))")
     }
     .foregroundStyle(.secondary)
     .tooltip(deadline.formatted(.display(date: .complete, time: .shortened)))
-  }
-
-  nonisolated static func timeRemainingText(until date: Date, now: Date) -> String {
-    let remaining = Duration.seconds(date.timeIntervalSince(now))
-    guard remaining >= .seconds(60) else {
-      return "soon"
-    }
-    return "in \(remaining.formatted(.displayUnits(allowed: [.days, .hours, .minutes])))"
   }
 }

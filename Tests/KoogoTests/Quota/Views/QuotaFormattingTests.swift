@@ -2,7 +2,7 @@ import XCTest
 
 @testable import Koogo
 
-final class QuotaSectionTests: XCTestCase {
+final class QuotaFormattingTests: XCTestCase {
   func testTimeRemainingIncludesTheNextSmallerUnit() {
     let now = Date(timeIntervalSince1970: 1_700_000_000)
     let cases: [(TimeInterval, String)] = [
@@ -13,10 +13,7 @@ final class QuotaSectionTests: XCTestCase {
     ]
 
     for (interval, expected) in cases {
-      XCTAssertEqual(
-        QuotaDeadlineLabel.timeRemainingText(until: now.addingTimeInterval(interval), now: now),
-        expected,
-      )
+      XCTAssertEqual(now.addingTimeInterval(interval).formatted(.timeRemaining(from: now)), expected)
     }
   }
 }

@@ -91,7 +91,7 @@ final class QuotaModelTests: XCTestCase {
 
   func testOnlyTheRequestedProvidersAreRead() async throws {
     let claude = ScriptedQuotaSource([.available(.stub())])
-    let grok = ScriptedQuotaSource([])
+    let grok = ScriptedQuotaSource()
     let model = QuotaModel(sources: .scripted(claude: claude, grok: grok))
 
     model.refresh([.claude])

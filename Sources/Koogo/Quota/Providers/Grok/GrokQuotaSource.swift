@@ -14,7 +14,7 @@ struct GrokQuotaSource: QuotaSource {
   }
 
   func load() async -> QuotaReading {
-    do throws(ToolFailure) {
+    do {
       return try await tool.session(["--no-auto-update", "agent", "--no-leader", "stdio"]) { streams in
         var connection = JSONRPCConnection(streams, dateDecodingStrategy: .iso8601)
         let initialized: InitializeResponse = try await connection.request(
