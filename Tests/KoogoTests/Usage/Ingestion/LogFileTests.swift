@@ -9,7 +9,7 @@ final class LogFileTests: UsageWorkspaceTestCase {
     var parsed = try XCTUnwrap(
       ParsedLog<CodexUsageLogParser>(
         AppendOnlyFile(log.path, observed: try metadata(of: log)),
-        since: .distantPast,
+        since: UsageTimestamp(.distantPast),
       )
     )
     try workspace.append(
@@ -22,11 +22,11 @@ final class LogFileTests: UsageWorkspaceTestCase {
     )
 
     try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: log.path)
-    parsed.sync(observed: try metadata(of: log), since: .distantPast)
+    parsed.sync(observed: try metadata(of: log), since: UsageTimestamp(.distantPast))
     XCTAssertEqual(parsed.events.count, 1)
 
     try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: log.path)
-    parsed.sync(observed: try metadata(of: log), since: .distantPast)
+    parsed.sync(observed: try metadata(of: log), since: UsageTimestamp(.distantPast))
     XCTAssertEqual(parsed.events.count, 2)
   }
 
@@ -68,12 +68,12 @@ final class LogFileTests: UsageWorkspaceTestCase {
     let log = try XCTUnwrap(
       ParsedLog<CodexUsageLogParser>(
         CompressedFile(url.path, observed: try metadata(of: url)),
-        since: .distantPast,
+        since: UsageTimestamp(.distantPast),
       )
     )
 
     XCTAssertEqual(log.events.count, 1)
-    XCTAssertEqual(log.tally.malformedLines, 0)
+    XCTAssertEqual(log.droppedInput.malformedLines, 0)
   }
 
   private func metadata(of url: URL) throws -> UsageFileMetadata {

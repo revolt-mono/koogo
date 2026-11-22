@@ -256,7 +256,7 @@ final class UsageIngestionTests: UsageWorkspaceTestCase {
     let august = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases)
     XCTAssertEqual(august.ingestion.events[.codex], 1)
 
-    let previousDay = try XCTUnwrap(Date(iso8601: "2026-08-24T23:59:59.999Z".utf8))
+    let previousDay = try Date("2026-08-24T23:59:59.999Z", strategy: .iso8601)
     let rescanned = await pipeline.run(at: previousDay, providers: Provider.allCases)
 
     XCTAssertEqual(rescanned.ingestion.events[.codex], 2)

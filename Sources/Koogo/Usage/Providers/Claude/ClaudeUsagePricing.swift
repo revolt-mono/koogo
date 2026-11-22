@@ -4,18 +4,14 @@ enum ClaudeUsagePricing {
       return nil
     }
     let (model, price) = prices[index]
-
-    let promptTokens = usage.tokens.processed - usage.tokens.output
-    let rates = promptTokens > longPromptThreshold ? price.longPromptRates ?? price.rates : price.rates
-    guard price.options.isSuperset(of: usage.options) else {
+    guard let options = usage.options, price.options.isSuperset(of: options) else {
       return nil
     }
-    let speedCost = rates.cost(of: usage.tokens) * (usage.options.contains(.fastMode) ? 2 : 1)
-    let tokenCost = usage.options.contains(.usInference) ? speedCost.scaled(by: 11, over: 10) : speedCost
-    return UsageQuote(
-      model: model,
-      cost: tokenCost + Picodollars(nanodollars: 10_000_000) * usage.webSearchRequests,
-    )
+
+    let rates = price.rates(forPromptTokens: usage.tokens.processed - usage.tokens.output)
+    let speedCost = rates.cost(of: usage.tokens) * (options.contains(.fastMode) ? 2 : 1)
+    let tokenCost = options.contains(.usInference) ? speedCost.scaled(by: 11, over: 10) : speedCost
+    return UsageQuote(model: model, cost: tokenCost + webSearchRequestPrice * usage.webSearchRequests)
   }
 
   static func displayName(of model: ModelID) -> String? {
@@ -23,7 +19,6 @@ enum ClaudeUsagePricing {
   }
 
   private struct Rates: Sendable {
-    /// rates are nanodollars per token.
     init(input: UInt64, cacheRead: UInt64, output: UInt64) {
       self.input = Picodollars(nanodollars: input)
       self.cacheRead = Picodollars(nanodollars: cacheRead)
@@ -55,9 +50,17 @@ enum ClaudeUsagePricing {
     let rates: Rates
     var longPromptRates: Rates?
     let options: ClaudeBillableUsage.Options
+
+    func rates(forPromptTokens promptTokens: UInt64) -> Rates {
+      guard promptTokens > ClaudeUsagePricing.longPromptThreshold, let longPromptRates else {
+        return rates
+      }
+      return longPromptRates
+    }
   }
 
   private static let longPromptThreshold: UInt64 = 100_000
+  private static let webSearchRequestPrice = Picodollars(nanodollars: 10_000_000)
 
   /// pricing checked 2026-11-10: https://platform.claude.com/docs/en/about-claude/pricing and https://platform.claude.com/docs/en/models/overview
   private static let prices: [ModelID: ModelPrice] = [

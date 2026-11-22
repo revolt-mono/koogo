@@ -19,14 +19,14 @@ final class UsageSnapshotBuilderTests: XCTestCase {
 
   func testTotalsSaturateInsteadOfOverflowing() {
     let record = UsageRecord(
-      timestamp: UsageFixture.timestamp,
+      timestamp: UsageTimestamp(UsageFixture.timestamp),
       processedTokens: .max,
       cost: Picodollars(.max),
       model: nil,
     )
     let snapshot = UsageSnapshot(
-      events: ["1", "2"].map {
-        UsageEvent(id: .piAgent(entryID: $0.utf8, timestamp: record.timestamp), record: record)
+      events: [1, 2].map { number in
+        UsageEvent(id: UsageEventID(.piAgent) { $0.combine(number) }, record: record)
       }
     )
     XCTAssertEqual(snapshot.summary.last7Days.current.processedTokens, .max)
@@ -62,7 +62,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
   }
 
   func testPrevious7DaysEndWhereTheCurrent7DaysStart() throws {
-    let now = try XCTUnwrap(Date(iso8601: "2026-03-31T12:00:00Z".utf8))
+    let now = try Date("2026-03-31T12:00:00Z", strategy: .iso8601)
     let rows: [(String, Decimal)] = [
       ("2026-03-17T23:59:59Z", 1),
       ("2026-03-18T00:00:00Z", 0.005),
@@ -77,7 +77,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
           id: index,
           processedTokens: 1_000,
           costUSD: row.1,
-          at: try XCTUnwrap(Date(iso8601: row.0.utf8)),
+          at: try Date(row.0, strategy: .iso8601),
         )
       },
       intervals: UsagePeriodIntervals(containing: now, calendar: UsageFixture.calendar),
@@ -88,7 +88,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
   }
 
   func testSnapshotUsesRollingWindowsAndMidnightBoundaries() throws {
-    let now = try XCTUnwrap(Date(iso8601: "2026-09-01T12:00:00Z".utf8))
+    let now = try Date("2026-09-01T12:00:00Z", strategy: .iso8601)
     let intervals = UsagePeriodIntervals(containing: now, calendar: UsageFixture.calendar)
     let rows: [(String, UInt64)] = [
       ("2026-07-03T23:59:59.999Z", 1_024),
@@ -108,7 +108,7 @@ final class UsageSnapshotBuilderTests: XCTestCase {
         id: index,
         processedTokens: row.1,
         costUSD: Decimal(row.1),
-        at: try XCTUnwrap(Date(iso8601: row.0.utf8)),
+        at: try Date(row.0, strategy: .iso8601),
       )
     }
 
@@ -119,9 +119,9 @@ final class UsageSnapshotBuilderTests: XCTestCase {
     XCTAssertEqual(codex.periods[.last7Days].total.processedTokens, 480)
     XCTAssertEqual(codex.periods[.last30Days].total.processedTokens, 504)
     XCTAssertEqual(codex.dailyLast30Days.count, 30)
-    XCTAssertEqual(codex.dailyLast30Days.first?.date, Date(iso8601: "2026-08-03T00:00:00Z".utf8))
+    XCTAssertEqual(codex.dailyLast30Days.first?.date, try Date("2026-08-03T00:00:00Z", strategy: .iso8601))
     XCTAssertEqual(
-      codex.dailyLast30Days.filter { $0.usage != UsagePeriodSnapshot() }.map(\.usage.processedTokens),
+      codex.dailyLast30Days.filter { !$0.usage.isEmpty }.map(\.usage.processedTokens),
       [8, 16, 32, 64, 384],
     )
     XCTAssertEqual(
@@ -159,7 +159,7 @@ extension UsageSnapshotBuilderTests {
           model: row.1,
           processedTokens: row.2,
           costUSD: Decimal(row.2) / 100,
-          at: try XCTUnwrap(Date(iso8601: row.0.utf8)),
+          at: try Date(row.0, strategy: .iso8601),
         )
       }
       let snapshot = UsageSnapshot(events: events)
@@ -190,19 +190,15 @@ extension UsageSnapshotBuilderTests {
 
   func testModelBreakdownsSortByCostThenIdentityInsteadOfDisplayName() throws {
     let events = [
-      UsageEvent.stub(.codex, id: 1, model: "b", processedTokens: 30, costUSD: 1),
-      UsageEvent.stub(.codex, id: 2, model: "a", processedTokens: 10, costUSD: 1),
-      UsageEvent.stub(.codex, id: 3, model: "c", processedTokens: 20, costUSD: 2),
+      UsageEvent.stub(.piAgent, id: 1, model: "b/first", processedTokens: 30, costUSD: 1),
+      UsageEvent.stub(.piAgent, id: 2, model: "a/second", processedTokens: 10, costUSD: 1),
+      UsageEvent.stub(.piAgent, id: 3, model: "c/third", processedTokens: 20, costUSD: 2),
     ]
     for ordered in [events, events.reversed()] {
-      let snapshot = UsageSnapshot(
-        events: ordered,
-        providers: [.codex],
-        sources: EnumMap { _ in SameNameUsageSource() },
-      )
-      let models = try XCTUnwrap(snapshot.providers[.codex]?.periods[.today].models)
-      XCTAssertEqual(models.map(\.id), ["c", "a", "b"])
-      XCTAssertEqual(models.map(\.modelName), ["Same name", "Same name", "Same name"])
+      let snapshot = UsageSnapshot(events: ordered, providers: [.piAgent])
+      let models = try XCTUnwrap(snapshot.providers[.piAgent]?.periods[.today].models)
+      XCTAssertEqual(models.map(\.id), ["c/third", "a/second", "b/first"])
+      XCTAssertEqual(models.map(\.modelName), ["third", "second", "first"])
     }
   }
 
@@ -218,14 +214,5 @@ extension UsageSnapshotBuilderTests {
     XCTAssertEqual(models.map(\.usage.cost.usd), [Decimal(string: "0.01")])
     XCTAssertEqual(models.map(\.usage.processedTokens), [0])
     XCTAssertEqual(snapshot.providers[.piAgent]?.periods[.today].models, [])
-  }
-}
-
-private struct SameNameUsageSource: UsageSource {
-  let logDirectories = [String]()
-  let logFormat = UsageLogFormat.jsonLines(CodexUsageLogParser.self)
-
-  func modelName(_: ModelID) -> String? {
-    "Same name"
   }
 }

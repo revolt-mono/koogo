@@ -22,24 +22,22 @@ actor UsagePipeline {
       requested.contains($0) && FileManager.default.fileExists(atPath: $0.home(under: home).path)
     }
     store.sync(roots: providers.flatMap { $0.logRoots(under: home) }, since: intervals.last30Days.lowerBound)
-    for provider in providers {
-      sources[provider].refresh(home: provider.home(under: home))
-    }
+    modelNames.refresh(providers: providers, under: home)
 
     var builder = UsageSnapshotBuilder(providers: providers, intervals: intervals)
     let ingestion = store.collect { builder.add($0) }
     log(ingestion, duration: ContinuousClock.now - started)
-    return UsageReport(ingestion: ingestion, snapshot: builder.snapshot(sources: sources))
+    return UsageReport(ingestion: ingestion, snapshot: builder.snapshot(modelNames: modelNames))
   }
 
   private let home: URL
   private let calendar: Calendar
   private var store = LogStore()
-  private var sources = EnumMap<Provider, any UsageSource> { $0.usageSource }
+  private var modelNames = UsageModelNames()
 
   private func log(_ ingestion: UsageIngestionStats, duration: Duration) {
-    let files = ingestion.trackedFiles.entries.reduce(0) { $0 + $1.value }
-    let events = ingestion.events.entries.reduce(0) { $0 + $1.value }
+    let files = ingestion.trackedFiles.values.reduce(0, +)
+    let events = ingestion.events.values.reduce(0, +)
     Logger.usage.info(
       """
       refresh files=\(files, privacy: .public) events=\(events, privacy: .public) \

@@ -13,7 +13,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
     var store = LogStore()
     store.sync(
       roots: Provider.codex.logRoots(under: workspace.root),
-      since: UsageFixture.timestamp.addingTimeInterval(-86_400),
+      since: UsageTimestamp(UsageFixture.timestamp.addingTimeInterval(-86_400)),
     )
 
     let before = MemoryMeasurement.allocatedHeapBytes()
@@ -72,7 +72,7 @@ final class LogStoreMemoryTests: UsageWorkspaceTestCase {
 
     let before = MemoryMeasurement.allocatedHeapBytes()
     var store = LogStore()
-    store.sync(roots: roots, since: UsageFixture.timestamp.addingTimeInterval(-86_400))
+    store.sync(roots: roots, since: UsageTimestamp(UsageFixture.timestamp.addingTimeInterval(-86_400)))
     let retainedPerEvent = (MemoryMeasurement.allocatedHeapBytes() - before) / (fileCount * repliesPerFile)
 
     XCTAssertEqual(store.collect { _ in }.events[.claude], fileCount * repliesPerFile)

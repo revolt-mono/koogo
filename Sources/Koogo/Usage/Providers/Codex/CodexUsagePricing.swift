@@ -17,7 +17,6 @@ enum CodexUsagePricing {
   }
 
   private struct Rates: Sendable {
-    /// rates are nanodollars per token.
     init(input: UInt64, cachedInput: UInt64, output: UInt64, supportsCacheWrite: Bool) {
       self.input = Picodollars(nanodollars: input)
       self.cachedInput = Picodollars(nanodollars: cachedInput)

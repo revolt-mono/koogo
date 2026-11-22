@@ -1,47 +1,52 @@
-import Darwin
 import Foundation
 import Synchronization
 
 struct LogStore: ~Copyable {
-  mutating func sync(roots: [UsageLogRoot], since windowStart: Date) {
+  mutating func sync(roots: [UsageLogRoot], since windowStart: UsageTimestamp) {
     let windowMoved = moveWindow(to: windowStart)
     let rootsChanged = updateRoots(roots)
     let reported = takeReportedChanges(for: roots)
     let changes = windowMoved || rootsChanged ? .everything : reported
-    let walks = Self.walks(of: roots, for: changes)
+    let walks = LogDirectoryWalk.plan(roots: roots, for: changes)
 
     var unobserved = entries
     entries = Dictionary(minimumCapacity: unobserved.count)
-    var newFiles = [(path: String, metadata: UsageFileMetadata, root: UsageLogRoot)]()
+    var unopened = [(path: String, metadata: UsageFileMetadata, root: UsageLogRoot)]()
     func observe(_ path: String, _ metadata: UsageFileMetadata, _ entry: consuming Entry) {
-      if metadata.modificationDate < windowStart {
+      if metadata.modificationTime < windowStart {
         entry.log = nil
       } else if entry.log == nil {
-        newFiles.append((path, metadata, entry.root))
+        unopened.append((path, metadata, entry.root))
       } else {
         entry.log?.sync(observed: metadata, since: windowStart)
       }
       entries[path] = entry
     }
 
-    for (root, directory) in walks {
-      Self.walk(root, from: directory) { path, metadata in
-        observe(path, metadata, Entry(root: root, log: unobserved.removeValue(forKey: path)?.log))
+    for walk in walks {
+      walk.forEachLog { path, metadata in
+        observe(path, metadata, Entry(root: walk.root, log: unobserved.removeValue(forKey: path)?.log))
       }
     }
-    // fsevents reports an appended log only once its writer closes it, so files outside the walks are checked directly.
+    // fsevents reports an appended log only once its writer closes it.
     if case .directories = changes {
       // popping moves each log out, so syncing it appends in place instead of copying its events.
       while let (path, entry) = unobserved.popFirst() {
-        if
-          !walks.contains(where: { path.isPath(within: $0.directory) }),
-          let metadata = UsageFileMetadata(path: path)
-        {
+        if !walks.contains(where: { $0.covers(path) }), let metadata = UsageFileMetadata(path: path) {
           observe(path, metadata, entry)
         }
       }
     }
-    entries.merge(Self.open(newFiles, since: windowStart)) { $1 }
+    for (path, root, opening) in Self.open(unopened, since: windowStart) {
+      switch opening {
+      case .opened(let log):
+        entries[path] = Entry(root: root, log: log)
+      case .declined:
+        entries[path] = nil
+      case .unreadable:
+        break
+      }
+    }
   }
 
   func collect(_ visit: (UsageEvent) -> Void) -> UsageIngestionStats {
@@ -55,8 +60,8 @@ struct LogStore: ~Copyable {
         continue
       }
       trackedFiles[entry.root.provider] += 1
-      malformedLines[entry.root.provider] += log.tally.malformedLines
-      unpricedModels.formUnion(log.tally.unpricedModelIDs)
+      malformedLines[entry.root.provider] += log.droppedInput.malformedLines
+      unpricedModels.formUnion(log.droppedInput.unpricedModels)
       indexes.append(log.events)
     }
 
@@ -76,100 +81,32 @@ struct LogStore: ~Copyable {
 
   private struct Entry: Sendable {
     let root: UsageLogRoot
-    /// nil while the file was last written before the window or failed to open; both are rechecked without a
-    /// directory event, since a resumed writer updates the modification time without one.
+    /// a resumed writer updates the modification time without a directory event.
     var log: any TrackedLog?
   }
 
   private var entries = [String: Entry]()
   private var logRoots = [UsageIngestionStats.LogRoot]()
-  private var windowStart = Date.distantPast
+  private var windowStart = UsageTimestamp(.distantPast)
   private var watcher: LogDirectoryWatcher?
-
-  private static func walks(
-    of roots: [UsageLogRoot],
-    for changes: LogDirectoryWatcher.Changes,
-  ) -> [(root: UsageLogRoot, directory: String)] {
-    guard case .directories(let directories) = changes else {
-      return roots.map { ($0, $0.path) }
-    }
-    var walks = [(root: UsageLogRoot, directory: String)]()
-    for directory in directories.sorted() where !walks.contains(where: { directory.isPath(within: $0.directory) }) {
-      if let root = roots.first(where: { directory.isPath(within: $0.path) }) {
-        walks.append((root, directory))
-      }
-    }
-    return walks
-  }
-
-  private static func walk(_ root: UsageLogRoot, from directory: String, _ body: (String, UsageFileMetadata) -> Void) {
-    let isRoot = directory == root.path
-    guard isRoot || !isHiddenOrMissing(directory, under: root.path) else {
-      return
-    }
-    var paths: [UnsafeMutablePointer<CChar>?] = [strdup(directory), nil]
-    defer { free(paths[0]) }
-    guard let stream = fts_open(&paths, FTS_PHYSICAL | FTS_NOCHDIR | (isRoot ? FTS_COMFOLLOW : 0), nil) else {
-      return
-    }
-    defer { fts_close(stream) }
-    while let entry = fts_read(stream) {
-      let info = Int32(entry.pointee.fts_info)
-      let status = entry.pointee.fts_statp.pointee
-      if
-        entry.pointee.fts_level > 0,
-        isHidden(firstByte: UInt8(bitPattern: entry.pointee.fts_name), status: status)
-      {
-        if info == FTS_D {
-          fts_set(stream, entry, FTS_SKIP)
-        }
-        continue
-      }
-      guard info == FTS_F, let metadata = UsageFileMetadata(status: status) else {
-        continue
-      }
-      let path = String(cString: entry.pointee.fts_path)
-      if root.format.match.matches(path: path) {
-        body(path, metadata)
-      }
-    }
-  }
-
-  private static func isHiddenOrMissing(_ directory: String, under root: String) -> Bool {
-    var path = root
-    for component in directory.dropFirst(root.count + 1).split(separator: "/") {
-      path += "/" + component
-      var status = Darwin.stat()
-      guard lstat(path, &status) == 0, !isHidden(firstByte: component.utf8.first ?? 0, status: status) else {
-        return true
-      }
-    }
-    return false
-  }
-
-  private static func isHidden(firstByte: UInt8, status: Darwin.stat) -> Bool {
-    firstByte == UInt8(ascii: ".") || status.st_flags & UInt32(UF_HIDDEN) != 0
-  }
 
   private static func open(
     _ files: [(path: String, metadata: UsageFileMetadata, root: UsageLogRoot)],
-    since windowStart: Date,
-  ) -> [String: Entry] {
-    let opened = Mutex<[String: Entry]>([:])
+    since windowStart: UsageTimestamp,
+  ) -> [(path: String, root: UsageLogRoot, opening: UsageLogFormat.Opening)] {
+    let opened = Mutex([(path: String, root: UsageLogRoot, opening: UsageLogFormat.Opening)]())
     let nextFile = Atomic(0)
     DispatchQueue.concurrentPerform(iterations: min(files.count, 4)) { _ in
       while case let index = nextFile.wrappingAdd(1, ordering: .relaxed).oldValue, index < files.count {
         let (path, metadata, root) = files[index]
-        guard let log = root.format.open(path, metadata, windowStart) else {
-          continue
-        }
-        opened.withLock { $0[path] = Entry(root: root, log: log) }
+        let opening = root.format.open(path, metadata, windowStart)
+        opened.withLock { $0.append((path, root, opening)) }
       }
     }
     return opened.withLock { $0 }
   }
 
-  private mutating func moveWindow(to windowStart: Date) -> Bool {
+  private mutating func moveWindow(to windowStart: UsageTimestamp) -> Bool {
     guard windowStart != self.windowStart else {
       return false
     }
@@ -205,14 +142,5 @@ struct LogStore: ~Copyable {
       return .everything
     }
     return watcher.takeChanges()
-  }
-}
-
-extension String {
-  func isPath(within directory: String) -> Bool {
-    guard hasPrefix(directory) else {
-      return false
-    }
-    return dropFirst(directory.count).first.map { $0 == "/" } ?? true
   }
 }

@@ -15,7 +15,7 @@ final class GrokUsageTests: UsageWorkspaceTestCase {
       )?.event
     )
 
-    XCTAssertEqual(event.record.timestamp, UsageFixture.timestamp)
+    XCTAssertEqual(event.record.timestamp.date, UsageFixture.timestamp)
     XCTAssertEqual(event.record.processedTokens, 2_200_000)
     XCTAssertEqual(event.record.cost.usd, 6)
   }

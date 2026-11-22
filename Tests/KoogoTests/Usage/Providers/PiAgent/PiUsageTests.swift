@@ -19,7 +19,7 @@ final class PiUsageTests: UsageWorkspaceTestCase {
       )?.event
     )
 
-    XCTAssertEqual(event.record.timestamp, UsageFixture.timestamp)
+    XCTAssertEqual(event.record.timestamp.date, UsageFixture.timestamp)
     XCTAssertEqual(event.record.processedTokens, 100)
     XCTAssertEqual(event.record.cost.usd, Decimal(string: "0.125"))
     XCTAssertEqual(event.record.model, "provider/model-a")
@@ -233,6 +233,16 @@ final class PiUsageTests: UsageWorkspaceTestCase {
     )
 
     XCTAssertEqual(event.record.model, "provider/model-a")
+  }
+
+  func testPiSkipsUnbilledEntriesWithoutReadingTheirTimestamps() throws {
+    var parser = PiUsageLogParser()
+    for line in [
+      #"{"type":"thinking_level_change","id":"high","parentId":null,"timestamp":1,"thinkingLevel":"high"}"#,
+      #"{"type":"compaction","id":"compaction","parentId":"high","timestamp":1,"summary":""}"#,
+    ] {
+      XCTAssertNil(try parser.parse(line), line)
+    }
   }
 
   private func writeModelCatalog() throws {

@@ -2,7 +2,7 @@ import Foundation
 
 /// codex writes one `token_usage_record` per completed response; the preceding `turn_context` names the model.
 struct CodexUsageLogParser: UsageLogParser {
-  mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
+  mutating func parse(_ line: UnsafeRawBufferPointer) throws(MalformedUsageRecord) -> UsageLineOutcome? {
     guard var record = JSONObjectReader(line) else {
       return nil
     }
@@ -24,34 +24,35 @@ struct CodexUsageLogParser: UsageLogParser {
       default: break
       }
     }
-    switch kind {
-    case nil:
+    guard let kind else {
       return nil
-
+    }
+    switch kind {
     case .turnContext:
-      model = try? payload?.member("model")?.string()?.nonEmpty.map(ModelID.init(rawValue:))
-      guard model != nil else {
+      model = nil
+      guard let name = try payload?.member("model")?.string()?.nonEmpty else {
         throw MalformedUsageRecord()
       }
+      model = ModelID(rawValue: name)
       return nil
 
     case .tokenUsageRecord:
-      guard let payload, let timestamp = try timestamp?.text().flatMap(Date.init(iso8601:)) else {
+      guard let payload, let timestamp = try timestamp?.iso8601() else {
         throw MalformedUsageRecord()
       }
-      let record = try CodexTokenUsageRecord(payload)
+      let usageRecord = try CodexTokenUsageRecord(payload)
       guard let model else {
         return nil
       }
-      guard let quote = CodexUsagePricing.quote(model: model, tokens: record.usage) else {
+      guard let quote = CodexUsagePricing.quote(model: model, tokens: usageRecord.usage) else {
         return .unpricedModel(model, timestamp: timestamp)
       }
       return .event(
         UsageEvent(
-          id: .codex(responseID: record.responseID),
+          id: .codex(responseID: usageRecord.responseID),
           record: UsageRecord(
             timestamp: timestamp,
-            processedTokens: record.usage.processed,
+            processedTokens: usageRecord.usage.processed,
             cost: quote.cost,
             model: quote.model,
           ),
@@ -77,7 +78,7 @@ struct CodexUsageLogParser: UsageLogParser {
 }
 
 private struct CodexTokenUsageRecord {
-  init(_ payload: JSONValue) throws {
+  init(_ payload: JSONValue) throws(MalformedUsageRecord) {
     var responseID: JSONValue?
     var usage: JSONValue?
     var fields = try payload.object()
@@ -115,7 +116,7 @@ struct CodexTokenUsage: Sendable {
     self.processed = processed
   }
 
-  fileprivate init(_ value: JSONValue) throws {
+  fileprivate init(_ value: JSONValue) throws(MalformedUsageRecord) {
     var input: JSONValue?
     var cachedInput: JSONValue?
     var cacheWrite: JSONValue?
@@ -163,7 +164,7 @@ struct CodexTokenUsage: Sendable {
 
 extension UsageEventID {
   /// codex forks change thread ids, ordinals, and timestamps; each copied record keeps its response id.
-  static func codex(responseID: some Collection<UInt8>) -> Self {
+  fileprivate static func codex(responseID: JSONText) -> Self {
     Self(.codex) { $0.combine(text: responseID) }
   }
 }

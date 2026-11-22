@@ -6,14 +6,12 @@ final class UsageEventIndexMemoryTests: XCTestCase {
   func testRetainedHeapStoresEachEventIdentityOnce() throws {
     try MemoryMeasurement.skipUnlessRequested()
     var index = UsageEventIndex()
-    let usage = UsageRecord(timestamp: UsageFixture.timestamp, processedTokens: 1, cost: .zero, model: nil)
+    let usage = UsageRecord(timestamp: UsageTimestamp(UsageFixture.timestamp), processedTokens: 1, cost: .zero, model: nil)
     let before = MemoryMeasurement.allocatedHeapBytes()
 
     index.update { batch in
       for number in 0..<50_000 {
-        batch.insert(
-          UsageEvent(id: .piAgent(entryID: String(number).utf8, timestamp: usage.timestamp), record: usage)
-        )
+        batch.insert(UsageEvent(id: UsageEventID(.piAgent) { $0.combine(number) }, record: usage))
       }
     }
 

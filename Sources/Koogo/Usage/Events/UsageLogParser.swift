@@ -4,12 +4,12 @@ import Foundation
 protocol UsageLogParser: Sendable {
   init()
 
-  mutating func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome?
+  mutating func parse(_ line: UnsafeRawBufferPointer) throws(MalformedUsageRecord) -> UsageLineOutcome?
 }
 
 enum UsageLineOutcome: Sendable {
   case event(UsageEvent)
-  case unpricedModel(ModelID, timestamp: Date)
+  case unpricedModel(ModelID, timestamp: UsageTimestamp)
 }
 
 struct MalformedUsageRecord: Error { }

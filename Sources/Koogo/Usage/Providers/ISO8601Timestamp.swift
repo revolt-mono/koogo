@@ -1,27 +1,23 @@
 import Foundation
 
-extension Date {
+extension UsageTimestamp {
   /// reads `yyyy-mm-ddThh:mm:ss[.fraction](Z|±hh:mm)` directly for years from 1600 and offsets within ±18:00;
   /// foundation parses everything else.
   init?(iso8601 text: some Collection<UInt8>) {
     let parsed =
       text.withContiguousStorageIfAvailable(Self.rfc3339) ?? Array(text).withUnsafeBufferPointer(Self.rfc3339)
     guard
-      let date = parsed
-      ?? String(validating: text, as: UTF8.self).flatMap({ try? Self.iso8601.parse($0) })
+      let timestamp = parsed
+      ?? String(validating: text, as: UTF8.self).flatMap({ try? Self.iso8601.parse($0) }).map(Self.init)
     else {
       return nil
     }
-    self = date
+    self = timestamp
   }
 
-  init(unixMilliseconds milliseconds: UInt64) {
-    self.init(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
-  }
+  private static let iso8601 = Date.ISO8601FormatStyle()
 
-  private static let iso8601 = ISO8601FormatStyle()
-
-  private static func rfc3339(_ text: UnsafeBufferPointer<UInt8>) -> Date? {
+  private static func rfc3339(_ text: UnsafeBufferPointer<UInt8>) -> Self? {
     guard
       let year = text.number(0..<4, in: 1_600...9_999),
       text.has("-", at: 4),
@@ -54,8 +50,8 @@ extension Date {
 
     let seconds = daysSince1970(year: year, month: month, day: day) * 86_400 + hour * 3_600 + minute * 60 + second
     // foundation adds the fraction to seconds since the reference date; adding it earlier rounds differently.
-    let whole = TimeInterval(seconds - offset) - Date.timeIntervalBetween1970AndReferenceDate
-    return Date(timeIntervalSinceReferenceDate: whole + fraction)
+    let whole = Self(timeIntervalSince1970: TimeInterval(seconds - offset))
+    return Self(timeIntervalSinceReferenceDate: whole.timeIntervalSinceReferenceDate + fraction)
   }
 
   /// seconds east of utc for a `Z` or `±hh:mm` zone that ends the text.
@@ -95,6 +91,12 @@ extension Date {
     let dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1
     let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
     return era * 146_097 + dayOfEra - 719_468
+  }
+}
+
+extension JSONValue {
+  func iso8601() throws(MalformedUsageRecord) -> UsageTimestamp? {
+    try text().flatMap(UsageTimestamp.init(iso8601:))
   }
 }
 

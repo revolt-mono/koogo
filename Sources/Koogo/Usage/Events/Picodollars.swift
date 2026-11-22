@@ -39,7 +39,6 @@ struct Picodollars: Comparable, Sendable, Encodable {
     try container.encode(usd)
   }
 
-  /// rounds down.
   func scaled(by numerator: UInt64, over denominator: UInt64) -> Self {
     let product = rawValue.multipliedFullWidth(by: numerator)
     guard product.high < denominator else {

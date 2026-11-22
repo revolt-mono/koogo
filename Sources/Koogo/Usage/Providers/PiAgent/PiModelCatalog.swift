@@ -15,26 +15,7 @@ struct PiModelCatalog: Sendable {
       return
     }
     sourceVersions = versions
-    var names = [ModelID: String]()
-    for (provider, configuration) in Self.decode([String: StoredProvider].self, at: storeURL) ?? [:] {
-      for model in configuration.models {
-        names[Self.modelID(provider: provider, model: model.id)] = model.name
-      }
-    }
-    for (provider, configuration) in Self.decode(CustomModels.self, at: customURL, allowsJSON5: true)?.providers
-      ?? [:]
-    {
-      for model in configuration.models ?? [] {
-        names[Self.modelID(provider: provider, model: model.id)] = model.name ?? model.id
-      }
-      for (model, override) in configuration.modelOverrides ?? [:] {
-        guard let name = override.name else {
-          continue
-        }
-        names[Self.modelID(provider: provider, model: model)] = name
-      }
-    }
-    self.names = names
+    names = Self.names(storeURL: storeURL, customURL: customURL)
   }
 
   func name(of model: ModelID) -> String? {
@@ -87,6 +68,29 @@ struct PiModelCatalog: Sendable {
 
   private var names = [ModelID: String]()
   private var sourceVersions: [SourceVersion?] = [nil, nil]
+
+  private static func names(storeURL: URL, customURL: URL) -> [ModelID: String] {
+    var names = [ModelID: String]()
+    let stored = decode([String: StoredProvider].self, at: storeURL) ?? [:]
+    for (provider, configuration) in stored {
+      for model in configuration.models {
+        names[modelID(provider: provider, model: model.id)] = model.name
+      }
+    }
+    let custom = decode(CustomModels.self, at: customURL, allowsJSON5: true)?.providers ?? [:]
+    for (provider, configuration) in custom {
+      for model in configuration.models ?? [] {
+        names[modelID(provider: provider, model: model.id)] = model.name ?? model.id
+      }
+      for (model, override) in configuration.modelOverrides ?? [:] {
+        guard let name = override.name else {
+          continue
+        }
+        names[modelID(provider: provider, model: model)] = name
+      }
+    }
+    return names
+  }
 
   private static func decode<Value: Decodable>(
     _ type: Value.Type,

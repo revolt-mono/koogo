@@ -1,6 +1,5 @@
 import Foundation
 
-/// walks one object's members in order; nested values stay unread until a parser opens them.
 struct JSONObjectReader {
   init?(_ bytes: UnsafeRawBufferPointer) {
     self.bytes = bytes
@@ -13,11 +12,11 @@ struct JSONObjectReader {
   }
 
   struct Member {
-    let key: JSONValue
+    let key: JSONKey
     let value: JSONValue
   }
 
-  mutating func next() throws -> Member? {
+  mutating func next() throws(MalformedUsageRecord) -> Member? {
     skipWhitespace()
     guard offset < bytes.count else {
       throw MalformedUsageRecord()
@@ -40,7 +39,7 @@ struct JSONObjectReader {
     }
     let keyStart = offset
     offset = try stringEnd(at: keyStart)
-    let key = JSONValue(bytes: UnsafeRawBufferPointer(rebasing: bytes[keyStart..<offset]))
+    let key = JSONKey(JSONValue(bytes: UnsafeRawBufferPointer(rebasing: bytes[keyStart..<offset])))
     skipWhitespace()
     guard offset < bytes.count, bytes[offset] == UInt8(ascii: ":") else {
       throw MalformedUsageRecord()
@@ -51,6 +50,16 @@ struct JSONObjectReader {
     offset = try valueEnd(at: valueStart)
     hasMember = true
     return Member(key: key, value: JSONValue(bytes: UnsafeRawBufferPointer(rebasing: bytes[valueStart..<offset])))
+  }
+
+  consuming func member(_ key: StaticString) throws(MalformedUsageRecord) -> JSONValue? {
+    var value: JSONValue?
+    while let member = try next() {
+      if member.key.isString(key) {
+        value = member.value
+      }
+    }
+    return value
   }
 
   private let bytes: UnsafeRawBufferPointer
@@ -72,7 +81,7 @@ struct JSONObjectReader {
     }
   }
 
-  private func valueEnd(at start: Int) throws -> Int {
+  private func valueEnd(at start: Int) throws(MalformedUsageRecord) -> Int {
     guard start < bytes.count else {
       throw MalformedUsageRecord()
     }
@@ -120,7 +129,7 @@ struct JSONObjectReader {
     }
   }
 
-  private func stringEnd(at start: Int) throws -> Int {
+  private func stringEnd(at start: Int) throws(MalformedUsageRecord) -> Int {
     guard start < bytes.count, bytes[start] == UInt8(ascii: "\""), let base = bytes.baseAddress else {
       throw MalformedUsageRecord()
     }
@@ -140,7 +149,26 @@ struct JSONObjectReader {
   }
 }
 
-/// a json string's utf-8 content.
+struct JSONKey {
+  fileprivate init(_ value: JSONValue) {
+    self.value = value
+  }
+
+  static func ~=(literal: StaticString, key: Self) -> Bool {
+    key.isString(literal)
+  }
+
+  func isString(_ literal: StaticString) -> Bool {
+    value.isString(literal)
+  }
+
+  func string() throws(MalformedUsageRecord) -> String {
+    try value.string()!
+  }
+
+  private let value: JSONValue
+}
+
 enum JSONText: RandomAccessCollection {
   case logged(UnsafeRawBufferPointer)
   case decoded([UInt8])
@@ -173,13 +201,11 @@ enum JSONText: RandomAccessCollection {
   }
 }
 
-/// one value's bytes, borrowed from the line; decoding happens on request.
+/// borrows its bytes from the log line.
 struct JSONValue {
   fileprivate init(bytes: UnsafeRawBufferPointer) {
     self.bytes = bytes
   }
-
-  let bytes: UnsafeRawBufferPointer
 
   var isNull: Bool {
     bytes.elementsEqual("null".utf8)
@@ -193,7 +219,7 @@ struct JSONValue {
     value.isString(literal)
   }
 
-  /// literals hold no quotes or backslashes, so only an escaped spelling needs decoding.
+  /// literals hold no quotes or backslashes.
   func isString(_ literal: StaticString) -> Bool {
     let count = literal.utf8CodeUnitCount
     guard bytes.count == count + 2 else {
@@ -202,65 +228,49 @@ struct JSONValue {
     return bytes[0] == UInt8(ascii: "\"") && memcmp(bytes.baseAddress! + 1, literal.utf8Start, count) == 0
   }
 
-  func object() throws -> JSONObjectReader {
+  func object() throws(MalformedUsageRecord) -> JSONObjectReader {
     guard let object = JSONObjectReader(bytes) else {
       throw MalformedUsageRecord()
     }
     return object
   }
 
-  /// the last member under the key.
-  func member(_ key: StaticString) throws -> JSONValue? {
-    var object = try object()
-    var value: JSONValue?
-    while let member = try object.next() {
-      if member.key.isString(key) {
-        value = member.value
-      }
-    }
-    return value
+  func member(_ key: StaticString) throws(MalformedUsageRecord) -> JSONValue? {
+    try object().member(key)
   }
 
-  func text() throws -> JSONText? {
+  func text() throws(MalformedUsageRecord) -> JSONText? {
     guard !isNull else {
       return nil
     }
-    guard bytes.count >= 2, bytes[0] == UInt8(ascii: "\"") else {
-      throw MalformedUsageRecord()
+    return switch try stringContent() {
+    case .unescaped(let content): .logged(content)
+    case .decoded(let string): .decoded(Array(string.utf8))
     }
-    let content = UnsafeRawBufferPointer(rebasing: bytes[1..<bytes.count - 1])
-    if content.allSatisfy(Self.isPlainASCII) {
-      return .logged(content)
-    }
-    let string = try decodedString()
-    return hasEscape ? .decoded(Array(string.utf8)) : .logged(content)
   }
 
-  func string() throws -> String? {
-    isNull ? nil : try decodedString()
-  }
-
-  func uint64() throws -> UInt64? {
+  func string() throws(MalformedUsageRecord) -> String? {
     guard !isNull else {
       return nil
     }
-    guard bytes.first != UInt8(ascii: "0") || bytes.count == 1 else {
-      return try JSONDecoder().decode(UInt64.self, from: Data(bytes))
+    return switch try stringContent() {
+    case .unescaped(let content): String(decoding: content, as: UTF8.self)
+    case .decoded(let string): string
     }
-    var value: UInt64 = 0
-    for byte in bytes {
-      let (tens, overflow) = value.multipliedReportingOverflow(by: 10)
-      let (next, carry) = tens.addingReportingOverflow(UInt64(byte &- UInt8(ascii: "0")))
-      guard Self.isDigit(byte), !overflow, !carry else {
-        return try JSONDecoder().decode(UInt64.self, from: Data(bytes))
-      }
-      value = next
+  }
+
+  func uint64() throws(MalformedUsageRecord) -> UInt64? {
+    guard !isNull else {
+      return nil
     }
-    return value
+    if let value = plainUInt64 {
+      return value
+    }
+    return try foundationDecoded(as: UInt64.self)
   }
 
   /// reads nonnegative us dollars, rounded half up to whole picodollars.
-  func usd() throws -> Picodollars? {
+  func usd() throws(MalformedUsageRecord) -> Picodollars? {
     guard !isNull else {
       return nil
     }
@@ -276,9 +286,7 @@ struct JSONValue {
         isFraction = true
         continue
       }
-      let (tens, overflow) = significand.multipliedReportingOverflow(by: 10)
-      let (next, carry) = tens.addingReportingOverflow(UInt64(byte - UInt8(ascii: "0")))
-      guard !overflow, !carry else {
+      guard let next = Self.appending(digit: byte, to: significand) else {
         throw MalformedUsageRecord()
       }
       significand = next
@@ -294,6 +302,27 @@ struct JSONValue {
       exponent += isNegative ? -written : written
     }
     return try Self.picodollars(significand, timesTenToThe: exponent)
+  }
+
+  private enum StringContent {
+    case unescaped(UnsafeRawBufferPointer)
+    case decoded(String)
+  }
+
+  private let bytes: UnsafeRawBufferPointer
+
+  private var plainUInt64: UInt64? {
+    guard bytes.first != UInt8(ascii: "0") || bytes.count == 1 else {
+      return nil
+    }
+    var value: UInt64 = 0
+    for byte in bytes {
+      guard Self.isDigit(byte), let next = Self.appending(digit: byte, to: value) else {
+        return nil
+      }
+      value = next
+    }
+    return value
   }
 
   private var isNumber: Bool {
@@ -335,15 +364,16 @@ struct JSONValue {
     memchr(bytes.baseAddress, Int32(UInt8(ascii: "\\")), bytes.count) != nil
   }
 
-  private var plainContent: UnsafeRawBufferPointer? {
-    guard bytes.count >= 2, bytes[0] == UInt8(ascii: "\""), !hasEscape else {
-      return nil
-    }
-    let content = UnsafeRawBufferPointer(rebasing: bytes[1..<bytes.count - 1])
-    return content.contains { $0 < 0x20 } ? nil : content
+  private static func appending(digit byte: UInt8, to value: UInt64) -> UInt64? {
+    let (tens, overflow) = value.multipliedReportingOverflow(by: 10)
+    let (next, carry) = tens.addingReportingOverflow(UInt64(byte - UInt8(ascii: "0")))
+    return overflow || carry ? nil : next
   }
 
-  private static func picodollars(_ significand: UInt64, timesTenToThe exponent: Int) throws -> Picodollars {
+  private static func picodollars(
+    _ significand: UInt64,
+    timesTenToThe exponent: Int,
+  ) throws(MalformedUsageRecord) -> Picodollars {
     guard significand > 0, exponent > -20 else {
       return .zero
     }
@@ -371,13 +401,31 @@ struct JSONValue {
     byte >= 0x20 && byte < 0x7F && byte != UInt8(ascii: "\\")
   }
 
-  private func decodedString() throws -> String {
-    guard let content = plainContent else {
-      return try JSONDecoder().decode(String.self, from: Data(bytes))
-    }
-    guard let string = String(validating: content, as: UTF8.self) else {
+  private static func isValidUTF8(_ content: UnsafeRawBufferPointer) -> Bool {
+    content.withMemoryRebound(to: UInt8.self) { (try? UTF8Span(validating: $0.span)) != nil }
+  }
+
+  private func foundationDecoded<Value: Decodable>(as _: Value.Type) throws(MalformedUsageRecord) -> Value {
+    guard let value = try? JSONDecoder().decode(Value.self, from: Data(bytes)) else {
       throw MalformedUsageRecord()
     }
-    return string
+    return value
+  }
+
+  private func stringContent() throws(MalformedUsageRecord) -> StringContent {
+    guard bytes.count >= 2, bytes[0] == UInt8(ascii: "\"") else {
+      throw MalformedUsageRecord()
+    }
+    let content = UnsafeRawBufferPointer(rebasing: bytes[1..<bytes.count - 1])
+    if content.allSatisfy(Self.isPlainASCII) {
+      return .unescaped(content)
+    }
+    if hasEscape {
+      return .decoded(try foundationDecoded(as: String.self))
+    }
+    guard !content.contains(where: { $0 < 0x20 }), Self.isValidUTF8(content) else {
+      throw MalformedUsageRecord()
+    }
+    return .unescaped(content)
   }
 }

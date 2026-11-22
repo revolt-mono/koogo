@@ -24,7 +24,6 @@ enum UsageBenchmark {
     let instructions: UInt64
     let milliseconds: Int
     let footprintBytes: UInt64
-    /// process-wide high-water mark, including earlier phases.
     let peakFootprintBytes: UInt64
   }
 

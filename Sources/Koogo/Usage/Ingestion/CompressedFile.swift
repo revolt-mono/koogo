@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 import System
 
-/// a zstd archive is written whole and never appended, so any change rereads it from the start.
+/// a zstd archive is written whole and never appended.
 struct CompressedFile: LogFile {
   init(_ path: String, observed metadata: UsageFileMetadata) {
     self.path = path
@@ -11,8 +11,7 @@ struct CompressedFile: LogFile {
   }
 
   mutating func observe(_ observed: UsageFileMetadata) -> Bool {
-    observed.identity != metadata.identity || observed.size != metadata.size
-      || observed.modificationDate != metadata.modificationDate
+    observed != metadata
   }
 
   /// a corrupt archive keeps the lines decoded before the damage; rereading an unchanged file cannot recover more.
@@ -21,7 +20,7 @@ struct CompressedFile: LogFile {
       return false
     }
     defer { try? file.close() }
-    guard let current = UsageFileMetadata(fileDescriptor: file.rawValue) else {
+    guard let current = UsageFileMetadata(file) else {
       return false
     }
     metadata = current
@@ -31,8 +30,7 @@ struct CompressedFile: LogFile {
   }
 
   /// the decoder's window spans megabytes, which malloc keeps dirty after free; unmapped pages return to the system.
-  /// each mapping leads with its 16-byte length, keeping the returned memory aligned like malloc's. zstd never frees
-  /// null.
+  /// the 16-byte header preserves malloc alignment. zstd never frees null.
   private static var mappedMemory: ZSTD_customMem {
     ZSTD_customMem(
       customAlloc: { _, size in
@@ -63,29 +61,19 @@ struct CompressedFile: LogFile {
     }
     defer { ZSTD_freeDStream(stream) }
     let compressed = PageBuffer(byteCount: ZSTD_DStreamInSize())
-    var lines = PageBuffer(byteCount: ZSTD_DStreamOutSize())
-    var pending = 0
+    var lines = LineBuffer(byteCount: ZSTD_DStreamOutSize())
     while let count = try? file.read(into: compressed.bytes), count > 0 {
       var input = ZSTD_inBuffer(src: compressed.bytes.baseAddress, size: count, pos: 0)
       // a full output buffer holds back decoded bytes even after the input is consumed.
       var isOutputFilled = true
       while input.pos < input.size || isOutputFilled {
-        if pending == lines.bytes.count {
-          lines.doubleCapacity()
-        }
-        var output = ZSTD_outBuffer(
-          dst: lines.bytes.baseAddress! + pending,
-          size: lines.bytes.count - pending,
-          pos: 0,
-        )
+        let space = lines.spaceToFill()
+        var output = ZSTD_outBuffer(dst: space.baseAddress, size: space.count, pos: 0)
         guard ZSTD_isError(ZSTD_decompressStream(stream, &output, &input)) == 0 else {
           return
         }
         isOutputFilled = output.pos == output.size
-        pending += output.pos
-        let parsed = lines.handOutCompleteLines(first: pending, consume: consume)
-        pending -= parsed
-        memmove(lines.bytes.baseAddress, lines.bytes.baseAddress! + parsed, pending)
+        lines.handOutLines(filled: output.pos, consume: consume)
       }
     }
   }

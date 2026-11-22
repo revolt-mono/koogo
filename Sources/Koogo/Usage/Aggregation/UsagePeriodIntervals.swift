@@ -14,7 +14,6 @@ enum UsagePeriod: String, CaseIterable, Sendable, Encodable, CodingKeyRepresenta
   }
 }
 
-/// day bounds in seconds since the reference date, so per-event lookups skip resilient date comparisons.
 struct UsagePeriodIntervals: Sendable {
   init(containing date: Date, calendar: Calendar) {
     guard let todayInterval = calendar.dateInterval(of: .day, for: date) else {
@@ -22,24 +21,22 @@ struct UsagePeriodIntervals: Sendable {
     }
     dayStarts = sequence(first: todayInterval.start) { calendar.startOfDay(for: $0.addingTimeInterval(-1)) }
       .prefix(UsagePeriod.last30Days.dayCount)
-      .map(\.timeIntervalSinceReferenceDate)
-    end = todayInterval.end.timeIntervalSinceReferenceDate
+      .map(UsageTimestamp.init)
+    end = UsageTimestamp(todayInterval.end)
   }
 
-  var last30Days: Range<Date> {
-    Date(timeIntervalSinceReferenceDate: dayStarts[dayStarts.count - 1])..<Date(timeIntervalSinceReferenceDate: end)
+  var last30Days: Range<UsageTimestamp> {
+    dayStarts[dayStarts.count - 1]..<end
   }
 
   var last30DayStarts: [Date] {
-    dayStarts.map(Date.init(timeIntervalSinceReferenceDate:))
+    dayStarts.map(\.date)
   }
 
-  func last30DayIndex(containing date: Date) -> Int? {
-    let seconds = date.timeIntervalSinceReferenceDate
-    return seconds < end ? dayStarts.firstIndex { $0 <= seconds } : nil
+  func last30DayIndex(containing timestamp: UsageTimestamp) -> Int? {
+    timestamp < end ? dayStarts.firstIndex { $0 <= timestamp } : nil
   }
 
-  /// local midnights, newest first.
-  private let dayStarts: [TimeInterval]
-  private let end: TimeInterval
+  private let dayStarts: [UsageTimestamp]
+  private let end: UsageTimestamp
 }

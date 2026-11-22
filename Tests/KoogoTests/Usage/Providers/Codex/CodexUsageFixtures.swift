@@ -1,7 +1,7 @@
 import Foundation
 
 enum CodexLog {
-  /// `zstd -3` of `session(input: 100, output: 20)`, as codex stores rollouts a week after their last write.
+  /// `zstd -3` of `session(input: 100, output: 20)`.
   static let compressedSession = Data(
     base64Encoded: """
       KLUv/WQQAgUIAJIOKx9gZ9sGA5pfNpPQU22z2N8nhEHwCBb2NNEQjSLIMYABg6Zp8iiqt4+ZkMbastJ3zNPMHjMtTQ51HDMNdE7NuHa8clvH+lLvPlxvD31J\

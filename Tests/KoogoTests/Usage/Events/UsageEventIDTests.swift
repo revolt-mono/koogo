@@ -3,21 +3,26 @@ import XCTest
 @testable import Koogo
 
 final class UsageEventIDTests: XCTestCase {
-  func testIdsDifferWheneverAnyLoggedFieldDiffers() {
-    let ids: [UsageEventID] = [
-      .claude(messageID: "ab".utf8, requestID: "c".utf8),
-      .claude(messageID: "a".utf8, requestID: "bc".utf8),
-      .claude(messageID: "c".utf8, requestID: "ab".utf8),
-      .codex(responseID: "ab".utf8),
-      .piAgent(entryID: "ab".utf8, timestamp: UsageFixture.timestamp),
-      .piAgent(entryID: "ab".utf8, timestamp: UsageFixture.timestamp + 1),
-      .grok(eventID: "ab".utf8, timestampMilliseconds: 1),
+  func testIdsDifferWheneverTheProviderOrAnyLoggedFieldDiffers() {
+    func id(_ provider: Provider, _ fields: String...) -> UsageEventID {
+      UsageEventID(provider) { hasher in
+        for field in fields {
+          hasher.combine(text: field.utf8)
+        }
+      }
+    }
+    let ids = [
+      id(.claude, "ab", "c"),
+      id(.claude, "a", "bc"),
+      id(.claude, "c", "ab"),
+      id(.claude, "abc"),
+      id(.codex, "ab", "c"),
+      id(.piAgent, "ab", "c"),
+      id(.grok, "ab", "c"),
     ]
 
     XCTAssertEqual(Set(ids).count, ids.count)
-    XCTAssertEqual(
-      UsageEventID.claude(messageID: "ab".utf8, requestID: "c".utf8),
-      .claude(messageID: "ab".utf8, requestID: "c".utf8),
-    )
+    XCTAssertEqual(ids.map(\.provider), [.claude, .claude, .claude, .claude, .codex, .piAgent, .grok])
+    XCTAssertEqual(id(.claude, "ab", "c"), id(.claude, "ab", "c"))
   }
 }

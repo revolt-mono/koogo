@@ -65,6 +65,18 @@ final class JSONObjectReaderTests: XCTestCase {
     XCTAssertEqual(decoded.record.timestamp, plain.record.timestamp)
   }
 
+  func testUnescapedUnicodeTextMatchesItsEscapedSpelling() throws {
+    var parser = PiUsageLogParser()
+    let line = PiLog.assistant(id: "réponse", parentID: nil, model: "modèle", usage: PiLog.usage(input: 1, cost: "0.01"))
+    let escaped = line.replacing("réponse", with: #"r\u00e9ponse"#).replacing("modèle", with: #"mod\u00e8le"#)
+
+    let plain = try XCTUnwrap(parser.parse(line)?.event)
+    let decoded = try XCTUnwrap(parser.parse(escaped)?.event)
+    XCTAssertEqual(plain.record.model, "provider/modèle")
+    XCTAssertEqual(decoded.record.model, plain.record.model)
+    XCTAssertEqual(decoded.id, plain.id)
+  }
+
   func testSimilarAndNonStringRecordKindsAreSkipped() throws {
     let line = ClaudeLog.assistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":5"#)
     for kind in [#""assistant-extra""#, #""assistanx""#, #""assistant\t""#, "null", "1", #"["assistant"]"#] {

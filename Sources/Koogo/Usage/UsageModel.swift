@@ -12,7 +12,6 @@ final class UsageModel {
 
   private(set) var snapshot: UsageSnapshot?
 
-  /// calls during a refresh queue another pass.
   func refresh(providers: [Provider]) {
     guard case .idle = state else {
       state = .running(queued: providers)

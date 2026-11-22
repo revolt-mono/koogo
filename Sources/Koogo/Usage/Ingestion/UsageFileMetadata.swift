@@ -1,10 +1,11 @@
 import Darwin
 import Foundation
+import System
 
-struct UsageFileMetadata: Sendable {
-  init?(fileDescriptor: Int32) {
+struct UsageFileMetadata: Equatable, Sendable {
+  init?(_ file: FileDescriptor) {
     var status = Darwin.stat()
-    guard Darwin.fstat(fileDescriptor, &status) == 0 else {
+    guard fstat(file.rawValue, &status) == 0 else {
       return nil
     }
     self.init(status: status)
@@ -25,7 +26,7 @@ struct UsageFileMetadata: Sendable {
     }
     identity = Identity(status)
     size = UInt64(status.st_size)
-    modificationDate = Date(
+    modificationTime = UsageTimestamp(
       timeIntervalSince1970: TimeInterval(status.st_mtimespec.tv_sec)
         + TimeInterval(status.st_mtimespec.tv_nsec) / 1_000_000_000
     )
@@ -43,5 +44,5 @@ struct UsageFileMetadata: Sendable {
 
   let identity: Identity
   let size: UInt64
-  let modificationDate: Date
+  let modificationTime: UsageTimestamp
 }

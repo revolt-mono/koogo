@@ -77,9 +77,9 @@ final class UsagePipelineTests: UsageWorkspaceTestCase {
     }
     let pipeline = makePipeline()
     let current = await pipeline.run(at: UsageFixture.timestamp, providers: Provider.allCases)
-    let lastMillisecond = try XCTUnwrap(Date(iso8601: "2026-08-25T23:59:59.999Z".utf8))
+    let lastMillisecond = try Date("2026-08-25T23:59:59.999Z", strategy: .iso8601)
     let evening = await pipeline.run(at: lastMillisecond, providers: Provider.allCases)
-    let midnight = try XCTUnwrap(Date(iso8601: "2026-08-26T00:00:00Z".utf8))
+    let midnight = try Date("2026-08-26T00:00:00Z", strategy: .iso8601)
     let refreshed = await pipeline.run(at: midnight, providers: Provider.allCases)
 
     XCTAssertEqual(current.ingestion.events[.codex], 3)

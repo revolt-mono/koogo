@@ -19,13 +19,8 @@ enum UsageFixture {
 struct UsageTestWorkspace {
   init(root: URL) throws {
     self.root = root
-    for provider in Provider.allCases {
-      for directory in provider.usageSource.logDirectories {
-        try FileManager.default.createDirectory(
-          at: logDirectory(provider, directory),
-          withIntermediateDirectories: true,
-        )
-      }
+    for logRoot in Provider.allCases.flatMap({ $0.logRoots(under: root) }) {
+      try FileManager.default.createDirectory(atPath: logRoot.path, withIntermediateDirectories: true)
     }
   }
 
@@ -79,7 +74,6 @@ struct UsageTestWorkspace {
     )
   }
 
-  /// an open writer appends without directory events, as a running agent does until it closes the log.
   func openWriter(to url: URL) throws -> FileHandle {
     let writer = try FileHandle(forWritingTo: url)
     try writer.seekToEnd()
@@ -101,7 +95,6 @@ struct UsageTestWorkspace {
 
 /// base class for suites that read provider logs from a temporary home.
 class UsageWorkspaceTestCase: XCTestCase {
-  // xctest builds the workspace in setUp, after init.
   // swiftlint:disable:next implicitly_unwrapped_optional
   private(set) var workspace: UsageTestWorkspace!
 
@@ -113,7 +106,6 @@ class UsageWorkspaceTestCase: XCTestCase {
     UsagePipeline(home: workspace.root, calendar: UsageFixture.calendar)
   }
 
-  /// polls until the report matches because filesystem events arrive after the write.
   func refresh(
     _ pipeline: UsagePipeline,
     until isCurrent: (UsageReport) -> Bool,
@@ -151,19 +143,12 @@ extension UsageEvent {
     at eventDate: Date = UsageFixture.timestamp,
   ) -> Self {
     let record = UsageRecord(
-      timestamp: eventDate,
+      timestamp: UsageTimestamp(eventDate),
       processedTokens: processedTokens,
       cost: Picodollars(usd: costUSD),
       model: model.map { ModelID(rawValue: $0) },
     )
-    let eventID: UsageEventID =
-      switch provider {
-      case .codex: .codex(responseID: "response-\(id)".utf8)
-      case .claude: .claude(messageID: "message-\(id)".utf8, requestID: "request-\(id)".utf8)
-      case .piAgent: .piAgent(entryID: "entry-\(id)".utf8, timestamp: eventDate)
-      case .grok: .grok(eventID: "event-\(id)".utf8, timestampMilliseconds: eventDate.millisecondsSince1970)
-      }
-    return UsageEvent(id: eventID, record: record)
+    return UsageEvent(id: UsageEventID(provider) { $0.combine(id) }, record: record)
   }
 }
 
@@ -184,13 +169,12 @@ extension UsageSnapshot {
     events: [UsageEvent],
     providers: [Provider] = Provider.allCases,
     intervals: UsagePeriodIntervals = UsagePeriodIntervals(containing: UsageFixture.timestamp, calendar: UsageFixture.calendar),
-    sources: EnumMap<Provider, any UsageSource> = EnumMap { $0.usageSource },
   ) {
     var builder = UsageSnapshotBuilder(providers: providers, intervals: intervals)
     for event in events {
       builder.add(event)
     }
-    self = builder.snapshot(sources: sources)
+    self = builder.snapshot(modelNames: UsageModelNames())
   }
 }
 

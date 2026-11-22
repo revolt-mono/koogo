@@ -1,34 +1,26 @@
 import Foundation
 
 struct ClaudeUsageLogParser: UsageLogParser {
-  func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
+  func parse(_ line: UnsafeRawBufferPointer) throws(MalformedUsageRecord) -> UsageLineOutcome? {
     guard let reply = try ClaudeAssistantReply(line) else {
       return nil
     }
-    let usage = reply.usage
+    let usage = reply.usage.billable
     // claude logs synthetic replies such as api errors with zero usage and often no request id.
     guard usage.tokens.processed > 0 || usage.webSearchRequests > 0 else {
       return nil
     }
     guard
-      let messageID = reply.messageID,
+      let messageID = try reply.messageID?.text(),
       !messageID.isEmpty,
-      let requestID = reply.requestID,
+      let requestID = try reply.requestID?.text(),
       !requestID.isEmpty,
-      let model = reply.model?.nonEmpty.map(ModelID.init(rawValue:)),
-      let timestamp = reply.timestamp.flatMap(Date.init(iso8601:))
+      let model = try reply.model?.string()?.nonEmpty.map(ModelID.init(rawValue:)),
+      let timestamp = try reply.timestamp?.iso8601()
     else {
       throw MalformedUsageRecord()
     }
-    guard let options = usage.options else {
-      return .unpricedModel(model, timestamp: timestamp)
-    }
-    let billable = ClaudeBillableUsage(
-      tokens: usage.tokens,
-      options: options,
-      webSearchRequests: usage.webSearchRequests,
-    )
-    guard let quote = ClaudeUsagePricing.quote(model: model, usage: billable) else {
+    guard let quote = ClaudeUsagePricing.quote(model: model, usage: usage) else {
       return .unpricedModel(model, timestamp: timestamp)
     }
 
@@ -41,7 +33,7 @@ struct ClaudeUsageLogParser: UsageLogParser {
           cost: quote.cost,
           model: quote.model,
         ),
-        revision: usage.revision,
+        revision: reply.usage.revision,
       )
     )
   }
@@ -54,12 +46,8 @@ struct ClaudeTokenUsage: Sendable {
     cacheCreation: CacheCreation,
     output: UInt64,
   ) {
-    let cacheCreated =
-      switch cacheCreation {
-      case .aggregate(let tokens): Optional(tokens)
-      case .byDuration(let fiveMinute, let oneHour): fiveMinute.checkedAdding(oneHour)
-      }
-    guard let processed = cacheCreated?.checkedAdding(input)?.checkedAdding(cacheRead)?.checkedAdding(output) else {
+    guard let processed = cacheCreation.tokens?.checkedAdding(input)?.checkedAdding(cacheRead)?.checkedAdding(output)
+    else {
       return nil
     }
     self.input = input
@@ -72,6 +60,13 @@ struct ClaudeTokenUsage: Sendable {
   enum CacheCreation: Sendable {
     case aggregate(UInt64)
     case byDuration(fiveMinute: UInt64, oneHour: UInt64)
+
+    var tokens: UInt64? {
+      switch self {
+      case .aggregate(let tokens): tokens
+      case .byDuration(let fiveMinute, let oneHour): fiveMinute.checkedAdding(oneHour)
+      }
+    }
   }
 
   let input: UInt64
@@ -82,7 +77,6 @@ struct ClaudeTokenUsage: Sendable {
 }
 
 struct ClaudeBillableUsage: Sendable {
-  /// surcharged reply options require support from the priced model.
   struct Options: OptionSet, Sendable {
     static let fastMode = Self(rawValue: 1 << 0)
     static let usInference = Self(rawValue: 1 << 1)
@@ -91,13 +85,13 @@ struct ClaudeBillableUsage: Sendable {
   }
 
   let tokens: ClaudeTokenUsage
-  let options: Options
+  let options: Options?
   let webSearchRequests: UInt64
 }
 
-/// the logged kind follows the message, so members are collected before any is decoded; the last duplicate wins.
+/// claude logs the kind after the message.
 private struct ClaudeAssistantReply {
-  init?(_ line: UnsafeRawBufferPointer) throws {
+  init?(_ line: UnsafeRawBufferPointer) throws(MalformedUsageRecord) {
     guard var record = JSONObjectReader(line) else {
       return nil
     }
@@ -122,8 +116,6 @@ private struct ClaudeAssistantReply {
       default: break
       }
     }
-    self.timestamp = try timestamp?.text()
-    self.requestID = try requestID?.text()
     guard isAssistant, let message else {
       return nil
     }
@@ -140,23 +132,25 @@ private struct ClaudeAssistantReply {
       default: break
       }
     }
-    self.messageID = try messageID?.text()
-    self.model = try model?.string()
     guard let usage = try usage.map(ClaudeLoggedUsage.init) else {
       return nil
     }
+    self.timestamp = timestamp
+    self.requestID = requestID
+    self.messageID = messageID
+    self.model = model
     self.usage = usage
   }
 
-  let timestamp: JSONText?
-  let requestID: JSONText?
-  let messageID: JSONText?
-  let model: String?
+  let timestamp: JSONValue?
+  let requestID: JSONValue?
+  let messageID: JSONValue?
+  let model: JSONValue?
   let usage: ClaudeLoggedUsage
 }
 
 private struct ClaudeLoggedUsage {
-  init(_ value: JSONValue) throws {
+  init(_ value: JSONValue) throws(MalformedUsageRecord) {
     var input: JSONValue?
     var cacheRead: JSONValue?
     var cacheCreationTotal: JSONValue?
@@ -194,11 +188,12 @@ private struct ClaudeLoggedUsage {
     else {
       throw MalformedUsageRecord()
     }
-    self.tokens = tokens
-    webSearchRequests = try serverToolUse?.nonNull?.member("web_search_requests")?.uint64() ?? 0
-
     let loggedSpeed = try speed?.string()
-    options = Self.options(speed: loggedSpeed, geo: try geo?.string())
+    billable = ClaudeBillableUsage(
+      tokens: tokens,
+      options: Self.options(speed: loggedSpeed, geo: try geo?.string()),
+      webSearchRequests: try serverToolUse?.nonNull?.member("web_search_requests")?.uint64() ?? 0,
+    )
     let explicitCacheDuration: UInt8 =
       if case .byDuration = tokens.cacheCreation {
         1
@@ -211,11 +206,8 @@ private struct ClaudeLoggedUsage {
     )
   }
 
-  let tokens: ClaudeTokenUsage
-  /// nil when the logged speed has no price.
-  let options: ClaudeBillableUsage.Options?
+  let billable: ClaudeBillableUsage
   let revision: UsageEvent.Revision
-  let webSearchRequests: UInt64
 
   private static func options(speed: String?, geo: String?) -> ClaudeBillableUsage.Options? {
     let region: ClaudeBillableUsage.Options = geo == "us" ? .usInference : []
@@ -227,7 +219,10 @@ private struct ClaudeLoggedUsage {
     }
   }
 
-  private static func cacheCreation(total: UInt64, split: JSONValue?) throws -> ClaudeTokenUsage.CacheCreation {
+  private static func cacheCreation(
+    total: UInt64,
+    split: JSONValue?,
+  ) throws(MalformedUsageRecord) -> ClaudeTokenUsage.CacheCreation {
     guard let split else {
       return .aggregate(total)
     }
@@ -241,17 +236,19 @@ private struct ClaudeLoggedUsage {
       default: break
       }
     }
-    let fiveMinuteTokens = try fiveMinute?.uint64() ?? 0
-    let oneHourTokens = try oneHour?.uint64() ?? 0
-    guard fiveMinuteTokens.checkedAdding(oneHourTokens) == total else {
+    let byDuration = ClaudeTokenUsage.CacheCreation.byDuration(
+      fiveMinute: try fiveMinute?.uint64() ?? 0,
+      oneHour: try oneHour?.uint64() ?? 0,
+    )
+    guard byDuration.tokens == total else {
       throw MalformedUsageRecord()
     }
-    return .byDuration(fiveMinute: fiveMinuteTokens, oneHour: oneHourTokens)
+    return byDuration
   }
 }
 
 extension UsageEventID {
-  static func claude(messageID: some Collection<UInt8>, requestID: some Collection<UInt8>) -> Self {
+  fileprivate static func claude(messageID: JSONText, requestID: JSONText) -> Self {
     Self(.claude) {
       $0.combine(text: messageID)
       $0.combine(text: requestID)

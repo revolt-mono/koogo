@@ -54,6 +54,21 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     XCTAssertThrowsError(try parser.parse(line))
   }
 
+  func testClaudeIdentityCombinesTheMessageAndRequestIDs() throws {
+    var parser = ClaudeUsageLogParser()
+    let line = ClaudeLog.assistant(model: "claude-opus-5", usage: #""input_tokens":10,"output_tokens":40"#)
+    let lines = [
+      line,
+      line.replacing(#""requestId":"request""#, with: #""requestId":"other""#),
+      line.replacing(#""id":"message""#, with: #""id":"other""#),
+    ]
+
+    let ids = try lines.map { try XCTUnwrap(parser.parse($0)?.event).id }
+
+    XCTAssertEqual(Set(ids).count, lines.count)
+    XCTAssertEqual(try XCTUnwrap(parser.parse(line)?.event).id, ids[0])
+  }
+
   func testClaudeSkipsZeroUsageSyntheticReplies() throws {
     var parser = ClaudeUsageLogParser()
     let reply = ClaudeLog.assistant(
@@ -62,6 +77,19 @@ final class ClaudeUsageTests: UsageWorkspaceTestCase {
     )
 
     for line in [reply, reply.replacing(#""requestId":"request","#, with: "")] {
+      XCTAssertNil(try parser.parse(line), line)
+    }
+  }
+
+  func testClaudeSkipsLinesThatBillNothingWithoutReadingTheirOtherFields() throws {
+    var parser = ClaudeUsageLogParser()
+    let zeroUsage = ClaudeLog.assistant(model: "claude-opus-5", usage: #""input_tokens":0,"output_tokens":0"#)
+    for line in [
+      #"{"timestamp":1,"requestId":2,"message":{"id":3,"model":4,"usage":{"input_tokens":10,"output_tokens":5}}}"#,
+      zeroUsage.replacing(#""requestId":"request""#, with: #""requestId":2"#),
+      zeroUsage.replacing(#""id":"message""#, with: #""id":3"#),
+      zeroUsage.replacing(#""model":"claude-opus-5""#, with: #""model":4"#),
+    ] {
       XCTAssertNil(try parser.parse(line), line)
     }
   }

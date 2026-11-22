@@ -1,14 +1,9 @@
 enum GrokUsagePricing {
   static func cost(of tokens: GrokTokenUsage, model: ModelID) -> Picodollars? {
-    guard let price = price(of: model) else {
-      return nil
-    }
-    return price.input * tokens.uncachedInput + price.cachedInput * tokens.cachedInput + price.output
-      * tokens.output
+    price(of: model)?.cost(of: tokens)
   }
 
   private struct ModelPrice: Sendable {
-    /// rates are nanodollars per token.
     init(input: UInt64, cachedInput: UInt64, output: UInt64) {
       self.input = Picodollars(nanodollars: input)
       self.cachedInput = Picodollars(nanodollars: cachedInput)
@@ -25,6 +20,10 @@ enum GrokUsagePricing {
       fast.cachedInput = cachedInput * 2
       fast.output = output * 2
       return fast
+    }
+
+    func cost(of tokens: GrokTokenUsage) -> Picodollars {
+      input * tokens.uncachedInput + cachedInput * tokens.cachedInput + output * tokens.output
     }
   }
 

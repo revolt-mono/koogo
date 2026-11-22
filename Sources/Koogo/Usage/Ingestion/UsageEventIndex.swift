@@ -3,7 +3,7 @@ import Foundation
 struct UsageEventIndex: Sendable {
   struct Batch: ~Copyable {
     mutating func insert(_ event: UsageEvent) {
-      pending.append(index.entry(event))
+      pending.append(Entry(event, model: index.intern(event.record.model)))
     }
 
     mutating func removeAll() {
@@ -14,7 +14,6 @@ struct UsageEventIndex: Sendable {
     fileprivate var pending = [Entry]()
   }
 
-  /// publishes the batch, deduplicated, when the body returns.
   mutating func update<Result>(_ body: (inout Batch) -> Result) -> Result {
     var batch = Batch(index: consume self)
     let result = body(&batch)
@@ -23,13 +22,23 @@ struct UsageEventIndex: Sendable {
     return result
   }
 
-  mutating func discard(before windowStart: Date) {
+  mutating func discard(before windowStart: UsageTimestamp) {
     entries.removeAll { $0.timestamp < windowStart }
   }
 
   /// the narrow fields come last, keeping each entry at a 56-byte stride.
   fileprivate struct Entry: Sendable {
-    let secondsSinceReferenceDate: TimeInterval
+    init(_ event: UsageEvent, model: UInt32) {
+      timestamp = event.record.timestamp
+      processedTokens = event.record.processedTokens
+      cost = event.record.cost
+      outputTokens = event.revision.outputTokens
+      id = event.id
+      metadataCompleteness = event.revision.metadataCompleteness
+      self.model = model
+    }
+
+    let timestamp: UsageTimestamp
     let processedTokens: UInt64
     let cost: Picodollars
     let outputTokens: UInt64
@@ -37,20 +46,15 @@ struct UsageEventIndex: Sendable {
     let metadataCompleteness: UInt8
     let model: UInt32
 
-    var timestamp: Date {
-      Date(timeIntervalSinceReferenceDate: secondsSinceReferenceDate)
-    }
-
     var revision: UsageEvent.Revision {
       UsageEvent.Revision(outputTokens: outputTokens, metadataCompleteness: metadataCompleteness)
     }
 
-    /// more output wins, then more explicit metadata, then more tokens, then the earlier copy.
     func isSuperseded(by other: Self) -> Bool {
       let rank = (other.outputTokens, other.metadataCompleteness, other.processedTokens)
       let storedRank = (outputTokens, metadataCompleteness, processedTokens)
       return rank == storedRank
-        ? other.secondsSinceReferenceDate < secondsSinceReferenceDate
+        ? other.timestamp < timestamp
         : rank > storedRank
     }
   }
@@ -80,21 +84,12 @@ struct UsageEventIndex: Sendable {
     entries = entries.withUnsafeBufferPointer { Array($0.prefix(survivorCount)) }
   }
 
-  private mutating func entry(_ event: UsageEvent) -> Entry {
-    let record = event.record
-    let model = models.firstIndex(of: record.model) ?? models.endIndex
-    if model == models.endIndex {
-      models.append(record.model)
+  private mutating func intern(_ model: ModelID?) -> UInt32 {
+    let slot = models.firstIndex(of: model) ?? models.endIndex
+    if slot == models.endIndex {
+      models.append(model)
     }
-    return Entry(
-      secondsSinceReferenceDate: record.timestamp.timeIntervalSinceReferenceDate,
-      processedTokens: record.processedTokens,
-      cost: record.cost,
-      outputTokens: event.revision.outputTokens,
-      id: event.id,
-      metadataCompleteness: event.revision.metadataCompleteness,
-      model: UInt32(model),
-    )
+    return UInt32(slot)
   }
 
   private func event(at position: Int) -> UsageEvent {
@@ -113,15 +108,14 @@ struct UsageEventIndex: Sendable {
 }
 
 extension UsageEventIndex {
-  /// visits each id once across the indexes, keeping the superseding copy; an exact tie keeps the earliest index's.
+  /// an exact tie keeps the earliest index's copy.
   static func forEachUnique(in indexes: [UsageEventIndex], _ visit: (UsageEvent) -> Void) {
-    var merge = Merge(indexes)
-    while let copy = merge.next() {
+    for copy in Merge(indexes) {
       visit(indexes[copy.index].event(at: copy.position))
     }
   }
 
-  private struct Merge {
+  private struct Merge: Sequence, IteratorProtocol {
     init(_ indexes: [UsageEventIndex]) {
       self.indexes = indexes
       heap = indexes.indices.compactMap { index in

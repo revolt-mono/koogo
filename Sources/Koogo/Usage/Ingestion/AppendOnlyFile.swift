@@ -1,8 +1,6 @@
-import Darwin
 import Foundation
 import System
 
-/// retains a partial tail until newline; replacement or truncation restarts from byte zero.
 struct AppendOnlyFile: LogFile {
   init(_ path: String, observed metadata: UsageFileMetadata) {
     self.path = path
@@ -13,7 +11,7 @@ struct AppendOnlyFile: LogFile {
     let wasReplaced =
       metadata.identity != observed.identity
         || observed.size < metadata.size
-        || (observed.size == metadata.size && observed.modificationDate != metadata.modificationDate)
+        || (observed.size == metadata.size && observed.modificationTime != metadata.modificationTime)
     if wasReplaced {
       state = .replaced
       return true
@@ -26,24 +24,23 @@ struct AppendOnlyFile: LogFile {
       return false
     }
     defer { try? file.close() }
-    guard let current = UsageFileMetadata(fileDescriptor: file.rawValue) else {
+    guard let current = UsageFileMetadata(file) else {
       return false
     }
 
     let restarted =
-      state == .replaced || current.identity != metadata.identity || current.size < parsedOffset
-        || !parsedTailMatches(file)
+      state == .replaced || current.identity != metadata.identity || current.size < parsed.byteCount
+        || !parsed.isIntact(in: file)
     if restarted {
       restart()
-      parsedOffset = 0
-      parsedTail = Data()
+      parsed = ParsedPrefix()
     }
-    let startOffset = parsedOffset
+    let startOffset = parsed.byteCount
     let finished =
-      parsedOffset >= current.size || readLines(file, in: parsedOffset..<current.size, consume: consume)
+      startOffset >= current.size || readLines(file, in: startOffset..<current.size, consume: consume)
     metadata = current
     state = finished ? .caughtUp : .unfinished
-    return finished || restarted || parsedOffset > startOffset
+    return finished || restarted || parsed.byteCount > startOffset
   }
 
   private enum ReadState {
@@ -52,18 +49,38 @@ struct AppendOnlyFile: LogFile {
     case replaced
   }
 
-  private static var parsedTailSize: Int {
-    64
+  private struct ParsedPrefix {
+    private(set) var byteCount: UInt64 = 0
+
+    mutating func append(_ bytes: UnsafeRawBufferPointer) {
+      guard !bytes.isEmpty else {
+        return
+      }
+      tail = Data((tail + bytes.suffix(Self.tailSize)).suffix(Self.tailSize))
+      byteCount += UInt64(bytes.count)
+    }
+
+    func isIntact(in file: FileDescriptor) -> Bool {
+      guard !tail.isEmpty else {
+        return true
+      }
+      var onDisk = Data(count: tail.count)
+      let count = try? onDisk.withUnsafeMutableBytes {
+        try file.read(fromAbsoluteOffset: Int64(byteCount) - Int64(tail.count), into: $0)
+      }
+      return count == tail.count && onDisk == tail
+    }
+
+    private static let tailSize = 64
+
+    private var tail = Data()
   }
 
-  private static var readSize: Int {
-    1 << 18
-  }
+  private static let readSize = 1 << 18
 
   private let path: String
   private var metadata: UsageFileMetadata
-  private var parsedOffset: UInt64 = 0
-  private var parsedTail = Data()
+  private var parsed = ParsedPrefix()
   private var state = ReadState.caughtUp
 
   private mutating func readLines(
@@ -71,16 +88,10 @@ struct AppendOnlyFile: LogFile {
     in offsets: Range<UInt64>,
     consume: (UnsafeRawBufferPointer) -> Void,
   ) -> Bool {
-    var buffer = PageBuffer(byteCount: min(offsets.count, Self.readSize))
-    var pending = 0
+    var lines = LineBuffer(byteCount: min(offsets.count, Self.readSize))
     var readOffset = offsets.lowerBound
     while readOffset < offsets.upperBound {
-      if pending == buffer.bytes.count {
-        buffer.doubleCapacity()
-      }
-      let space = buffer.bytes[
-        pending..<min(buffer.bytes.count, pending + Int(clamping: offsets.upperBound - readOffset))
-      ]
+      let space = lines.spaceToFill().prefix(Int(clamping: offsets.upperBound - readOffset))
       guard
         let count = try? file.read(
           fromAbsoluteOffset: Int64(readOffset),
@@ -91,27 +102,8 @@ struct AppendOnlyFile: LogFile {
         return false
       }
       readOffset += UInt64(count)
-      pending += count
-      let parsed = buffer.handOutCompleteLines(first: pending, consume: consume)
-      if parsed > 0 {
-        let tail = buffer.bytes[max(parsed - Self.parsedTailSize, 0)..<parsed]
-        parsedTail = Data((parsedTail + tail).suffix(Self.parsedTailSize))
-        parsedOffset += UInt64(parsed)
-        pending -= parsed
-        memmove(buffer.bytes.baseAddress, buffer.bytes.baseAddress! + parsed, pending)
-      }
+      parsed.append(lines.handOutLines(filled: count, consume: consume))
     }
     return true
-  }
-
-  private func parsedTailMatches(_ file: FileDescriptor) -> Bool {
-    guard !parsedTail.isEmpty else {
-      return true
-    }
-    var tail = Data(count: parsedTail.count)
-    let count = try? tail.withUnsafeMutableBytes {
-      try file.read(fromAbsoluteOffset: Int64(parsedOffset) - Int64(parsedTail.count), into: $0)
-    }
-    return count == parsedTail.count && tail == parsedTail
   }
 }

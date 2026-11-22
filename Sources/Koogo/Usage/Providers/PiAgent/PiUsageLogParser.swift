@@ -1,7 +1,7 @@
 import Foundation
 
 struct PiUsageLogParser: UsageLogParser {
-  func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
+  func parse(_ line: UnsafeRawBufferPointer) throws(MalformedUsageRecord) -> UsageLineOutcome? {
     guard
       let entry = try PiEntry(line),
       let billed = entry.billed,
@@ -24,7 +24,7 @@ struct PiUsageLogParser: UsageLogParser {
 }
 
 private struct PiEntry {
-  init?(_ line: UnsafeRawBufferPointer) throws {
+  init?(_ line: UnsafeRawBufferPointer) throws(MalformedUsageRecord) {
     guard var record = JSONObjectReader(line) else {
       return nil
     }
@@ -50,7 +50,6 @@ private struct PiEntry {
     guard let type, let id = try id?.text() else {
       throw MalformedUsageRecord()
     }
-    let timestampText = try timestamp?.text()
     self.id = id
     switch type {
     case "message":
@@ -61,9 +60,12 @@ private struct PiEntry {
 
     case "compaction",
          "branch_summary":
-      billed = try usage?.nonNull.map {
-        try PiBilledEntry(usage: $0, model: nil, timestamp: timestampText.flatMap(Date.init(iso8601:)))
-      }
+      billed =
+        if let usage = usage?.nonNull {
+          try PiBilledEntry(usage: usage, model: nil, timestamp: timestamp?.iso8601())
+        } else {
+          nil
+        }
 
     // usage entries bill model calls outside the conversation, such as cache warming.
     case "usage":
@@ -73,7 +75,7 @@ private struct PiEntry {
       billed = try PiBilledEntry(
         usage: usage,
         model: PiModelCatalog.modelID(provider: providerName, model: modelName),
-        timestamp: timestampText.flatMap(Date.init(iso8601:)),
+        timestamp: try timestamp?.iso8601(),
       )
 
     default:
@@ -86,7 +88,7 @@ private struct PiEntry {
 }
 
 private struct PiBilledEntry {
-  init(usage: JSONValue, model: ModelID?, timestamp: Date?) throws {
+  init(usage: JSONValue, model: ModelID?, timestamp: UsageTimestamp?) throws(MalformedUsageRecord) {
     var processedTokens: JSONValue?
     var cost: JSONValue?
     var fields = try usage.object()
@@ -110,7 +112,7 @@ private struct PiBilledEntry {
     self.timestamp = timestamp
   }
 
-  init?(message: JSONValue) throws {
+  init?(message: JSONValue) throws(MalformedUsageRecord) {
     var role: JSONValue?
     var provider: JSONValue?
     var model: JSONValue?
@@ -127,44 +129,42 @@ private struct PiBilledEntry {
       default: break
       }
     }
-    let providerName = try provider?.string()
-    let modelName = try model?.string()
     guard let role else {
       throw MalformedUsageRecord()
     }
     guard let usage else {
       return nil
     }
-    let reference: ModelID?
+    let billedModel: ModelID?
     switch role {
     case "assistant":
-      guard let providerName, let modelName else {
+      guard let providerName = try provider?.string(), let modelName = try model?.string() else {
         throw MalformedUsageRecord()
       }
-      reference = PiModelCatalog.modelID(provider: providerName, model: modelName)
+      billedModel = PiModelCatalog.modelID(provider: providerName, model: modelName)
 
     case "toolResult":
-      reference = nil
+      billedModel = nil
 
     default:
       return nil
     }
-    let timestamp = try milliseconds?.uint64().map(Date.init(unixMilliseconds:))
+    let timestamp = try milliseconds?.uint64().map(UsageTimestamp.init(unixMilliseconds:))
     guard let usage = usage.nonNull else {
       return nil
     }
-    try self.init(usage: usage, model: reference, timestamp: timestamp)
+    try self.init(usage: usage, model: billedModel, timestamp: timestamp)
   }
 
   let processedTokens: UInt64
   let cost: Picodollars
   let model: ModelID?
-  let timestamp: Date
+  let timestamp: UsageTimestamp
 }
 
 extension UsageEventID {
   /// pi entry ids are eight hex digits unique only within a session; forks copy entries with their timestamps.
-  static func piAgent(entryID: some Collection<UInt8>, timestamp: Date) -> Self {
+  fileprivate static func piAgent(entryID: JSONText, timestamp: UsageTimestamp) -> Self {
     Self(.piAgent) {
       $0.combine(text: entryID)
       $0.combine(timestamp)

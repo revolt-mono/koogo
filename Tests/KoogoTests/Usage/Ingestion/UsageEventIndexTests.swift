@@ -14,19 +14,14 @@ final class UsageEventIndexTests: XCTestCase {
 
     XCTAssertEqual(index.events.map(\.record.processedTokens).sorted(), [20, 30])
 
-    index.discard(before: UsageFixture.timestamp)
+    index.discard(before: UsageTimestamp(UsageFixture.timestamp))
 
     XCTAssertEqual(index.events.map(\.record.processedTokens), [20])
   }
 
   func testIdenticalCopiesKeepTheEarliestTimestamp() {
-    let ids: [UsageEventID] = [
-      .codex(responseID: "response".utf8),
-      .piAgent(entryID: "entry".utf8, timestamp: UsageFixture.timestamp),
-      .grok(eventID: "event".utf8, timestampMilliseconds: UsageFixture.timestamp.millisecondsSince1970),
-    ]
-
-    for id in ids {
+    for provider in Provider.allCases {
+      let id = UsageEventID(provider) { $0.combine(text: "event".utf8) }
       var index = UsageEventIndex()
       index.update { batch in
         batch.insert(UsageEvent(id: id, record: record(tokens: 10, at: UsageFixture.timestamp + 1)))
@@ -34,7 +29,7 @@ final class UsageEventIndexTests: XCTestCase {
         batch.insert(UsageEvent(id: id, record: record(tokens: 10, at: UsageFixture.timestamp + 2)))
       }
 
-      XCTAssertEqual(index.events.map(\.record.timestamp), [UsageFixture.timestamp], "\(id)")
+      XCTAssertEqual(index.events.map(\.record.timestamp.date), [UsageFixture.timestamp], "\(provider)")
     }
   }
 
@@ -127,7 +122,7 @@ final class UsageEventIndexTests: XCTestCase {
 
   private func record(tokens: UInt64, at date: Date = UsageFixture.timestamp) -> UsageRecord {
     UsageRecord(
-      timestamp: date,
+      timestamp: UsageTimestamp(date),
       processedTokens: tokens,
       cost: .zero,
       model: nil,
@@ -141,7 +136,7 @@ final class UsageEventIndexTests: XCTestCase {
     at date: Date = UsageFixture.timestamp,
   ) -> UsageEvent {
     UsageEvent(
-      id: .claude(messageID: "message".utf8, requestID: "request".utf8),
+      id: UsageEventID(.claude) { $0.combine(text: "message".utf8) },
       record: record(tokens: tokens, at: date),
       revision: UsageEvent.Revision(outputTokens: outputTokens, metadataCompleteness: metadataCompleteness),
     )

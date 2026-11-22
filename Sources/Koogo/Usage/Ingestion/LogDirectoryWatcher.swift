@@ -102,7 +102,6 @@ final class LogDirectoryWatcher {
         | kFSEventStreamEventFlagMount | kFSEventStreamEventFlagUnmount
     )
 
-    /// nil once a change needs a full walk.
     private let pending = Mutex<Set<String>?>([])
   }
 

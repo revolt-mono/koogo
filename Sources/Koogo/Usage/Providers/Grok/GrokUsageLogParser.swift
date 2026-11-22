@@ -2,12 +2,12 @@ import Foundation
 
 /// each completed grok turn sums the whole prompt per model, including subagents.
 struct GrokUsageLogParser: UsageLogParser {
-  func parse(_ line: UnsafeRawBufferPointer) throws -> UsageLineOutcome? {
+  func parse(_ line: UnsafeRawBufferPointer) throws(MalformedUsageRecord) -> UsageLineOutcome? {
     guard let turn = try GrokCompletedTurn(line) else {
       return nil
     }
-    let timestamp = Date(unixMilliseconds: turn.milliseconds)
-    let prompt = try GrokPromptUsage(turn.usage)
+    let timestamp = UsageTimestamp(unixMilliseconds: turn.milliseconds)
+    let prompt = turn.prompt
     guard !prompt.modelUsage.isEmpty else {
       // cancelled grok prompts can complete with no model rows and zero billable tokens.
       guard prompt.totalTokens == 0 else { throw MalformedUsageRecord() }
@@ -36,36 +36,31 @@ struct GrokUsageLogParser: UsageLogParser {
 }
 
 private struct GrokCompletedTurn {
-  init?(_ line: UnsafeRawBufferPointer) throws {
-    guard var record = JSONObjectReader(line) else {
-      return nil
-    }
-    var params: JSONValue?
-    while let member = try record.next() {
-      if member.key.isString("params") {
-        params = member.value
-      }
-    }
-    guard let update = try params?.member("update"), let usage = try Self.completedTurnUsage(in: update) else {
+  init?(_ line: UnsafeRawBufferPointer) throws(MalformedUsageRecord) {
+    guard
+      let params = try JSONObjectReader(line)?.member("params"),
+      let update = try params.member("update"),
+      let usage = try Self.completedTurnUsage(in: update)
+    else {
       return nil
     }
     guard
-      let meta = try params?.member("_meta"),
+      let meta = try params.member("_meta"),
       let eventID = try meta.member("eventId")?.text(),
       let milliseconds = try meta.member("agentTimestampMs")?.uint64()
     else {
       throw MalformedUsageRecord()
     }
-    self.usage = usage
     self.eventID = eventID
     self.milliseconds = milliseconds
+    prompt = try GrokPromptUsage(usage)
   }
 
-  let usage: JSONValue
   let eventID: JSONText
   let milliseconds: UInt64
+  let prompt: GrokPromptUsage
 
-  private static func completedTurnUsage(in update: JSONValue) throws -> JSONValue? {
+  private static func completedTurnUsage(in update: JSONValue) throws(MalformedUsageRecord) -> JSONValue? {
     var isCompletedTurn = false
     var usage: JSONValue?
     var fields = try update.object()
@@ -87,7 +82,7 @@ private struct GrokCompletedTurn {
 }
 
 private struct GrokPromptUsage {
-  init(_ value: JSONValue) throws {
+  init(_ value: JSONValue) throws(MalformedUsageRecord) {
     var totalTokens: JSONValue?
     var modelUsage: JSONValue?
     var fields = try value.object()
@@ -104,10 +99,7 @@ private struct GrokPromptUsage {
     var models = try modelUsage?.object()
     var usage = [(model: ModelID, tokens: GrokTokenUsage)]()
     while let row = try models?.next() {
-      guard let name = try row.key.string() else {
-        throw MalformedUsageRecord()
-      }
-      usage.append((ModelID(rawValue: name), try GrokTokenUsage(row.value)))
+      usage.append((ModelID(rawValue: try row.key.string()), try GrokTokenUsage(row.value)))
     }
     self.totalTokens = totalTokens
     self.modelUsage = usage
@@ -128,7 +120,7 @@ struct GrokTokenUsage: Sendable {
     self.output = output
   }
 
-  fileprivate init(_ value: JSONValue) throws {
+  fileprivate init(_ value: JSONValue) throws(MalformedUsageRecord) {
     var input: JSONValue?
     var cachedInput: JSONValue?
     var output: JSONValue?
@@ -163,7 +155,7 @@ struct GrokTokenUsage: Sendable {
 
 extension UsageEventID {
   /// grok forks preserve both fields; resumed sessions can reuse an event id at a later time.
-  static func grok(eventID: some Collection<UInt8>, timestampMilliseconds: UInt64) -> Self {
+  fileprivate static func grok(eventID: JSONText, timestampMilliseconds: UInt64) -> Self {
     Self(.grok) {
       $0.combine(text: eventID)
       $0.combine(timestampMilliseconds)
