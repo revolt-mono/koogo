@@ -8,8 +8,9 @@ struct ProcessScanTests {
   func `the running machine measures this process`() async {
     await #expect(processExitsWith: .success) {
       let before = try ProcessScan.read(after: nil)
-      let spinUntil = ContinuousClock.now + .milliseconds(300)
-      while ContinuousClock.now < spinUntil { }
+      // parallel tests contend for cores, so spin on this process's own cpu clock rather than the wall clock.
+      let spinUntil = clock_gettime_nsec_np(CLOCK_PROCESS_CPUTIME_ID) + 300_000_000
+      while clock_gettime_nsec_np(CLOCK_PROCESS_CPUTIME_ID) < spinUntil { }
       let after = try ProcessScan.read(after: before)
 
       let earlier = try #require(before.records.first { $0.pid == getpid() })
