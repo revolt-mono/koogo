@@ -34,7 +34,7 @@ struct GrokQuotaSource: QuotaSource {
         }
       }
     } catch {
-      return .unavailable(QuotaUnavailability(error))
+      return QuotaReading(error)
     }
   }
 

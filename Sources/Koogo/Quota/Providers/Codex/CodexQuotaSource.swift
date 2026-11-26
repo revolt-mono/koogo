@@ -22,7 +22,7 @@ struct CodexQuotaSource: CodexQuotaResetSource {
       // codex rejects quota requests locally unless signed in with a chatgpt account.
       return .unavailable(.noPlan)
     } catch {
-      return .unavailable(QuotaUnavailability(error.failure))
+      return QuotaReading(error.failure)
     }
   }
 

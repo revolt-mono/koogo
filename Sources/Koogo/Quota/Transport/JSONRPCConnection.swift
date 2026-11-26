@@ -10,10 +10,12 @@ struct JSONRPCConnection: ~Copyable {
   mutating func request<Value: Decodable>(
     _ method: String,
     params: some Encodable?,
+    didSend: @Sendable () -> Void = { },
   ) async throws -> Value {
     let id = nextID
     nextID += 1
     try await send(Request(id: id, method: method, params: params))
+    didSend()
     return try await streams.first { line in
       guard case .response(id) = try decoder.decode(Header.self, from: line) else { return nil }
       return try decoder.decode(Response<Value>.self, from: line).result

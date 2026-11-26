@@ -50,6 +50,46 @@ struct SystemReportTests {
     }
   }
 
+  @Test(arguments: [ProviderUpstreamAccess.Denial.restrictedRegion, .unknownRegion])
+  func `a region change stops every report provider and rejects a reset before launch`(
+    denial: ProviderUpstreamAccess.Denial
+  ) async throws {
+    let cli = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
+    let region = cli.root.appending(path: "region.json")
+    let access = ProviderUpstreamAccess { try ProviderUpstreamAccess.response(String(contentsOf: region, encoding: .utf8)) }
+    let tool = try CommandLineTool(candidates: [cli.makeAppServer()], access: access)
+    let sources = QuotaSources(
+      codex: CodexQuotaSource(tool: tool),
+      claude: ClaudeQuotaSource(tool: tool),
+      grok: GrokQuotaSource(tool: tool),
+    )
+
+    try #"{"country":"SG"}"#.write(to: region, atomically: true, encoding: .utf8)
+    let snapshot = try await sources.codex.load().get()
+    let credit = try #require(snapshot.resetCredits?.credits?.first)
+    try FileManager.default.removeItem(at: cli.argumentsFile)
+    switch denial {
+    case .restrictedRegion: try #"{"country":"CN"}"#.write(to: region, atomically: true, encoding: .utf8)
+    case .unknownRegion: try FileManager.default.removeItem(at: region)
+    }
+
+    let result = await sources.codex.consume(CodexQuotaResetAttempt(credit: credit))
+    #expect(result == .failure(.rejected(.upstreamDenied(denial))))
+    let data = try await SystemReport.generate(
+      pipeline: workspace.makePipeline(),
+      quotaSources: sources,
+      at: UsageFixture.timestamp,
+    )
+    let report = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let quota = try #require(report["quota"] as? [String: [String: String]])
+    let paused = ["state": "paused", "reason": denial.rawValue]
+    #expect(quota == ["codex": paused, "claude": paused, "grok": paused])
+    #expect(!FileManager.default.fileExists(atPath: cli.argumentsFile.path))
+
+    try #"{"country":"SG"}"#.write(to: region, atomically: true, encoding: .utf8)
+    #expect(await sources.codex.load() == .available(snapshot))
+  }
+
   @Test
   func `report key paths are stable`() async throws {
     let quotaWorkspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())

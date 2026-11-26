@@ -4,8 +4,9 @@ import Subprocess
 import System
 
 struct CommandLineTool: Sendable {
-  init(candidates: [URL], timeout: Duration = defaultTimeout) {
+  init(candidates: [URL], access: ProviderUpstreamAccess, timeout: Duration = defaultTimeout) {
     self.candidates = candidates
+    self.access = access
     self.timeout = timeout
   }
 
@@ -13,8 +14,11 @@ struct CommandLineTool: Sendable {
     let path = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map {
       URL(filePath: String($0))
     }
-    self.init(candidates: (preferred + Self.installDirectories + path).map { $0.appending(path: name) })
+    self.init(candidates: (preferred + Self.installDirectories + path).map { $0.appending(path: name) }, access: .live)
   }
+
+  /// Codex checks the region before initialize, initialized, and the requested method.
+  static let defaultTimeout = Duration.seconds(10 + 3 * ProviderUpstreamAccess.lookupTimeout)
 
   func session<Value: Sendable>(
     _ arguments: [String],
@@ -22,9 +26,12 @@ struct CommandLineTool: Sendable {
   ) async throws(ToolFailure) -> Value {
     guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) })
     else { throw .notFound }
-    Self.brokenPipesIgnored
     do {
+      try await access.verify()
+      Self.brokenPipesIgnored
       return try await converse(with: executable, arguments, session)
+    } catch let denial as ProviderUpstreamAccess.Denial {
+      throw .upstreamDenied(denial)
     } catch let failure as ToolFailure {
       throw failure
     } catch {
@@ -54,9 +61,8 @@ struct CommandLineTool: Sendable {
   /// its working directory at startup, so the directory is the system's always-empty one.
   private static let workingDirectory = FilePath("/var/empty")
 
-  private static let defaultTimeout = Duration.seconds(10)
-
   private let candidates: [URL]
+  private let access: ProviderUpstreamAccess
   private let timeout: Duration
 
   private func converse<Value: Sendable>(
@@ -83,7 +89,7 @@ struct CommandLineTool: Sendable {
       try await withThrowingTaskGroup(of: Value.self) { group in
         group.addTask {
           try await session(
-            ToolStreams(input: execution.standardInputWriter, output: execution.standardOutput)
+            ToolStreams(input: execution.standardInputWriter, output: execution.standardOutput, access: access)
           )
         }
         group.addTask {

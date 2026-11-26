@@ -5,6 +5,41 @@ import Testing
 
 struct CommandLineToolTests {
   @Test
+  func `only a successful lookup with a known country can authorize a provider`() async throws {
+    for (status, body) in [
+      (429, #"{"country":"SG"}"#),
+      (200, "<html>Sign in</html>"),
+      (200, #"{"country":null}"#),
+    ] + ["XX", "T1", "001", "EU", "cn", " SG"].map({ (200, #"{"country":"\#($0)"}"#) }) {
+      let access = ProviderUpstreamAccess { try ProviderUpstreamAccess.response(body, status: status) }
+      await #expect(throws: ProviderUpstreamAccess.Denial.unknownRegion) { try await access.verify() }
+    }
+    for country in ["HK", "MO", "TW"] {
+      let access = ProviderUpstreamAccess { try ProviderUpstreamAccess.response(#"{"country":"\#(country)"}"#) }
+      try await access.verify()
+    }
+  }
+
+  @Test
+  func `canceling a lookup stops the launch without reporting a region denial`() async throws {
+    let lookups = Counter()
+    let access = ProviderUpstreamAccess {
+      lookups.increment()
+      try await Task.sleep(for: .seconds(5))
+      return try ProviderUpstreamAccess.response(#"{"country":"SG"}"#)
+    }
+    let workspace = GrokQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
+    let tool = try CommandLineTool(candidates: [workspace.makeAgent()], access: access)
+
+    let reading = Task { await GrokQuotaSource(tool: tool).load() }
+    try await Poll.until { lookups.value > 0 }
+    reading.cancel()
+
+    #expect(await reading.value == .unavailable(.sessionFailed))
+    #expect(!FileManager.default.fileExists(atPath: workspace.argumentsFile.path))
+  }
+
+  @Test
   func `tools run in an empty directory with a fixed environment instead of the apps own`() async throws {
     let root = try scratch.makeTemporaryDirectory()
     let executable = try TestExecutable.make(

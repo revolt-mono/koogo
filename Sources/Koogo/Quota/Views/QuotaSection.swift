@@ -7,6 +7,12 @@ struct QuotaSection: View {
     let snapshot = quotaModel.snapshot(of: provider)
     let showsReset =
       provider == .codex && (quotaModel.codexResetCredits != nil || quotaModel.codexReset != .idle)
+    if case .paused(let reason) = quotaModel.statuses[provider].latest {
+      Text(reason.message)
+        .font(.system(size: 9, weight: .medium))
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
     if snapshot != nil || showsReset {
       VStack(spacing: 16) {
         VStack(spacing: 8) {

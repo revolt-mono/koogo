@@ -17,7 +17,7 @@ struct ClaudeQuotaSource: QuotaSource {
         return reply.reading
       }
     } catch {
-      return .unavailable(QuotaUnavailability(error))
+      return QuotaReading(error)
     }
   }
 

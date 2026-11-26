@@ -118,6 +118,58 @@ struct CodexQuotaResetTests {
   }
 
   @Test
+  func `a region denial after the handshake rejects an unsent reset`() async throws {
+    let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
+    let consumed = workspace.root.appending(path: "consumed")
+    let lookups = Counter()
+    let access = ProviderUpstreamAccess {
+      // Permit launch, initialize and initialized before the consume preflight.
+      let country =
+        if lookups.increment() <= 3 {
+          "SG"
+        } else {
+          "CN"
+        }
+      return try ProviderUpstreamAccess.response(#"{"country":"\#(country)"}"#)
+    }
+    let executable = try workspace.makeAppServer(onConsume: ": > '\(consumed.path)'")
+    let source = CodexQuotaSource(tool: CommandLineTool(candidates: [executable], access: access))
+
+    let result = await source.consume(resetAttempt())
+
+    #expect(result == .failure(.rejected(.upstreamDenied(.restrictedRegion))))
+    #expect(!FileManager.default.fileExists(atPath: consumed.path))
+  }
+
+  @Test
+  func `codex closing input before the reset is a rejection`() async throws {
+    let root = try scratch.makeTemporaryDirectory()
+    let closed = root.appending(path: "closed")
+    let executable = try TestExecutable.make(
+      in: root,
+      script: """
+        #!/bin/sh
+        IFS= read -r initialize || exit 1
+        printf '%s\\n' '{"id":1,"result":{}}'
+        IFS= read -r initialized || exit 1
+        exec 0<&-
+        : > '\(closed.path)'
+        exec /bin/sleep 5
+        """,
+    )
+    let lookups = Counter()
+    let access = ProviderUpstreamAccess {
+      if lookups.increment() == 4 {
+        try await Poll.until { FileManager.default.fileExists(atPath: closed.path) }
+      }
+      return try ProviderUpstreamAccess.response(#"{"country":"SG"}"#)
+    }
+    let source = CodexQuotaSource(tool: CommandLineTool(candidates: [executable], access: access))
+
+    #expect(await source.consume(resetAttempt()) == .failure(.rejected(.closed)))
+  }
+
+  @Test
   func `timeout keeps the request phase`() async throws {
     let workspace = CodexQuotaTestWorkspace(root: try scratch.makeTemporaryDirectory())
     let initializing = try workspace.makeAppServer(onStart: "while :; do :; done")

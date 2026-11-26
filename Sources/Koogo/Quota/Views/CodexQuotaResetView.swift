@@ -203,6 +203,8 @@ extension ToolFailure {
       "Codex returned an error (code \(code))."
     case .notFound:
       "Codex wasn't found. Install Codex, then retry."
+    case .upstreamDenied(let reason):
+      reason.message
     case .timedOut,
          .closed,
          .invalidMessage:

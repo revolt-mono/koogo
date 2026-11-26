@@ -18,7 +18,26 @@ extension QuotaReading {
     switch self {
     case .available(let snapshot): snapshot
     case .unavailable(let reason): throw reason
+    case .paused(let reason): throw reason
     }
+  }
+}
+
+extension ProviderUpstreamAccess {
+  static func response(_ body: String, status: Int = 200) throws -> (Data, URLResponse) {
+    let url = try #require(URL(string: "https://geo.example/"))
+    let response = try #require(HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil))
+    return (Data(body.utf8), response)
+  }
+}
+
+extension CommandLineTool {
+  init(candidates: [URL], timeout: Duration = defaultTimeout) {
+    self.init(
+      candidates: candidates,
+      access: ProviderUpstreamAccess { try ProviderUpstreamAccess.response(#"{"country":"SG"}"#) },
+      timeout: timeout,
+    )
   }
 }
 

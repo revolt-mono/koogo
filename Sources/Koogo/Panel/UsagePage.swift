@@ -5,10 +5,9 @@ struct UsagePage: View {
   let isShown: Bool
 
   var body: some View {
-    let awaitedQuota = preferences.quotaProviders.filter { quotaModel.statuses[$0].latest == nil }
-    // every page takes this page's height, so the quota its placeholder awaits is due even off screen.
-    let dueQuota = isShown ? preferences.quotaProviders : awaitedQuota
-    PanelPageContent(awaitedQuota.isEmpty ? usageModel.snapshot : nil, loading: "Loading…") { snapshot in
+    // The usage cards set every page's height, so read missing quota even off screen.
+    let dueQuota = preferences.quotaProviders.filter { isShown || quotaModel.statuses[$0].latest == nil }
+    PanelPageContent(usageModel.snapshot, loading: "Loading…") { snapshot in
       VStack(spacing: Self.cardsGapExcludingScrollMargin) {
         VStack(spacing: Self.headerGap) {
           UsageSummaryView(summary: snapshot.summary)
