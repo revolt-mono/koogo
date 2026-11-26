@@ -84,7 +84,8 @@ struct ProcessScanTests {
     var sleeper: ProcessRecord?
     try await Poll.until {
       scan = try? ProcessScan.read(after: nil)
-      sleeper = scan?.records.first { $0.parentPID == shell }
+      // zsh's forked child exits if the shell dies before the child execs.
+      sleeper = scan?.records.first { $0.parentPID == shell && $0.executablePath == "/bin/sleep" }
       return sleeper != nil
     }
     let orphan = try #require(sleeper)
