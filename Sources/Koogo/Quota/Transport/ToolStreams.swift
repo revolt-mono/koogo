@@ -2,9 +2,8 @@ import Foundation
 import Subprocess
 
 struct ToolStreams: ~Copyable {
-  init(input: StandardInputWriter, output: SubprocessOutputSequence, access: ProviderUpstreamAccess) {
+  init(input: StandardInputWriter, output: SubprocessOutputSequence) {
     self.input = input
-    self.access = access
     lines = output.strings(
       separatedBy: .unicodeScalarSequence(["\n"]),
       bufferingPolicy: .maxLineLength(Self.lineLimit),
@@ -12,8 +11,7 @@ struct ToolStreams: ~Copyable {
   }
 
   func write(_ data: Data) async throws {
-    try await access.verify()
-    guard try await input.write(data) == data.count else { throw ToolFailure.closed }
+    _ = try await input.write(data)
   }
 
   mutating func first<Value>(_ match: (Data) throws -> Value?) async throws -> Value {
@@ -34,6 +32,5 @@ struct ToolStreams: ~Copyable {
   private static let lineLimit = 4 * 1_024 * 1_024
 
   private let input: StandardInputWriter
-  private let access: ProviderUpstreamAccess
   private var lines: SubprocessOutputSequence.StringSequence<UTF8>.AsyncIterator
 }

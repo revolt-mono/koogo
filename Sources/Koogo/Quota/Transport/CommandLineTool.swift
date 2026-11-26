@@ -17,8 +17,7 @@ struct CommandLineTool: Sendable {
     self.init(candidates: (preferred + Self.installDirectories + path).map { $0.appending(path: name) }, access: .live)
   }
 
-  /// Codex checks the region before initialize, initialized, and the requested method.
-  static let defaultTimeout = Duration.seconds(10 + 3 * ProviderUpstreamAccess.lookupTimeout)
+  static let defaultTimeout = Duration.seconds(10)
 
   func session<Value: Sendable>(
     _ arguments: [String],
@@ -26,12 +25,12 @@ struct CommandLineTool: Sendable {
   ) async throws(ToolFailure) -> Value {
     guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) })
     else { throw .notFound }
-    do {
-      try await access.verify()
-      Self.brokenPipesIgnored
-      return try await converse(with: executable, arguments, session)
-    } catch let denial as ProviderUpstreamAccess.Denial {
+    if let denial = await access.denial() {
       throw .upstreamDenied(denial)
+    }
+    Self.brokenPipesIgnored
+    do {
+      return try await converse(with: executable, arguments, session)
     } catch let failure as ToolFailure {
       throw failure
     } catch {
@@ -89,7 +88,7 @@ struct CommandLineTool: Sendable {
       try await withThrowingTaskGroup(of: Value.self) { group in
         group.addTask {
           try await session(
-            ToolStreams(input: execution.standardInputWriter, output: execution.standardOutput, access: access)
+            ToolStreams(input: execution.standardInputWriter, output: execution.standardOutput)
           )
         }
         group.addTask {

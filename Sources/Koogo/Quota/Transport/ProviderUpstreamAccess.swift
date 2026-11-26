@@ -17,33 +17,23 @@ struct ProviderUpstreamAccess: Sendable {
     }
   }
 
-  static let lookupTimeout: TimeInterval = 2
-
   static let live = ProviderUpstreamAccess {
     let configuration = URLSessionConfiguration.ephemeral
-    configuration.urlCache = nil
-    configuration.httpCookieStorage = nil
-    configuration.urlCredentialStorage = nil
-    configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-    configuration.timeoutIntervalForResource = lookupTimeout
+    configuration.timeoutIntervalForResource = 2
     // A new session cannot reuse an open connection from the previous route.
-    let session = URLSession(configuration: configuration, delegate: NoRedirects(), delegateQueue: nil)
+    let session = URLSession(configuration: configuration)
     defer { session.finishTasksAndInvalidate() }
     return try await session.data(from: URL(string: "https://api.country.is/")!)
   }
 
-  func verify() async throws {
-    let result = try? await lookup()
-    try Task.checkCancellation()
+  func denial() async -> Denial? {
     guard
-      let (data, response) = result,
+      let (data, response) = try? await lookup(),
       (response as? HTTPURLResponse)?.statusCode == 200,
       let country = try? JSONDecoder().decode(CountryResponse.self, from: data).country,
       NSLocale.isoCountryCodes.contains(country)
-    else { throw Denial.unknownRegion }
-    if country == "CN" {
-      throw Denial.restrictedRegion
-    }
+    else { return .unknownRegion }
+    return country == "CN" ? .restrictedRegion : nil
   }
 
   private struct CountryResponse: Decodable {
@@ -51,15 +41,4 @@ struct ProviderUpstreamAccess: Sendable {
   }
 
   private let lookup: @Sendable () async throws -> (Data, URLResponse)
-}
-
-private final class NoRedirects: NSObject, URLSessionTaskDelegate {
-  func urlSession(
-    _: URLSession,
-    task _: URLSessionTask,
-    willPerformHTTPRedirection _: HTTPURLResponse,
-    newRequest _: URLRequest,
-  ) async -> URLRequest? {
-    nil
-  }
 }
