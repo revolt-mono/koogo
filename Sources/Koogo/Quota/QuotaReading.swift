@@ -11,6 +11,7 @@ enum QuotaUnavailability: String, Encodable, Sendable {
 enum QuotaReading: Equatable, Sendable {
   case available(QuotaSnapshot)
   case unavailable(QuotaUnavailability)
+  case paused(ProviderUpstreamAccess.Denial)
 
   init(_ snapshot: QuotaSnapshot?) {
     self = snapshot.map(Self.available) ?? .unavailable(.emptyLimits)
@@ -32,6 +33,10 @@ extension QuotaReading: Encodable {
 
     case .unavailable(let reason):
       try container.encode("unavailable", forKey: .state)
+      try container.encode(reason, forKey: .reason)
+
+    case .paused(let reason):
+      try container.encode("paused", forKey: .state)
       try container.encode(reason, forKey: .reason)
     }
   }

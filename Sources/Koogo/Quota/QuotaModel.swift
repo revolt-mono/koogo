@@ -107,7 +107,8 @@ final class QuotaModel {
     switch reading {
     case .available: .seconds(60)
     case .unavailable(.noPlan): .seconds(24 * 60 * 60)
-    case .unavailable: .zero
+    case .unavailable,
+         .paused: .zero
     }
   }
 
@@ -133,6 +134,7 @@ final class QuotaModel {
         switch reading {
         case .available: "available"
         case .unavailable(let reason): "unavailable reason=\(reason.rawValue)"
+        case .paused(let reason): "paused reason=\(reason.rawValue)"
         }
       Logger.quota.info("\(provider.rawValue, privacy: .public) fetch \(outcome, privacy: .public)")
       statuses[provider] = .read(reading, since: monotonicNow())

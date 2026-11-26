@@ -7,9 +7,22 @@ struct QuotaSection: View {
     let snapshot = quotaModel.snapshot(of: provider)
     let showsReset =
       provider == .codex && (quotaModel.codexResetCredits != nil || quotaModel.codexReset != .idle)
-    if snapshot != nil || showsReset {
+    // The reset row already explains a denied reset.
+    let denial: ProviderUpstreamAccess.Denial? =
+      if !showsReset, case .paused(let reason) = quotaModel.statuses[provider].latest {
+        reason
+      } else {
+        nil
+      }
+    if snapshot != nil || showsReset || denial != nil {
       VStack(spacing: 16) {
         VStack(spacing: 8) {
+          if let denial {
+            Text(denial.message)
+              .font(.system(size: 9, weight: .medium))
+              .foregroundStyle(.secondary)
+              .frame(maxWidth: .infinity, alignment: .leading)
+          }
           if let snapshot {
             ForEach(snapshot.windows.enumerated(), id: \.offset) { _, window in
               QuotaWindowRow(provider: provider.provider, window: window)

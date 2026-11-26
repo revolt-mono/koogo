@@ -5,6 +5,22 @@ import Testing
 
 struct CommandLineToolTests {
   @Test
+  func `only a successful lookup with a known country can authorize a provider`() async {
+    for (status, body) in [
+      (429, #"{"country":"SG"}"#),
+      (200, "<html>Sign in</html>"),
+      (200, #"{"country":null}"#),
+    ] + ["XX", "T1", "001", "EU", "cn", " SG"].map({ (200, #"{"country":"\#($0)"}"#) }) {
+      let access = ProviderUpstreamAccess { try ProviderUpstreamAccess.response(body, status: status) }
+      #expect(await access.denial() == .unknownRegion)
+    }
+    for country in ["HK", "MO", "TW"] {
+      let access = ProviderUpstreamAccess { try ProviderUpstreamAccess.response(#"{"country":"\#(country)"}"#) }
+      #expect(await access.denial() == nil)
+    }
+  }
+
+  @Test
   func `tools run in an empty directory with a fixed environment instead of the apps own`() async throws {
     let root = try scratch.makeTemporaryDirectory()
     let executable = try TestExecutable.make(

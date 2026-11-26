@@ -2,15 +2,16 @@ protocol QuotaSource: Sendable {
   func load() async -> QuotaReading
 }
 
-extension QuotaUnavailability {
+extension QuotaReading {
   init(_ failure: ToolFailure) {
     self =
       switch failure {
-      case .notFound: .binaryNotFound
-      case .timedOut: .timedOut
+      case .upstreamDenied(let reason): .paused(reason)
+      case .notFound: .unavailable(.binaryNotFound)
+      case .timedOut: .unavailable(.timedOut)
       case .closed,
-           .rpc: .sessionFailed
-      case .invalidMessage: .invalidMessage
+           .rpc: .unavailable(.sessionFailed)
+      case .invalidMessage: .unavailable(.invalidMessage)
       }
   }
 }

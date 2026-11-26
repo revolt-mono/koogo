@@ -1,5 +1,6 @@
 enum ToolFailure: Error, Equatable {
   case notFound
+  case upstreamDenied(ProviderUpstreamAccess.Denial)
   case timedOut
   /// the tool exited, never ran, or closed output before replying.
   case closed
